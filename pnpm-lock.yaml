@@ -755,8 +755,6 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-packages:
-
   '@turbo/darwin-64@2.10.9':
     resolution: {integrity: sha512-Jh+pTGXLNz8+1tkUU13TI/f+ZOI+OvC4YbHi1H+57iSpLt5DR3xgptd+4sA07RdjdRR/RX/01uQQu2OkbzIefA==}
     cpu: [x64]
@@ -1966,8 +1964,6 @@ snapshots:
   '@testing-library/user-event@14.6.4(@testing-library/dom@10.4.1)':
     dependencies:
       '@testing-library/dom': 10.4.1
-
-snapshots:
 
   '@turbo/darwin-64@2.10.9':
     optional: true
