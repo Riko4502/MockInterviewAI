@@ -96,8 +96,7 @@ Request:
 ```json
 {
   "email": "user@example.com",
-  "password": "StrongPassword123!",
-  "passwordConfirmation": "StrongPassword123!"
+  "password": "StrongPassword123!"
 }
 ```
 
@@ -115,7 +114,6 @@ Response (успех):
 |---|---|---|
 | `email` | да | строка; корректный email-формат; trim; нормализация регистра (lowercase); non-empty |
 | `password` | да | строка; соответствует password policy; non-empty |
-| `passwordConfirmation` | да | строка; полностью совпадает с `password` |
 
 Реализация — zod-схема `registerSchema` + экспорт типа `RegisterDto = z.infer<typeof registerSchema>`.
 
@@ -126,9 +124,7 @@ Response (успех):
 Проверки:
 
 - `email` non-empty, валидный формат;
-- `password` non-empty, соответствует policy;
-- `passwordConfirmation` non-empty;
-- `password === passwordConfirmation`.
+- `password` non-empty, соответствует policy.
 
 При ошибке: `400 Bad Request`. Пользователь не создаётся.
 
@@ -188,7 +184,7 @@ model User {
 - Используется Argon2id.
 - Flow: `password → Argon2id → passwordHash → PostgreSQL`.
 - В PostgreSQL хранится только `passwordHash`.
-- Запрещено сохранять `password`, `passwordConfirmation`.
+- Запрещено сохранять `password`.
 
 ### 12. Password Security
 
@@ -387,18 +383,17 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 3. Нормализовать email (`normalizeEmail`).
 4. Проверить существование пользователя (`findByEmail`).
 5. Если существует → `409 Conflict`.
-6. Проверить password confirmation.
-7. Захешировать password через Argon2id.
-8. Создать User в PostgreSQL (catch `P2002` → `409`).
-9. Создать `sessionId` (UUID v4).
-10. Создать `tokenFamilyId` (UUID v4).
-11. Сгенерировать Access JWT.
-12. Сгенерировать Refresh JWT.
-13. Вычислить `refreshTokenHash` (HMAC-SHA-256).
-14. Создать Redis authentication session.
-15. Установить TTL Redis session.
-16. Установить HttpOnly refresh cookie.
-17. Вернуть `{ accessToken }`.
+6. Захешировать password через Argon2id.
+7. Создать User в PostgreSQL (catch `P2002` → `409`).
+8. Создать `sessionId` (UUID v4).
+9. Создать `tokenFamilyId` (UUID v4).
+10. Сгенерировать Access JWT.
+11. Сгенерировать Refresh JWT.
+12. Вычислить `refreshTokenHash` (HMAC-SHA-256).
+13. Создать Redis authentication session.
+14. Установить TTL Redis session.
+15. Установить HttpOnly refresh cookie.
+16. Вернуть `{ accessToken }`.
 
 ### 38. TokenService
 
@@ -463,11 +458,11 @@ AuthService → AuthSessionService → RedisService → Redis
 
 ### 45. Запрещённые данные в Response
 
-Не возвращать: `password`, `passwordConfirmation`, `passwordHash`, `refreshToken`, `refreshTokenHash`, JWT secrets, Redis credentials, internal session data.
+Не возвращать: `password`, `passwordHash`, `refreshToken`, `refreshTokenHash`, JWT secrets, Redis credentials, internal session data.
 
 ### 46. Logging
 
-Запрещено логировать: `password`, `passwordConfirmation`, `passwordHash`, `accessToken`, `refreshToken`, `refreshTokenHash`, JWT secrets, Redis credentials. Не логировать полный `Authorization` header.
+Запрещено логировать: `password`, `passwordHash`, `accessToken`, `refreshToken`, `refreshTokenHash`, JWT secrets, Redis credentials. Не логировать полный `Authorization` header.
 
 Реализация: `SensitiveLoggingInterceptor` / middleware — логирует URL, метод, status, latency, но не тело auth-запросов и не чувствительные поля.
 
@@ -598,7 +593,6 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 **Unit (AuthService, §50):**
 - successful registration: email нормализуется, user не существует, пароль хешируется, User создаётся, session создаётся, Access JWT, Refresh JWT, refresh token hash, Redis session;
 - existing email → 409;
-- password mismatch → 400, user не создаётся;
 - Redis unavailable → 500, session не создаётся, access token не возвращается, детали ошибки не раскрываются, user удаляется (компенсация).
 
 **Unit (TokenService, §51):**
@@ -613,11 +607,10 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - Redis key (`auth:session:{sessionId}`), TTL;
 - userId, refreshTokenHash, tokenFamilyId.
 
-**Unit (DTO):** валидация email, password policy, password confirmation.
+**Unit (DTO):** валидация email, password policy.
 
 **Security (§53):**
 - password не хранится plaintext и не попадает в logs;
-- passwordConfirmation не сохраняется;
 - refresh token в Redis только как hash;
 - access token не сохраняется в Redis;
 - refresh token не возвращается в JSON;
@@ -631,9 +624,8 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 **E2E (§55, supertest на реальные PG+Redis в Docker):**
 - E2E-01: успешная регистрация → 201, `{ accessToken }`, `Set-Cookie` c refresh token;
 - E2E-02: повторная регистрация → 409, новый user не создаётся;
-- E2E-03: mismatch паролей → 400, user не создаётся;
-- E2E-04: невалидный email → 400;
-- E2E-05: Redis недоступен → 500, session не создаётся, access token не возвращается.
+- E2E-03: невалидный email → 400;
+- E2E-04: Redis недоступен → 500, session не создаётся, access token не возвращается.
 
 **Integration (§54):** после успешной регистрации User существует в PostgreSQL, `auth:session:{sessionId}` существует в Redis.
 
