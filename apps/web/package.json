@@ -11,9 +11,10 @@
     "lint-staged": "lint-staged"
   },
   "dependencies": {
-    "@packages/ui": "workspace:*",
     "@hookform/resolvers": "^5.7.1",
+    "@packages/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
+    "clsx": "^2.1.1",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
