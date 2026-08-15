@@ -1,0 +1,19 @@
+name: "CI Security (Secrets Scan)"
+
+on:
+  workflow_call:
+
+jobs:
+  secrets-scan:
+    name: "Поиск утечек секретов (TruffleHog)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория с полной историей"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "Сканирование коммитов на ключи и токены"
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified

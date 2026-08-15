@@ -1,0 +1,71 @@
+name: "CI Realtime (Go)"
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: "Unit-тесты Go"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Realtime (go.mod)"
+        id: check_realtime
+        run: |
+          if [ -f "apps/realtime/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка Go"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          cache-dependency-path: 'apps/realtime/go.sum'
+
+      - name: "Запуск unit-тестов Go"
+        if: steps.check_realtime.outputs.exists == 'true'
+        working-directory: apps/realtime
+        run: go test -v -race ./...
+
+  security:
+    name: "SAST и аудит Go"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Realtime (go.mod)"
+        id: check_realtime
+        run: |
+          if [ -f "apps/realtime/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка Go"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          cache-dependency-path: 'apps/realtime/go.sum'
+
+      - name: "Проверка уязвимостей в зависимостях (govulncheck)"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          work-dir: 'apps/realtime'
+
+      - name: "Запуск линтера и статического анализа (golangci-lint)"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: apps/realtime
+          args: --timeout=5m
