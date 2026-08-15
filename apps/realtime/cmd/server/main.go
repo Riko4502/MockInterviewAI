@@ -65,7 +65,7 @@ func main() {
 	defer rootCancel()
 
 	redisStore := storage.NewRedisStore(cfg, logger)
-	tokenVerifier := auth.NewTokenVerifier(cfg.JWTSecret)
+	tokenVerifier := auth.NewTokenVerifier(cfg.JWTAccessSecret)
 	hub := ws.NewHub(rootCtx, redisStore, logger)
 
 	healthHandler := handler.NewHealthHandler(hub, redisStore)

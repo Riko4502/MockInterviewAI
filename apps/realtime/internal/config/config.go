@@ -20,9 +20,11 @@ type Config struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	AllowedOrigins         []string
-	JWTSecret              string
+	JWTAccessSecret        string
+	JWTRefreshSecret       string
 	LogLevel               string
 	AccessTokenCookieName  string
+	RefreshTokenCookieName string
 	MaxConnections         int
 	MaxRoomClients         int
 
@@ -34,20 +36,23 @@ type Config struct {
 }
 
 // Load загружает настройки из переменных окружения и .env файлов.
-// JWT_SECRET и Redis параметры читаются напрямую из корневого .env файла монорепозитория.
+// JWT_ACCESS_SECRET и Redis параметры читаются напрямую из корневого .env файла монорепозитория.
 func Load() (*Config, error) {
 	loadDotEnvs()
 
 	port := getEnv("REALTIME_PORT", getEnv("PORT", "8080"))
 	host := getEnv("REALTIME_HOST", getEnv("HOST", "0.0.0.0"))
 	env := getEnv("ENV", "development")
-	jwtSecret := getEnv("JWT_SECRET", "")
 
-	if jwtSecret == "" {
+	// Считываем JWT ключи: 우선 JWT_ACCESS_SECRET, для обратной совместимости fallback на JWT_SECRET
+	jwtAccessSecret := getEnv("JWT_ACCESS_SECRET", getEnv("JWT_SECRET", ""))
+	jwtRefreshSecret := getEnv("JWT_REFRESH_SECRET", "")
+
+	if jwtAccessSecret == "" {
 		if env == "production" {
-			return nil, fmt.Errorf("JWT_SECRET is required in production (must be set in root .env or environment)")
+			return nil, fmt.Errorf("JWT_ACCESS_SECRET (or JWT_SECRET) is required in production (must be set in root .env or environment)")
 		}
-		jwtSecret = "mock-interview-default-secret-key-change-in-prod"
+		jwtAccessSecret = "mock-interview-default-access-secret-key-change-in-prod"
 	}
 
 	shutdownSec, err := getEnvInt("SHUTDOWN_TIMEOUT_SECONDS", 10)
@@ -116,16 +121,18 @@ func Load() (*Config, error) {
 		ShutdownTimeout:       time.Duration(shutdownSec) * time.Second,
 		ReadTimeout:           time.Duration(readSec) * time.Second,
 		WriteTimeout:          time.Duration(writeSec) * time.Second,
-		AllowedOrigins:        allowedOrigins,
-		JWTSecret:             jwtSecret,
-		LogLevel:              getEnv("LOG_LEVEL", "debug"),
-		AccessTokenCookieName: getEnv("ACCESS_TOKEN_COOKIE_NAME", "access_token"),
-		MaxConnections:        maxConn,
-		MaxRoomClients:        maxRoomClients,
-		RedisAddr:             redisAddr,
-		RedisPassword:         redisPassword,
-		RedisDB:               redisDB,
-		RedisEnabled:          redisEnabled,
+		AllowedOrigins:         allowedOrigins,
+		JWTAccessSecret:        jwtAccessSecret,
+		JWTRefreshSecret:       jwtRefreshSecret,
+		LogLevel:               getEnv("LOG_LEVEL", "debug"),
+		AccessTokenCookieName:  getEnv("JWT_ACCESS_COOKIE_NAME", getEnv("ACCESS_TOKEN_COOKIE_NAME", "access_token")),
+		RefreshTokenCookieName: getEnv("JWT_REFRESH_COOKIE_NAME", getEnv("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")),
+		MaxConnections:         maxConn,
+		MaxRoomClients:         maxRoomClients,
+		RedisAddr:              redisAddr,
+		RedisPassword:          redisPassword,
+		RedisDB:                redisDB,
+		RedisEnabled:           redisEnabled,
 	}, nil
 }
 

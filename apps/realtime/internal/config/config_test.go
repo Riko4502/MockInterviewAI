@@ -8,11 +8,11 @@ import (
 func TestConfigProductionValidation(t *testing.T) {
 	// 1. В продакшене без ALLOWED_ORIGINS должна быть ошибка (защита от CSWSH)
 	os.Setenv("ENV", "production")
-	os.Setenv("JWT_SECRET", "super-secret-key-12345")
+	os.Setenv("JWT_ACCESS_SECRET", "super-secret-key-12345")
 	os.Setenv("ALLOWED_ORIGINS", "*")
 	defer func() {
 		os.Unsetenv("ENV")
-		os.Unsetenv("JWT_SECRET")
+		os.Unsetenv("JWT_ACCESS_SECRET")
 		os.Unsetenv("ALLOWED_ORIGINS")
 	}()
 
