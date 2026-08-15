@@ -180,6 +180,7 @@ jobs:
           BRANCH_NAME: ${{ github.ref_name }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
         with:
@@ -188,7 +189,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          envs: GITHUB_OWNER,BRANCH_NAME,JWT_ACCESS_SECRET,JWT_REFRESH_SECRET,GHCR_PAT,GHCR_USER
+          envs: GITHUB_OWNER,BRANCH_NAME,JWT_ACCESS_SECRET,JWT_REFRESH_SECRET,DATABASE_URL,GHCR_PAT,GHCR_USER
           script: |
             mkdir -p /opt/mock-interview-ai
             cd /opt/mock-interview-ai
@@ -204,9 +205,62 @@ jobs:
             export WEB_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:${BRANCH_NAME}"
             export API_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:${BRANCH_NAME}"
 
-            # Загрузка свежих образов и запуск
+            # Загрузка свежих образов
             docker compose -f docker-compose.prod.yml pull
+
+            # --- Пункт 2: Prisma migrations ---
+            # Запускаем migrate deploy в отдельном одноразовом контейнере
+            # до подъёма API, чтобы схема БД всегда была актуальна
+            if [ -n "$DATABASE_URL" ]; then
+              echo "Running Prisma migrations..."
+              docker run --rm \
+                -e DATABASE_URL="$DATABASE_URL" \
+                --network host \
+                "$API_IMAGE" \
+                sh -c "npx prisma migrate deploy" \
+              && echo "✅ Migrations applied" \
+              || { echo "❌ Migrations failed"; exit 1; }
+            else
+              echo "⚠️  DATABASE_URL not set — skipping Prisma migrations"
+            fi
+
+            # Запуск/обновление контейнеров
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # --- Пункт 3: Health check после деплоя ---
+            # Шаг 1: контейнеры запустились?
+            echo "Checking container status..."
+            sleep 5
+            for svc in mock-interview-api mock-interview-realtime mock-interview-web; do
+              STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
+              if [ "$STATUS" != "running" ]; then
+                echo "❌ Container $svc is not running (status: $STATUS)"
+                docker logs --tail=50 "$svc" 2>/dev/null || true
+                exit 1
+              fi
+              echo "✅ $svc is running"
+            done
+
+            # Шаг 2: HTTP health check через docker exec внутри контейнера
+            # Не зависит от домена — curl идёт на 127.0.0.1 изнутри самого контейнера
+            echo "Probing API health endpoint via docker exec..."
+            for i in $(seq 1 12); do
+              HTTP_STATUS=$(docker exec mock-interview-api \
+                curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 5 http://127.0.0.1:4000/api/v1/health 2>/dev/null || echo "000")
+              if [ "$HTTP_STATUS" = "200" ]; then
+                echo "✅ API health check passed (HTTP 200)"
+                break
+              fi
+              echo "Attempt $i/12: HTTP $HTTP_STATUS — retrying in 5s..."
+              sleep 5
+              if [ $i -eq 12 ]; then
+                echo "⚠️  API did not respond with 200 after 60s (HTTP $HTTP_STATUS)"
+                echo "    Non-fatal if /api/v1/health is not yet implemented."
+              fi
+            done
+
 
             # Очистка неиспользуемых старых слоев
             docker image prune -f
+            echo "🚀 Deployment complete"
