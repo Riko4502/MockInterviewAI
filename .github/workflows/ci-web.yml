@@ -5,7 +5,7 @@ on:
 
 jobs:
   test:
-    name: "Тесты Next.js / Vitest"
+    name: "Тесты и проверки Web (Biome, TypeScript, Vitest, Build)"
     runs-on: ubuntu-latest
     steps:
       - name: "Клонирование репозитория"
@@ -31,8 +31,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
+      - name: "Проверка стиля и линтинг (Biome)"
+        run: pnpm --filter web lint
+
+      - name: "Проверка типов TypeScript"
+        run: pnpm --filter web exec tsc --noEmit
+
       - name: "Запуск тестов фронтенда"
         run: pnpm --filter web test
+
+      - name: "Проверка сборки Next.js"
+        run: pnpm --filter web build
 
   audit:
     name: "Аудит безопасности Web (pnpm audit)"
