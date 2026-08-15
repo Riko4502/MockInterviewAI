@@ -302,6 +302,7 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message_thread_id: ${{ secrets.TELEGRAM_THREAD_ID }}
           format: markdown
           message: |
             ${{ steps.status.outputs.icon }} *${{ steps.status.outputs.label }}*
