@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: mock-interview-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  realtime:
+    image: ${REALTIME_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:latest}
+    container_name: mock-interview-realtime
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
+      - ENVIRONMENT=production
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:latest}
+    container_name: mock-interview-web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_REALTIME_URL=${NEXT_PUBLIC_REALTIME_URL:-http://localhost:8080}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - realtime
+
+volumes:
+  redis_data:
