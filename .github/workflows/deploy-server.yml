@@ -1,0 +1,115 @@
+name: "Deploy Server"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    name: "Развертывание на удаленном сервере (SSH)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: "Копирование docker-compose.prod.yml на сервер"
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: 'docker-compose.prod.yml'
+          target: '/opt/mock-interview-ai'
+
+      - name: "Выполнение команд обновления контейнеров по SSH"
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          BRANCH_NAME: ${{ inputs.ref || github.ref_name }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          envs: GITHUB_OWNER,BRANCH_NAME,JWT_ACCESS_SECRET,JWT_REFRESH_SECRET,DATABASE_URL,GHCR_PAT,GHCR_USER
+          script: |
+            mkdir -p /opt/mock-interview-ai
+            cd /opt/mock-interview-ai
+
+            # Авторизация в GitHub Packages для загрузки приватных образов
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # Подготовка переменных окружения
+            export GITHUB_REPOSITORY_OWNER=$(echo "$GITHUB_OWNER" | tr '[:upper:]' '[:lower:]')
+            export JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
+            export JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
+            export REALTIME_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:${BRANCH_NAME}"
+            export WEB_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:${BRANCH_NAME}"
+            export API_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:${BRANCH_NAME}"
+
+            # Загрузка свежих образов
+            docker compose -f docker-compose.prod.yml pull
+
+            # --- Prisma migrations ---
+            if [ -n "$DATABASE_URL" ]; then
+              echo "Running Prisma migrations..."
+              docker run --rm \
+                -e DATABASE_URL="$DATABASE_URL" \
+                --network host \
+                "$API_IMAGE" \
+                sh -c "npx prisma migrate deploy" \
+              && echo "✅ Migrations applied" \
+              || { echo "❌ Migrations failed"; exit 1; }
+            else
+              echo "⚠️ DATABASE_URL not set — skipping Prisma migrations"
+            fi
+
+            # Запуск/обновление контейнеров
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # --- Health checks ---
+            echo "Checking container status..."
+            sleep 5
+            for svc in mock-interview-api mock-interview-realtime mock-interview-web; do
+              STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
+              if [ "$STATUS" != "running" ]; then
+                echo "❌ Container $svc is not running (status: $STATUS)"
+                docker logs --tail=50 "$svc" 2>/dev/null || true
+                exit 1
+              fi
+              echo "✅ $svc is running"
+            done
+
+            echo "Probing API health endpoint via docker exec..."
+            for i in $(seq 1 12); do
+              HTTP_STATUS=$(docker exec mock-interview-api \
+                curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 5 http://127.0.0.1:4000/api/v1/health 2>/dev/null || echo "000")
+              if [ "$HTTP_STATUS" = "200" ]; then
+                echo "✅ API health check passed (HTTP 200)"
+                break
+              fi
+              echo "Attempt $i/12: HTTP $HTTP_STATUS — retrying in 5s..."
+              sleep 5
+              if [ $i -eq 12 ]; then
+                echo "⚠️ API did not respond with 200 after 60s (HTTP $HTTP_STATUS)"
+                echo "   Non-fatal if /api/v1/health is not yet implemented."
+              fi
+            done
+
+            docker image prune -f
+            echo "🚀 Deployment complete"

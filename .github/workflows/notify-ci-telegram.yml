@@ -1,0 +1,99 @@
+name: "CI Telegram Notification"
+
+on:
+  workflow_call:
+    inputs:
+      realtime_result:
+        type: string
+        required: false
+        default: 'skipped'
+      web_result:
+        type: string
+        required: false
+        default: 'skipped'
+      api_result:
+        type: string
+        required: false
+        default: 'skipped'
+      security_result:
+        type: string
+        required: false
+        default: 'skipped'
+
+jobs:
+  notify:
+    name: "Отправка отчета в Telegram"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Отправка уведомления через curl"
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          RT_RES: ${{ inputs.realtime_result }}
+          WEB_RES: ${{ inputs.web_result }}
+          API_RES: ${{ inputs.api_result }}
+          SEC_RES: ${{ inputs.security_result }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
+            exit 0
+          fi
+
+          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$API_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
+            STATUS_HEADER="❌ *CI: Найдены ошибки*"
+          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
+            STATUS_HEADER="⚠️ *CI: Отменено*"
+          else
+            STATUS_HEADER="✅ *CI: Проверки успешно пройдены*"
+          fi
+
+          format_icon() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              cancelled) echo "🚫" ;;
+              skipped) echo "⏭️" ;;
+              *) echo "❓" ;;
+            esac
+          }
+
+          ICON_RT=$(format_icon "$RT_RES")
+          ICON_WEB=$(format_icon "$WEB_RES")
+          ICON_API=$(format_icon "$API_RES")
+          ICON_SEC=$(format_icon "$SEC_RES")
+
+          IS_NEW_BRANCH="${{ github.event.created }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$IS_NEW_BRANCH" = "true" ]; then
+            BRANCH_INFO="🌱 *Создана новая ветка:* \`${{ github.ref_name }}\`"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            BRANCH_INFO="🔀 *Pull Request:* \`${{ github.head_ref }}\` ➔ \`${{ github.base_ref }}\`"
+          else
+            BRANCH_INFO="🌿 *Ветка:* \`${{ github.ref_name }}\`"
+          fi
+
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          MESSAGE=$(printf "%s\n\n%s\n📦 *Репозиторий:* [%s](https://github.com/%s)\n👤 *Автор:* %s\n💬 *Коммит:* [%s](https://github.com/%s/commit/%s)\n\n📊 *Результаты проверок:*\n• Realtime (Go): %s\n• Web (Next.js): %s\n• API (Nest.js): %s\n• Безопасность (TruffleHog): %s\n\n🔗 [Открыть запуск в GitHub Actions](https://github.com/%s/actions/runs/%s)" \
+            "$STATUS_HEADER" \
+            "$BRANCH_INFO" \
+            "${{ github.repository }}" "${{ github.repository }}" \
+            "${{ github.actor }}" \
+            "$SHORT_SHA" "${{ github.repository }}" "${{ github.sha }}" \
+            "$ICON_RT" \
+            "$ICON_WEB" \
+            "$ICON_API" \
+            "$ICON_SEC" \
+            "${{ github.repository }}" "${{ github.run_id }}")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg thread_id "$THREAD_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id: $chat_id, text: $text, parse_mode: "Markdown", disable_notification: true} + (if ($thread_id != "" and $thread_id != null) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+
+          curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" || true
