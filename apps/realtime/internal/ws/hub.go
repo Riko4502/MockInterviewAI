@@ -10,24 +10,51 @@ import (
 
 // Hub управляет всеми активными комнатами WebSocket сервиса.
 type Hub struct {
-	rooms       map[string]*Room
-	broadcaster storage.Broadcaster
-	mu          sync.RWMutex
-	logger      *slog.Logger
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	rooms        map[string]*Room
+	broadcaster  storage.Broadcaster
+	sessionStore storage.SessionStore
+	mu           sync.RWMutex
+	logger       *slog.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
-// NewHub создает центральный реестр комнат с поддержкой межсерверного Broadcaster.
-func NewHub(parentCtx context.Context, broadcaster storage.Broadcaster, logger *slog.Logger) *Hub {
+// NewHub создает центральный реестр комнат с поддержкой межсерверного Broadcaster и SessionStore.
+func NewHub(parentCtx context.Context, broadcaster storage.Broadcaster, sessionStore storage.SessionStore, logger *slog.Logger) *Hub {
 	ctx, cancel := context.WithCancel(parentCtx)
-	return &Hub{
-		rooms:       make(map[string]*Room),
-		broadcaster: broadcaster,
-		logger:      logger.With(slog.String("component", "hub")),
-		ctx:         ctx,
-		cancel:      cancel,
+	hub := &Hub{
+		rooms:        make(map[string]*Room),
+		broadcaster:  broadcaster,
+		sessionStore: sessionStore,
+		logger:       logger.With(slog.String("component", "hub")),
+		ctx:          ctx,
+		cancel:       cancel,
+	}
+
+	// Подписка на глобальные сигналы отзыва авторизации пользователей через Redis Pub/Sub
+	if broadcaster != nil {
+		unsubscribe, err := broadcaster.SubscribeRevocations(ctx, func(userID string) {
+			hub.EvictUser(userID, "user authentication revoked")
+		})
+		if err == nil && unsubscribe != nil {
+			go func() {
+				<-ctx.Done()
+				unsubscribe()
+			}()
+		}
+	}
+
+	return hub
+}
+
+// EvictUser принудительно отключает указанного пользователя во всех активных комнатах на данном сервере.
+func (h *Hub) EvictUser(userID string, reason string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, room := range h.rooms {
+		room.EvictUser(userID, reason)
 	}
 }
 
@@ -40,7 +67,7 @@ func (h *Hub) GetOrCreateRoom(sessionID string) *Room {
 		return room
 	}
 
-	room := NewRoom(sessionID, h.broadcaster, h.logger, func(id string) {
+	room := NewRoom(sessionID, h.broadcaster, h.sessionStore, h.logger, func(id string) {
 		h.RemoveRoom(id)
 	})
 

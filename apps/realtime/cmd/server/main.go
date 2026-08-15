@@ -66,7 +66,7 @@ func main() {
 
 	redisStore := storage.NewRedisStore(cfg, logger)
 	tokenVerifier := auth.NewTokenVerifier(cfg.JWTAccessSecret)
-	hub := ws.NewHub(rootCtx, redisStore, logger)
+	hub := ws.NewHub(rootCtx, redisStore, redisStore, logger)
 
 	healthHandler := handler.NewHealthHandler(hub, redisStore)
 	wsHandler := handler.NewWebSocketHandler(hub, tokenVerifier, redisStore, logger, cfg.AllowedOrigins, cfg.AccessTokenCookieName, cfg.MaxConnections, cfg.MaxRoomClients)

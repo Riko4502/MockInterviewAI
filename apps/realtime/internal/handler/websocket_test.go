@@ -39,7 +39,8 @@ func generateTestJWT(secret, userID, username, sessionID string) (string, error)
 }
 
 type mockSessionStore struct {
-	roles map[string]string
+	roles     map[string]string
+	codeState map[string][]byte
 }
 
 func (m *mockSessionStore) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) {
@@ -54,6 +55,19 @@ func (m *mockSessionStore) GetSessionUserRole(ctx context.Context, sessionID, us
 	}
 	return "candidate", nil
 }
+func (m *mockSessionStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
+	if m.codeState == nil {
+		m.codeState = make(map[string][]byte)
+	}
+	m.codeState[sessionID] = data
+	return nil
+}
+func (m *mockSessionStore) GetCodeState(ctx context.Context, sessionID string) ([]byte, error) {
+	if m.codeState == nil {
+		return nil, nil
+	}
+	return m.codeState[sessionID], nil
+}
 func (m *mockSessionStore) Ping(ctx context.Context) error { return nil }
 func (m *mockSessionStore) Close() error                  { return nil }
 
@@ -65,14 +79,14 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	secret := "integration-test-secret-key-12345"
 	tokenVerifier := auth.NewTokenVerifier(secret)
-	hub := ws.NewHub(ctx, nil, logger)
-
 	sessionStore := &mockSessionStore{
 		roles: map[string]string{
 			"cand-1": "candidate",
 			"int-1":  "interviewer",
 		},
+		codeState: make(map[string][]byte),
 	}
+	hub := ws.NewHub(ctx, nil, sessionStore, logger)
 
 	wsHandler := NewWebSocketHandler(hub, tokenVerifier, sessionStore, logger, []string{"*"}, "access_token", 10000, 20)
 
@@ -262,7 +276,7 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	secret := "test-secret-capacity"
 	tokenVerifier := auth.NewTokenVerifier(secret)
-	hub := ws.NewHub(ctx, nil, logger)
+	hub := ws.NewHub(ctx, nil, nil, logger)
 
 	// Ограничиваем комнату максимум 1 участником
 	wsHandler := NewWebSocketHandler(hub, tokenVerifier, nil, logger, []string{"*"}, "access_token", 100, 1)

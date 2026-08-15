@@ -14,7 +14,7 @@ import (
 
 func TestClientRateLimiting(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	room := NewRoom("test-session", nil, logger, nil)
+	room := NewRoom("test-session", nil, nil, logger, nil)
 
 	client := &Client{
 		ID:        "test-client-1",

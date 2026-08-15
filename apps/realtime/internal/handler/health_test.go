@@ -17,7 +17,7 @@ func TestHealthEndpoints(t *testing.T) {
 	defer cancel()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	hub := ws.NewHub(ctx, nil, logger)
+	hub := ws.NewHub(ctx, nil, nil, logger)
 	healthHandler := NewHealthHandler(hub, nil)
 
 	// 1. Тест /healthz (liveness)

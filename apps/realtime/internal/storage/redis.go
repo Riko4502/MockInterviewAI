@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,14 +17,18 @@ import (
 type Broadcaster interface {
 	Publish(ctx context.Context, sessionID string, data []byte) error
 	Subscribe(ctx context.Context, sessionID string, onMessage func(data []byte)) (func(), error)
+	SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error)
+	RevokeUser(ctx context.Context, userID string) error
 	InstanceID() string
 }
 
-// SessionStore интерфейс для проверки состояния токенов, сессий и ролей участников в Redis.
+// SessionStore интерфейс для проверки состояния токенов, сессий, ролей участников и персистентности кода в Redis.
 type SessionStore interface {
 	IsTokenRevoked(ctx context.Context, tokenID string) (bool, error)
 	IsSessionActive(ctx context.Context, sessionID string) (bool, error)
 	GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error)
+	SaveCodeState(ctx context.Context, sessionID string, data []byte) error
+	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
 	Close() error
 }
@@ -162,6 +167,66 @@ func (r *RedisStore) Subscribe(ctx context.Context, sessionID string, onMessage 
 	return unsubscribe, nil
 }
 
+// RevokeUser публикует сигнал отзыва токена/сессии пользователя в глобальный Redis-канал "auth:revocations".
+func (r *RedisStore) RevokeUser(ctx context.Context, userID string) error {
+	if !r.enabled || r.client == nil || userID == "" {
+		return nil
+	}
+
+	payload, err := json.Marshal(PubSubMessage{
+		InstanceID: r.instanceID,
+		Data:       []byte(userID),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal revocation message: %w", err)
+	}
+
+	return r.client.Publish(ctx, "auth:revocations", payload).Err()
+}
+
+// SubscribeRevocations подписывается на глобальные сигналы отзыва авторизации пользователей.
+func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error) {
+	if !r.enabled || r.client == nil {
+		return func() {}, nil
+	}
+
+	pubsub := r.client.Subscribe(ctx, "auth:revocations")
+	subCtx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		defer pubsub.Close()
+		ch := pubsub.Channel()
+
+		for {
+			select {
+			case <-subCtx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				var wrapped PubSubMessage
+				if err := json.Unmarshal([]byte(msg.Payload), &wrapped); err != nil {
+					continue
+				}
+
+				userID := strings.TrimSpace(string(wrapped.Data))
+				if userID != "" {
+					onRevoke(userID)
+				}
+			}
+		}
+	}()
+
+	unsubscribe := func() {
+		cancel()
+		_ = pubsub.Close()
+	}
+
+	return unsubscribe, nil
+}
+
 // IsTokenRevoked проверяет, не отозван ли токен (blacklist в Redis: key "blacklist:token:<id>").
 func (r *RedisStore) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) {
 	if !r.enabled || r.client == nil || tokenID == "" {
@@ -218,6 +283,34 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 	}
 
 	return role, nil
+}
+
+// SaveCodeState сохраняет последний снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа).
+func (r *RedisStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return nil
+	}
+
+	key := fmt.Sprintf("session:%s:code", sessionID)
+	return r.client.Set(ctx, key, data, 24*time.Hour).Err()
+}
+
+// GetCodeState считывает последний снимок кода сессии из Redis.
+func (r *RedisStore) GetCodeState(ctx context.Context, sessionID string) ([]byte, error) {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return nil, nil
+	}
+
+	key := fmt.Sprintf("session:%s:code", sessionID)
+	data, err := r.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return data, nil
 }
 
 // Ping проверяет состояние соединения с Redis (для /readyz).

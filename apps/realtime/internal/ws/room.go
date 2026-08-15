@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -35,26 +36,29 @@ type Room struct {
 	logger        *slog.Logger
 	onEmpty       func(roomID string)
 	broadcaster   storage.Broadcaster
+	sessionStore  storage.SessionStore
 	lastCodeState *CodeUpdatePayload
 }
 
-// NewRoom создает новый экземпляр комнаты для сессии с поддержкой распределенного Broadcaster.
+// NewRoom создает новый экземпляр комнаты для сессии с поддержкой распределенного Broadcaster и SessionStore.
 func NewRoom(
 	id string,
 	broadcaster storage.Broadcaster,
+	sessionStore storage.SessionStore,
 	logger *slog.Logger,
 	onEmpty func(roomID string),
 ) *Room {
 	return &Room{
-		ID:          id,
-		clients:     make(map[string]*Client),
-		register:    make(chan *Client),
-		unregister:  make(chan *Client),
-		broadcast:   make(chan broadcastMessage, 256),
-		done:        make(chan struct{}),
-		logger:      logger.With(slog.String("roomId", id)),
-		onEmpty:     onEmpty,
-		broadcaster: broadcaster,
+		ID:           id,
+		clients:      make(map[string]*Client),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		broadcast:    make(chan broadcastMessage, 256),
+		done:         make(chan struct{}),
+		logger:       logger.With(slog.String("roomId", id)),
+		onEmpty:      onEmpty,
+		broadcaster:  broadcaster,
+		sessionStore: sessionStore,
 	}
 }
 
@@ -64,6 +68,22 @@ func (r *Room) Run(ctx context.Context) {
 	defer func() {
 		r.logger.Info("room loop terminated")
 	}()
+
+	// Восстановление последнего снимка кода из Redis при запуске комнаты
+	if r.sessionStore != nil {
+		if codeBytes, err := r.sessionStore.GetCodeState(ctx, r.ID); err == nil && len(codeBytes) > 0 {
+			var codePayload CodeUpdatePayload
+			if unpackErr := json.Unmarshal(codeBytes, &codePayload); unpackErr == nil {
+				r.mu.Lock()
+				r.lastCodeState = &codePayload
+				r.mu.Unlock()
+				r.logger.Info("restored last code state from redis",
+					slog.String("filePath", codePayload.FilePath),
+					slog.Int64("version", codePayload.Version),
+				)
+			}
+		}
+	}
 
 	// Подписка на распределенные события комнаты из Redis
 	if r.broadcaster != nil {
@@ -234,20 +254,23 @@ func (r *Room) handleUnregister(client *Client) {
 	if leaveBytes, err := leaveEnv.ToBytes(); err == nil {
 		r.Broadcast(leaveBytes, client.ID)
 	}
-
-	if count == 0 && r.onEmpty != nil {
-		r.onEmpty(r.ID)
-	}
 }
 
 // handleBroadcast рассылает сообщение локальным клиентам и публикует в Redis для других реплик.
 func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
-	// Если это обновление кода, обновляем сохраненный снимок для будущих участников
+	// Если это обновление кода, обновляем сохраненный снимок для будущих участников и сохраняем в Redis
 	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
 			r.mu.Lock()
 			r.lastCodeState = &codePayload
 			r.mu.Unlock()
+
+			// Сохраняем актуальный снимок кода в Redis
+			if r.sessionStore != nil {
+				if payloadBytes, marshalErr := json.Marshal(codePayload); marshalErr == nil {
+					_ = r.sessionStore.SaveCodeState(ctx, r.ID, payloadBytes)
+				}
+			}
 		}
 	}
 
@@ -300,6 +323,24 @@ func (r *Room) BroadcastFromRemote(data []byte) {
 	case <-r.done:
 		return
 	case r.broadcast <- broadcastMessage{data: data, senderID: "", isRemote: true}:
+	}
+}
+
+// EvictUser принудительно отключает конкретного пользователя из комнаты (при отзыве токена).
+func (r *Room) EvictUser(userID string, reason string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for clientID, client := range r.clients {
+		if client.UserID == userID {
+			delete(r.clients, clientID)
+			r.logger.Warn("evicting user from room due to token revocation",
+				slog.String("userId", userID),
+				slog.String("clientId", clientID),
+				slog.String("reason", reason),
+			)
+			go client.Close(websocket.StatusPolicyViolation, reason)
+		}
 	}
 }
 

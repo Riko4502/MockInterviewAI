@@ -13,7 +13,7 @@ func TestHubLifecycle(t *testing.T) {
 	defer cancel()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	hub := NewHub(ctx, nil, logger)
+	hub := NewHub(ctx, nil, nil, logger)
 
 	if hub.TotalRooms() != 0 {
 		t.Errorf("expected 0 rooms, got %d", hub.TotalRooms())
@@ -76,7 +76,7 @@ func TestRoomLifecycle(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	emptyCalled := false
 
-	room := NewRoom("test-session", nil, logger, func(id string) {
+	room := NewRoom("test-session", nil, nil, logger, func(id string) {
 		emptyCalled = true
 	})
 
@@ -97,7 +97,7 @@ func TestRoomSingleUserConnectionDisplacement(t *testing.T) {
 	defer cancel()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	room := NewRoom("test-session", nil, logger, nil)
+	room := NewRoom("test-session", nil, nil, logger, nil)
 	go room.Run(ctx)
 
 	// Клиент 1 (User A)
