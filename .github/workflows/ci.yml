@@ -32,16 +32,17 @@ concurrency:
 
 jobs:
   changes:
-    name: Detect Changed Services
+    name: "Определение изменённых сервисов"
     runs-on: ubuntu-latest
     outputs:
       realtime: ${{ steps.filter.outputs.realtime }}
       web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.filter.outputs.api }}
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
-      - name: Paths Filter
+      - name: "Фильтрация изменённых путей"
         id: filter
         uses: dorny/paths-filter@v4
         with:
@@ -57,17 +58,25 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
 
   test-realtime:
-    name: Realtime Service Tests (Go)
+    name: "Тесты сервиса Realtime (Go)"
     needs: changes
     if: needs.changes.outputs.realtime == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
-      - name: Check if realtime go.mod exists
+      - name: "Проверка наличия сервиса Realtime (go.mod)"
         id: check_realtime
         run: |
           if [ -f "apps/realtime/go.mod" ]; then
@@ -76,28 +85,28 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Go
+      - name: "Установка Go"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
 
-      - name: Run Go tests
+      - name: "Запуск unit-тестов Go"
         if: steps.check_realtime.outputs.exists == 'true'
         working-directory: apps/realtime
         run: go test -v -race ./...
 
   security-realtime:
-    name: Realtime Security & SAST (Go)
+    name: "Безопасность и SAST-анализ Realtime (Go)"
     needs: changes
     if: needs.changes.outputs.realtime == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
-      - name: Check if realtime go.mod exists
+      - name: "Проверка наличия сервиса Realtime (go.mod)"
         id: check_realtime
         run: |
           if [ -f "apps/realtime/go.mod" ]; then
@@ -106,21 +115,21 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Go
+      - name: "Установка Go"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
 
-      - name: Run govulncheck (Go Vulnerability Database)
+      - name: "Проверка уязвимостей в зависимостях (govulncheck)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golang/govulncheck-action@v1
         with:
           go-version-file: 'apps/realtime/go.mod'
           work-dir: 'apps/realtime'
 
-      - name: Run golangci-lint (gosec, errcheck, staticcheck)
+      - name: "Запуск линтера и статического анализа (golangci-lint)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v6
         with:
@@ -129,27 +138,27 @@ jobs:
           args: --timeout=5m
 
   test-web:
-    name: Web Frontend Tests (Next.js / Vitest)
+    name: "Тесты веб-приложения (Next.js / Vitest)"
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
-      - name: Install pnpm
+      - name: "Установка pnpm"
         uses: pnpm/action-setup@v6
 
-      - name: Set up Node.js
+      - name: "Установка Node.js"
         uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: Turborepo Cache
+      - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v4
         with:
           path: .turbo
@@ -157,34 +166,80 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
-      - name: Run Web tests
+      - name: "Запуск тестов фронтенда"
         run: pnpm --filter web test
 
+  test-api:
+    name: "Тесты и сборка API Backend (Nest.js)"
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса API (apps/api)"
+        id: check_api
+        run: |
+          if [ -d "apps/api" ] && [ -f "apps/api/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка pnpm"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: "Запуск тестов и сборки Nest.js"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm --filter @apps/api test || pnpm --filter api test || pnpm turbo run build --filter=...api
+
   security-web:
-    name: Web Dependency Security Audit (pnpm audit)
+    name: "Аудит безопасности зависимостей (pnpm audit)"
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
-      - name: Install pnpm
+      - name: "Установка pnpm"
         uses: pnpm/action-setup@v6
 
-      - name: Run pnpm audit for high/critical vulnerabilities
+      - name: "Проверка уязвимостей в пакетах (pnpm audit)"
         run: pnpm audit --audit-level=high
 
   security-secrets:
-    name: Secrets & Credentials Leak Scanner (TruffleHog)
+    name: "Сканирование на утечки секретов (TruffleHog)"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: "Клонирование репозитория с полной историей"
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: TruffleHog Secret Scan
+      - name: "Сканирование коммитов на ключи и токены"
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --only-verified
