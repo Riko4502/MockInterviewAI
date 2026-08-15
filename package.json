@@ -5,7 +5,13 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "dev:web": "turbo dev --filter=web",
+    "dev:realtime": "turbo dev --filter=@apps/realtime",
     "build:web": "turbo build --filter=web",
+    "build:realtime": "turbo build --filter=@apps/realtime",
+    "lint:realtime": "pnpm --filter=@apps/realtime lint",
+    "test": "turbo test",
+    "test:web": "pnpm --filter=web test",
+    "test:realtime": "pnpm --filter=@apps/realtime test",
     "prepare": "husky"
   },
   "devDependencies": {

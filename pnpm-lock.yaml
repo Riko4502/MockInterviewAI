@@ -18,6 +18,8 @@ importers:
         specifier: ^2.4.0
         version: 2.10.9
 
+  apps/realtime: {}
+
   apps/web:
     dependencies:
       '@hookform/resolvers':
