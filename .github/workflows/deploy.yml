@@ -1,0 +1,156 @@
+name: Manual Deploy to Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_service:
+        description: 'Сервис для сборки и деплоя'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - 'all'
+          - 'realtime'
+          - 'web'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push-realtime:
+    name: Build & Push Realtime Image
+    runs-on: ubuntu-latest
+    if: inputs.target_service == 'all' || inputs.target_service == 'realtime'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/mockinterviewai-realtime
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/realtime
+          file: ./apps/realtime/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-and-push-web:
+    name: Build & Push Web Image
+    runs-on: ubuntu-latest
+    if: inputs.target_service == 'all' || inputs.target_service == 'web'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/mockinterviewai-web
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-server:
+    name: Deploy to Remote Server (SSH)
+    needs: [build-and-push-realtime, build-and-push-web]
+    if: always() && (needs.build-and-push-realtime.result == 'success' || needs.build-and-push-realtime.result == 'skipped') && (needs.build-and-push-web.result == 'success' || needs.build-and-push-web.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: 'docker-compose.prod.yml'
+          target: '/opt/mock-interview-ai'
+
+      - name: Execute remote deployment commands
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          envs: GITHUB_OWNER,BRANCH_NAME,JWT_SECRET,GHCR_PAT,GHCR_USER
+          script: |
+            mkdir -p /opt/mock-interview-ai
+            cd /opt/mock-interview-ai
+
+            # Авторизация в GitHub Packages для загрузки приватных образов
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # Подготовка переменных окружения
+            export GITHUB_REPOSITORY_OWNER=$(echo "$GITHUB_OWNER" | tr '[:upper:]' '[:lower:]')
+            export JWT_SECRET="$JWT_SECRET"
+            export REALTIME_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:${BRANCH_NAME}"
+            export WEB_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:${BRANCH_NAME}"
+
+            # Загрузка свежих образов и запуск
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Очистка неиспользуемых старых слоев
+            docker image prune -f

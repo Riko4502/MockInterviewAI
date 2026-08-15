@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 'feature/*'
+      - 'feature/**'
+      - 'fix/*'
+      - 'fix/**'
+      - 'chore/*'
+      - 'chore/**'
+      - 'refactor/*'
+      - 'refactor/**'
+      - 'main'
+      - 'dev'
+  pull_request:
+    branches:
+      - 'feature/*'
+      - 'feature/**'
+      - 'fix/*'
+      - 'fix/**'
+      - 'chore/*'
+      - 'chore/**'
+      - 'refactor/*'
+      - 'refactor/**'
+      - 'main'
+      - 'dev'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      realtime: ${{ steps.filter.outputs.realtime }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Paths Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            realtime:
+              - 'apps/realtime/**'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+
+  test-realtime:
+    name: Realtime Service Tests (Go)
+    needs: changes
+    if: needs.changes.outputs.realtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          cache-dependency-path: 'apps/realtime/go.sum'
+
+      - name: Run Go tests
+        working-directory: apps/realtime
+        run: go test -v -race ./...
+
+  security-realtime:
+    name: Realtime Security & SAST (Go)
+    needs: changes
+    if: needs.changes.outputs.realtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          cache-dependency-path: 'apps/realtime/go.sum'
+
+      - name: Run govulncheck (Go Vulnerability Database)
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: 'apps/realtime/go.mod'
+          work-dir: 'apps/realtime'
+
+      - name: Run golangci-lint (gosec, errcheck, staticcheck)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: apps/realtime
+          args: --timeout=5m
+
+  test-web:
+    name: Web Frontend Tests (Next.js / Vitest)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Web tests
+        run: pnpm --filter web test
+
+  security-web:
+    name: Web Dependency Security Audit (pnpm audit)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Run pnpm audit for high/critical vulnerabilities
+        run: pnpm audit --audit-level=high
+
+  security-secrets:
+    name: Secrets & Credentials Leak Scanner (TruffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
