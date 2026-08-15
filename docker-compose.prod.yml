@@ -14,6 +14,24 @@ services:
       timeout: 3s
       retries: 5
 
+  api:
+    image: ${API_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:latest}
+    container_name: mock-interview-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-${JWT_SECRET}}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+    ports:
+      - "4000:4000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
   realtime:
     image: ${REALTIME_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:latest}
     container_name: mock-interview-realtime
@@ -21,6 +39,8 @@ services:
     environment:
       - PORT=8080
       - REDIS_URL=redis://redis:6379
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-${JWT_SECRET}}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
       - ENVIRONMENT=production
@@ -37,10 +57,12 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_REALTIME_URL=${NEXT_PUBLIC_REALTIME_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4000}
     ports:
       - "3000:3000"
     depends_on:
       - realtime
+      - api
 
 volumes:
   redis_data:
