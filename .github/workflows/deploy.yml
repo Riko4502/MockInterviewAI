@@ -178,7 +178,8 @@ jobs:
         env:
           GITHUB_OWNER: ${{ github.repository_owner }}
           BRANCH_NAME: ${{ github.ref_name }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
         with:
@@ -187,7 +188,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          envs: GITHUB_OWNER,BRANCH_NAME,JWT_SECRET,GHCR_PAT,GHCR_USER
+          envs: GITHUB_OWNER,BRANCH_NAME,JWT_ACCESS_SECRET,JWT_REFRESH_SECRET,GHCR_PAT,GHCR_USER
           script: |
             mkdir -p /opt/mock-interview-ai
             cd /opt/mock-interview-ai
@@ -197,7 +198,8 @@ jobs:
 
             # Подготовка переменных окружения
             export GITHUB_REPOSITORY_OWNER=$(echo "$GITHUB_OWNER" | tr '[:upper:]' '[:lower:]')
-            export JWT_SECRET="$JWT_SECRET"
+            export JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
+            export JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
             export REALTIME_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:${BRANCH_NAME}"
             export WEB_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:${BRANCH_NAME}"
             export API_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:${BRANCH_NAME}"
