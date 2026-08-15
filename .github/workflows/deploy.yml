@@ -264,3 +264,59 @@ jobs:
             # Очистка неиспользуемых старых слоев
             docker image prune -f
             echo "🚀 Deployment complete"
+
+  notify:
+    name: "Telegram-уведомление о деплое"
+    needs: [build-and-push-realtime, build-and-push-web, build-and-push-api, deploy-to-server]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Определение статуса деплоя"
+        id: status
+        run: |
+          DEPLOY="${{ needs.deploy-to-server.result }}"
+          BUILD_RT="${{ needs.build-and-push-realtime.result }}"
+          BUILD_WEB="${{ needs.build-and-push-web.result }}"
+          BUILD_API="${{ needs.build-and-push-api.result }}"
+
+          if [ "$DEPLOY" = "success" ]; then
+            echo "icon=✅" >> $GITHUB_OUTPUT
+            echo "label=Деплой успешен" >> $GITHUB_OUTPUT
+          elif [ "$DEPLOY" = "skipped" ]; then
+            echo "icon=⏭️" >> $GITHUB_OUTPUT
+            echo "label=Деплой пропущен (сборка провалилась)" >> $GITHUB_OUTPUT
+          else
+            echo "icon=❌" >> $GITHUB_OUTPUT
+            echo "label=Деплой провалился" >> $GITHUB_OUTPUT
+          fi
+
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          BRANCH="${{ github.ref_name }}"
+
+          echo "rt_image=ghcr.io/${OWNER}/mockinterviewai-realtime:${BRANCH}" >> $GITHUB_OUTPUT
+          echo "web_image=ghcr.io/${OWNER}/mockinterviewai-web:${BRANCH}" >> $GITHUB_OUTPUT
+          echo "api_image=ghcr.io/${OWNER}/mockinterviewai-api:${BRANCH}" >> $GITHUB_OUTPUT
+
+      - name: "Отправка уведомления в Telegram"
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            ${{ steps.status.outputs.icon }} *${{ steps.status.outputs.label }}*
+
+            📦 *Репозиторий:* [${{ github.repository }}](https://github.com/${{ github.repository }})
+            🌿 *Ветка:* `${{ github.ref_name }}`
+            👤 *Автор:* ${{ github.actor }}
+            💬 *Коммит:* [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+
+            🔗 *Ссылка на запуск:*
+            [Открыть в GitHub Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            🐳 *Docker-образы для скачивания:*
+            ```
+            docker pull ${{ steps.status.outputs.api_image }}
+            docker pull ${{ steps.status.outputs.web_image }}
+            docker pull ${{ steps.status.outputs.rt_image }}
+            ```
