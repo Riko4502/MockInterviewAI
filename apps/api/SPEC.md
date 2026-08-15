@@ -1,6 +1,22 @@
-# Спецификация и план реализации — `POST /api/v1/auth/register`
+# Спецификация — `POST /api/v1/auth/register`
 
-## Часть 1. Спецификация
+## Версия документа
+
+| Версия | Дата | Статус |
+|---|---|---|
+| 1.1.0 | 2026-08-14 | Актуальный |
+| 1.0.0 | 2026-08-14 | Актуальный |
+
+## Change Log
+
+| Версия | Дата | Изменения |
+|---|---|---|
+| 1.1.0 | 2026-08-14 | Добавлен раздел §57 — обязательное документирование кода. |
+| 1.0.0 | 2026-08-14 | Первоначальная версия спецификации. |
+
+---
+
+## Спецификация
 
 ### 1. Назначение
 
@@ -528,118 +544,38 @@ Production secrets хранятся вне исходного кода (Secret M
 
 ### 50–55. Тестирование
 
-Карта тестов приведена в Части 2, раздел «Тестирование».
+Карта тестов приведена в `apps/api/PLAN.md`, Phase 6 «Тестирование».
+
+### 56. Health Check
+
+- Endpoint: `GET /api/v1/health` (глобальный prefix `/api/v1`).
+- Без authentication, доступен для проверки доступности сервиса (orchestrators, load balancers, мониторинг).
+- Проверка PostgreSQL: `SELECT 1` через `PrismaService.$queryRaw` (модуль `src/modules/health/`: `HealthModule`, `HealthController`).
+- Ответ:
+
+| Случай | Код | Body |
+|---|---|---|
+| БД доступна | `200 OK` | `{ "status": "ok", "db": "up" }` |
+| Ошибка БД | `503 Service Unavailable` | `{ "status": "error", "db": "down" }` |
+
+- В ответе запрещено раскрывать: stack trace, connection strings, hostnames, внутренние детали инфраструктуры (реализует `HttpExceptionFilter`).
+- Чувствительные данные не логируются (в рамках `SensitiveLoggingInterceptor`).
+
+### 57. Документирование кода
+
+Обязательное документирование кода — производственный код сопровождается JSDoc/TSDoc-комментариями.
+
+Требования:
+
+- Документируются публичные API: методы и типы сервисов (`PrismaService`, `RedisService`, `UsersService`, `AuthService`, `TokenService`, `AuthSessionService`), DTO-схемы (`packages/dto`), guards, pipes, filters, конфигурация (`src/config`), health-модуль.
+- JSDoc-блок включает: назначение, `@param`, `@returns`, `@throws` (при наличии ошибок).
+- Сгенерированный код (`src/generated/prisma`) и код зависимостей не документируется и не редактируется.
+- Тривиальный код (геттеры, присваивания без логики) может не иметь JSDoc.
+- Язык комментариев — русский (в едином стиле с документацией проекта).
+- Соответствие проверяется в code review (biome по умолчанию не требует JSDoc); в `PLAN.md`, Phase 6, зафиксирован чек-пункт.
 
 ---
 
-## Часть 2. План реализации
+## Связанные документы
 
-### Phase 0 — Документация
-
-- Заполнить `apps/api/SPEC.md` (данный документ).
-
-### Phase 1 — Scaffolding `apps/api`
-
-1. Создать `apps/api/package.json` (name `api`, scripts: `dev`, `build`, `start`, `lint`, `test`, `test:e2e`).
-2. Создать `tsconfig.json`, `tsconfig.build.json`, `nest-cli.json`, `biome.json` (по образцу `apps/web`), `.env.example`.
-3. Установить зависимости (pnpm workspace, из корня):
-
-```bash
-pnpm --filter api add @nestjs/core @nestjs/common @nestjs/platform-express @nestjs/config @nestjs/throttler prisma @prisma/client ioredis argon2 jsonwebtoken cookie-parser helmet
-pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebtoken @types/cookie-parser typescript ts-node jest ts-jest @types/jest supertest @types/supertest
-```
-
-4. Обновить корневой `turbo.json`:
-   - задача `test` (без cache);
-   - `dev` → `dependsOn: ["^build"]`.
-5. Обновить `lint-staged.config.mjs`: добавить паттерн `apps/api/**/*.{js,ts,json}`.
-
-### Phase 2 — Пакет `packages/dto`
-
-1. Создать `packages/dto/package.json` (name `@mock-interview-ai/dto`, сборка tsc → `dist/`), `tsconfig.json`.
-2. Реализовать:
-   - `src/auth/email.ts` — `normalizeEmail`, email-валидация;
-   - `src/auth/password-policy.ts` — централизованная policy (min 12, max 128);
-   - `src/auth/register.dto.ts` — zod-схема `registerSchema`, тип `RegisterDto`;
-   - `src/index.ts` — экспорт.
-3. Подключить к api: `pnpm --filter api add @mock-interview-ai/dto@workspace:*`.
-
-### Phase 3 — Инфраструктура
-
-1. `apps/api/docker-compose.yml`: postgres:16-alpine + redis:7-alpine, healthcheck, volume, `REDIS_PASSWORD`.
-2. `prisma/schema.prisma` (модель `User`, `@unique` email), миграция: `pnpm --filter api exec prisma migrate dev --name init`.
-3. `src/config/`:
-   - `env.validation.ts` — zod-схема env (secrets ≥ 32 символа, TTL, Argon2 params, REDIS_*);
-   - `configuration.ts` — типизированная конфигурация.
-4. `src/prisma/` — `PrismaModule`, `PrismaService`.
-5. `src/redis/` — `RedisModule`, `RedisService` (`set/get/delete/expire`), TTL.
-
-### Phase 4 — Auth module
-
-1. `src/common/`:
-   - `ZodValidationPipe`;
-   - `HttpExceptionFilter`;
-   - `SensitiveLoggingInterceptor`.
-2. `src/modules/users/` — `UsersService` (`findByEmail`, `create`).
-3. `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
-4. `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига.
-5. `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37, компенсация при недоступном Redis.
-6. `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
-7. `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
-8. `src/app.module.ts`, `src/main.ts` — prefix `/api/v1`, helmet, cookie-parser, CORS (credentials, explicit origin), глобальные filter/interceptor, ThrottlerModule, Origin-check guard.
-
-### Phase 5 — Тестирование
-
-**Unit (AuthService, §50):**
-- successful registration: email нормализуется, user не существует, пароль хешируется, User создаётся, session создаётся, Access JWT, Refresh JWT, refresh token hash, Redis session;
-- existing email → 409;
-- Redis unavailable → 500, session не создаётся, access token не возвращается, детали ошибки не раскрываются, user удаляется (компенсация).
-
-**Unit (TokenService, §51):**
-- генерация access/refresh JWT; claims `sub`, `sid`, `typ`, `iss`, `aud`, `iat`, `exp`, `jti`;
-- разные JWT secrets;
-- корректный алгоритм (reject wrong algorithm);
-- `hashRefreshToken`.
-
-**Unit (AuthSessionService, §52):**
-- создание/получение/обновление/удаление session;
-- rotation; revocation; replay detection;
-- Redis key (`auth:session:{sessionId}`), TTL;
-- userId, refreshTokenHash, tokenFamilyId.
-
-**Unit (DTO):** валидация email, password policy.
-
-**Security (§53):**
-- password не хранится plaintext и не попадает в logs;
-- refresh token в Redis только как hash;
-- access token не сохраняется в Redis;
-- refresh token не возвращается в JSON;
-- JWT secrets не в response и не в logs;
-- Redis session имеет TTL;
-- cookie: HttpOnly, Secure, корректный SameSite;
-- rate limiting работает;
-- replay detection работает;
-- token family может быть отозвана.
-
-**E2E (§55, supertest на реальные PG+Redis в Docker):**
-- E2E-01: успешная регистрация → 201, `{ accessToken }`, `Set-Cookie` c refresh token;
-- E2E-02: повторная регистрация → 409, новый user не создаётся;
-- E2E-03: невалидный email → 400;
-- E2E-04: Redis недоступен → 500, session не создаётся, access token не возвращается.
-
-**Integration (§54):** после успешной регистрации User существует в PostgreSQL, `auth:session:{sessionId}` существует в Redis.
-
-### Phase 6 — Верификация
-
-```bash
-docker compose -f apps/api/docker-compose.yml up -d
-pnpm --filter api exec prisma migrate dev
-pnpm --filter api lint
-pnpm --filter api build
-pnpm --filter api test
-pnpm --filter api test:e2e
-```
-
-### Вне области (будущие фазы)
-
-`/auth/refresh`, `/logout`, `/logout-all`, `/change-password`, access-token guard, CSRF-токен для cross-site сценария. Инфраструктура (TokenService, AuthSessionService, replay detection, token family) готова к их добавлению.
+- План реализации: `apps/api/PLAN.md`.

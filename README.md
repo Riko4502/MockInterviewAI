@@ -53,3 +53,29 @@
 ## Технические требования
 
 - Обязательное покрытие тестами основного функционала.
+
+---
+
+## Локальная разработка
+
+Требования: Node.js, pnpm, запущенный Docker Desktop.
+
+```bash
+# 1. Установка зависимостей (после клонирования)
+pnpm install
+
+# 2. Переменные окружения API
+cp apps/api/.env.example apps/api/.env   # Windows: copy apps\api\.env.example apps\api\.env
+
+# 3. Запуск
+pnpm dev                 # все сервисы (web + api); требует запущенный Docker
+pnpm --filter api dev    # только API: поднимет postgres/redis (docker compose up -d --wait)
+                         # и применит миграции (migrate deploy), затем nest start --watch
+
+# Остановка контейнеров API
+pnpm --filter api db:down
+```
+
+`GET http://localhost:3001/api/v1/health` → `200 { "status": "ok", "db": "up" }`.
+
+> Примечание: `pnpm dev` (все сервисы) жёстко зависит от Docker — при недоступном Docker падает целиком. Для работы только с web используйте `pnpm --filter web dev`.
