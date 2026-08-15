@@ -1,0 +1,67 @@
+name: "Deploy Telegram Notification"
+
+on:
+  workflow_call:
+    inputs:
+      deploy_result:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  notify:
+    name: "Отправка уведомления о деплое"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Отправка уведомления через curl"
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          DEPLOY_RES: ${{ inputs.deploy_result }}
+          REF_INPUT: ${{ inputs.ref }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
+            exit 0
+          fi
+
+          if [ "$DEPLOY_RES" = "success" ]; then
+            STATUS_HEADER="✅ *Деплой успешен*"
+          elif [ "$DEPLOY_RES" = "skipped" ]; then
+            STATUS_HEADER="⏭️ *Деплой пропущен (сборка провалилась)*"
+          else
+            STATUS_HEADER="❌ *Деплой провалился*"
+          fi
+
+          BRANCH="${REF_INPUT:-${{ github.ref_name }}}"
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          RT_IMG="ghcr.io/${REPO_OWNER}/mockinterviewai-realtime:${BRANCH}"
+          WEB_IMG="ghcr.io/${REPO_OWNER}/mockinterviewai-web:${BRANCH}"
+          API_IMG="ghcr.io/${REPO_OWNER}/mockinterviewai-api:${BRANCH}"
+
+          MESSAGE=$(printf "%s\n\n📦 *Репозиторий:* [%s](https://github.com/%s)\n🌿 *Ветка:* `%s`\n👤 *Автор:* %s\n💬 *Коммит:* [%s](https://github.com/%s/commit/%s)\n\n🔗 [Открыть запуск в GitHub Actions](https://github.com/%s/actions/runs/%s)\n\n🐳 *Docker-образы для скачивания:*\n\`\`\`\ndocker pull %s\ndocker pull %s\ndocker pull %s\n\`\`\`" \
+            "$STATUS_HEADER" \
+            "${{ github.repository }}" "${{ github.repository }}" \
+            "$BRANCH" \
+            "${{ github.actor }}" \
+            "$SHORT_SHA" "${{ github.repository }}" "${{ github.sha }}" \
+            "${{ github.repository }}" "${{ github.run_id }}" \
+            "$API_IMG" \
+            "$WEB_IMG" \
+            "$RT_IMG")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg thread_id "$THREAD_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id: $chat_id, text: $text, parse_mode: "Markdown", disable_notification: true} + (if ($thread_id != "" and $thread_id != null) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+
+          curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" || true

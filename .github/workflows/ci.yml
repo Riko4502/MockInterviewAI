@@ -108,7 +108,7 @@ jobs:
     name: "Telegram"
     needs: [realtime, web, api, security]
     if: always()
-    uses: ./.github/workflows/notify-telegram.yml
+    uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
     with:
       realtime_result: ${{ needs.realtime.result }}
