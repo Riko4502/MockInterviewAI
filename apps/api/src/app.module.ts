@@ -17,6 +17,7 @@ import { PrismaModule } from "./prisma/prisma.module";
       isGlobal: true,
       validate,
       load: [configuration],
+      envFilePath: ["../../.env", ".env"],
     }),
     PrismaModule,
     HealthModule,

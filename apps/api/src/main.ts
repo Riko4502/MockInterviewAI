@@ -18,7 +18,7 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix(config.get<string>("apiPrefix") ?? "/api/v1");
   app.use(helmet());
   app.enableCors({
-    origin: config.get<string>("clientOrigin"),
+    origin: config.get<string[]>("allowedOrigins"),
     credentials: true,
   });
   app.useGlobalFilters(new HttpExceptionFilter());

@@ -5,14 +5,17 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  DATABASE_URL: z.string().min(1),
-  PORT: z.coerce.number().int().positive().default(3001),
+  API_DATABASE_URL: z.string().min(1),
+  API_PORT: z.coerce.number().int().positive().default(3001),
   API_PREFIX: z.string().min(1).default("/api/v1"),
-  CLIENT_ORIGIN: z.string().min(1).default("http://localhost:3000"),
+  ALLOWED_ORIGINS: z
+    .string()
+    .min(1)
+    .default("http://localhost:3000,http://127.0.0.1:3000"),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_ACCESS_EXPIRES_IN: z.string().min(1).default("15m"),
-  JWT_REFRESH_EXPIRES_IN: z.string().min(1).default("30d"),
+  JWT_ACCESS_EXPIRATION: z.string().min(1).default("15m"),
+  JWT_REFRESH_EXPIRATION: z.string().min(1).default("7d"),
   JWT_ISSUER: z.string().min(1).default("mock-interview-ai"),
   JWT_AUDIENCE: z.string().min(1).default("api"),
   REFRESH_TOKEN_HASH_SECRET: z.string().min(32),

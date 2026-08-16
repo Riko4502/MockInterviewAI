@@ -252,13 +252,13 @@ model User {
 
 ### 18. Redis TTL
 
-- TTL Redis session = `JWT_REFRESH_EXPIRES_IN` (по умолчанию `30d`).
+- TTL Redis session = `JWT_REFRESH_EXPIRATION` (по умолчанию `7d`).
 - TTL должен соответствовать lifetime refresh token (исключить рассинхрон «JWT valid + session expired» и обратный случай).
 
 ### 19. Access Token
 
 - Короткоживущий JWT.
-- TTL: `JWT_ACCESS_EXPIRES_IN=15m`.
+- TTL: `JWT_ACCESS_EXPIRATION=15m`.
 
 ### 20. Access Token Payload
 
@@ -291,7 +291,7 @@ Access token не должен содержать: password, passwordHash, refre
 ### 23. Refresh Token
 
 - Отдельный JWT.
-- TTL: `JWT_REFRESH_EXPIRES_IN=30d`.
+- TTL: `JWT_REFRESH_EXPIRATION=7d`.
 
 ### 24. Refresh Token Payload
 
@@ -501,36 +501,49 @@ AuthService → AuthSessionService → RedisService → Redis
 
 ### 49. Environment Configuration
 
-```dotenv
-# Database
-DATABASE_URL=postgresql://mock_interview:mock_interview@localhost:5432/mock_interview?schema=public
+Переменные окружения разделены по месту хранения:
 
+- Корневой `.env` монорепы (общие настройки: Server, JWT, Refresh token hashing, Redis).
+- `apps/api/.env` (специфичные для api: Database, Argon2id, Cookie, Rate limiting).
+
+`ConfigModule` загружает оба файла через `envFilePath: ["../../.env", ".env"]` (пути относительно `apps/api`; приоритет у файла, идущего раньше). Docker Compose читает корневой `.env` через `--env-file ../../.env` (нужно для `REDIS_PASSWORD`).
+
+Корневой `.env`:
+
+```dotenv
 # Server
-PORT=3001
+API_PORT=3001
 API_PREFIX=/api/v1
 NODE_ENV=development
-CLIENT_ORIGIN=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
 # JWT
 JWT_ACCESS_SECRET=
 JWT_REFRESH_SECRET=
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=30d
+JWT_ACCESS_EXPIRATION=15m
+JWT_REFRESH_EXPIRATION=7d
 JWT_ISSUER=mock-interview-ai
 JWT_AUDIENCE=api
 
 # Refresh token hashing
 REFRESH_TOKEN_HASH_SECRET=
 
-# Argon2id
-ARGON2_MEMORY_COST=65536
-ARGON2_TIME_COST=3
-ARGON2_PARALLELISM=4
-
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
+```
+
+`apps/api/.env`:
+
+```dotenv
+# Database
+API_DATABASE_URL=postgresql://mock_interview:mock_interview@localhost:5432/mock_interview?schema=public
+
+# Argon2id
+ARGON2_MEMORY_COST=65536
+ARGON2_TIME_COST=3
+ARGON2_PARALLELISM=4
 
 # Cookie
 COOKIE_SECURE=false

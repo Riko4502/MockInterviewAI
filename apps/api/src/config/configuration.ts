@@ -8,17 +8,21 @@
  */
 export const configuration = () => ({
   env: process.env.NODE_ENV ?? "development",
-  port: Number(process.env.PORT ?? 3001),
+  port: Number(process.env.API_PORT ?? 3001),
   apiPrefix: process.env.API_PREFIX ?? "/api/v1",
-  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:3000",
+  allowedOrigins: (
+    process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000"
+  )
+    .split(",")
+    .map((origin) => origin.trim()),
   database: {
-    url: process.env.DATABASE_URL ?? "",
+    url: process.env.API_DATABASE_URL ?? "",
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? "",
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? "",
-    accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? "15m",
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "30d",
+    accessExpiresIn: process.env.JWT_ACCESS_EXPIRATION ?? "15m",
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRATION ?? "7d",
     issuer: process.env.JWT_ISSUER ?? "mock-interview-ai",
     audience: process.env.JWT_AUDIENCE ?? "api",
   },
