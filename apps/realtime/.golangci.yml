@@ -5,9 +5,11 @@ run:
 
 output:
   formats:
-    - format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+    text:
+      path: stdout
+      print-issued-lines: true
+      print-linter-name: true
+      colors: true 
 
 linters-settings:
   govet:
