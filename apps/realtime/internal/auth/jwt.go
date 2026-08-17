@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	// ErrMissingToken indicates that the authentication token is missing.
 	ErrMissingToken      = errors.New("authentication token is required")
 	ErrInvalidToken      = errors.New("invalid or expired authentication token")
 	ErrInvalidSigningAlg = errors.New("unexpected token signing algorithm")

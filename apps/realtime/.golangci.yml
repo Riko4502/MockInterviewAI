@@ -72,6 +72,7 @@ linters:
       disabled-checks:
         - paramTypeCombine
         - whyNoLint
+        - hugeParam
 
     errcheck:
       check-type-assertions: true

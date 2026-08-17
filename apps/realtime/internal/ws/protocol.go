@@ -9,9 +9,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// ProtocolVersion is the current WebSocket protocol version.
 const ProtocolVersion = 1
 
 var (
+	// ErrEmptySessionID indicates that the session ID is missing.
 	ErrEmptySessionID = errors.New("sessionId is required")
 	ErrEmptyType      = errors.New("message type is required")
 	ErrInvalidVersion = errors.New("unsupported protocol version")

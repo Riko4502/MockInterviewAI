@@ -21,7 +21,7 @@ const (
 	EventChatMessage  EventType = "chat.message"
 	EventAISuggestion EventType = "ai.suggestion"
 
-	// LiveKit / WebRTC медиа-события
+	// EventMediaStateUpdate LiveKit / WebRTC медиа-события
 	EventMediaStateUpdate   EventType = "media.state_update"
 	//nolint:gosec // Event name contains "token" but is not a credential.
 	EventMediaTokenRequest  EventType = "media.token_request"
@@ -30,7 +30,7 @@ const (
 	EventMediaRecording     EventType = "media.recording"
 	EventMediaSpeaker       EventType = "media.speaker"
 
-	// Системные события
+	// EventSystemError Системные события
 	EventSystemError EventType = "system.error"
 	EventSystemAck   EventType = "system.ack"
 	EventSystemPing  EventType = "system.ping"

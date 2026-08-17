@@ -71,6 +71,20 @@ func (m *mockSessionStore) GetCodeState(ctx context.Context, sessionID string) (
 func (m *mockSessionStore) Ping(ctx context.Context) error { return nil }
 func (m *mockSessionStore) Close() error                  { return nil }
 
+func dialWebSocket(
+	ctx context.Context,
+	url string,
+	opts *websocket.DialOptions,
+) (*websocket.Conn, error) {
+	conn, resp, err := websocket.Dial(ctx, url, opts)
+
+	if err != nil && resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	return conn, err
+}
+
 func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -120,7 +134,11 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 			"Cookie": []string{"access_token=" + badToken},
 		},
 	}
-	_, _, err = websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, dialOptsBad)
+	_, err = dialWebSocket(
+		ctx,
+		wsURL+"/ws/sessions/"+sessionID,
+		dialOptsBad,
+	)
 	if err == nil {
 		t.Fatal("expected dial with mismatched sessionId to fail with 403, but succeeded")
 	}
@@ -137,7 +155,11 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connCandidate, _, err := websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, dialOptsCandidate)
+	connCandidate, err := dialWebSocket(
+		ctx,
+		wsURL+"/ws/sessions/"+sessionID,
+		dialOptsCandidate,
+	)
 	if err != nil {
 		t.Fatalf("candidate failed to connect via websocket: %v", err)
 	}
@@ -168,7 +190,11 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connInterviewer, _, err := websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, dialOptsInterviewer)
+	connInterviewer, err := dialWebSocket(
+		ctx,
+		wsURL+"/ws/sessions/"+sessionID,
+		dialOptsInterviewer,
+	)
 	if err != nil {
 		t.Fatalf("interviewer failed to connect via websocket: %v", err)
 	}
@@ -302,7 +328,11 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts1 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok1}},
 	}
-	conn1, _, err := websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts1)
+	conn1, err := dialWebSocket(
+		ctx,
+		wsURL+"/ws/sessions/"+sessionID,
+		dialOpts1,
+	)
 	if err != nil {
 		t.Fatalf("first user failed to connect: %v", err)
 	}
@@ -312,7 +342,11 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts2 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok2}},
 	}
-	_, _, err = websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts2)
+	_, err = dialWebSocket(
+		ctx,
+		wsURL+"/ws/sessions/"+sessionID,
+		dialOpts2,
+	)
 	if err == nil {
 		t.Fatal("expected second user to be rejected because room is full, but succeeded")
 	}

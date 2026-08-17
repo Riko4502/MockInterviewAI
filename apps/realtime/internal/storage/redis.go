@@ -133,9 +133,7 @@ func (r *RedisStore) Subscribe(ctx context.Context, sessionID string, onMessage 
 
 	go func() {
 		defer func() {
-		if err := pubsub.Close(); err != nil {
-			// log error
-			}
+			_ = pubsub.Close()
 		}()
 		ch := pubsub.Channel()
 
@@ -199,9 +197,7 @@ func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(use
 
 	go func() {
 		defer func() {
-			if err := pubsub.Close(); err != nil {
-				// log error
-			}
+			_ = pubsub.Close()
 		}()
 		ch := pubsub.Channel()
 

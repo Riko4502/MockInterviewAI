@@ -2,7 +2,6 @@ package ws
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -111,37 +110,85 @@ func TestClientPayloadBoundaryLimits(t *testing.T) {
 
 	// 1. Отрицательные координаты курсора должны корректироваться до 1
 	negCursorPayload := `{"type":"cursor.move","version":1,"sessionId":"session-1","payload":{"userId":"user-1","line":-5,"column":-10}}`
+
 	var rawCur RawEnvelope
-	_ = json.Unmarshal([]byte(negCursorPayload), &rawCur)
+	if err := json.Unmarshal([]byte(negCursorPayload), &rawCur); err != nil {
+		t.Fatalf("failed to unmarshal cursor envelope: %v", err)
+	}
+
 	sanitizedCurBytes, err := client.sanitizeIncomingPayload(rawCur)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	rawCurSanitized, _ := ParseRawEnvelope(sanitizedCurBytes)
-	unpackedCur, _ := UnpackPayload[CursorPayload](rawCurSanitized)
+
+	rawCurSanitized, err := ParseRawEnvelope(sanitizedCurBytes)
+	if err != nil {
+		t.Fatalf("failed to parse sanitized cursor envelope: %v", err)
+	}
+
+	unpackedCur, err := UnpackPayload[CursorPayload](rawCurSanitized)
+	if err != nil {
+		t.Fatalf("failed to unpack sanitized cursor payload: %v", err)
+	}
+
 	if unpackedCur.Line != 1 || unpackedCur.Column != 1 {
-		t.Errorf("expected coordinates to be clamped to (1,1), got (%d, %d)", unpackedCur.Line, unpackedCur.Column)
+		t.Errorf(
+			"expected coordinates to be clamped to (1,1), got (%d, %d)",
+			unpackedCur.Line,
+			unpackedCur.Column,
+		)
 	}
 
 	// 2. Слишком длинное сообщение чата должно обрезаться до 4000 символов
 	hugeText := strings.Repeat("A", 5000)
-	chatPayload := fmt.Sprintf(`{"type":"chat.message","version":1,"sessionId":"session-1","payload":{"text":"%q"}}`, hugeText)
+
+	rawChatBytes, err := NewEnvelope(
+		EventChatMessage,
+		"session-1",
+		"req-chat-1",
+		ChatMessagePayload{
+			Text: hugeText,
+		},
+	).ToBytes()
+	if err != nil {
+		t.Fatalf("failed to serialize chat envelope: %v", err)
+	}
+
 	var rawChat RawEnvelope
-	_ = json.Unmarshal([]byte(chatPayload), &rawChat)
+	if err := json.Unmarshal(rawChatBytes, &rawChat); err != nil {
+		t.Fatalf("failed to unmarshal chat envelope: %v", err)
+	}
+
 	sanitizedChatBytes, err := client.sanitizeIncomingPayload(rawChat)
 	if err != nil {
 		t.Fatalf("unexpected error on huge chat message: %v", err)
 	}
-	rawChatSanitized, _ := ParseRawEnvelope(sanitizedChatBytes)
-	unpackedChat, _ := UnpackPayload[ChatMessagePayload](rawChatSanitized)
+
+	rawChatSanitized, err := ParseRawEnvelope(sanitizedChatBytes)
+	if err != nil {
+		t.Fatalf("failed to parse sanitized chat envelope: %v", err)
+	}
+
+	unpackedChat, err := UnpackPayload[ChatMessagePayload](rawChatSanitized)
+	if err != nil {
+		t.Fatalf("failed to unpack sanitized chat payload: %v", err)
+	}
+
 	if len(unpackedChat.Text) != 4000 {
-		t.Errorf("expected chat message to be truncated to 4000 characters, got %d", len(unpackedChat.Text))
+		t.Errorf(
+			"expected chat message to be truncated to 4000 characters, got %d",
+			len(unpackedChat.Text),
+		)
 	}
 
 	// 3. Попытка Path Traversal в пути к файлу должна отклоняться
 	badCodePayload := `{"type":"code.update","version":1,"sessionId":"session-1","payload":{"filePath":"../../etc/passwd","language":"go","content":"package main"}}`
+
 	var rawCode RawEnvelope
-	_ = json.Unmarshal([]byte(badCodePayload), &rawCode)
+	if err := json.Unmarshal([]byte(badCodePayload), &rawCode); err != nil {
+		t.Fatalf("failed to unmarshal code envelope: %v", err)
+	}
+
 	_, err = client.sanitizeIncomingPayload(rawCode)
 	if err == nil {
 		t.Error("expected error for path traversal in filePath, got nil")

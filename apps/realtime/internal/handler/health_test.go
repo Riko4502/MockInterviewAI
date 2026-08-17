@@ -21,7 +21,7 @@ func TestHealthEndpoints(t *testing.T) {
 	healthHandler := NewHealthHandler(hub, nil)
 
 	// 1. Тест /healthz (liveness)
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	healthHandler.Healthz(rec, req)
@@ -40,7 +40,7 @@ func TestHealthEndpoints(t *testing.T) {
 	}
 
 	// 2. Тест /readyz (readiness)
-	reqReady := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	reqReady := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	recReady := httptest.NewRecorder()
 
 	healthHandler.Readyz(recReady, reqReady)
