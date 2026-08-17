@@ -22,7 +22,7 @@ jobs:
 
       - name: "Установка Go"
         if: steps.check_realtime.outputs.exists == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
@@ -50,7 +50,7 @@ jobs:
 
       - name: "Установка Go"
         if: steps.check_realtime.outputs.exists == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'

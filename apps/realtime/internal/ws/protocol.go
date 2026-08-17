@@ -15,7 +15,9 @@ const ProtocolVersion = 1
 var (
 	// ErrEmptySessionID indicates that the session ID is missing.
 	ErrEmptySessionID = errors.New("sessionId is required")
+	// ErrEmptyType indicates that the event type is empty.
 	ErrEmptyType      = errors.New("message type is required")
+	// ErrInvalidVersion indicates that the event type is empty.
 	ErrInvalidVersion = errors.New("unsupported protocol version")
 )
 

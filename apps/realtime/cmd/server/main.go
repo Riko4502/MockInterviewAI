@@ -23,11 +23,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("realtime service failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// 1. Инициализация конфигурации
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load configuration: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// 2. Инициализация структурированного логгера slog
@@ -45,14 +51,22 @@ func main() {
 
 	var logHandler slog.Handler
 	if cfg.Environment == "production" {
-		logHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewJSONHandler(
+			os.Stdout,
+			&slog.HandlerOptions{Level: level},
+		)
 	} else {
-		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewTextHandler(
+			os.Stdout,
+			&slog.HandlerOptions{Level: level},
+		)
 	}
+
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
 
-	logger.Info("starting realtime service",
+	logger.Info(
+		"starting realtime service",
 		slog.String("env", cfg.Environment),
 		slog.String("logLevel", cfg.LogLevel),
 		slog.String("port", cfg.Port),
@@ -60,7 +74,7 @@ func main() {
 		slog.Bool("redisEnabled", cfg.RedisEnabled),
 	)
 
-	// 3. Инициализация контекста, хранилища Redis, токен-верификатора и ядра WebSocket
+	// 3. Инициализация контекста, хранилища Redis, верификатора токенов и ядра WebSocket
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
@@ -69,9 +83,18 @@ func main() {
 	hub := ws.NewHub(rootCtx, redisStore, redisStore, logger)
 
 	healthHandler := handler.NewHealthHandler(hub, redisStore)
-	wsHandler := handler.NewWebSocketHandler(hub, tokenVerifier, redisStore, logger, cfg.AllowedOrigins, cfg.AccessTokenCookieName, cfg.MaxConnections, cfg.MaxRoomClients)
+	wsHandler := handler.NewWebSocketHandler(
+		hub,
+		tokenVerifier,
+		redisStore,
+		logger,
+		cfg.AllowedOrigins,
+		cfg.AccessTokenCookieName,
+		cfg.MaxConnections,
+		cfg.MaxRoomClients,
+	)
 
-	// 4. Настройка HTTP-роутера chi
+	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()
 
 	// Базовые middleware
@@ -97,9 +120,15 @@ func main() {
 
 	// 6. Запуск сервера в отдельной горутине
 	serverErrCh := make(chan error, 1)
+
 	go func() {
-		logger.Info("server listening on", slog.String("address", cfg.Address()))
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Info(
+			"server listening on",
+			slog.String("address", cfg.Address()),
+		)
+
+		if err := server.ListenAndServe(); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
 			serverErrCh <- err
 		}
 	}()
@@ -107,13 +136,24 @@ func main() {
 	// 7. Ожидание сигналов завершения ОС (SIGINT, SIGTERM)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	var serverErr error
 
 	select {
 	case err := <-serverErrCh:
-		logger.Error("server fatal error", slog.String("error", err.Error()))
-		os.Exit(1)
+		serverErr = err
+
+		logger.Error(
+			"server fatal error",
+			slog.String("error", err.Error()),
+		)
+
 	case sig := <-quit:
-		logger.Info("shutdown signal received", slog.String("signal", sig.String()))
+		logger.Info(
+			"shutdown signal received",
+			slog.String("signal", sig.String()),
+		)
 	}
 
 	// 8. Graceful Shutdown
@@ -121,23 +161,41 @@ func main() {
 
 	// Шаг 1: Закрываем все сокеты и комнаты (клиенты получают CloseNormalClosure)
 	if err := hub.Close(); err != nil {
-		logger.Warn("error closing hub", slog.String("error", err.Error()))
+		logger.Warn(
+			"error closing hub",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// Шаг 2: Закрываем соединение с Redis
 	if err := redisStore.Close(); err != nil {
-		logger.Warn("error closing redis client", slog.String("error", err.Error()))
+		logger.Warn(
+			"error closing redis client",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// Шаг 3: Закрываем HTTP-сервер с таймаутом
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(
+		context.Background(),
+		cfg.ShutdownTimeout,
+	)
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("server forced to shutdown", slog.String("error", err.Error()))
+		logger.Error(
+			"server forced to shutdown",
+			slog.String("error", err.Error()),
+		)
 	} else {
 		logger.Info("http server gracefully stopped")
 	}
 
+	if serverErr != nil {
+		return fmt.Errorf("server failed: %w", serverErr)
+	}
+
 	logger.Info("realtime service exited cleanly")
+
+	return nil
 }

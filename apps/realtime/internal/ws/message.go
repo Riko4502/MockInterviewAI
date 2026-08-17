@@ -8,33 +8,55 @@ import (
 type EventType string
 
 const (
-	// EventPresenceJoin события и синхронизация комнаты
-	EventPresenceJoin  EventType = "presence.join"
-	EventPresenceLeave EventType = "presence.leave"
-	EventRoomSync      EventType = "room.sync"
+	// EventPresenceJoin отправляется при подключении участника к сессии.
+	EventPresenceJoin EventType = "presence.join"
 
-	// EventCursorMove Редактор и курсор
+	// EventPresenceLeave отправляется при отключении участника от сессии.
+	EventPresenceLeave EventType = "presence.leave"
+
+	// EventRoomSync содержит текущее состояние комнаты и список её участников.
+	EventRoomSync EventType = "room.sync"
+
+	// EventCursorMove содержит информацию об изменении положения курсора участника.
 	EventCursorMove EventType = "cursor.move"
+
+	// EventCodeUpdate содержит изменения общего кода, редактируемого участниками.
 	EventCodeUpdate EventType = "code.update"
 
-	// EventChatMessage Чат и подсказки
-	EventChatMessage  EventType = "chat.message"
+	// EventChatMessage содержит сообщение, отправленное участником в чат.
+	EventChatMessage EventType = "chat.message"
+
+	// EventAISuggestion содержит подсказку, сгенерированную искусственным интеллектом.
 	EventAISuggestion EventType = "ai.suggestion"
 
-	// EventMediaStateUpdate LiveKit / WebRTC медиа-события
-	EventMediaStateUpdate   EventType = "media.state_update"
-	//nolint:gosec // Event name contains "token" but is not a credential.
-	EventMediaTokenRequest  EventType = "media.token_request"
-	//nolint:gosec // Event name contains "token" but is not a credential.
-	EventMediaTokenResponse EventType = "media.token_response"
-	EventMediaRecording     EventType = "media.recording"
-	EventMediaSpeaker       EventType = "media.speaker"
+	// EventMediaStateUpdate содержит изменения состояния медиа-соединения.
+	EventMediaStateUpdate EventType = "media.state_update"
 
-	// EventSystemError Системные события
+	// EventMediaTokenRequest используется для запроса токена доступа к медиа-сервису.
+	//nolint:gosec // Имя события содержит "token", но не является учётными данными.
+	EventMediaTokenRequest EventType = "media.token_request"
+
+	// EventMediaTokenResponse содержит ответ на запрос токена доступа к медиа-сервису.
+	//nolint:gosec // Имя события содержит "token", но не является учётными данными.
+	EventMediaTokenResponse EventType = "media.token_response"
+
+	// EventMediaRecording содержит информацию об изменении состояния записи медиа.
+	EventMediaRecording EventType = "media.recording"
+
+	// EventMediaSpeaker содержит информацию об изменении активного участника, говорящего в данный момент.
+	EventMediaSpeaker EventType = "media.speaker"
+
+	// EventSystemError содержит информацию о системной ошибке.
 	EventSystemError EventType = "system.error"
-	EventSystemAck   EventType = "system.ack"
-	EventSystemPing  EventType = "system.ping"
-	EventSystemPong  EventType = "system.pong"
+
+	// EventSystemAck подтверждает успешную обработку события или запроса.
+	EventSystemAck EventType = "system.ack"
+
+	// EventSystemPing используется для проверки активности соединения.
+	EventSystemPing EventType = "system.ping"
+
+	// EventSystemPong является ответом на системное событие проверки соединения.
+	EventSystemPong EventType = "system.pong"
 )
 
 // String возвращает строковое представление типа события.
