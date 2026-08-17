@@ -1,0 +1,42 @@
+name-template: 'v$RESOLVED_VERSION 🚀'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: '🚀 Новые функции (Features)'
+    labels:
+      - 'feature'
+      - 'feat'
+      - 'enhancement'
+  - title: '🐛 Исправления ошибок (Bug Fixes)'
+    labels:
+      - 'fix'
+      - 'bug'
+      - 'bugfix'
+  - title: '🛠️ Инфраструктура и рефакторинг (Maintenance & CI)'
+    labels:
+      - 'chore'
+      - 'refactor'
+      - 'ci'
+      - 'devops'
+      - 'docs'
+      - 'documentation'
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking-change'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+      - 'feat'
+  patch:
+    labels:
+      - 'patch'
+      - 'fix'
+      - 'bug'
+  default: patch
+template: |
+  ## Что нового в $RESOLVED_VERSION
+
+  $CHANGES

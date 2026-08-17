@@ -1,0 +1,69 @@
+name: Деплой на сервер
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_service:
+        description: 'Сервис для сборки и деплоя'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - 'all'
+          - 'api'
+          - 'realtime'
+          - 'web'
+      ref:
+        description: 'Ветка или тег для деплоя (по умолчанию — текущая)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-realtime:
+    name: "Realtime"
+    if: inputs.target_service == 'all' || inputs.target_service == 'realtime'
+    uses: ./.github/workflows/deploy-build-realtime.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  build-web:
+    name: "Web"
+    if: inputs.target_service == 'all' || inputs.target_service == 'web'
+    uses: ./.github/workflows/deploy-build-web.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  build-api:
+    name: "API"
+    if: inputs.target_service == 'all' || inputs.target_service == 'api'
+    uses: ./.github/workflows/deploy-build-api.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  deploy:
+    name: "Сервер"
+    needs: [build-realtime, build-web, build-api]
+    if: always() && (needs.build-realtime.result == 'success' || needs.build-realtime.result == 'skipped') && (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') && (needs.build-api.result == 'success' || needs.build-api.result == 'skipped')
+    uses: ./.github/workflows/deploy-server.yml
+    secrets: inherit
+    with:
+      ref: ${{ inputs.ref }}
+
+  notify:
+    name: "Telegram"
+    needs: [deploy]
+    if: always()
+    uses: ./.github/workflows/notify-deploy-telegram.yml
+    secrets: inherit
+    with:
+      deploy_result: ${{ needs.deploy.result }}
+      ref: ${{ inputs.ref }}
