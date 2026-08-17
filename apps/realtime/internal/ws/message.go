@@ -8,22 +8,24 @@ import (
 type EventType string
 
 const (
-	// Presence события и синхронизация комнаты
+	// EventPresenceJoin события и синхронизация комнаты
 	EventPresenceJoin  EventType = "presence.join"
 	EventPresenceLeave EventType = "presence.leave"
 	EventRoomSync      EventType = "room.sync"
 
-	// Редактор и курсор
+	// EventCursorMove Редактор и курсор
 	EventCursorMove EventType = "cursor.move"
 	EventCodeUpdate EventType = "code.update"
 
-	// Чат и подсказки
+	// EventChatMessage Чат и подсказки
 	EventChatMessage  EventType = "chat.message"
 	EventAISuggestion EventType = "ai.suggestion"
 
 	// LiveKit / WebRTC медиа-события
 	EventMediaStateUpdate   EventType = "media.state_update"
+	//nolint:gosec // Event name contains "token" but is not a credential.
 	EventMediaTokenRequest  EventType = "media.token_request"
+	//nolint:gosec // Event name contains "token" but is not a credential.
 	EventMediaTokenResponse EventType = "media.token_response"
 	EventMediaRecording     EventType = "media.recording"
 	EventMediaSpeaker       EventType = "media.speaker"

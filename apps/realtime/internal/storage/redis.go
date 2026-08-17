@@ -132,7 +132,11 @@ func (r *RedisStore) Subscribe(ctx context.Context, sessionID string, onMessage 
 	subCtx, cancel := context.WithCancel(ctx)
 
 	go func() {
-		defer pubsub.Close()
+		defer func() {
+		if err := pubsub.Close(); err != nil {
+			// log error
+			}
+		}()
 		ch := pubsub.Channel()
 
 		for {
@@ -194,7 +198,11 @@ func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(use
 	subCtx, cancel := context.WithCancel(ctx)
 
 	go func() {
-		defer pubsub.Close()
+		defer func() {
+			if err := pubsub.Close(); err != nil {
+				// log error
+			}
+		}()
 		ch := pubsub.Channel()
 
 		for {

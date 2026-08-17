@@ -125,7 +125,7 @@ func TestClientPayloadBoundaryLimits(t *testing.T) {
 
 	// 2. Слишком длинное сообщение чата должно обрезаться до 4000 символов
 	hugeText := strings.Repeat("A", 5000)
-	chatPayload := fmt.Sprintf(`{"type":"chat.message","version":1,"sessionId":"session-1","payload":{"text":"%s"}}`, hugeText)
+	chatPayload := fmt.Sprintf(`{"type":"chat.message","version":1,"sessionId":"session-1","payload":{"text":"%q"}}`, hugeText)
 	var rawChat RawEnvelope
 	_ = json.Unmarshal([]byte(chatPayload), &rawChat)
 	sanitizedChatBytes, err := client.sanitizeIncomingPayload(rawChat)

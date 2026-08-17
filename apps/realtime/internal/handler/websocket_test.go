@@ -100,7 +100,12 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	sessionID := "interview-session-e2e"
 
 	// 2. Тест: Отклонение подключения без токена (401 Unauthorized)
-	_, _, err := websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, nil)
+	_, resp, err := websocket.Dial(ctx, wsURL+"/ws/sessions/"+sessionID, nil)
+
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatal("expected dial without token to fail with 401, but succeeded")
 	}

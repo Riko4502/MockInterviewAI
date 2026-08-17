@@ -76,21 +76,21 @@ func TestTokenVerification(t *testing.T) {
 
 func TestExtractTokenFromRequest(t *testing.T) {
 	// 1. Из Cookie 'access_token'
-	reqCookie := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	reqCookie := httptest.NewRequest(http.MethodGet, "/ws", http.NoBody)
 	reqCookie.AddCookie(&http.Cookie{Name: "access_token", Value: "token-from-cookie"})
 	if tok := ExtractTokenFromRequest(reqCookie, "access_token"); tok != "token-from-cookie" {
 		t.Errorf("expected 'token-from-cookie', got '%s'", tok)
 	}
 
 	// 2. Из Authorization Bearer
-	reqAuth := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	reqAuth := httptest.NewRequest(http.MethodGet, "/ws", http.NoBody)
 	reqAuth.Header.Set("Authorization", "Bearer token-abc")
 	if tok := ExtractTokenFromRequest(reqAuth, "access_token"); tok != "token-abc" {
 		t.Errorf("expected 'token-abc', got '%s'", tok)
 	}
 
 	// 3. Query-параметры должны игнорироваться
-	reqQuery := httptest.NewRequest(http.MethodGet, "/ws?token=token-query-1", nil)
+	reqQuery := httptest.NewRequest(http.MethodGet, "/ws?token=token-query-1", http.NoBody)
 	if tok := ExtractTokenFromRequest(reqQuery, "access_token"); tok != "" {
 		t.Errorf("expected empty string for query param token, got '%s'", tok)
 	}
