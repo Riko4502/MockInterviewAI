@@ -1,4 +1,4 @@
-import { Stack } from "@/shared/ui/Stack";
+import { Stack } from "@packages/ui";
 
 export default function Home() {
   return (

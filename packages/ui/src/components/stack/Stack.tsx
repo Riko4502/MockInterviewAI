@@ -5,17 +5,8 @@ import {
   type HTMLAttributes,
   type ReactNode,
 } from "react";
-import {
-  alignClasses,
-  directionClasses,
-  gapClasses,
-  justifyClasses,
-  type StackAlign,
-  type StackDirection,
-  type StackGap,
-  type StackJustify,
-  type StackTag,
-} from "./constants";
+import { alignClasses, directionClasses, gapClasses, justifyClasses, StackAlign, StackDirection, StackGap, StackJustify, StackTag } from "./constants";
+
 
 type DivProps = DetailedHTMLProps<
   HTMLAttributes<HTMLDivElement>,
