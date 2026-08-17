@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 'feature/*'
+      - 'feature/**'
+      - 'fix/*'
+      - 'fix/**'
+      - 'chore/*'
+      - 'chore/**'
+      - 'refactor/*'
+      - 'refactor/**'
+      - 'hotfix/*'
+      - 'hotfix/**'
+      - 'bugfix/*'
+      - 'bugfix/**'
+      - 'release/*'
+      - 'release/**'
+      - 'main'
+      - 'dev'
+  pull_request:
+    branches:
+      - 'feature/*'
+      - 'feature/**'
+      - 'fix/*'
+      - 'fix/**'
+      - 'chore/*'
+      - 'chore/**'
+      - 'refactor/*'
+      - 'refactor/**'
+      - 'hotfix/*'
+      - 'hotfix/**'
+      - 'bugfix/*'
+      - 'bugfix/**'
+      - 'release/*'
+      - 'release/**'
+      - 'main'
+      - 'dev'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: "Определение изменённых сервисов"
+    runs-on: ubuntu-latest
+    outputs:
+      realtime: ${{ steps.filter.outputs.realtime }}
+      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Фильтрация изменённых путей"
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            realtime:
+              - 'apps/realtime/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-realtime.yml'
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-web.yml'
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-api.yml'
+
+  realtime:
+    name: "Realtime"
+    needs: changes
+    if: needs.changes.outputs.realtime == 'true'
+    uses: ./.github/workflows/ci-realtime.yml
+
+  web:
+    name: "Web"
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    uses: ./.github/workflows/ci-web.yml
+
+  api:
+    name: "API"
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    uses: ./.github/workflows/ci-api.yml
+
+  security:
+    name: "Security"
+    uses: ./.github/workflows/ci-security.yml
+
+  notify:
+    name: "Telegram"
+    needs: [realtime, web, api, security]
+    if: always()
+    uses: ./.github/workflows/notify-ci-telegram.yml
+    secrets: inherit
+    with:
+      realtime_result: ${{ needs.realtime.result }}
+      web_result: ${{ needs.web.result }}
+      api_result: ${{ needs.api.result }}
+      security_result: ${{ needs.security.result }}
