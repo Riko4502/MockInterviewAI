@@ -11,13 +11,15 @@
   "scripts": {
     "build": "tsc",
     "lint": "biome check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
