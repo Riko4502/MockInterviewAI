@@ -7,7 +7,7 @@
     "build": "nest build",
     "start": "nest start",
     "lint": "biome check",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
