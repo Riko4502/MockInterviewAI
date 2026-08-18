@@ -26,6 +26,10 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^7",
-    "vite-tsconfig-paths": "^6.1.1"
+    "vite-tsconfig-paths": "^6.1.1",
+    "@vitest/browser-playwright": "latest",
+    "@vitest/coverage-v8": "latest",
+    "playwright": "latest",
+    "vitest": "latest"
   }
 }
