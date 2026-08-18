@@ -1,0 +1,12 @@
+{
+  "name": "@apps/realtime",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "go run ./cmd/server",
+    "build": "go build -o dist/server ./cmd/server",
+    "start": "go run ./cmd/server",
+    "test": "go test -v ./...",
+    "lint": "go vet ./..."
+  }
+}
