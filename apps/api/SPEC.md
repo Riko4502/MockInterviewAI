@@ -154,7 +154,7 @@ Response (успех):
 
 ### 8. Email Normalization
 
-Централизована в `packages/dto/src/auth/email.ts`:
+Централизована в `@packages/dto/src/auth/email.ts`:
 
 ```ts
 normalizeEmail(input: string): string {

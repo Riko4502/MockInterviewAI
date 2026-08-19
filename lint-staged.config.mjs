@@ -6,4 +6,7 @@ export default {
   'apps/api/**/*.{js,ts,json}': [
     'pnpm --filter api exec biome check --write --no-errors-on-unmatched',
   ],
+  'packages/dto/**/*.{js,ts,json}': [
+    'pnpm --filter @packages/dto exec biome check --write --no-errors-on-unmatched',
+  ],
 }
