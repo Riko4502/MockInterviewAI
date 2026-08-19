@@ -55,7 +55,6 @@ jobs:
             "$ICON" \
             "$CLEAN_TITLE" \
             "$PR_NUMBER" \
-            "${{ github.repository }}" \
             "$PR_AUTHOR" \
             "$MERGED_BY" \
             "$PR_URL" \

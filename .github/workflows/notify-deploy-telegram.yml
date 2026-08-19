@@ -54,7 +54,6 @@ jobs:
 
           MESSAGE=$(printf "%s\n\n🌿 <b>Ветка:</b> <code>%s</code>\n👤 <b>Автор:</b> %s\n💬 <b>Коммит:</b> <a href=\"https://github.com/%s/commit/%s\">%s</a>\n\n🔗 <a href=\"https://github.com/%s/actions/runs/%s\">Открыть запуск в GitHub Actions</a>\n\n🐳 <b>Docker-образы для скачивания:</b>\n<pre><code>docker pull %s\ndocker pull %s\ndocker pull %s</code></pre>" \
             "$STATUS_HEADER" \
-            "${{ github.repository }}" \
             "$BRANCH" \
             "${{ github.actor }}" \
             "${{ github.repository }}" "${{ github.sha }}" "$SHORT_SHA" \
