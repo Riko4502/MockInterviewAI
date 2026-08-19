@@ -50,7 +50,7 @@ jobs:
           # Экранируем спецсимволы в заголовке
           CLEAN_TITLE=$(echo "$PR_TITLE" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
-          MESSAGE=$(printf "📋 <b>Changelog: мерж в <code>%s</code></b>\n\n%s <b>%s</b> (#%s)\n\n📦 <b>Репозиторий:</b> <a href=\"https://github.com/%s\">%s</a>\n👤 <b>Автор PR:</b> @%s\n🤝 <b>Смержил:</b> @%s\n\n🔗 <a href=\"%s\">Открыть Pull Request #%s</a>" \
+          MESSAGE=$(printf "📋 <b>Changelog: мерж в <code>%s</code></b>\n\n%s <b>%s</b> (#%s)\n\n👤 <b>Автор PR:</b> @%s\n🤝 <b>Смержил:</b> @%s\n\n🔗 <a href=\"%s\">Открыть Pull Request #%s</a>" \
             "$TARGET_BRANCH" \
             "$ICON" \
             "$CLEAN_TITLE" \
