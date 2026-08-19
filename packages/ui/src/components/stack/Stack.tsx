@@ -1,4 +1,4 @@
-import { cn } from "@packages/ui/lib/utils";
+
 import {
   type DetailedHTMLProps,
   forwardRef,
@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { alignClasses, directionClasses, gapClasses, justifyClasses, StackAlign, StackDirection, StackGap, StackJustify, StackTag } from "./constants";
+import { cn } from "@lib/utils";
 
 
 type DivProps = DetailedHTMLProps<
