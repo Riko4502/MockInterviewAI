@@ -3,33 +3,33 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "src"
+    "src/styles"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./globals.css": "./src/styles/globals.css",
     "./postcss.config": "./postcss.config.mjs",
     "./components/*": {
       "types": "./dist/components/*.d.ts",
-      "import": "./src/components/*.tsx",
-      "default": "./src/components/*.tsx"
+      "import": "./dist/components/*.js",
+      "default": "./dist/components/*.js"
     },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
-      "import": "./src/lib/*.ts",
-      "default": "./src/lib/*.ts"
+      "import": "./dist/lib/*.js",
+      "default": "./dist/lib/*.js"
     }
   },
   "peerDependencies": {
@@ -49,6 +49,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5"
   }
 }
