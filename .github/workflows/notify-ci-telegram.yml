@@ -96,7 +96,7 @@ jobs:
             "${{ github.repository }}" "${{ github.sha }}" "$SHORT_SHA" \
             "$ICON_RT" \
             "$ICON_WEB" \
-            "ICON_LANDING" \
+            "$ICON_LANDING" \
             "$ICON_API" \
             "$ICON_SEC" \
             "${{ github.repository }}" "${{ github.run_id }}")
