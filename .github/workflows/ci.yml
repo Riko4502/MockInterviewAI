@@ -124,5 +124,6 @@ jobs:
     with:
       realtime_result: ${{ needs.realtime.result }}
       web_result: ${{ needs.web.result }}
+      landing_result: ${{ needs.web.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}
