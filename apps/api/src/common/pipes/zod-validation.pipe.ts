@@ -3,10 +3,21 @@ import {
   BadRequestException,
   type PipeTransform,
 } from "@nestjs/common";
-import type { ZodError, ZodType } from "zod";
 
 /** Формат ошибки валидации: поле → сообщение. */
 type ZodErrorField = Record<string, string>;
+
+/** Минимальный интерфейс zod-схемы для валидации через pipe. */
+interface ZodSchema {
+  safeParse: (value: unknown) =>
+    | { success: true; data: unknown }
+    | {
+        success: false;
+        error: {
+          issues: Array<{ path: Array<string | number>; message: string }>;
+        };
+      };
+}
 
 /**
  * NestJS-pipe валидации DTO через Zod-схему.
@@ -26,7 +37,7 @@ export class ZodValidationPipe implements PipeTransform {
   /**
    * @param schema - Zod-схема для валидации DTO.
    */
-  constructor(private readonly schema: ZodType) {}
+  constructor(private readonly schema: ZodSchema) {}
 
   /**
    * Валидирует входные данные по Zod-схеме.
@@ -49,10 +60,12 @@ export class ZodValidationPipe implements PipeTransform {
   /**
    * Форматирует ошибку Zod в объект `{ field: message }`.
    *
-   * @param error - Ошибка Zod (`ZodError`).
+   * @param error - Ошибка Zod.
    * @returns Объект с полями и сообщениями ошибок.
    */
-  private formatError(error: ZodError): ZodErrorField {
+  private formatError(error: {
+    issues: Array<{ path: Array<string | number>; message: string }>;
+  }): ZodErrorField {
     const fields: ZodErrorField = {};
     for (const issue of error.issues) {
       const field = issue.path.join(".");

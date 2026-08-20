@@ -5,7 +5,9 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
+import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
+import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
 
@@ -14,8 +16,8 @@ import { RedisModule } from "./redis/redis.module";
  *
  * Регистрирует глобальный `ConfigModule` (валидация окружения, §49 SPEC.md),
  * глобальный `PrismaModule`, глобальный `RedisModule`, `ThrottlerModule`
- * (rate limiting, §41 SPEC.md), `HealthModule` и глобальный `OriginCheckGuard`
- * (CSRF, §29 SPEC.md).
+ * (rate limiting, §41 SPEC.md), `HealthModule`, `UsersModule`, `AuthModule`
+ * и глобальный `OriginCheckGuard` (CSRF, §29 SPEC.md).
  */
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { RedisModule } from "./redis/redis.module";
     PrismaModule,
     RedisModule,
     HealthModule,
+    UsersModule,
+    AuthModule,
   ],
   providers: [
     {

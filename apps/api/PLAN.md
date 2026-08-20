@@ -78,14 +78,14 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 
 ## Phase 5 — Auth module
 
-- [ ] `src/modules/users/` — `UsersModule`, `UsersService` (`findByEmail`, `create`).
-- [ ] `src/modules/auth/auth.constants.ts` — константы: имя cookie, префикс Redis-ключа (`auth:session:`), `typ`-константы токенов.
-- [ ] `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
-- [ ] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 SPEC.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
-- [ ] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
-- [ ] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
-- [ ] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
-- [ ] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
+- [x] `src/modules/users/` — `UsersModule`, `UsersService` (`findByEmail`, `create`).
+- [x] `src/modules/auth/auth.constants.ts` — константы: имя cookie, префикс Redis-ключа (`auth:session:`), `typ`-константы токенов.
+- [x] `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
+- [x] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 SPEC.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
+- [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
+- [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
+- [x] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
+- [x] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
 
 ## Phase 6 — Тестирование
 
