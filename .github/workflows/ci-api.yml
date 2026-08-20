@@ -1,0 +1,49 @@
+name: "CI API (Nest.js)"
+
+on:
+  workflow_call:
+
+jobs:
+  test-and-build:
+    name: "Тесты и сборка API"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса API (apps/api)"
+        id: check_api
+        run: |
+          if [ -d "apps/api" ] && [ -f "apps/api/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка pnpm"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: "Запуск тестов и сборки Nest.js"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm --filter @apps/api test || pnpm --filter api test || pnpm turbo run build --filter=...api

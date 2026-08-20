@@ -1,0 +1,71 @@
+name: "Релиз и Telegram-анонс"
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Название тега/релиза (например, v1.0.0)'
+        required: true
+        type: string
+      title:
+        description: 'Заголовок релиза'
+        required: true
+        type: string
+        default: 'Релиз MockInterviewAI'
+      description:
+        description: 'Описание изменений (Changelog)'
+        required: false
+        type: string
+        default: 'Плановое обновление сервиса.'
+
+permissions:
+  contents: read
+
+jobs:
+  notify-release:
+    name: "Анонс релиза в Telegram"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Отправка анонса релиза в Telegram"
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Отдельный топик для релизов (с фоллбэком на общий)
+          THREAD_ID: ${{ secrets.TELEGRAM_RELEASE_THREAD_ID || secrets.TELEGRAM_THREAD_ID }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+          TITLE: ${{ github.event.release.name || inputs.title }}
+          BODY: ${{ github.event.release.body || inputs.description }}
+          RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/{0}/releases/tag/{1}', github.repository, inputs.tag_name) }}
+          AUTHOR: ${{ github.event.release.author.login || github.actor }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
+            exit 0
+          fi
+
+          # Экранируем HTML-символы в описании чейнджлога
+          CLEAN_BODY=$(echo "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | head -n 30)
+
+          MESSAGE=$(printf "🚀 <b>Новый релиз: <code>%s</code></b>\n\n📌 <b>%s</b>\n\n👤 <b>Опубликовал:</b> %s\n\n📝 <b>Что нового:</b>\n%s\n\n🔗 <a href=\"%s\">Открыть страницу релиза на GitHub</a>" \
+            "$TAG_NAME" \
+            "$TITLE" \
+            "${{ github.repository }}" "${{ github.repository }}" \
+            "$AUTHOR" \
+            "$CLEAN_BODY" \
+            "$RELEASE_URL")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg thread_id "$THREAD_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_notification: true} + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+
+          echo "Отправка анонса релиза в Telegram (топик ID: ${THREAD_ID:-основной чат})..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Ответ от Telegram API:"
+          echo "$RESPONSE"

@@ -1,0 +1,57 @@
+name: "CI Web (Next.js)"
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: "Тесты и проверки Web (Biome, TypeScript, Vitest, Build)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: "Проверка стиля и линтинг (Biome)"
+        run: pnpm --filter web lint
+
+      - name: "Проверка типов TypeScript"
+        run: pnpm --filter web exec tsc --noEmit
+
+      - name: "Запуск тестов фронтенда"
+        run: pnpm --filter web test
+
+      - name: "Проверка сборки Next.js"
+        run: pnpm --filter web build
+
+  audit:
+    name: "Аудит безопасности Web (pnpm audit)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Проверка уязвимостей в пакетах (pnpm audit)"
+        run: pnpm audit --audit-level=high

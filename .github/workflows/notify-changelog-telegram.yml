@@ -1,0 +1,76 @@
+name: "Changelog Telegram Notification"
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  notify-changelog:
+    name: "Отправка в топик Changelog"
+    # Срабатывает только если PR был реально смержен, а не просто закрыт
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Отправка записи чейнджлога в Telegram"
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Отдельный топик для Changelog (с фоллбэком на общий)
+          THREAD_ID: ${{ secrets.TELEGRAM_CHANGELOG_THREAD_ID || secrets.TELEGRAM_THREAD_ID }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+          MERGED_BY: ${{ github.actor }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
+            exit 0
+          fi
+
+          # Определяем иконку по типу PR
+          ICON="📝"
+          case "$PR_TITLE" in
+            feat*|Feat*) ICON="🚀" ;;
+            fix*|Fix*) ICON="🐛" ;;
+            refactor*|Refactor*) ICON="♻️" ;;
+            perf*|Perf*) ICON="⚡" ;;
+            docs*|Docs*) ICON="📚" ;;
+            chore*|Chore*) ICON="🛠️" ;;
+          esac
+
+          # Экранируем спецсимволы в заголовке
+          CLEAN_TITLE=$(echo "$PR_TITLE" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+
+          MESSAGE=$(printf "📋 <b>Changelog: мерж в <code>%s</code></b>\n\n%s <b>%s</b> (#%s)\n\n👤 <b>Автор PR:</b> @%s\n🤝 <b>Смержил:</b> @%s\n\n🔗 <a href=\"%s\">Открыть Pull Request #%s</a>" \
+            "$TARGET_BRANCH" \
+            "$ICON" \
+            "$CLEAN_TITLE" \
+            "$PR_NUMBER" \
+            "${{ github.repository }}" "${{ github.repository }}" \
+            "$PR_AUTHOR" \
+            "$MERGED_BY" \
+            "$PR_URL" \
+            "$PR_NUMBER")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg thread_id "$THREAD_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_notification: true} + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+
+          echo "Отправка в топик Changelog (Thread ID: ${THREAD_ID:-основной чат})..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Ответ от Telegram API:"
+          echo "$RESPONSE"

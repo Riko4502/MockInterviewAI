@@ -50,6 +50,132 @@
 
 ---
 
-## Технические требования
+## Технические требования и стек
+
+* **Frontend:** Next.js (App Router), React, TypeScript
+* **Realtime Service:** Go 1.24, WebSocket (`coder/websocket`), Chi router
+* **Backend API:** Nest.js, Prisma ORM, PostgreSQL
+* **State & Caching:** Redis (Pub/Sub + сессии)
+* **Monorepo & Build Tooling:** Turborepo, pnpm workspaces, Biome, Docker
+
+---
+
+## Требования для локальной разработки
+
+Перед началом работы убедитесь, что у вас установлены:
+* **Node.js:** >= 20.x
+* **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
+* **Go:** >= 1.24 (для сервиса Realtime)
+* **Docker & Docker Compose:** для локального запуска Redis и PostgreSQL
+
+---
+
+## Установка и запуск проекта
+
+### 1. Клонирование репозитория
+```bash
+git clone https://github.com/Riko4502/MockInterviewAI.git
+cd MockInterviewAI
+```
+
+### 2. Настройка переменных окружения
+Создайте корневой файл `.env` на основе примера:
+```bash
+cp .env.example .env
+```
+Заполните обязательные переменные (или оставьте локальные значения по умолчанию):
+* `JWT_ACCESS_SECRET` и `JWT_REFRESH_SECRET` (минимум 32 символа)
+* `ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
+* `REDIS_HOST=localhost`, `REDIS_PORT=6379`
+
+### 3. Установка зависимостей
+```bash
+pnpm install
+```
+
+### 4. Запуск инфраструктуры (Redis)
+Для локальной разработки запустите Redis в Docker:
+```bash
+docker run -d --name mock-redis -p 6379:6379 redis:7-alpine
+```
+
+### 5. Запуск сервисов в режиме разработки
+
+#### Запуск всех сервисов одновременно (Turborepo):
+```bash
+pnpm dev
+```
+
+#### Запуск конкретных сервисов по отдельности:
+* **Frontend (Next.js - порт 3000):**
+  ```bash
+  pnpm dev:web
+  ```
+* **Realtime WebSocket сервис (Go - порт 8080):**
+  ```bash
+  pnpm dev:realtime
+  ```
+  *(или напрямую через Go: `cd apps/realtime && go run cmd/server/main.go`)*
+
+---
+
+## Тестирование и проверка качества кода
+
+* **Запуск всех тестов:**
+  ```bash
+  pnpm test
+  ```
+* **Тесты сервиса Realtime (Go):**
+  ```bash
+  pnpm test:realtime
+  ```
+* **Тесты веб-приложения (Jest / React Testing Library):**
+  ```bash
+  pnpm test:web
+  ```
+* **Проверка линтерами (Biome & golangci-lint):**
+  ```bash
+  pnpm lint:realtime
+  ```
+
+---
+
+## Production сборка и Docker
+
+### Сборка через Turborepo:
+```bash
+pnpm build
+```
+
+### Запуск полного стека в Docker Compose:
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
 - Обязательное покрытие тестами основного функционала.
+
+---
+
+## Локальная разработка
+
+Требования: Node.js, pnpm, запущенный Docker Desktop.
+
+```bash
+# 1. Установка зависимостей (после клонирования)
+pnpm install
+
+# 2. Переменные окружения API
+cp apps/api/.env.example apps/api/.env   # Windows: copy apps\api\.env.example apps\api\.env
+
+# 3. Запуск
+pnpm dev                 # все сервисы (web + api); требует запущенный Docker
+pnpm --filter api dev    # только API: поднимет postgres/redis (docker compose up -d --wait)
+                         # и применит миграции (migrate deploy), затем nest start --watch
+
+# Остановка контейнеров API
+pnpm --filter api db:down
+```
+
+`GET http://localhost:3001/api/v1/health` → `200 { "status": "ok", "db": "up" }`.
+
+> Примечание: `pnpm dev` (все сервисы) жёстко зависит от Docker — при недоступном Docker падает целиком. Для работы только с web используйте `pnpm --filter web dev`.
