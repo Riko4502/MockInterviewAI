@@ -63,6 +63,13 @@ jobs:
           go env GOTOOLCHAIN
           go env GOROOT
 
+      - name: "Проверка пакетов"
+        if: steps.check_realtime.outputs.exists == 'true'
+        working-directory: apps/realtime
+        run: |
+          go list -deps ./...
+          go vet ./...
+
       - name: "Проверка уязвимостей в зависимостях (govulncheck)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golang/govulncheck-action@v1
