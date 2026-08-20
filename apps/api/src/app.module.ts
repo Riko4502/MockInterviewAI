@@ -1,15 +1,21 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { HealthModule } from "./modules/health/health.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { RedisModule } from "./redis/redis.module";
 
 /**
  * Корневой модуль приложения (bootstrap).
  *
  * Регистрирует глобальный `ConfigModule` (валидация окружения, §49 SPEC.md),
- * глобальный `PrismaModule` и `HealthModule`.
+ * глобальный `PrismaModule`, глобальный `RedisModule`, `ThrottlerModule`
+ * (rate limiting, §41 SPEC.md), `HealthModule` и глобальный `OriginCheckGuard`
+ * (CSRF, §29 SPEC.md).
  */
 @Module({
   imports: [
@@ -19,8 +25,25 @@ import { PrismaModule } from "./prisma/prisma.module";
       load: [configuration],
       envFilePath: ["../../.env", ".env"],
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>("throttle.ttl") ?? 60_000,
+          limit: config.get<number>("throttle.limit") ?? 100,
+        },
+      ],
+    }),
     PrismaModule,
+    RedisModule,
     HealthModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: OriginCheckGuard,
+    },
   ],
 })
 export class AppModule {}

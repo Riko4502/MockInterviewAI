@@ -64,11 +64,17 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 
 ## Phase 4 — Инфраструктура: Redis и расширение bootstrap
 
-- [ ] `src/redis/` — `RedisModule`, `RedisService` (`set/get/delete/expire`), TTL.
-- [ ] `src/common/`:
+- [x] `src/redis/` — `RedisModule`, `RedisService` (`set/get/delete/expire`), TTL.
+- [x] `src/common/`:
   - `ZodValidationPipe`;
   - `SensitiveLoggingInterceptor` (`HttpExceptionFilter` уже в Phase 2).
-- [ ] Расширить `src/app.module.ts` / `src/main.ts`: cookie-parser, `ThrottlerModule` (default guard), Origin-check guard, подключение `RedisModule`. Origin-check guard устанавливается заранее; защищаемые им endpoints (`/auth/refresh`, `/logout`, `/logout-all`, `/change-password`) — вне области (см. раздел «Вне области»).
+- [x] Расширить `src/app.module.ts` / `src/main.ts`: cookie-parser, `ThrottlerModule` (default guard), Origin-check guard, подключение `RedisModule`. Origin-check guard устанавливается заранее; защищаемые им endpoints (`/auth/refresh`, `/logout`, `/logout-all`, `/change-password`) — вне области (см. раздел «Вне области»).
+- [x] Настройка тестовой инфраструктуры: `jest.config.ts` (ts-jest, moduleNameMapper для `@packages/dto`), `test/jest-e2e.json`.
+- [x] Unit-тесты Phase 4:
+  - `src/common/pipes/zod-validation.pipe.spec.ts` — валидные/невалидные данные, формат ошибок `{ field: message }`, `_root`, вложенные пути.
+  - `src/common/guards/origin-check.guard.spec.ts` — нет заголовков, совпадает/не совпадает, Referer fallback, приоритет Origin, startsWith matching.
+  - `src/common/interceptors/sensitive-logging.interceptor.spec.ts` — логирует method/url/latency, не логирует body, пропускает observable.
+  - `src/redis/redis.service.spec.ts` — set/get/delete/expire/ping, onModuleInit/onModuleDestroy, дефолты конфига.
 
 ## Phase 5 — Auth module
 
