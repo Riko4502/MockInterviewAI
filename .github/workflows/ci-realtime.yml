@@ -55,6 +55,14 @@ jobs:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
 
+      - name: "Проверка Go"
+        if: steps.check_realtime.outputs.exists == 'true'
+        run: |
+          go version
+          go env GOVERSION
+          go env GOTOOLCHAIN
+          go env GOROOT
+
       - name: "Проверка уязвимостей в зависимостях (govulncheck)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golang/govulncheck-action@v1
