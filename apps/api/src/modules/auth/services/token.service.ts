@@ -1,6 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { ConfigService } from "@nestjs/config";
 import jwt from "jsonwebtoken";
 import type { StringValue } from "ms";
@@ -50,14 +49,14 @@ export class TokenService {
       sub: userId,
       sid: sessionId,
       typ: TOKEN_TYP_ACCESS,
-      iss: this.configService.get<string>("jwt.issuer") ?? "",
-      aud: this.configService.get<string>("jwt.audience") ?? "",
+      iss: this.configService.getOrThrow<string>("jwt.issuer"),
+      aud: this.configService.getOrThrow<string>("jwt.audience"),
       jti: randomUUID(),
     };
 
     return jwt.sign(
       payload,
-      this.configService.get<string>("jwt.accessSecret") as string,
+      this.configService.getOrThrow<string>("jwt.accessSecret"),
       {
         algorithm: JWT_ALGORITHM,
         expiresIn: (this.configService.get<string>("jwt.accessExpiresIn") ??
@@ -78,14 +77,14 @@ export class TokenService {
       sub: userId,
       sid: sessionId,
       typ: TOKEN_TYP_REFRESH,
-      iss: this.configService.get<string>("jwt.issuer") ?? "",
-      aud: this.configService.get<string>("jwt.audience") ?? "",
+      iss: this.configService.getOrThrow<string>("jwt.issuer"),
+      aud: this.configService.getOrThrow<string>("jwt.audience"),
       jti: randomUUID(),
     };
 
     return jwt.sign(
       payload,
-      this.configService.get<string>("jwt.refreshSecret") as string,
+      this.configService.getOrThrow<string>("jwt.refreshSecret"),
       {
         algorithm: JWT_ALGORITHM,
         expiresIn: (this.configService.get<string>("jwt.refreshExpiresIn") ??
@@ -130,9 +129,9 @@ export class TokenService {
    * @returns Hex-строка HMAC-SHA-256 хеша.
    */
   hashRefreshToken(token: string): string {
-    const secret = this.configService.get<string>(
+    const secret = this.configService.getOrThrow<string>(
       "refreshTokenHashSecret",
-    ) as string;
+    );
     return createHmac("sha256", secret).update(token).digest("hex");
   }
 
@@ -150,13 +149,13 @@ export class TokenService {
     expectedTyp: string,
     secretKey: string,
   ): TokenPayload {
-    const secret = this.configService.get<string>(secretKey) as string;
+    const secret = this.configService.getOrThrow<string>(secretKey);
 
     try {
       const decoded = jwt.verify(token, secret, {
         algorithms: [JWT_ALGORITHM],
-        issuer: this.configService.get<string>("jwt.issuer") as string,
-        audience: this.configService.get<string>("jwt.audience") as string,
+        issuer: this.configService.getOrThrow<string>("jwt.issuer"),
+        audience: this.configService.getOrThrow<string>("jwt.audience"),
       }) as jwt.JwtPayload;
 
       if (decoded.typ !== expectedTyp) {

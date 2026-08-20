@@ -1,8 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { ConfigService } from "@nestjs/config";
 import ms from "ms";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { RedisService } from "../../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth.constants";
 

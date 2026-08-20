@@ -1,11 +1,9 @@
 import { Body, Controller, HttpStatus, Post, Res } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { ConfigService } from "@nestjs/config";
 import { type RegisterDto, registerSchema } from "@packages/dto";
 import type { Response } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { REFRESH_TOKEN_COOKIE_NAME } from "./auth.constants";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { AuthService } from "./auth.service";
 
 /** Максимальное время жизни refresh cookie в секундах (§25 SPEC.md). */

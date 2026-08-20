@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { ConfigService } from "@nestjs/config";
 import type { Request } from "express";
 

@@ -5,17 +5,12 @@ import {
   InternalServerErrorException,
   Logger,
 } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { ConfigService } from "@nestjs/config";
 import type { RegisterDto } from "@packages/dto";
 import argon2 from "argon2";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { PrismaService } from "../../prisma/prisma.service";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { UsersService } from "../users/users.service";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { AuthSessionService } from "./services/auth-session.service";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { TokenService } from "./services/token.service";
 
 /** Результат успешной регистрации. */
@@ -116,7 +111,7 @@ export class AuthService {
         "Redis unavailable after user creation — compensating",
         error instanceof Error ? error.message : String(error),
       );
-      await this.compensateUserDeletion(userId);
+      await this.compensateUserCleanup(userId);
       throw new InternalServerErrorException();
     }
 
@@ -146,7 +141,7 @@ export class AuthService {
    *
    * @param userId - UUID пользователя для удаления.
    */
-  private async compensateUserDeletion(userId: string): Promise<void> {
+  private async compensateUserCleanup(userId: string): Promise<void> {
     try {
       await this.prisma.user.delete({ where: { id: userId } });
       this.logger.debug(`Compensated: deleted user ${userId}`);

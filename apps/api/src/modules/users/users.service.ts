@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 import type { User } from "../../generated/prisma/client";
-// biome-ignore lint/style/useImportType: value import required for NestJS DI metadata
 import { PrismaService } from "../../prisma/prisma.service";
 
 /**
