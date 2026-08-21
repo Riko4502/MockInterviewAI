@@ -1,0 +1,31 @@
+# Сборка и команды (Build & Tooling)
+
+Вся сборка монорепозитория управляется через **Turborepo** и **pnpm workspaces**.
+
+---
+
+## 1. Основные команды
+
+| Действие | Команда |
+|---|---|
+| **Установка всех зависимостей** | `pnpm install` |
+| **Запуск всего в dev-режиме** | `pnpm dev` |
+| **Запуск только веб-приложения** | `pnpm dev:web` |
+| **Сборка всего проекта (Production build)** | `pnpm build` |
+| **Сборка UI Kit** | `pnpm --filter @packages/ui build` |
+| **Сборка только Web** | `pnpm --filter web build` |
+| **Проверка типов (Typecheck)** | `pnpm typecheck` |
+| **Проверка линтером (Biome)** | `pnpm --filter web lint` |
+| **Автоформатирование кода** | `pnpm --filter web format` |
+
+---
+
+## 2. Граф зависимостей сборки (Turborepo)
+
+Turborepo гарантирует, что зависимые пакеты соберутся перед сборкой приложений:
+
+```text
+web#build
+  ├── @packages/ui#build
+  └── @packages/api#build
+```
