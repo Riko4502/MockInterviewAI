@@ -1,0 +1,39 @@
+name: Deploy Landing (Docker)
+
+on:
+  workflow_call:
+    inputs:
+      IMAGE_TAG:
+        required: true
+        type: string
+
+jobs:
+  build-and-push:
+    name: Build & Push Landing Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Astro build (optional)
+        run: pnpm --filter landing build
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/landing:${{ inputs.IMAGE_TAG }} \
+            -f apps/landing/Dockerfile .
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

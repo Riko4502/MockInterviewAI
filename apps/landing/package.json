@@ -1,0 +1,17 @@
+{
+  "name": "landing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^7.2.4",
+    "tailwindcss": "^4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4"
+  }
+}

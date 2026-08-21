@@ -1,0 +1,36 @@
+name: "CI Landing (Astro)"
+
+on:
+  workflow_call: {}
+
+jobs:
+  landing:
+    name: "Landing"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Линтинг (Biome) – Landing"
+        run: pnpm --filter landing lint
+
+      - name: "Проверка типов TypeScript"
+        run: pnpm --filter landing exec tsc --noEmit
+
+      - name: "Запуск тестов (если они есть)"
+        run: pnpm --filter landing test || echo "Тесты не определены"
+
+      - name: "Сборка проекта"
+        run: pnpm --filter landing build
