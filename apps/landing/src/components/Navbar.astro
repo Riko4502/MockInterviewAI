@@ -6,11 +6,11 @@ interface Props {
   lang?: Lang;
 }
 
-const { lang = 'en' } = Astro.props;
+const { lang = 'ru' } = Astro.props;
 const t = useTranslations(lang);
-const homeUrl = lang === 'ru' ? '/ru' : '/';
-const switchLangUrl = lang === 'ru' ? '/' : '/ru';
-const switchLangLabel = lang === 'ru' ? 'EN' : 'RU';
+const homeUrl = lang === 'ru' ? '/' : '/en';
+const switchLangUrl = lang === 'ru' ? '/' : '/en';
+const switchLangLabel = lang === 'ru' ? 'RU' : 'EN';
 ---
 
 <header class="sticky top-0 z-50 w-full border-b border-white/5 bg-[#090a10]/80 backdrop-blur-md">
