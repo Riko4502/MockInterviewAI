@@ -13,9 +13,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "paths": {
-      "@lib/*": ["./src/lib/*"],
-      "@components/*": ["./src/components/*"],
-      "@hooks/*": ["./src/hooks/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
