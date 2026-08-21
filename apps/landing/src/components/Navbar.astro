@@ -1,0 +1,66 @@
+---
+// Navbar.astro
+import { useTranslations, type Lang } from '@/i18n/ui';
+
+interface Props {
+  lang?: Lang;
+}
+
+const { lang = 'en' } = Astro.props;
+const t = useTranslations(lang);
+const homeUrl = lang === 'ru' ? '/ru' : '/';
+const switchLangUrl = lang === 'ru' ? '/' : '/ru';
+const switchLangLabel = lang === 'ru' ? 'EN' : 'RU';
+---
+
+<header class="sticky top-0 z-50 w-full border-b border-white/5 bg-[#090a10]/80 backdrop-blur-md">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+    <!-- Logo -->
+    <a href={homeUrl} class="flex items-center gap-3 group">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:scale-105 transition-transform duration-200">
+        <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+      </div>
+      <span class="text-xl font-bold tracking-tight text-white group-hover:text-violet-400 transition-colors">
+        DEVSYNC
+      </span>
+    </a>
+
+    <!-- Nav Links -->
+    <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+      <a href="#how-it-works" class="hover:text-white transition-colors">{t('nav.howItWorks')}</a>
+      <a href="#features" class="hover:text-white transition-colors">{t('nav.features')}</a>
+      <a href="#community" class="hover:text-white transition-colors">{t('nav.community')}</a>
+      <a href="#faq" class="hover:text-white transition-colors">{t('nav.faq')}</a>
+    </nav>
+
+    <!-- Right Actions -->
+    <div class="flex items-center gap-3">
+      <!-- Language Switcher Button -->
+      <a
+        href={switchLangUrl}
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-violet-300 hover:text-white transition-all"
+        title="Switch language / Сменить язык"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+        <span>{switchLangLabel}</span>
+      </a>
+
+      <a href="/login" class="hidden sm:inline-block text-sm font-medium text-slate-300 hover:text-white transition-colors px-3 py-2">
+        {t('nav.signIn')}
+      </a>
+      <a
+        href="#cta"
+        class="inline-flex items-center justify-center text-sm font-semibold text-white bg-violet-600 hover:bg-violet-500 rounded-full px-5 py-2.5 shadow-lg shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+      >
+        {t('nav.getStarted')}
+      </a>
+    </div>
+  </div>
+</header>

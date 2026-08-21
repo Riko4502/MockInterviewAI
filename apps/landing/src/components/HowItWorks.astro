@@ -1,0 +1,343 @@
+---
+// HowItWorks.astro
+import { useTranslations, type Lang } from '../i18n/ui';
+
+interface Props {
+  lang?: Lang;
+}
+
+const { lang = 'en' } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section id="how-it-works" class="relative py-24 md:py-36 border-t border-white/5 bg-[#090a10]">
+  <!-- Glow effect -->
+  <div class="absolute top-1/2 left-0 w-96 h-96 bg-violet-600/10 blur-[130px] pointer-events-none -z-10"></div>
+  <div class="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600/10 blur-[130px] pointer-events-none -z-10"></div>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <!-- Section Header -->
+    <div class="text-center max-w-3xl mx-auto mb-20 md:mb-28">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold tracking-wide uppercase mb-4">
+        {t('howItWorks.badge')}
+      </div>
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4">
+        {t('howItWorks.title')}
+      </h2>
+      <p class="text-base sm:text-lg text-slate-400">
+        {t('howItWorks.subtitle')}
+      </p>
+    </div>
+
+    <!-- Steps Stack -->
+    <div class="space-y-24 md:space-y-36">
+
+      <!-- Step 01: Select Track -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div class="lg:col-span-6 flex flex-col items-start">
+          <div class="inline-block text-sm font-mono font-semibold text-violet-400 tracking-wider mb-2">
+            {t('howItWorks.step1Tag')}
+          </div>
+          <h3 class="text-2xl sm:text-3xl font-bold text-white mb-4">
+            {t('howItWorks.step1Title')}
+          </h3>
+          <p class="text-slate-400 text-base leading-relaxed mb-6">
+            {t('howItWorks.step1Desc')}
+          </p>
+          <div class="flex flex-wrap gap-2 text-xs font-medium">
+            <span class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300">Frontend (React/Vue/Astro)</span>
+            <span class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300">Backend (Go/Python/Node)</span>
+            <span class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300">Distributed Systems</span>
+            <span class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300">Data Structures & Algo</span>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6">
+          <div class="glass-panel rounded-2xl p-6 border border-white/10 shadow-xl">
+            <div class="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+              <span class="text-sm font-semibold text-white">Select Interview Track</span>
+              <span class="text-xs text-violet-400 font-medium">Customize Session</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-4 rounded-xl bg-violet-600/20 border-2 border-violet-500 flex flex-col justify-between cursor-pointer">
+                <div>
+                  <div class="text-sm font-bold text-white">Senior Frontend</div>
+                  <div class="text-xs text-slate-300 mt-1">React 19, TypeScript, Web Vitals</div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[11px] text-violet-300 font-mono">
+                  <span>60 min</span>
+                  <span class="text-emerald-400 font-semibold">Active</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors flex flex-col justify-between cursor-pointer">
+                <div>
+                  <div class="text-sm font-bold text-white">System Design</div>
+                  <div class="text-xs text-slate-400 mt-1">Microservices, Sharding, Kafka</div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>45 min</span>
+                  <span>Select →</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors flex flex-col justify-between cursor-pointer">
+                <div>
+                  <div class="text-sm font-bold text-white">Backend Lead</div>
+                  <div class="text-xs text-slate-400 mt-1">Golang, PostgreSQL, Concurrency</div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>60 min</span>
+                  <span>Select →</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors flex flex-col justify-between cursor-pointer">
+                <div>
+                  <div class="text-sm font-bold text-white">Algorithms & DS</div>
+                  <div class="text-xs text-slate-400 mt-1">Dynamic Programming, Graphs</div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>45 min</span>
+                  <span>Select →</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 02: Instant AI Pairing -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div class="lg:col-span-6 lg:order-2 flex flex-col items-start">
+          <div class="inline-block text-sm font-mono font-semibold text-violet-400 tracking-wider mb-2">
+            {t('howItWorks.step2Tag')}
+          </div>
+          <h3 class="text-2xl sm:text-3xl font-bold text-white mb-4">
+            {t('howItWorks.step2Title')}
+          </h3>
+          <p class="text-slate-400 text-base leading-relaxed mb-6">
+            {t('howItWorks.step2Desc')}
+          </p>
+          <ul class="space-y-2.5 text-sm text-slate-300">
+            <li class="flex items-center gap-2.5">
+              <div class="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs">✓</div>
+              {t('howItWorks.step2Check1')}
+            </li>
+            <li class="flex items-center gap-2.5">
+              <div class="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs">✓</div>
+              {t('howItWorks.step2Check2')}
+            </li>
+            <li class="flex items-center gap-2.5">
+              <div class="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs">✓</div>
+              {t('howItWorks.step2Check3')}
+            </li>
+          </ul>
+        </div>
+
+        <div class="lg:col-span-6 lg:order-1">
+          <div class="glass-panel rounded-2xl p-4 border border-white/10 shadow-xl overflow-hidden">
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <!-- AI Interviewer Feed -->
+              <div class="relative rounded-xl bg-slate-900/90 border border-violet-500/40 p-4 aspect-video flex flex-col justify-between overflow-hidden">
+                <div class="absolute inset-0 bg-radial-hero opacity-60"></div>
+                <div class="relative z-10 flex items-center justify-between text-[11px] text-slate-300">
+                  <span class="flex items-center gap-1.5 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-violet-400 animate-pulse"></span>
+                    AI Senior Interviewer
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono text-[10px]">L6 Bar Raiser</span>
+                </div>
+                <div class="relative z-10 flex items-center justify-center">
+                  <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/40">
+                    <svg class="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <line x1="12" y1="19" x2="12" y2="22"></line>
+                    </svg>
+                  </div>
+                </div>
+                <div class="relative z-10 flex items-center justify-center gap-1">
+                  <span class="w-1 h-3 bg-violet-400 rounded-full animate-bounce"></span>
+                  <span class="w-1 h-5 bg-violet-300 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                  <span class="w-1 h-4 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                  <span class="w-1 h-6 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></span>
+                  <span class="w-1 h-2 bg-indigo-300 rounded-full animate-bounce" style="animation-delay: 0.15s"></span>
+                </div>
+              </div>
+
+              <!-- Candidate Feed -->
+              <div class="relative rounded-xl bg-slate-900/90 border border-white/10 p-4 aspect-video flex flex-col justify-between overflow-hidden">
+                <div class="flex items-center justify-between text-[11px] text-slate-300">
+                  <span class="flex items-center gap-1.5 font-medium">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    Candidate (You)
+                  </span>
+                  <span class="text-slate-500 font-mono text-[10px]">HD 1080p</span>
+                </div>
+                <div class="flex items-center justify-center">
+                  <div class="w-14 h-14 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-slate-400 text-lg font-bold">
+                    DEV
+                  </div>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Mic: Active</span>
+                  <span class="text-emerald-400">100% Clarity</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dialogue bubble -->
+            <div class="p-3 rounded-xl bg-white/[0.04] border border-white/5 text-xs text-slate-300">
+              <span class="text-violet-400 font-semibold">AI Interviewer:</span> "Let's walk through how you would handle race conditions when two users book the same seat simultaneously."
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 03: Live Coding Sandbox -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div class="lg:col-span-6 flex flex-col items-start">
+          <div class="inline-block text-sm font-mono font-semibold text-violet-400 tracking-wider mb-2">
+            {t('howItWorks.step3Tag')}
+          </div>
+          <h3 class="text-2xl sm:text-3xl font-bold text-white mb-4">
+            {t('howItWorks.step3Title')}
+          </h3>
+          <p class="text-slate-400 text-base leading-relaxed mb-6">
+            {t('howItWorks.step3Desc')}
+          </p>
+          <div class="grid grid-cols-2 gap-3 w-full text-xs">
+            <div class="p-3 rounded-lg bg-white/5 border border-white/10">
+              <div class="font-bold text-white">50+ Languages</div>
+              <div class="text-slate-400 mt-0.5">TypeScript, Go, Rust, Java, Python</div>
+            </div>
+            <div class="p-3 rounded-lg bg-white/5 border border-white/10">
+              <div class="font-bold text-white">Automated Tests</div>
+              <div class="text-slate-400 mt-0.5">Edge cases, memory leaks, performance</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6">
+          <div class="glass-panel rounded-2xl p-4 border border-white/10 shadow-xl font-mono text-xs">
+            <div class="flex items-center justify-between pb-3 mb-3 border-b border-white/10 text-slate-400 text-[11px]">
+              <div class="flex items-center gap-2">
+                <span class="text-white font-semibold">solution.ts</span>
+                <span class="text-slate-500">•</span>
+                <span>TypeScript 5.7</span>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+                Build Passing
+              </span>
+            </div>
+
+            <div class="space-y-1.5 text-slate-300 py-2">
+              <div><span class="text-violet-400">class</span> <span class="text-amber-300">LRUCache</span>&lt;<span class="text-emerald-300">K, V</span>&gt; &#123;</div>
+              <div class="pl-4"><span class="text-violet-400">private</span> capacity: <span class="text-amber-300">number</span>;</div>
+              <div class="pl-4"><span class="text-violet-400">private</span> cache = <span class="text-violet-400">new</span> <span class="text-amber-300">Map</span>&lt;<span class="text-emerald-300">K, V</span>&gt;();</div>
+              <div class="pl-4"><span class="text-violet-400">get</span>(key: <span class="text-emerald-300">K</span>): <span class="text-emerald-300">V</span> | <span class="text-violet-400">undefined</span> &#123;</div>
+              <div class="pl-8 text-slate-400"><span class="text-violet-400">if</span> (!<span class="text-violet-400">this</span>.cache.has(key)) <span class="text-violet-400">return undefined</span>;</div>
+              <div class="pl-8 text-sky-300">const val = this.cache.get(key)!;</div>
+              <div class="pl-8 text-emerald-400">this.cache.delete(key); this.cache.set(key, val);</div>
+              <div class="pl-8 text-violet-400">return val;</div>
+              <div class="pl-4">&#125;</div>
+              <div>&#125;</div>
+            </div>
+
+            <div class="mt-4 p-3 rounded-xl bg-slate-900/80 border border-white/10 flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-2 text-emerald-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>All 18 tests passed</span>
+              </div>
+              <div class="text-slate-400">
+                Runtime: <span class="text-white font-semibold">24ms (Beats 96.4%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 04: In-depth Review -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div class="lg:col-span-6 lg:order-2 flex flex-col items-start">
+          <div class="inline-block text-sm font-mono font-semibold text-violet-400 tracking-wider mb-2">
+            {t('howItWorks.step4Tag')}
+          </div>
+          <h3 class="text-2xl sm:text-3xl font-bold text-white mb-4">
+            {t('howItWorks.step4Title')}
+          </h3>
+          <p class="text-slate-400 text-base leading-relaxed mb-6">
+            {t('howItWorks.step4Desc')}
+          </p>
+          <div class="space-y-3 w-full">
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1">
+                <span class="text-slate-300">Algorithms & Data Structures</span>
+                <span class="text-violet-400 font-mono">96 / 100</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 w-[96%]"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1">
+                <span class="text-slate-300">Code Architecture & Modularity</span>
+                <span class="text-violet-400 font-mono">92 / 100</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 w-[92%]"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1">
+                <span class="text-slate-300">Communication & Trade-offs</span>
+                <span class="text-violet-400 font-mono">88 / 100</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 w-[88%]"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 lg:order-1">
+          <div class="glass-panel rounded-2xl p-6 border border-white/10 shadow-xl">
+            <div class="flex items-center justify-between pb-4 border-b border-white/10">
+              <div>
+                <div class="text-xs font-mono text-slate-400">SESSION REPORT #4092</div>
+                <div class="text-base font-bold text-white">Senior Fullstack Engineer</div>
+              </div>
+              <div class="text-right">
+                <div class="text-2xl font-extrabold text-emerald-400">{t('howItWorks.scorecardTitle')}</div>
+                <div class="text-[11px] text-slate-400">Score: 92.8 / 100</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 my-4">
+              <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                <div class="text-xl font-bold text-white">O(n)</div>
+                <div class="text-[11px] text-slate-400">Time Complexity</div>
+              </div>
+              <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                <div class="text-xl font-bold text-white">O(1)</div>
+                <div class="text-[11px] text-slate-400">Space Complexity</div>
+              </div>
+              <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                <div class="text-xl font-bold text-violet-400">Top 4%</div>
+                <div class="text-[11px] text-slate-400">Global Percentile</div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-violet-950/40 border border-violet-500/20 text-xs text-slate-300">
+              <span class="font-semibold text-violet-300">Key Recommendation:</span> Deep dive into cache invalidation race conditions under distributed Redis cluster partitions for L6 rounds.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>

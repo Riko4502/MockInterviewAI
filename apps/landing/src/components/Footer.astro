@@ -1,0 +1,90 @@
+---
+// Footer.astro
+import { useTranslations, type Lang } from '../i18n/ui';
+
+interface Props {
+  lang?: Lang;
+}
+
+const { lang = 'en' } = Astro.props;
+const t = useTranslations(lang);
+const homeUrl = lang === 'ru' ? '/ru' : '/';
+---
+
+<footer class="bg-[#06070a] border-t border-white/5 pt-16 pb-12 text-slate-400">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-12 pb-16 border-b border-white/5">
+      
+      <!-- Brand column (4 cols) -->
+      <div class="md:col-span-4 flex flex-col items-start">
+        <a href={homeUrl} class="flex items-center gap-3 mb-4 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
+            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+          </div>
+          <span class="text-lg font-bold text-white tracking-tight">
+            DEVSYNC
+          </span>
+        </a>
+        <p class="text-xs text-slate-400 leading-relaxed mb-6 max-w-sm">
+          {t('footer.desc')}
+        </p>
+      </div>
+
+      <!-- Links columns (8 cols) -->
+      <div class="md:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-8">
+        <div>
+          <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colProduct')}</h4>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="#how-it-works" class="hover:text-white transition-colors">{t('nav.howItWorks')}</a></li>
+            <li><a href="#features" class="hover:text-white transition-colors">{t('nav.features')}</a></li>
+            <li><a href="/tracks" class="hover:text-white transition-colors">Interview Tracks</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colResources')}</h4>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="/docs" class="hover:text-white transition-colors">Documentation</a></li>
+            <li><a href="/guides" class="hover:text-white transition-colors">Interview Guides</a></li>
+            <li><a href="/system-design" class="hover:text-white transition-colors">System Design Cheat</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colCompany')}</h4>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="/about" class="hover:text-white transition-colors">About Us</a></li>
+            <li><a href="/careers" class="hover:text-white transition-colors">Careers</a></li>
+            <li><a href="#community" class="hover:text-white transition-colors">{t('nav.community')}</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colLegal')}</h4>
+          <ul class="space-y-2.5 text-sm">
+            <li><a href="/privacy" class="hover:text-white transition-colors">Privacy Policy</a></li>
+            <li><a href="/terms" class="hover:text-white transition-colors">Terms of Service</a></li>
+            <li><a href="/security" class="hover:text-white transition-colors">Security</a></li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Copyright -->
+    <div class="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+      <div>
+        © {new Date().getFullYear()} DEVSYNC, Inc. {t('footer.rights')}
+      </div>
+      <div class="flex items-center gap-6">
+        <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">GitHub</a>
+        <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Twitter</a>
+        <a href="https://discord.gg" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Discord</a>
+      </div>
+    </div>
+
+  </div>
+</footer>
