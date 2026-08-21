@@ -40,6 +40,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
     "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "11",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",

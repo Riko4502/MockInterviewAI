@@ -8,7 +8,7 @@ const config: Config = {
     "^.+\\.ts$": "ts-jest",
   },
   moduleNameMapper: {
-    "^@packages/dto$": "<rootDir>/../../packages/dto/src",
+    "^@packages/dto$": "<rootDir>/../../../packages/dto/src",
   },
   collectCoverageFrom: [
     "**/*.ts",

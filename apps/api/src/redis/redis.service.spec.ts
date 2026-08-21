@@ -5,6 +5,7 @@ import { RedisService } from "./redis.service";
 const mockRedisInstance = {
   connect: jest.fn().mockResolvedValue(undefined),
   quit: jest.fn().mockResolvedValue("OK"),
+  disconnect: jest.fn(),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(1),
@@ -41,14 +42,17 @@ describe("RedisService", () => {
   });
 
   describe("onModuleInit", () => {
-    it("создаёт Redis клиент с конфигурацией", async () => {
+    it("создаёт Redis клиент с конфигурацией и bounded-retry", async () => {
       await service.onModuleInit();
-      expect(Redis).toHaveBeenCalledWith({
-        host: "localhost",
-        port: 6379,
-        password: "test-password",
-        lazyConnect: false,
-      });
+      expect(Redis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: "localhost",
+          port: 6379,
+          password: "test-password",
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+        }),
+      );
     });
 
     it("вызывает connect()", async () => {
@@ -71,6 +75,17 @@ describe("RedisService", () => {
       await service.onModuleInit();
       await service.onModuleDestroy();
       expect(mockRedisInstance.quit).toHaveBeenCalledTimes(1);
+    });
+
+    it("при отказе quit() использует disconnect()", async () => {
+      await service.onModuleInit();
+      mockRedisInstance.quit.mockRejectedValueOnce(
+        new Error("The connection is already closed"),
+      );
+
+      await service.onModuleDestroy();
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(1);
     });
   });
 

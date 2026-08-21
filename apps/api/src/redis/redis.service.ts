@@ -34,7 +34,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const port = this.configService.get<number>("redis.port") ?? 6379;
     const password = this.configService.get<string>("redis.password") ?? "";
 
-    this.client = new Redis({ host, port, password, lazyConnect: false });
+    this.client = new Redis({
+      host,
+      port,
+      password,
+      lazyConnect: true,
+      retryStrategy: (times: number) =>
+        times > 5 ? null : Math.min(times * 100, 500),
+      maxRetriesPerRequest: 1,
+    });
 
     await this.client.connect();
     this.logger.log("Redis connection established");
@@ -42,7 +50,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   /** Закрывает соединение с Redis при завершении работы модуля. */
   async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
+    try {
+      await this.client.quit();
+    } catch {
+      this.client.disconnect();
+    }
     this.logger.log("Redis connection closed");
   }
 

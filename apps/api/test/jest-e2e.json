@@ -3,10 +3,11 @@
   "rootDir": "..",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "testTimeout": 30000,
   "transform": {
     "^.+\\.ts$": "ts-jest"
   },
   "moduleNameMapper": {
-    "^@packages/dto$": "<rootDir>/../packages/dto/src"
+    "^@packages/dto$": "<rootDir>/../../packages/dto/src"
   }
 }

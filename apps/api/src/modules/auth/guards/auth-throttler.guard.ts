@@ -22,7 +22,7 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
    */
   async getTracker(context: ExecutionContext): Promise<string> {
     const request = context.switchToHttp().getRequest();
-    const ip = request.ip ?? request.socket.remoteAddress ?? "unknown";
+    const ip = request.ip ?? request.socket?.remoteAddress ?? "unknown";
     const email = request.body?.email as string | undefined;
 
     return email ? `${ip}:${email}` : ip;

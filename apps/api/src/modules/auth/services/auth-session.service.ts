@@ -33,8 +33,13 @@ export class AuthSessionService {
   ) {}
 
   /**
-   * Создаёт новую authentication session (§16, §18 SPEC.md).
+   * Создаёт новую authentication session (§14–16, §18 SPEC.md).
    *
+   * Session сохраняется под переданным `sessionId` — тем же UUID, что
+   * зашит в claim `sid` access/refresh JWT (§37 SPEC.md), чтобы `/auth/refresh`
+   * находил session по `sid`.
+   *
+   * @param sessionId - UUID v4 сессии, сгенерированный вызывающим кодом (§14 SPEC.md).
    * @param userId - UUID пользователя.
    * @param refreshTokenHash - HMAC-SHA-256 хеш refresh token.
    * @param tokenFamilyId - UUID семейства токенов.
@@ -42,11 +47,11 @@ export class AuthSessionService {
    * @throws {Error} При ошибке Redis.
    */
   async createSession(
+    sessionId: string,
     userId: string,
     refreshTokenHash: string,
     tokenFamilyId: string,
   ): Promise<AuthSession> {
-    const sessionId = this.generateSessionId();
     const now = new Date().toISOString();
 
     const session: AuthSession = {
@@ -186,14 +191,5 @@ export class AuthSessionService {
       this.configService.get<string>("jwt.refreshExpiresIn") ?? "7d";
     const ttlMs = ms(expiresIn as ms.StringValue);
     return Math.ceil(ttlMs / 1000);
-  }
-
-  /**
-   * Генерирует UUID v4 для session ID (§14 SPEC.md).
-   *
-   * @returns UUID v4 строка.
-   */
-  private generateSessionId(): string {
-    return crypto.randomUUID();
   }
 }

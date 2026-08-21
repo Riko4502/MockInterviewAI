@@ -102,6 +102,7 @@ export class AuthService {
 
     try {
       await this.sessionService.createSession(
+        sessionId,
         userId,
         refreshTokenHash,
         tokenFamilyId,
