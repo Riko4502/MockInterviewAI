@@ -6,9 +6,9 @@ interface Props {
   lang?: Lang;
 }
 
-const { lang = 'en' } = Astro.props;
+const { lang = 'ru' } = Astro.props;
 const t = useTranslations(lang);
-const homeUrl = lang === 'ru' ? '/ru' : '/';
+const homeUrl = lang === 'en' ? '/en' : '/';
 ---
 
 <footer class="bg-[#06070a] border-t border-white/5 pt-16 pb-12 text-slate-400">
@@ -79,9 +79,6 @@ const homeUrl = lang === 'ru' ? '/ru' : '/';
         © {new Date().getFullYear()} DEVSYNC, Inc. {t('footer.rights')}
       </div>
       <div class="flex items-center gap-6">
-        <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">GitHub</a>
-        <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Twitter</a>
-        <a href="https://discord.gg" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Discord</a>
       </div>
     </div>
 
