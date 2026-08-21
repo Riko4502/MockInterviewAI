@@ -1,27 +1,26 @@
 "use client";
 
-import { Input } from "@packages/ui";
 import { useId } from "react";
+import { Input } from "../Input";
+import { cn } from "@lib/utils";
 
 interface FieldProps extends React.ComponentProps<"input"> {
   label: string;
   error?: string;
 }
 
-export function Field({ label, error, className, ...inputProps }: FieldProps) {
+function Field({ label, error, className, ...inputProps }: FieldProps) {
   const id = useId();
 
   return (
     <div className="flex flex-col">
       <label
         htmlFor={id}
-        className="text-xs font-semibold uppercase text-muted-foreground mb-2"
+        className={cn(
+          "text-xs font-semibold uppercase mb-2",
+          "text-[#8A8A93]",
+        )}
       >
-        {/*
-                    TODO: заменить на компонент Label пакета ui
-                    цвет текста: #8A8A93 — сейчас нет в переменных темы,
-                    используется text-muted-foreground как временное значение
-                */}
         {label}
       </label>
       <Input
@@ -37,3 +36,5 @@ export function Field({ label, error, className, ...inputProps }: FieldProps) {
     </div>
   );
 }
+
+export { Field, type FieldProps };

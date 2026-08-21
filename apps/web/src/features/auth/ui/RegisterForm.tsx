@@ -1,10 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@packages/ui";
+import { Button, Field } from "@packages/ui";
 import { useForm } from "react-hook-form";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
-import { Field } from "./Field";
 
 export function RegisterForm() {
   const {
@@ -33,7 +32,7 @@ export function RegisterForm() {
       <Field
         label="Пароль"
         type="password"
-        placeholder="••••••"
+        placeholder="Введите пароль"
         error={errors.password?.message}
         {...register("password")}
       />
@@ -41,7 +40,7 @@ export function RegisterForm() {
       <Field
         label="Подтверждение пароля"
         type="password"
-        placeholder="••••••"
+        placeholder="Введите пароль"
         error={errors.confirmPassword?.message}
         {...register("confirmPassword")}
       />

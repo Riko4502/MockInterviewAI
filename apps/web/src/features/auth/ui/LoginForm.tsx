@@ -1,10 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@packages/ui";
+import { Button, Field } from "@packages/ui";
 import { useForm } from "react-hook-form";
 import { type LoginFormValues, loginSchema } from "../lib/schemas";
-import { Field } from "./Field";
 
 export function LoginForm() {
   const {
@@ -32,7 +31,7 @@ export function LoginForm() {
       <Field
         label="Пароль"
         type="password"
-        placeholder="••••••"
+        placeholder="Введите пароль"
         error={errors.password?.message}
         {...register("password")}
       />
