@@ -14,7 +14,7 @@ interface ZodSchema {
     | {
         success: false;
         error: {
-          issues: Array<{ path: Array<string | number>; message: string }>;
+          issues: Array<{ path: ReadonlyArray<PropertyKey>; message: string }>;
         };
       };
 }
@@ -64,7 +64,7 @@ export class ZodValidationPipe implements PipeTransform {
    * @returns Объект с полями и сообщениями ошибок.
    */
   private formatError(error: {
-    issues: Array<{ path: Array<string | number>; message: string }>;
+    issues: Array<{ path: ReadonlyArray<PropertyKey>; message: string }>;
   }): ZodErrorField {
     const fields: ZodErrorField = {};
     for (const issue of error.issues) {
