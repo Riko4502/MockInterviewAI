@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@packages/ui/globals.css";
 
 export const metadata: Metadata = {
   title: "Mock Interview AI",
