@@ -45,4 +45,4 @@ export const Avatar = Object.assign(AvatarRoot, {
   Fallback: AvatarFallback,
 })
 
-export { AvatarImage, AvatarFallback }
+export {AvatarImage, AvatarFallback}
