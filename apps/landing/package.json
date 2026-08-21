@@ -5,13 +5,18 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "check": "astro check",
+    "lint": "echo 'No linter configured for landing'"
   },
   "dependencies": {
+    "@packages/ui": "workspace:*",
     "astro": "^7.2.4",
     "tailwindcss": "^4"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4"
+    "@astrojs/check": "^0.9.4",
+    "@tailwindcss/vite": "^4",
+    "typescript": "^5.7.0"
   }
 }

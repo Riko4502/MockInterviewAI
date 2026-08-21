@@ -84,6 +84,10 @@ jobs:
               - '.github/workflows/ci-api.yml'
             landing:
               - 'apps/landing/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-landing.yml'
 
@@ -124,6 +128,6 @@ jobs:
     with:
       realtime_result: ${{ needs.realtime.result }}
       web_result: ${{ needs.web.result }}
-      landing_result: ${{ needs.web.result }}
+      landing_result: ${{ needs.landing.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}

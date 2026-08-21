@@ -23,14 +23,11 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: "Линтинг (Biome) – Landing"
+      - name: "Линтинг – Landing"
         run: pnpm --filter landing lint
 
-      - name: "Проверка типов TypeScript"
-        run: pnpm --filter landing exec tsc --noEmit
-
-      - name: "Запуск тестов (если они есть)"
-        run: pnpm --filter landing test || echo "Тесты не определены"
+      - name: "Проверка типов (Astro Check)"
+        run: pnpm --filter landing check
 
       - name: "Сборка проекта"
         run: pnpm --filter landing build
