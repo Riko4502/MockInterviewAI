@@ -1,7 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field } from "@packages/ui";
+import {
+  Button,
+  FormControl,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Input,
+} from "@packages/ui";
 import { useForm } from "react-hook-form";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
 
@@ -20,30 +27,48 @@ export function RegisterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col">
-      <Field
-        label="Email"
-        type="email"
-        placeholder="example@mail.com"
-        error={errors.email?.message}
-        {...register("email")}
-      />
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <FormItem>
+        <FormLabel>Email</FormLabel>
+        <FormControl>
+          <Input
+            type="email"
+            placeholder="example@mail.com"
+            data-invalid={!!errors.email}
+            aria-invalid={!!errors.email}
+            {...register("email")}
+          />
+        </FormControl>
+        <FormMessage>{errors.email?.message}</FormMessage>
+      </FormItem>
 
-      <Field
-        label="Пароль"
-        type="password"
-        placeholder="Введите пароль"
-        error={errors.password?.message}
-        {...register("password")}
-      />
+      <FormItem>
+        <FormLabel>Пароль</FormLabel>
+        <FormControl>
+          <Input
+            type="password"
+            placeholder="Введите пароль"
+            data-invalid={!!errors.password}
+            aria-invalid={!!errors.password}
+            {...register("password")}
+          />
+        </FormControl>
+        <FormMessage>{errors.password?.message}</FormMessage>
+      </FormItem>
 
-      <Field
-        label="Подтверждение пароля"
-        type="password"
-        placeholder="Введите пароль"
-        error={errors.confirmPassword?.message}
-        {...register("confirmPassword")}
-      />
+      <FormItem>
+        <FormLabel>Подтверждение пароля</FormLabel>
+        <FormControl>
+          <Input
+            type="password"
+            placeholder="Введите пароль"
+            data-invalid={!!errors.confirmPassword}
+            aria-invalid={!!errors.confirmPassword}
+            {...register("confirmPassword")}
+          />
+        </FormControl>
+        <FormMessage>{errors.confirmPassword?.message}</FormMessage>
+      </FormItem>
 
       <Button
         type="submit"
