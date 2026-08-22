@@ -86,7 +86,6 @@ jobs:
           MESSAGE=$(printf "%s\n\n%s\n👤 <b>Автор:</b> %s\n💬 <b>Коммит:</b> <a href=\"https://github.com/%s/commit/%s\">%s</a>\n\n📊 <b>Результаты проверок:</b>\n• Realtime (Go): %s\n• Web (Next.js): %s\n• API (Nest.js): %s\n• Безопасность (TruffleHog): %s\n\n🔗 <a href=\"https://github.com/%s/actions/runs/%s\">Открыть запуск в GitHub Actions</a>" \
             "$STATUS_HEADER" \
             "$BRANCH_INFO" \
-            "${{ github.repository }}" "${{ github.repository }}" \
             "${{ github.actor }}" \
             "${{ github.repository }}" "${{ github.sha }}" "$SHORT_SHA" \
             "$ICON_RT" \
