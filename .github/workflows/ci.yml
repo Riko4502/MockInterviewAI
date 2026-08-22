@@ -49,6 +49,7 @@ jobs:
     outputs:
       realtime: ${{ steps.filter.outputs.realtime }}
       web: ${{ steps.filter.outputs.web }}
+      landing: ${{ steps.filter.outputs.landing }}
       api: ${{ steps.filter.outputs.api }}
     steps:
       - name: "Клонирование репозитория"
@@ -81,6 +82,14 @@ jobs:
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-api.yml'
+            landing:
+              - 'apps/landing/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-landing.yml'
 
   realtime:
     name: "Realtime"
@@ -100,18 +109,25 @@ jobs:
     if: needs.changes.outputs.api == 'true'
     uses: ./.github/workflows/ci-api.yml
 
+  landing:
+    name: "Landing"
+    needs: changes
+    if: needs.changes.outputs.landing == 'true'
+    uses: ./.github/workflows/ci-landing.yml
+
   security:
     name: "Security"
     uses: ./.github/workflows/ci-security.yml
 
   notify:
     name: "Telegram"
-    needs: [realtime, web, api, security]
+    needs: [realtime, web, api, security, landing]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
     with:
       realtime_result: ${{ needs.realtime.result }}
       web_result: ${{ needs.web.result }}
+      landing_result: ${{ needs.landing.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}

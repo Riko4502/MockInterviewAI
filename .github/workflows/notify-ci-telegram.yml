@@ -19,6 +19,10 @@ on:
         type: string
         required: false
         default: 'skipped'
+      landing_result:
+        type: string
+        required: false
+        default: 'skipped'
     secrets:
       TELEGRAM_BOT_TOKEN:
         required: false
@@ -39,6 +43,7 @@ jobs:
           THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
           RT_RES: ${{ inputs.realtime_result }}
           WEB_RES: ${{ inputs.web_result }}
+          LANDING_RES: ${{ inputs.landing_result }}
           API_RES: ${{ inputs.api_result }}
           SEC_RES: ${{ inputs.security_result }}
         run: |
@@ -47,9 +52,9 @@ jobs:
             exit 0
           fi
 
-          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$API_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
+          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$LANDING_RES" = "failure" ]  || [ "$API_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
             STATUS_HEADER="❌ <b>CI: Найдены ошибки</b>"
-          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
+          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$LANDING_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
             STATUS_HEADER="⚠️ <b>CI: Отменено</b>"
           else
             STATUS_HEADER="✅ <b>CI: Проверки успешно пройдены</b>"
@@ -67,6 +72,7 @@ jobs:
 
           ICON_RT=$(format_icon "$RT_RES")
           ICON_WEB=$(format_icon "$WEB_RES")
+          ICON_LANDING=$(format_icon "$LANDING_RES")
           ICON_API=$(format_icon "$API_RES")
           ICON_SEC=$(format_icon "$SEC_RES")
 
@@ -83,14 +89,14 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          MESSAGE=$(printf "%s\n\n%s\n👤 <b>Автор:</b> %s\n💬 <b>Коммит:</b> <a href=\"https://github.com/%s/commit/%s\">%s</a>\n\n📊 <b>Результаты проверок:</b>\n• Realtime (Go): %s\n• Web (Next.js): %s\n• API (Nest.js): %s\n• Безопасность (TruffleHog): %s\n\n🔗 <a href=\"https://github.com/%s/actions/runs/%s\">Открыть запуск в GitHub Actions</a>" \
+          MESSAGE=$(printf "%s\n\n%s\n👤 <b>Автор:</b> %s\n💬 <b>Коммит:</b> <a href=\"https://github.com/%s/commit/%s\">%s</a>\n\n📊 <b>Результаты проверок:</b>\n• Realtime (Go): %s\n• Web (Next.js): %s\n• Landing (Astro): %s\n• API (Nest.js): %s\n• Безопасность (TruffleHog): %s\n\n🔗 <a href=\"https://github.com/%s/actions/runs/%s\">Открыть запуск в GitHub Actions</a>" \
             "$STATUS_HEADER" \
             "$BRANCH_INFO" \
-            "${{ github.repository }}" "${{ github.repository }}" \
             "${{ github.actor }}" \
             "${{ github.repository }}" "${{ github.sha }}" "$SHORT_SHA" \
             "$ICON_RT" \
             "$ICON_WEB" \
+            "$ICON_LANDING" \
             "$ICON_API" \
             "$ICON_SEC" \
             "${{ github.repository }}" "${{ github.run_id }}")

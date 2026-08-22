@@ -1,0 +1,156 @@
+---
+// Features.astro
+import { useTranslations, type Lang } from '../i18n/ui';
+
+interface Props {
+  lang?: Lang;
+}
+
+const { lang = 'ru' } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section id="features" class="relative py-24 md:py-36 bg-[#0d0e17] border-t border-white/5">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <!-- Section Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16 md:mb-24">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold tracking-wide uppercase mb-4">
+        {t('features.badge')}
+      </div>
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4">
+        {t('features.title')}
+      </h2>
+      <p class="text-base sm:text-lg text-slate-400">
+        {t('features.subtitle')}
+      </p>
+    </div>
+
+    <!-- Bento Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+      <!-- Card 1: Real-time Collaboration & AI Co-pilot (7 cols) -->
+      <div class="md:col-span-7 glass-panel rounded-3xl p-8 border border-white/10 flex flex-col justify-between group hover:border-violet-500/40 transition-all duration-300">
+        <div class="mb-8">
+          <div class="w-12 h-12 rounded-2xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 mb-6 group-hover:scale-110 transition-transform">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3">
+            {t('features.card1Title')}
+          </h3>
+          <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+            {t('features.card1Desc')}
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-[#090a10] border border-white/5 p-4 font-mono text-xs text-slate-300">
+          <div class="flex items-center justify-between pb-2 border-b border-white/5 text-[11px] text-slate-400">
+            <span class="text-violet-400 font-semibold">AI Co-pilot</span>
+            <span class="text-emerald-400">Synced (12ms)</span>
+          </div>
+          <div class="py-2 text-slate-400">
+            &gt; Hint: Consider using two pointers to reduce space complexity from <span class="text-rose-400">O(n)</span> to <span class="text-emerald-400">O(1)</span>.
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Voice & Speech Clarity (5 cols) -->
+      <div class="md:col-span-5 glass-panel rounded-3xl p-8 border border-white/10 flex flex-col justify-between group hover:border-violet-500/40 transition-all duration-300">
+        <div>
+          <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3">
+            {t('features.card2Title')}
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed mb-6">
+            {t('features.card2Desc')}
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-[#090a10] border border-white/5 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400">Speaking Pace</div>
+            <div class="text-lg font-bold text-white">135 WPM</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-400">Filler Words</div>
+            <div class="text-lg font-bold text-emerald-400">&lt; 1.2% (Excellent)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Distributed Edge Sandbox (5 cols) -->
+      <div class="md:col-span-5 glass-panel rounded-3xl p-8 border border-white/10 flex flex-col justify-between group hover:border-violet-500/40 transition-all duration-300">
+        <div>
+          <div class="w-12 h-12 rounded-2xl bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-6 group-hover:scale-110 transition-transform">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3">
+            {t('features.card3Title')}
+          </h3>
+          <p class="text-slate-400 text-sm leading-relaxed mb-6">
+            {t('features.card3Desc')}
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+          <div class="p-2.5 rounded-xl bg-[#090a10] border border-white/5 text-center">
+            <span class="text-slate-400">EU-Central</span> <span class="text-emerald-400 font-bold">18ms</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-[#090a10] border border-white/5 text-center">
+            <span class="text-slate-400">US-East</span> <span class="text-emerald-400 font-bold">24ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Detailed Analytics & Benchmark (7 cols) -->
+      <div class="md:col-span-7 glass-panel rounded-3xl p-8 border border-white/10 flex flex-col justify-between group hover:border-violet-500/40 transition-all duration-300">
+        <div class="mb-6">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3">
+            {t('features.card4Title')}
+          </h3>
+          <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+            {t('features.card4Desc')}
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-[#090a10] border border-white/5 grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div class="text-2xl font-extrabold text-white">96.8%</div>
+            <div class="text-[11px] text-slate-400 mt-1">Algo Accuracy</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-violet-400">4.9 / 5.0</div>
+            <div class="text-[11px] text-slate-400 mt-1">System Architecture</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-emerald-400">Top 3%</div>
+            <div class="text-[11px] text-slate-400 mt-1">Global Benchmark</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>

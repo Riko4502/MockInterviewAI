@@ -5,8 +5,10 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "dev:web": "turbo dev --filter=web",
+    "dev:landing": "turbo dev --filter=landing",
     "dev:realtime": "turbo dev --filter=@apps/realtime",
     "build:web": "turbo build --filter=web",
+    "build:landing": "turbo build --filter=landing",
     "build:realtime": "turbo build --filter=@apps/realtime",
     "lint:realtime": "pnpm --filter=@apps/realtime lint",
     "test": "turbo test",
@@ -19,10 +21,5 @@
     "lint-staged": "^17.3.0",
     "turbo": "^2.4.0"
   },
-  "packageManager": "pnpm@9.0.0",
-  "pnpm": {
-    "overrides": {
-      "deepmerge-ts": ">=8.0.0"
-    }
-  }
+  "packageManager": "pnpm@9.0.0"
 }

@@ -55,6 +55,21 @@ jobs:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
 
+      - name: "Проверка Go"
+        if: steps.check_realtime.outputs.exists == 'true'
+        run: |
+          go version
+          go env GOVERSION
+          go env GOTOOLCHAIN
+          go env GOROOT
+
+      - name: "Проверка пакетов"
+        if: steps.check_realtime.outputs.exists == 'true'
+        working-directory: apps/realtime
+        run: |
+          go list -deps ./...
+          go vet ./...
+
       - name: "Проверка уязвимостей в зависимостях (govulncheck)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golang/govulncheck-action@v1
@@ -66,6 +81,6 @@ jobs:
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12
+          version: v2.13
           working-directory: apps/realtime
           args: --timeout=5m

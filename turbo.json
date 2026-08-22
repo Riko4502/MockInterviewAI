@@ -20,6 +20,13 @@
     "test": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "passThroughEnv": ["GOPATH", "GOROOT", "GOCACHE", "LOCALAPPDATA", "PATH", "HOME"]
+    },
+    "dev#landing": {
+      "cache": false,
+      "persistent": true
+    },
+    "build#landing": {
+      "outputs": ["apps/landing/dist/**"]
     }
   }
 }
