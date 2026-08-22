@@ -3,10 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  FormControl,
-  FormItem,
-  FormLabel,
-  FormMessage,
+  Field,
+  FieldContent,
+  FieldError,
+  FieldLabel,
   Input,
 } from "@packages/ui";
 import { useForm } from "react-hook-form";
@@ -27,9 +27,9 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <FormItem>
-        <FormLabel>Email</FormLabel>
-        <FormControl>
+      <Field>
+        <FieldLabel>Email</FieldLabel>
+        <FieldContent>
           <Input
             type="email"
             placeholder="example@mail.com"
@@ -37,13 +37,13 @@ export function LoginForm() {
             aria-invalid={!!errors.email}
             {...register("email")}
           />
-        </FormControl>
-        <FormMessage>{errors.email?.message}</FormMessage>
-      </FormItem>
+          <FieldError>{errors.email?.message}</FieldError>
+        </FieldContent>
+      </Field>
 
-      <FormItem>
-        <FormLabel>Пароль</FormLabel>
-        <FormControl>
+      <Field>
+        <FieldLabel>Пароль</FieldLabel>
+        <FieldContent>
           <Input
             type="password"
             placeholder="Введите пароль"
@@ -51,9 +51,9 @@ export function LoginForm() {
             aria-invalid={!!errors.password}
             {...register("password")}
           />
-        </FormControl>
-        <FormMessage>{errors.password?.message}</FormMessage>
-      </FormItem>
+          <FieldError>{errors.password?.message}</FieldError>
+        </FieldContent>
+      </Field>
 
       <Button
         type="submit"

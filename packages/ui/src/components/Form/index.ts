@@ -1,7 +1,11 @@
 export {
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-  useFormItem,
+  FieldSet,
+  FieldGroup,
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldTitle,
+  FieldDescription,
+  FieldError,
+  FieldLegend,
 } from "./form"
