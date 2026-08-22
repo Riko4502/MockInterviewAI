@@ -1,3 +1,5 @@
 export * from "./Button";
-export * from './Input'
-export * from './Form'
+export * from './Form';
+export * from "./Avatar";
+export * from './Input';
+export * from './Field';
