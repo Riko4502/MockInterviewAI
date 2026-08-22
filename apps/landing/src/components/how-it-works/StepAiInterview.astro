@@ -46,34 +46,27 @@ const t = useTranslations(lang);
   <div class="lg:col-span-6 lg:order-1">
     <div class="glass-panel rounded-2xl p-4 border border-white/15 shadow-xl glow-card overflow-hidden">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <!-- AI Interviewer Feed -->
+        <!-- Interviewer Feed -->
         <div class="relative rounded-xl bg-slate-900/90 border border-violet-500/40 p-4 aspect-video flex flex-col justify-between overflow-hidden shadow-inner">
           <div class="absolute inset-0 bg-radial-hero opacity-60"></div>
           <div class="relative z-10 flex items-center justify-between text-[11px] text-slate-300">
             <span class="flex items-center gap-1.5 font-medium text-white">
-              <span class="w-2 h-2 rounded-full bg-violet-400 animate-pulse"></span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               {t('howItWorks.aiInterviewer')}
             </span>
             <span class="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono text-[10px] border border-violet-500/30">{t('howItWorks.aiRole')}</span>
           </div>
           
           <div class="relative z-10 flex items-center justify-center py-2">
-            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/40 ring-4 ring-violet-500/20">
-              <svg class="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-              </svg>
+            <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/40 ring-4 ring-violet-500/20 text-white font-bold text-sm tracking-wide">
+              LEAD
             </div>
           </div>
 
-          <!-- Animated Audio Wavebars -->
-          <div class="relative z-10 flex items-center justify-center gap-1">
-            <span class="w-1 h-3 bg-violet-400 rounded-full animate-bounce"></span>
-            <span class="w-1 h-6 bg-violet-300 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
-            <span class="w-1 h-4 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
-            <span class="w-1 h-7 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></span>
-            <span class="w-1 h-3 bg-indigo-300 rounded-full animate-bounce" style="animation-delay: 0.15s"></span>
+          <!-- Video / Audio status -->
+          <div class="relative z-10 flex items-center justify-between text-[10px] text-slate-400">
+            <span class="flex items-center gap-1 text-emerald-400">● {t('howItWorks.micActive')}</span>
+            <span class="text-violet-300 font-mono">1080p 60fps</span>
           </div>
         </div>
 
@@ -88,7 +81,7 @@ const t = useTranslations(lang);
           </div>
           
           <div class="flex items-center justify-center py-2">
-            <div class="w-14 h-14 rounded-full bg-slate-800 border border-white/15 flex items-center justify-center text-slate-300 text-base font-bold shadow-md">
+            <div class="w-14 h-14 rounded-full bg-slate-800 border border-white/15 flex items-center justify-center text-slate-300 text-sm font-bold shadow-md">
               DEV
             </div>
           </div>

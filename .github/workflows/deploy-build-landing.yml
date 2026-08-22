@@ -12,6 +12,9 @@ jobs:
   build:
     name: "Сборка и публикация образа Landing (Astro / Nginx)"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
