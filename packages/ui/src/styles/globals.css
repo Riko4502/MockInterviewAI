@@ -1,5 +1,4 @@
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @source "../**/*.{ts,tsx}";
 
@@ -39,6 +38,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  /*--color-badge-status-info: oklch(0.623 0.214 259.815);*/
   --radius-xs: calc(var(--radius) * 0.4);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -84,6 +84,8 @@
   --sidebar-ring: oklch(0.596 0.207 290.953);
   --success: oklch(0.439 0.264 165.214);
   --success-foreground: oklch(1 0 0);
+  /*--color-badge-status-success: oklch(0.696 0.17 162.48);*/
+  /*--badge-status-info: oklch(0.623 0.214 259.815);*/
 }
 
 @layer base {
