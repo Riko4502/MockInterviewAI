@@ -84,6 +84,7 @@ jobs:
               - '.github/workflows/ci-api.yml'
             landing:
               - 'apps/landing/**'
+              - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'

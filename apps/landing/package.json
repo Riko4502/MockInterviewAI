@@ -7,7 +7,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "lint": "echo 'No linter configured for landing'"
+    "lint": "echo 'No linter configured for landing'",
+    "test": "vitest run"
   },
   "dependencies": {
     "@packages/ui": "workspace:*",
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@tailwindcss/vite": "^4",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   }
 }

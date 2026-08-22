@@ -1,6 +1,7 @@
 ---
 // Footer.astro
-import { useTranslations, type Lang } from '../i18n/ui';
+import { useTranslations, type Lang } from '@/i18n/ui';
+import { navigationConfig, getAuthUrl, getAppUrl } from '@/config/navigation';
 
 interface Props {
   lang?: Lang;
@@ -9,28 +10,36 @@ interface Props {
 const { lang = 'ru' } = Astro.props;
 const t = useTranslations(lang);
 const homeUrl = lang === 'ru' ? '/' : '/en';
+const authUrl = getAuthUrl();
 ---
 
-<footer class="bg-[#06070a] border-t border-white/5 pt-16 pb-12 text-slate-400">
+<footer class="bg-[#050609] border-t border-white/10 pt-16 pb-12 text-slate-400">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-12 pb-16 border-b border-white/5">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-12 pb-16 border-b border-white/10">
       
       <!-- Brand column (4 cols) -->
       <div class="md:col-span-4 flex flex-col items-start">
         <a href={homeUrl} class="flex items-center gap-3 mb-4 group">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-all">
             <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 18 22 12 16 6"></polyline>
               <polyline points="8 6 2 12 8 18"></polyline>
             </svg>
           </div>
-          <span class="text-lg font-bold text-white tracking-tight">
+          <span class="text-lg font-bold text-white tracking-tight group-hover:text-violet-400 transition-colors">
             DEVSYNC
           </span>
         </a>
+        
         <p class="text-xs text-slate-400 leading-relaxed mb-6 max-w-sm">
           {t('footer.desc')}
         </p>
+
+        <!-- System status pill -->
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>{t('footer.status')}</span>
+        </div>
       </div>
 
       <!-- Links columns (8 cols) -->
@@ -40,45 +49,52 @@ const homeUrl = lang === 'ru' ? '/' : '/en';
           <ul class="space-y-2.5 text-sm">
             <li><a href="#how-it-works" class="hover:text-white transition-colors">{t('nav.howItWorks')}</a></li>
             <li><a href="#features" class="hover:text-white transition-colors">{t('nav.features')}</a></li>
-            <li><a href="/tracks" class="hover:text-white transition-colors">Interview Tracks</a></li>
+            <li><a href={authUrl} class="hover:text-white transition-colors">{t('hero.ctaStart')}</a></li>
           </ul>
         </div>
 
         <div>
           <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colResources')}</h4>
           <ul class="space-y-2.5 text-sm">
-            <li><a href="/docs" class="hover:text-white transition-colors">Documentation</a></li>
-            <li><a href="/guides" class="hover:text-white transition-colors">Interview Guides</a></li>
-            <li><a href="/system-design" class="hover:text-white transition-colors">System Design Cheat</a></li>
+            <li><a href={getAppUrl('/docs')} class="hover:text-white transition-colors">{t('footer.docs')}</a></li>
+            <li><a href={getAppUrl('/guides')} class="hover:text-white transition-colors">{t('footer.guides')}</a></li>
+            <li><a href={getAppUrl('/system-design')} class="hover:text-white transition-colors">{t('footer.systemDesign')}</a></li>
           </ul>
         </div>
 
         <div>
           <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colCompany')}</h4>
           <ul class="space-y-2.5 text-sm">
-            <li><a href="/about" class="hover:text-white transition-colors">About Us</a></li>
-            <li><a href="/careers" class="hover:text-white transition-colors">Careers</a></li>
+            <li><a href={getAppUrl('/about')} class="hover:text-white transition-colors">{t('footer.about')}</a></li>
+            <li><a href={getAppUrl('/careers')} class="hover:text-white transition-colors">{t('footer.careers')}</a></li>
+            <li><a href={navigationConfig.githubUrl} target="_blank" rel="noopener noreferrer" class="hover:text-white transition-colors flex items-center gap-1">GitHub</a></li>
           </ul>
         </div>
 
         <div>
           <h4 class="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4">{t('footer.colLegal')}</h4>
           <ul class="space-y-2.5 text-sm">
-            <li><a href="/privacy" class="hover:text-white transition-colors">Privacy Policy</a></li>
-            <li><a href="/terms" class="hover:text-white transition-colors">Terms of Service</a></li>
-            <li><a href="/security" class="hover:text-white transition-colors">Security</a></li>
+            <li><a href={getAppUrl('/privacy')} class="hover:text-white transition-colors">{t('footer.privacy')}</a></li>
+            <li><a href={getAppUrl('/terms')} class="hover:text-white transition-colors">{t('footer.terms')}</a></li>
+            <li><a href={getAppUrl('/security')} class="hover:text-white transition-colors">{t('footer.security')}</a></li>
           </ul>
         </div>
       </div>
 
     </div>
 
-    <!-- Bottom Copyright -->
+    <!-- Bottom Copyright & Socials -->
     <div class="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
       <div>
         © {new Date().getFullYear()} DEVSYNC, Inc. {t('footer.rights')}
       </div>
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-4 text-slate-400">
+        <a href={navigationConfig.githubUrl} target="_blank" rel="noopener noreferrer" class="hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5" aria-label="GitHub">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path>
+            <path d="M9 18c-4.51 2-5-2-7-2"></path>
+          </svg>
+        </a>
       </div>
     </div>
 

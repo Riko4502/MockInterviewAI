@@ -13,6 +13,7 @@
     "lint:realtime": "pnpm --filter=@apps/realtime lint",
     "test": "turbo test",
     "test:web": "pnpm --filter=web test",
+    "test:landing": "pnpm --filter=landing test",
     "test:realtime": "pnpm --filter=@apps/realtime test",
     "prepare": "husky"
   },

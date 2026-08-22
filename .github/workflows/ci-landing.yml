@@ -5,7 +5,7 @@ on:
 
 jobs:
   landing:
-    name: "Landing"
+    name: "Тесты и проверки Landing (Astro Check, Vitest, Build)"
     runs-on: ubuntu-latest
     steps:
       - name: "Клонирование репозитория"
@@ -23,11 +23,22 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
+      - name: "Восстановление / сохранение кэша Turborepo"
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       - name: "Линтинг – Landing"
         run: pnpm --filter landing lint
 
       - name: "Проверка типов (Astro Check)"
         run: pnpm --filter landing check
+
+      - name: "Запуск тестов (Vitest)"
+        run: pnpm --filter landing test
 
       - name: "Сборка проекта"
         run: pnpm --filter landing build
