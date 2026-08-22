@@ -51,7 +51,6 @@ jobs:
           MESSAGE=$(printf "🚀 <b>Новый релиз: <code>%s</code></b>\n\n📌 <b>%s</b>\n\n👤 <b>Опубликовал:</b> %s\n\n📝 <b>Что нового:</b>\n%s\n\n🔗 <a href=\"%s\">Открыть страницу релиза на GitHub</a>" \
             "$TAG_NAME" \
             "$TITLE" \
-            "${{ github.repository }}" "${{ github.repository }}" \
             "$AUTHOR" \
             "$CLEAN_BODY" \
             "$RELEASE_URL")
