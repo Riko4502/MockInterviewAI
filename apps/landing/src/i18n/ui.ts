@@ -91,6 +91,9 @@ export const ui = {
     'howItWorks.buildPassing': 'Build Passing',
     'howItWorks.allTestsPassed': 'All 18 tests passed',
     'howItWorks.runtimeBeats': 'Runtime: 24ms (Beats 96.4%)',
+    'howItWorks.step3HintTitle': 'AI Hint (2 of 3 remaining)',
+    'howItWorks.step3HintBadge': 'Visible to all',
+    'howItWorks.step3HintText': 'For O(1) access and eviction order, consider combining a Hash Map with a Doubly Linked List.',
 
     // Step 04
     'howItWorks.step4Tag': 'STEP 04 / IN-DEPTH REVIEW',
@@ -246,6 +249,9 @@ export const ui = {
     'howItWorks.buildPassing': 'Сборка успешна',
     'howItWorks.allTestsPassed': 'Все 18 тестов пройдены',
     'howItWorks.runtimeBeats': 'Время: 24мс (Лучше 96.4%)',
+    'howItWorks.step3HintTitle': 'Подсказка ИИ (Осталось: 2 из 3)',
+    'howItWorks.step3HintBadge': 'Видно обоим',
+    'howItWorks.step3HintText': 'Для O(1) доступа и сохранения порядка удаления рассмотрите комбинацию Hash Map и двусвязного списка.',
 
     // Step 04
     'howItWorks.step4Tag': 'ЭТАП 04 / АНАЛИТИКА',
