@@ -23,6 +23,9 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
+      - name: "Сборка пакетов (ui и другие)"
+        run: pnpm --filter='./packages/*' build
+
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
         with:

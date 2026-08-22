@@ -35,10 +35,9 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] Обновить корневой `turbo.json`: задача `dev` — `persistent: true`, `cache: false` (без `dependsOn`).
 - [ ] Корневой `turbo.json`: добавить `dev.dependsOn: ["^build"]` в Phase 3 (после появления `packages/dto`); задача `test` (`cache: false`) — в Phase 6 (перед запуском тестов).
 - [x] Обновить `lint-staged.config.mjs`: добавить паттерн `apps/api/**/*.{js,ts,json}`.
-- [ ] (Phase 3) Добавить паттерн `packages/dto/**/*.{js,ts,json}`.
+- [x] (Phase 3) Добавить паттерн `packages/dto/**/*.{js,ts,json}`.
 
 ## Phase 2 — Инфраструктура MVP: запуск health check
-
 - [x] `apps/api/docker-compose.yml`: postgres:16-alpine + redis:7-alpine, healthcheck, volume, `REDIS_PASSWORD` с дефолтом `${REDIS_PASSWORD:-mock-interview-redis}`.
 - [x] `prisma/schema.prisma` (модель `User`, `@unique` email), `prisma.config.ts` (Prisma 7: url в config, fallback URL для `prisma generate` без `.env`), миграция: `pnpm --filter api db:migrate:dev -- --name init`.
 - [x] `src/config/`:
@@ -52,16 +51,16 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 
 > **Bootstrap (чистый клон):** миграции при `pnpm install` НЕ применяются автоматически. Порядок настройки: скопировать `apps/api/.env.example` в `apps/api/.env` → `pnpm install` (`postinstall` `prisma generate` проходит и без `.env` — fallback URL в `prisma.config.ts`) → `pnpm --filter api db:migrate:dev` (локальная разработка). В CI/CD/прод — `pnpm --filter api db:migrate:deploy`. Клиент генерируется автоматически через `postinstall` (`prisma generate`). `pnpm --filter api dev` автоматически поднимает контейнеры и применяет миграции через `predev` → `db:up` (`docker compose up -d --wait`, требуется запущенный Docker) → `db:migrate:deploy` (неинтерактивный, no-op при применённых миграциях); остановка — `pnpm --filter api db:down`.
 
-## Phase 3 — Пакет `packages/dto`
+## Phase 3 — Пакет `@packages/dto`
 
-- [ ] Создать `packages/dto/package.json` (name `@mock-interview-ai/dto`, сборка tsc → `dist/`), `tsconfig.json`. Обязательно наличие скрипта `build` (tsc → `dist/`) — turbo `^build` собирает dto перед `api`. `biome.json` — адаптированный (без CSS/React-доменов), `@biomejs/biome@2.4.2` в devDependencies.
-- [ ] Добавить зависимость: `pnpm --filter @mock-interview-ai/dto add zod`.
-- [ ] Реализовать:
+- [x] Создать `@packages/dto/package.json` (name `@packages/dto`, сборка tsc → `dist/`), `tsconfig.json`. Обязательно наличие скрипта `build` (tsc → `dist/`) — turbo `^build` собирает dto перед `api`. `biome.json` — адаптированный (без CSS/React-доменов), `@biomejs/biome@2.4.2` в devDependencies.
+- [x] Добавить зависимость: `pnpm --filter @packages/dto add zod`.
+- [x] Реализовать:
   - `src/auth/email.ts` — `normalizeEmail`, email-валидация;
   - `src/auth/password-policy.ts` — централизованная policy (min 12, max 128);
   - `src/auth/register.dto.ts` — zod-схема `registerSchema`, тип `RegisterDto`;
   - `src/index.ts` — экспорт.
-- [ ] Подключить к api: `pnpm --filter api add @mock-interview-ai/dto@workspace:*`. Dev/test-резолв пакета — через `tsconfig.paths` (api) и `jest.moduleNameMapper` на `src` dto (без зависимости от собранного `dist`); `build` dto используется только через turbo `^build`.
+- [x] Подключить к api: `pnpm --filter api add @packages/dto@workspace:*`. Dev/test-резолв пакета — через `tsconfig.paths` (api) и `jest.moduleNameMapper` на `src` dto (без зависимости от собранного `dist`); `build` dto используется только через turbo `^build`.
 
 ## Phase 4 — Инфраструктура: Redis и расширение bootstrap
 

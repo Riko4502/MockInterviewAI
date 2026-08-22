@@ -3,7 +3,6 @@ import type { StorybookConfig } from '@storybook/react-vite';
 import { dirname } from "path"
 import { fileURLToPath } from "url"
 import tailwindcss from "@tailwindcss/vite"
-import tsconfigPaths from "vite-tsconfig-paths"
 
 function getAbsolutePath(value: string) {
   return dirname(fileURLToPath(import.meta.resolve(`${value}/package.json`)))
@@ -11,8 +10,8 @@ function getAbsolutePath(value: string) {
 
 const config: StorybookConfig = {
   "stories": [
-    "../../../packages/ui/src/**/*.mdx",
-    "../../../packages/ui/src/**/*.stories.@(ts|tsx)"
+    "../src/**/*.mdx",
+    "../src/**/*.stories.@(ts|tsx)"
   ],
   "addons": [
     getAbsolutePath('@chromatic-com/storybook'),
@@ -24,10 +23,9 @@ const config: StorybookConfig = {
   "framework": getAbsolutePath('@storybook/react-vite'),
   async viteFinal(config) {
     config.plugins = config.plugins || [];
-    config.plugins.push(
-      tailwindcss(),
-      tsconfigPaths({ projects: ["../../packages/ui/tsconfig.json"] })
-    );
+    config.plugins.push(tailwindcss());
+    config.resolve = config.resolve || {};
+    config.resolve.tsconfigPaths = true;
     return config;
   },
 };
