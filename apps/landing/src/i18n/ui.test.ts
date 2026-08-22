@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { ui, languages, useTranslations, getLangFromUrl } from './ui';
+
+function getAllFiles(dir: string, extensions: string[]): string[] {
+  const files: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...getAllFiles(fullPath, extensions));
+    } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
 
 describe('i18n Localization & Translation Integrity', () => {
   it('should define both Russian and English languages', () => {
@@ -46,5 +64,26 @@ describe('i18n Localization & Translation Integrity', () => {
 
     const urlUnknown = new URL('https://devsync.ai/de');
     expect(getLangFromUrl(urlUnknown)).toBe('ru');
+  });
+
+  it('should ensure all t(...) keys used across all Astro components exist in ui dictionaries', () => {
+    const srcDir = path.resolve(__dirname, '..');
+    const files = getAllFiles(srcDir, ['.astro', '.ts']);
+    const tRegex = /\bt\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const missingKeys: { file: string; key: string }[] = [];
+
+    for (const file of files) {
+      if (file.endsWith('ui.test.ts')) continue;
+      const content = fs.readFileSync(file, 'utf-8');
+      let match;
+      while ((match = tRegex.exec(content)) !== null) {
+        const key = match[1];
+        if (!(key in ui.en) || !(key in ui.ru)) {
+          missingKeys.push({ file: path.relative(srcDir, file), key });
+        }
+      }
+    }
+
+    expect(missingKeys).toEqual([]);
   });
 });
