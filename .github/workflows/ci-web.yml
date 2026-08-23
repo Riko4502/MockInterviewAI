@@ -63,7 +63,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: "Проверка сборки Docker-образа Web (Smoke Test)"
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./apps/web/Dockerfile

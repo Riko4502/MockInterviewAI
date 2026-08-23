@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Клонирование репозитория"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: "Удаление кэша закрытого PR #${{ github.event.pull_request.number }}"
         env:
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Клонирование репозитория"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: "Удаление кэшей"
         env:

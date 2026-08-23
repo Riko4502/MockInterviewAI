@@ -55,7 +55,7 @@ jobs:
 
       - name: "Сборка и пуш Docker-образа API в GHCR"
         if: steps.check_dockerfile.outputs.exists == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./apps/api/Dockerfile

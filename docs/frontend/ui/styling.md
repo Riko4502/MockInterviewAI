@@ -1,7 +1,7 @@
 # Стилизация и Tailwind CSS
 
 Основным инструментом стилизации является **Tailwind CSS v4**.  
-Официальная документация Tailwind: [https://tailwindcss.com/docs](https://tailwindcss.com/docs)
+Официальная документация Tailwind: [https://tailwindcss.com/docs/installation/using-vite](https://tailwindcss.com/docs/installation/using-vite)
 
 ---
 

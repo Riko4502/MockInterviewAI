@@ -94,7 +94,7 @@ jobs:
 
       - name: "Проверка сборки Docker-образа Realtime (Smoke Test)"
         if: steps.check_realtime.outputs.exists == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./apps/realtime
           file: ./apps/realtime/Dockerfile

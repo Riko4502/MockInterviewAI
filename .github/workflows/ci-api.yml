@@ -77,7 +77,7 @@ jobs:
 
       - name: "Проверка сборки Docker-образа API (Smoke Test)"
         if: steps.check_api.outputs.exists == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./apps/api/Dockerfile
