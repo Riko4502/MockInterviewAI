@@ -17,7 +17,7 @@ on:
         description: 'Заголовок релиза'
         required: true
         type: string
-        default: 'Релиз MockInterviewAI'
+        default: 'Релиз'
       description:
         description: 'Описание изменений (Changelog)'
         required: false
@@ -59,9 +59,9 @@ jobs:
           cache: 'pnpm'
 
       - name: "Установка Go"
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.24'
+          go-version: '1.27'
           cache-dependency-path: apps/realtime/go.sum
 
       - name: "Установка зависимостей (frozen-lockfile)"

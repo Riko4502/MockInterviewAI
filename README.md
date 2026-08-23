@@ -53,9 +53,10 @@
 ## Технические требования и стек
 
 * **Frontend:** Next.js (App Router), React, TypeScript
-* **Realtime Service:** Go 1.24, WebSocket (`coder/websocket`), Chi router
+* **Realtime Service:** Go 1.27, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
+* **Object Storage:** S3-совместимое хранилище (MinIO для dev / Cloudflare R2 / AWS S3 в prod)
 * **Monorepo & Build Tooling:** Turborepo, pnpm workspaces, Biome, Docker
 
 ---
@@ -65,8 +66,8 @@
 Перед началом работы убедитесь, что у вас установлены:
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Go:** >= 1.24 (для сервиса Realtime)
-* **Docker & Docker Compose:** для локального запуска Redis и PostgreSQL
+* **Go:** >= 1.27 (для сервиса Realtime)
+* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis и MinIO
 
 ---
 
