@@ -1,0 +1,195 @@
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import ms from "ms";
+import { RedisService } from "../../../redis/redis.service";
+import { REDIS_SESSION_PREFIX } from "../auth.constants";
+
+/** Payload authentication session в Redis (§16 SPEC.md). */
+export interface AuthSession {
+  userId: string;
+  refreshTokenHash: string;
+  tokenFamilyId: string;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
+/**
+ * Сервис управления authentication sessions в Redis (§13–18, §30–32, §39 SPEC.md).
+ *
+ * Отвечает за: создание/чтение/обновление/удаление session,
+ * rotation refresh token с replay detection, привязку TTL к `JWT_REFRESH_EXPIRATION`.
+ */
+@Injectable()
+export class AuthSessionService {
+  private readonly logger = new Logger(AuthSessionService.name);
+
+  /**
+   * @param redisService - Глобальный `RedisService` для доступа к Redis.
+   * @param configService - Конфигурация приложения (секция `jwt.refreshExpiresIn`).
+   */
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  /**
+   * Создаёт новую authentication session (§14–16, §18 SPEC.md).
+   *
+   * Session сохраняется под переданным `sessionId` — тем же UUID, что
+   * зашит в claim `sid` access/refresh JWT (§37 SPEC.md), чтобы `/auth/refresh`
+   * находил session по `sid`.
+   *
+   * @param sessionId - UUID v4 сессии, сгенерированный вызывающим кодом (§14 SPEC.md).
+   * @param userId - UUID пользователя.
+   * @param refreshTokenHash - HMAC-SHA-256 хеш refresh token.
+   * @param tokenFamilyId - UUID семейства токенов.
+   * @returns Созданная session.
+   * @throws {Error} При ошибке Redis.
+   */
+  async createSession(
+    sessionId: string,
+    userId: string,
+    refreshTokenHash: string,
+    tokenFamilyId: string,
+  ): Promise<AuthSession> {
+    const now = new Date().toISOString();
+
+    const session: AuthSession = {
+      userId,
+      refreshTokenHash,
+      tokenFamilyId,
+      createdAt: now,
+      lastUsedAt: now,
+    };
+
+    const ttlSeconds = this.getTtlSeconds();
+    await this.redisService.set(
+      this.key(sessionId),
+      JSON.stringify(session),
+      ttlSeconds,
+    );
+
+    this.logger.debug(`Session created: ${sessionId}`);
+    return session;
+  }
+
+  /**
+   * Получает session по ID (§16 SPEC.md).
+   *
+   * @param sessionId - UUID сессии.
+   * @returns Session или `null`, если не найдена.
+   * @throws {Error} При ошибке Redis.
+   */
+  async getSession(sessionId: string): Promise<AuthSession | null> {
+    const raw = await this.redisService.get(this.key(sessionId));
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw) as AuthSession;
+  }
+
+  /**
+   * Обновляет поля существующей session (§16 SPEC.md).
+   *
+   * @param sessionId - UUID сессии.
+   * @param fields - Частичные поля для обновления.
+   * @returns Обновлённая session или `null`, если session не найдена.
+   * @throws {Error} При ошибке Redis.
+   */
+  async updateSession(
+    sessionId: string,
+    fields: Partial<Pick<AuthSession, "refreshTokenHash" | "lastUsedAt">>,
+  ): Promise<AuthSession | null> {
+    const existing = await this.getSession(sessionId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: AuthSession = { ...existing, ...fields };
+    const ttlSeconds = this.getTtlSeconds();
+    await this.redisService.set(
+      this.key(sessionId),
+      JSON.stringify(updated),
+      ttlSeconds,
+    );
+
+    return updated;
+  }
+
+  /**
+   * Удаляет session (§32 SPEC.md).
+   *
+   * @param sessionId - UUID сессии.
+   * @throws {Error} При ошибке Redis.
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.redisService.delete(this.key(sessionId));
+    this.logger.debug(`Session deleted: ${sessionId}`);
+  }
+
+  /**
+   * Выполняет rotation refresh token с replay detection (§30, §32 SPEC.md).
+   *
+   * Сравнивает входящий `newRefreshTokenHash` с сохранённым. При совпадении
+   * — replay detected → revoke session → возвращает `null`.
+   * При несовпадении — обновляет хеш и `lastUsedAt`, продлевает TTL.
+   *
+   * @param sessionId - UUID сессии.
+   * @param newRefreshTokenHash - HMAC-SHA-256 хеш нового refresh token.
+   * @returns Обновлённая session или `null` при replay detection.
+   * @throws {Error} При ошибке Redis.
+   */
+  async rotateSession(
+    sessionId: string,
+    newRefreshTokenHash: string,
+  ): Promise<AuthSession | null> {
+    const session = await this.getSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    if (session.refreshTokenHash === newRefreshTokenHash) {
+      this.logger.warn(`Replay detected for session ${sessionId} — revoking`);
+      await this.deleteSession(sessionId);
+      return null;
+    }
+
+    return this.updateSession(sessionId, {
+      refreshTokenHash: newRefreshTokenHash,
+      lastUsedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Отзывает (удаляет) session (§32 SPEC.md).
+   *
+   * @param sessionId - UUID сессии.
+   * @throws {Error} При ошибке Redis.
+   */
+  async revokeSession(sessionId: string): Promise<void> {
+    await this.deleteSession(sessionId);
+  }
+
+  /**
+   * Формирует Redis-ключ сессии (§15 SPEC.md).
+   *
+   * @param sessionId - UUID сессии.
+   * @returns Redis-ключ вида `auth:session:{sessionId}`.
+   */
+  private key(sessionId: string): string {
+    return `${REDIS_SESSION_PREFIX}${sessionId}`;
+  }
+
+  /**
+   * Вычисляет TTL сессии в секундах из конфига `jwt.refreshExpiresIn` (§18 SPEC.md).
+   *
+   * @returns TTL в секундах.
+   */
+  private getTtlSeconds(): number {
+    const expiresIn =
+      this.configService.get<string>("jwt.refreshExpiresIn") ?? "7d";
+    const ttlMs = ms(expiresIn as ms.StringValue);
+    return Math.ceil(ttlMs / 1000);
+  }
+}
