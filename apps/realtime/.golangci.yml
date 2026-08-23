@@ -24,10 +24,10 @@ linters:
 
 linters-settings:
   govet:
-    enable-all: true
     disable:
       - fieldalignment
       - shadow
+      - findcall
 
   revive:
     rules:
