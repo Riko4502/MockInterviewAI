@@ -1,11 +1,8 @@
 /**
  * Константы модуля аутентификации (§15, §20, §24, §25 SPEC.md).
  *
- * Используются в `TokenService`, `AuthSessionService`, `AuthController`.
+ * Используются в `TokenService`, `AuthSessionService`.
  */
-
-/** Имя HttpOnly cookie для refresh token (§25 SPEC.md). */
-export const REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
 
 /** Префикс ключа Redis для session (§15 SPEC.md). Формат: `auth:session:{sessionId}`. */
 export const REDIS_SESSION_PREFIX = "auth:session:";

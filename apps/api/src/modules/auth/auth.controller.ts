@@ -3,7 +3,6 @@ import { ConfigService } from "@nestjs/config";
 import { type RegisterDto, registerSchema } from "@packages/dto";
 import type { Response } from "express";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { REFRESH_TOKEN_COOKIE_NAME } from "./auth.constants";
 import { AuthService } from "./auth.service";
 
 /** Максимальное время жизни refresh cookie в секундах (§25 SPEC.md). */
@@ -20,7 +19,7 @@ const COOKIE_MAX_AGE_SECONDS = 2_592_000;
 export class AuthController {
   /**
    * @param authService - Сервис аутентификации.
-   * @param configService - Конфигурация приложения (секция `cookie`).
+   * @param configService - Конфигурация приложения (секции `cookie.secure`, `cookie.refreshTokenName`).
    */
   constructor(
     private readonly authService: AuthService,
@@ -46,8 +45,11 @@ export class AuthController {
     const result = await this.authService.register(dto);
 
     const secure = this.configService.get<boolean>("cookie.secure") ?? false;
+    const refreshTokenName =
+      this.configService.get<string>("cookie.refreshTokenName") ??
+      "refresh_token";
 
-    response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
+    response.cookie(refreshTokenName, result.refreshToken, {
       httpOnly: true,
       secure,
       sameSite: "lax",

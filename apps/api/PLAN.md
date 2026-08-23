@@ -4,6 +4,7 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
+| 1.2.0 | 2026-08-23 | Актуальный |
 | 1.1.0 | 2026-08-14 | Актуальный |
 | 1.0.0 | 2026-08-14 | Актуальный |
 
@@ -11,6 +12,7 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.2.0 | 2026-08-23 | Имя refresh cookie вынесено в env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`, конфигурация `cookie.refreshTokenName`): Phase 2, Phase 5. |
 | 1.1.0 | 2026-08-14 | Добавлены требования к документированию кода (SPEC.md §57): Phase 0 + чек-пункт Phase 6. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия плана. |
 
@@ -41,8 +43,8 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] `apps/api/docker-compose.yml`: postgres:16-alpine + redis:7-alpine, healthcheck, volume, `REDIS_PASSWORD` с дефолтом `${REDIS_PASSWORD:-mock-interview-redis}`.
 - [x] `prisma/schema.prisma` (модель `User`, `@unique` email), `prisma.config.ts` (Prisma 7: url в config, fallback URL для `prisma generate` без `.env`), миграция: `pnpm --filter api db:migrate:dev -- --name init`.
 - [x] `src/config/`:
-  - `env.validation.ts` — zod-схема полного набора env (§49 SPEC.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
-  - `configuration.ts` — типизированная конфигурация.
+  - `env.validation.ts` — zod-схема полного набора env (§49 SPEC.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `REFRESH_TOKEN_COOKIE_NAME`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis/имя refresh cookie лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
+  - `configuration.ts` — типизированная конфигурация (секция `cookie`: `secure`, `refreshTokenName`).
 - [x] `src/prisma/` — `PrismaModule`, `PrismaService` (@Global; Prisma 7 adapter `@prisma/adapter-pg` + `pg`).
 - [x] `src/common/filters/http-exception.filter.ts` — `HttpExceptionFilter` (маскировка деталей, §56 SPEC.md).
 - [x] `src/modules/health/` — `HealthModule`, `HealthController`; `GET /api/v1/health` — ping PostgreSQL (`SELECT 1` через `PrismaService.$queryRaw`); ответ: `200 { "status": "ok", "db": "up" }` / `503 { "status": "error", "db": "down" }`, без внутренних деталей; без auth.
@@ -79,11 +81,11 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 ## Phase 5 — Auth module
 
 - [x] `src/modules/users/` — `UsersModule`, `UsersService` (`findByEmail`, `create`).
-- [x] `src/modules/auth/auth.constants.ts` — константы: имя cookie, префикс Redis-ключа (`auth:session:`), `typ`-константы токенов.
+- [x] `src/modules/auth/auth.constants.ts` — константы: префикс Redis-ключа (`auth:session:`), `typ`-константы токенов (имя refresh cookie — из окружения `REFRESH_TOKEN_COOKIE_NAME` через конфигурацию `cookie.refreshTokenName`, §49 SPEC.md).
 - [x] `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
 - [x] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 SPEC.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
 - [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
-- [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
+- [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie (имя из `ConfigService` → `cookie.refreshTokenName`), `{ accessToken }`.
 - [x] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
 - [x] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
 

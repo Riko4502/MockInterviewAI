@@ -1,7 +1,6 @@
 import { HttpStatus } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
-import { REFRESH_TOKEN_COOKIE_NAME } from "./auth.constants";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 
@@ -17,7 +16,11 @@ const REGISTER_RESULT = {
 
 function createConfigService(secure: boolean): ConfigService {
   return {
-    get: jest.fn().mockImplementation(() => secure),
+    get: jest
+      .fn()
+      .mockImplementation((key: string) =>
+        key === "cookie.refreshTokenName" ? "refresh_token" : secure,
+      ),
   } as unknown as ConfigService;
 }
 
@@ -70,7 +73,7 @@ describe("AuthController", () => {
       expect(cookieMock).toHaveBeenCalledTimes(1);
       const [name, value, options] = cookieMock.mock.calls[0];
 
-      expect(name).toBe(REFRESH_TOKEN_COOKIE_NAME);
+      expect(name).toBe("refresh_token");
       expect(value).toBe("raw.refresh.token");
       expect(options).toEqual({
         httpOnly: true,
