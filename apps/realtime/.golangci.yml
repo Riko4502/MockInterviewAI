@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 5m
   tests: true
@@ -7,24 +5,16 @@ run:
 
 output:
   formats:
-    text:
-      path: stdout
-      print-issued-lines: true
-      print-linter-name: true
-      colors: true
+    - format: colored-line-number
 
 linters:
-  default: none
-
+  disable-all: true
   enable:
-    # Базовые и обязательные
     - errcheck
     - staticcheck
     - govet
     - ineffassign
     - unused
-
-    # Дополнительные проверки стиля и безопасности
     - gosec
     - gocritic
     - revive
@@ -34,57 +24,55 @@ linters:
     - unconvert
     - unparam
 
-  settings:
-    govet:
-      enable-all: true
-      disable:
-        - fieldalignment
-        - shadow
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+      - shadow
 
-    revive:
-      rules:
-        - name: exported
-          disabled: false
-        - name: package-comments
-          disabled: true
-        - name: blank-imports
-          disabled: false
-        - name: context-as-argument
-          disabled: false
-        - name: error-return
-          disabled: false
-        - name: error-naming
-          disabled: false
-        - name: if-return
-          disabled: false
-        - name: increment-decrement
-          disabled: false
-        - name: var-naming
-          disabled: false
-        - name: range
-          disabled: false
-
-    gocritic:
-      enabled-tags:
-        - diagnostic
-        - style
-        - performance
-      disabled-checks:
-        - paramTypeCombine
-        - whyNoLint
-        - hugeParam
-
-    errcheck:
-      check-type-assertions: true
-      check-blank: false
-
-  exclusions:
+  revive:
     rules:
-      - path: _test\.go
-        linters:
-          - gosec
-          - errcheck
+      - name: exported
+        disabled: false
+      - name: package-comments
+        disabled: true
+      - name: blank-imports
+        disabled: false
+      - name: context-as-argument
+        disabled: false
+      - name: error-return
+        disabled: false
+      - name: error-naming
+        disabled: false
+      - name: if-return
+        disabled: false
+      - name: increment-decrement
+        disabled: false
+      - name: var-naming
+        disabled: false
+      - name: range
+        disabled: false
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - paramTypeCombine
+      - whyNoLint
+      - hugeParam
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
