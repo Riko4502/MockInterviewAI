@@ -1,6 +1,6 @@
 module github.com/mockinterviewai/realtime
 
-go 1.27
+go 1.26.6
 
 require (
 	github.com/coder/websocket v1.8.15

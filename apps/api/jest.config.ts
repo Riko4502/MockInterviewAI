@@ -5,7 +5,12 @@ const config: Config = {
   rootDir: "src",
   testRegex: ".*\\.spec\\.ts$",
   transform: {
-    "^.+\\.ts$": "ts-jest",
+    "^.+\\.ts$": [
+      "ts-jest",
+      {
+        isolatedModules: true,
+      },
+    ],
   },
   moduleNameMapper: {
     "^@packages/dto$": "<rootDir>/../../../packages/dto/src",
@@ -17,6 +22,7 @@ const config: Config = {
     "!src/generated/**",
   ],
   coverageDirectory: "../coverage",
+  coverageReporters: ["text", "text-summary", "json-summary"],
   testEnvironment: "node",
 };
 
