@@ -2,11 +2,17 @@ name: "CI Realtime (Go)"
 
 on:
   workflow_call:
+    outputs:
+      coverage:
+        description: "Процент покрытия тестами Realtime"
+        value: ${{ jobs.test.outputs.coverage }}
 
 jobs:
   test:
     name: "Unit-тесты Go"
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.go_coverage.outputs.pct }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -27,10 +33,17 @@ jobs:
           go-version-file: 'apps/realtime/go.mod'
           cache-dependency-path: 'apps/realtime/go.sum'
 
-      - name: "Запуск unit-тестов Go"
+      - name: "Запуск unit-тестов Go с отчетом о покрытии"
+        id: go_coverage
         if: steps.check_realtime.outputs.exists == 'true'
         working-directory: apps/realtime
-        run: go test -v -race ./...
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+          TOTAL_COV=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
+          echo "pct=$TOTAL_COV" >> $GITHUB_OUTPUT
+          echo "### 📊 Отчет о покрытии тестами Realtime (Go)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Общее покрытие кода (Statements):** \`$TOTAL_COV\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Unit-тесты Realtime успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
   security:
     name: "SAST и аудит Go"

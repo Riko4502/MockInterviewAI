@@ -131,11 +131,11 @@ jobs:
           message: |
             ### 📊 Сводка проверок CI (Commit: `${{ github.event.pull_request.head.sha }}`)
 
-            | Сервис | Проверка | Статус |
-            | :--- | :--- | :---: |
-            | 🎨 **Web (Next.js)** | TypeScript, Biome, Vitest, Lighthouse | ${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
-            | ⚙️ **API (Nest.js)** | Prisma Validate, Jest Unit Tests | ${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
-            | ⚡ **Realtime (Go)** | Go Tests, golangci-lint, govulncheck | ${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
-            | 🛡️ **Security** | TruffleHog (Поиск секретов) | ${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }} |
+            | Сервис | Проверки | Покрытие тестами | Статус |
+            | :--- | :--- | :---: | :---: |
+            | 🎨 **Web (Next.js)** | TypeScript, Biome, Vitest, Lighthouse | `${{ needs.web.outputs.coverage || '—' }}` | ${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | ⚙️ **API (Nest.js)** | Prisma Validate, Jest Unit Tests | `${{ needs.api.outputs.coverage || '—' }}` | ${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | ⚡ **Realtime (Go)** | Go Tests, Revive, Govulncheck | `${{ needs.realtime.outputs.coverage || '—' }}` | ${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | 🛡️ **Security** | TruffleHog (Секреты), Hadolint (Docker) | — | ${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }} |
 
-            *Отчет обновлен автоматически системой CI/CD.*
+            *Отчет обновлен автоматически системой CI/CD. Сбор покрытия носит информационный характер и не блокирует PR.*

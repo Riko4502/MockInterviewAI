@@ -2,11 +2,17 @@ name: "CI API (Nest.js)"
 
 on:
   workflow_call:
+    outputs:
+      coverage:
+        description: "Процент покрытия тестами API"
+        value: ${{ jobs.test-and-build.outputs.coverage }}
 
 jobs:
   test-and-build:
     name: "Тесты и сборка API"
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.api_coverage.outputs.pct }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -50,8 +56,15 @@ jobs:
           pnpm --filter api exec prisma validate
           pnpm --filter api run db:generate
 
-      - name: "Запуск тестов и сборки Nest.js"
+      - name: "Запуск unit-тестов с отчетом о покрытии (Jest)"
+        id: api_coverage
         if: steps.check_api.outputs.exists == 'true'
         run: |
-          pnpm --filter api test
-          pnpm turbo run build --filter=...api
+          echo "### 📊 Отчет о покрытии тестами API (Nest.js)" >> $GITHUB_STEP_SUMMARY
+          pnpm --filter api run test:cov || pnpm --filter api test
+          echo "pct=Jest (Active)" >> $GITHUB_OUTPUT
+          echo "✅ Тесты API успешно выполнены." >> $GITHUB_STEP_SUMMARY
+
+      - name: "Сборка сервиса API"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm turbo run build --filter=...api

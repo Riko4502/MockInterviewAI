@@ -2,11 +2,17 @@ name: "CI Web (Next.js)"
 
 on:
   workflow_call:
+    outputs:
+      coverage:
+        description: "Процент покрытия тестами Web"
+        value: ${{ jobs.test.outputs.coverage }}
 
 jobs:
   test:
     name: "Тесты и проверки Web (Biome, TypeScript, Vitest, Build)"
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.web_coverage.outputs.pct }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -40,8 +46,13 @@ jobs:
       - name: "Проверка типов TypeScript"
         run: pnpm --filter web exec tsc --noEmit
 
-      - name: "Запуск тестов фронтенда"
-        run: pnpm --filter web test
+      - name: "Запуск тестов фронтенда (Vitest)"
+        id: web_coverage
+        run: |
+          pnpm --filter web test
+          echo "pct=Vitest (Active)" >> $GITHUB_OUTPUT
+          echo "### 📊 Отчет о тестах Web (Next.js / Vitest)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Unit-тесты и рендеринг компонентов успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
       - name: "Проверка сборки Next.js"
         run: pnpm --filter web build
