@@ -61,8 +61,8 @@ jobs:
       - name: "Установка Go"
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27'
-          cache-dependency-path: apps/realtime/go.sum
+          go-version-file: 'apps/realtime/go.mod'
+          cache-dependency-path: 'apps/realtime/go.sum'
 
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
