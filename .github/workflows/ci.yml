@@ -115,3 +115,27 @@ jobs:
       web_result: ${{ needs.web.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}
+
+  pr-status-comment:
+    name: "Обновление статуса PR"
+    needs: [realtime, web, api, security]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: "Формирование и обновление сводного комментария"
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: ci-status-summary
+          message: |
+            ### 📊 Сводка проверок CI (Commit: `${{ github.event.pull_request.head.sha }}`)
+
+            | Сервис | Проверка | Статус |
+            | :--- | :--- | :---: |
+            | 🎨 **Web (Next.js)** | TypeScript, Biome, Vitest, Lighthouse | ${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | ⚙️ **API (Nest.js)** | Prisma Validate, Jest Unit Tests | ${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | ⚡ **Realtime (Go)** | Go Tests, golangci-lint, govulncheck | ${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }} |
+            | 🛡️ **Security** | TruffleHog (Поиск секретов) | ${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }} |
+
+            *Отчет обновлен автоматически системой CI/CD.*
