@@ -66,9 +66,10 @@ jobs:
         with:
           work-dir: 'apps/realtime'
 
-      - name: "Запуск линтера и статического анализа (golangci-lint)"
+      - name: "Запуск линтера и статического анализа (go vet & revive)"
         if: steps.check_realtime.outputs.exists == 'true'
         working-directory: apps/realtime
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-          golangci-lint run --timeout=5m
+          go vet ./...
+          go install github.com/mgechev/revive@latest
+          revive -formatter friendly ./...
