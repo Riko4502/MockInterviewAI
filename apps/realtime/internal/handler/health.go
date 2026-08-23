@@ -41,7 +41,7 @@ func NewHealthHandler(hub *ws.Hub, sessionStore storage.SessionStore) *HealthHan
 }
 
 // Healthz обрабатывает запрос liveness /healthz.
-func (h *HealthHandler) Healthz(w http.ResponseWriter, r *http.Request) {
+func (h *HealthHandler) Healthz(w http.ResponseWriter, _ *http.Request) {
 	resp := HealthResponse{
 		Status:    "ok",
 		Service:   "realtime",

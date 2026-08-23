@@ -1,0 +1,70 @@
+version: 2
+
+updates:
+  # 1. Зависимости pnpm (Root монорепозитория и все пакеты/приложения)
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    labels:
+      - "📦 dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # 2. Go модули (apps/realtime)
+  - package-ecosystem: "gomod"
+    directory: "/apps/realtime"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    labels:
+      - "📦 dependencies"
+      - "⚡ realtime"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # 3. Экшены GitHub Actions (.github/workflows)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    labels:
+      - "🛠️ devops"
+      - "📦 dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
