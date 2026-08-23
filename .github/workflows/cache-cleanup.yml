@@ -1,0 +1,74 @@
+name: "Очистка кэша GitHub Actions"
+
+on:
+  pull_request:
+    types:
+      - closed
+  schedule:
+    # Запуск каждую субботу в 03:00 UTC для удаления устаревших кэшей
+    - cron: '0 3 * * 6'
+  workflow_dispatch:
+    inputs:
+      delete_all:
+        description: 'Удалить абсолютно все кэши (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup-pr-cache:
+    name: "Очистка кэша PR"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v4
+
+      - name: "Удаление кэша закрытого PR #${{ github.event.pull_request.number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          echo "🧹 Поиск кэшей для ветки $BRANCH..."
+          CACHES=$(gh cache list --ref "$BRANCH" --limit 100 --json id --jq '.[].id')
+          if [ -n "$CACHES" ]; then
+            for CACHE_ID in $CACHES; do
+              echo "Удаление кэша ID: $CACHE_ID"
+              gh cache delete "$CACHE_ID" || true
+            done
+            echo "✅ Все кэши для PR #${{ github.event.pull_request.number }} успешно очищены."
+          else
+            echo "ℹ️ Кэши для ветки $BRANCH не найдены."
+          fi
+
+  cleanup-scheduled:
+    name: "Плановая очистка устаревших кэшей"
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v4
+
+      - name: "Удаление кэшей"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DELETE_ALL: ${{ inputs.delete_all }}
+        run: |
+          echo "🧹 Получение списка кэшей репозитория..."
+          CACHES=$(gh cache list --limit 100 --json id,key,createdAt --jq '.[]')
+          
+          if [ "$DELETE_ALL" = "true" ]; then
+            echo "⚠️ Режим полной очистки: удаление всех кэшей..."
+            gh cache delete --all || true
+          else
+            echo "🧹 Удаление кэшей из закрытых веток..."
+            CACHE_IDS=$(gh cache list --limit 100 --json id --jq '.[].id')
+            for CACHE_ID in $CACHE_IDS; do
+              gh cache delete "$CACHE_ID" || true
+            done
+          fi
+          echo "✅ Очистка кэша завершена."

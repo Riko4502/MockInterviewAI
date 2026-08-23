@@ -1,0 +1,37 @@
+name: "Проверка ссылок в документации"
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+  pull_request:
+    branches: ["main", "dev"]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+  schedule:
+    # Запуск каждую неделю в понедельник в 05:00 UTC
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  link-checker:
+    name: "Проверка битых ссылок (Lychee)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v4
+
+      - name: "Проверка ссылок в Markdown файлах"
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --verbose --no-progress './docs/**/*.md' './*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
