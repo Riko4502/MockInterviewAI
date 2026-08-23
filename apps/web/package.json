@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "analyze": "next build --profile",
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
