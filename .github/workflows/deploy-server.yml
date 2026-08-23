@@ -30,7 +30,7 @@ jobs:
           target: '/opt/mock-interview-ai'
 
       - name: "Выполнение команд обновления контейнеров по SSH"
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           GITHUB_OWNER: ${{ github.repository_owner }}
           BRANCH_NAME: ${{ inputs.ref || github.ref_name }}
