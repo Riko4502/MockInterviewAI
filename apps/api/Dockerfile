@@ -3,7 +3,7 @@ FROM node:20-alpine AS base
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-RUN apk add --no-cache libc6-compat && \
+RUN apk add --no-cache libc6-compat python3 make g++ && \
     corepack enable && \
     corepack prepare pnpm@9.15.9 --activate
 
