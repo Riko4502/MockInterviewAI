@@ -75,9 +75,10 @@ jobs:
 
       - name: "Проверка уязвимостей в зависимостях (govulncheck)"
         if: steps.check_realtime.outputs.exists == 'true'
-        uses: golang/govulncheck-action@v1
-        with:
-          work-dir: 'apps/realtime'
+        working-directory: apps/realtime
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
 
       - name: "Запуск линтера и статического анализа (go vet & revive)"
         if: steps.check_realtime.outputs.exists == 'true'
