@@ -65,9 +65,8 @@ jobs:
       - name: "Запуск линтера и статического анализа (golangci-lint)"
         if: steps.check_realtime.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v6
-        env:
-          GOTOOLCHAIN: auto
         with:
           version: latest
+          install-mode: 'goinstall'
           working-directory: apps/realtime
           args: --timeout=5m
