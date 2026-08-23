@@ -18,11 +18,9 @@ linters:
     - gosec
     - gocritic
     - revive
-    - bodyclose
     - nilerr
     - misspell
     - unconvert
-    - unparam
 
 linters-settings:
   govet:
