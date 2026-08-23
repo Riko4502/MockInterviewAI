@@ -10,7 +10,8 @@
     "lint": "biome check",
     "format": "biome format --write",
     "lint-staged": "lint-staged",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:cov": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
     "@packages/ui": "workspace:*",
@@ -34,6 +35,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -60,9 +60,11 @@ jobs:
         id: api_coverage
         if: steps.check_api.outputs.exists == 'true'
         run: |
-          echo "### 📊 Отчет о покрытии тестами API (Nest.js)" >> $GITHUB_STEP_SUMMARY
           pnpm --filter api run test:cov || pnpm --filter api test
-          echo "pct=Jest (Active)" >> $GITHUB_OUTPUT
+          API_COV=$(node -e "try { const c = require('./apps/api/coverage/coverage-summary.json'); console.log(c.total.lines.pct + '%'); } catch(e) { console.log('—'); }")
+          echo "pct=$API_COV" >> $GITHUB_OUTPUT
+          echo "### 📊 Отчет о покрытии тестами API (Nest.js)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Общее покрытие кода (Lines):** \`$API_COV\`" >> $GITHUB_STEP_SUMMARY
           echo "✅ Тесты API успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
       - name: "Сборка сервиса API"
