@@ -1,0 +1,162 @@
+name: "Релиз, сборка в S3 и Telegram-анонс"
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Название тега/релиза (например, v1.0.0)'
+        required: true
+        type: string
+      title:
+        description: 'Заголовок релиза'
+        required: true
+        type: string
+        default: 'Релиз MockInterviewAI'
+      description:
+        description: 'Описание изменений (Changelog)'
+        required: false
+        type: string
+        default: 'Плановое обновление сервиса.'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload-s3:
+    name: "Сборка и загрузка в S3"
+    runs-on: ubuntu-latest
+    outputs:
+      download_url: ${{ steps.upload_s3.outputs.download_url }}
+      tag_name: ${{ steps.vars.outputs.tag_name }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Определение переменных релиза"
+        id: vars
+        run: |
+          TAG="${{ github.event.release.tag_name || github.ref_name || inputs.tag_name }}"
+          echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+          echo "ARCHIVE_NAME=mock-interview-ai-${TAG}.zip" >> $GITHUB_ENV
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: "Установка Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: apps/realtime/go.sum
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Сборка проектов (Turborepo build)"
+        run: pnpm build
+
+      - name: "Компиляция Go бинарника Realtime"
+        run: |
+          mkdir -p bin
+          cd apps/realtime
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../../bin/mock-interview-realtime ./cmd/server/main.go
+          cd ../..
+
+      - name: "Упаковка сборки в ZIP-архив"
+        run: |
+          zip -q -r "$ARCHIVE_NAME" bin/ apps/ packages/ package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json -x "**/.git*" "**/node_modules/.cache/*"
+
+      - name: "Загрузка архива сборки в S3"
+        id: upload_s3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION || 'us-east-1' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET_NAME || 'mock-interview-storage' }}
+          S3_PUBLIC_URL: ${{ secrets.S3_PUBLIC_URL }}
+        run: |
+          if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ] && [ -n "$S3_ENDPOINT" ]; then
+            echo "🚀 Загрузка ${ARCHIVE_NAME} в S3 (${S3_BUCKET}/public/releases/)..."
+            aws s3 cp "$ARCHIVE_NAME" "s3://${S3_BUCKET}/public/releases/${ARCHIVE_NAME}" --endpoint-url "$S3_ENDPOINT"
+            
+            if [ -n "$S3_PUBLIC_URL" ]; then
+              DOWNLOAD_URL="${S3_PUBLIC_URL}/public/releases/${ARCHIVE_NAME}"
+            else
+              DOWNLOAD_URL="${S3_ENDPOINT}/${S3_BUCKET}/public/releases/${ARCHIVE_NAME}"
+            fi
+            echo "download_url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+            echo "✅ Файл успешно загружен в S3: ${DOWNLOAD_URL}"
+          else
+            echo "⚠️ Секреты S3 не настроены в GitHub Secrets, пропуск загрузки в S3."
+            echo "download_url=" >> $GITHUB_OUTPUT
+          fi
+
+  notify-release:
+    name: "Анонс релиза в Telegram"
+    needs: [build-and-upload-s3]
+    if: always() && needs.build-and-upload-s3.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Отправка анонса релиза в Telegram"
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          THREAD_ID: ${{ secrets.TELEGRAM_RELEASE_THREAD_ID || secrets.TELEGRAM_THREAD_ID }}
+          TAG_NAME: ${{ needs.build-and-upload-s3.outputs.tag_name }}
+          TITLE: ${{ github.event.release.name || inputs.title || format('Релиз {0}', needs.build-and-upload-s3.outputs.tag_name) }}
+          BODY: ${{ github.event.release.body || inputs.description || 'Сборка релиза успешно завершена.' }}
+          DOWNLOAD_URL: ${{ needs.build-and-upload-s3.outputs.download_url }}
+          RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/{0}/releases/tag/{1}', github.repository, needs.build-and-upload-s3.outputs.tag_name) }}
+          AUTHOR: ${{ github.event.release.author.login || github.actor }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
+            exit 0
+          fi
+
+          # Экранируем HTML-символы в описании
+          CLEAN_BODY=$(echo "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | head -n 30)
+
+          # Формируем блок со ссылкой на скачивание (если S3 настроен)
+          DOWNLOAD_BLOCK=""
+          if [ -n "$DOWNLOAD_URL" ]; then
+            DOWNLOAD_BLOCK=$(printf "\n\n📦 <b>Сборка:</b> <a href=\"%s\">📥 Скачать архив (.zip)</a>" "$DOWNLOAD_URL")
+          fi
+
+          MESSAGE=$(printf "🚀 <b>Новый релиз: <code>%s</code></b>\n\n📌 <b>%s</b>\n\n👤 <b>Опубликовал:</b> @%s\n\n📝 <b>Что нового:</b>\n%s%s\n\n🔗 <a href=\"%s\">Открыть релиз на GitHub</a>" \
+            "$TAG_NAME" \
+            "$TITLE" \
+            "$AUTHOR" \
+            "$CLEAN_BODY" \
+            "$DOWNLOAD_BLOCK" \
+            "$RELEASE_URL")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg thread_id "$THREAD_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_notification: true} + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+
+          echo "Отправка анонса релиза в Telegram (топик ID: ${THREAD_ID:-основной чат})..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Ответ от Telegram API:"
+          echo "$RESPONSE"

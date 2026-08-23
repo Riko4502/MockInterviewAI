@@ -3,10 +3,26 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev"
+    "dev": "turbo dev",
+    "dev:web": "turbo dev --filter=web",
+    "dev:realtime": "turbo dev --filter=@apps/realtime",
+    "build:web": "turbo build --filter=web",
+    "build:realtime": "turbo build --filter=@apps/realtime",
+    "lint:realtime": "pnpm --filter=@apps/realtime lint",
+    "test": "turbo test",
+    "test:web": "pnpm --filter=web test",
+    "test:realtime": "pnpm --filter=@apps/realtime test",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
     "turbo": "^2.4.0"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": ">=8.0.0"
+    }
+  }
 }

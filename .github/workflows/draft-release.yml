@@ -1,0 +1,27 @@
+name: "Release Drafter"
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update_release_draft:
+    name: "Обновление черновика релиза"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Release Drafter"
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

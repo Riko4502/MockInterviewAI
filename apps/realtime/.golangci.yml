@@ -1,0 +1,90 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  allow-parallel-runners: true
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-issued-lines: true
+      print-linter-name: true
+      colors: true
+
+linters:
+  default: none
+
+  enable:
+    # Базовые и обязательные
+    - errcheck
+    - staticcheck
+    - govet
+    - ineffassign
+    - unused
+
+    # Дополнительные проверки стиля и безопасности
+    - gosec
+    - gocritic
+    - revive
+    - bodyclose
+    - nilerr
+    - misspell
+    - unconvert
+    - unparam
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+        - name: package-comments
+          disabled: true
+        - name: blank-imports
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: error-naming
+          disabled: false
+        - name: if-return
+          disabled: false
+        - name: increment-decrement
+          disabled: false
+        - name: var-naming
+          disabled: false
+        - name: range
+          disabled: false
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - paramTypeCombine
+        - whyNoLint
+        - hugeParam
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
