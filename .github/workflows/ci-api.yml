@@ -44,6 +44,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
+      - name: "Валидация схемы Prisma и кодогенерация"
+        if: steps.check_api.outputs.exists == 'true'
+        run: |
+          pnpm --filter api exec prisma validate
+          pnpm --filter api run db:generate
+
       - name: "Запуск тестов и сборки Nest.js"
         if: steps.check_api.outputs.exists == 'true'
-        run: pnpm --filter @apps/api test || pnpm --filter api test || pnpm turbo run build --filter=...api
+        run: |
+          pnpm --filter api test
+          pnpm turbo run build --filter=...api

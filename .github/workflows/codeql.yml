@@ -1,0 +1,77 @@
+name: "CodeQL SAST Анализ"
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: ["main", "dev"]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  schedule:
+    # Запуск каждого понедельника в 04:00 UTC
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: "Анализ кода (${{ matrix.language }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: go
+            build-mode: manual
+
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Настройка Go"
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          cache-dependency-path: apps/realtime/go.sum
+
+      - name: "Инициализация CodeQL"
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      - name: "Сборка Go сервиса Realtime"
+        if: matrix.language == 'go'
+        run: |
+          cd apps/realtime
+          CGO_ENABLED=0 go build -v ./cmd/server/main.go
+          cd ../..
+
+      - name: "Выполнение анализа CodeQL"
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
