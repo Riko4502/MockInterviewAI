@@ -70,3 +70,18 @@ jobs:
       - name: "Сборка сервиса API"
         if: steps.check_api.outputs.exists == 'true'
         run: pnpm turbo run build --filter=...api
+
+      - name: "Настройка Docker Buildx"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: "Проверка сборки Docker-образа API (Smoke Test)"
+        if: steps.check_api.outputs.exists == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/api/Dockerfile
+          push: false
+          tags: mockinterviewai-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

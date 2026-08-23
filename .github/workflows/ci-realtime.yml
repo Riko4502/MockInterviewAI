@@ -87,3 +87,18 @@ jobs:
           go vet ./...
           go install github.com/mgechev/revive@latest
           revive -config .revive.toml -formatter friendly ./...
+
+      - name: "Настройка Docker Buildx"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: "Проверка сборки Docker-образа Realtime (Smoke Test)"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/realtime
+          file: ./apps/realtime/Dockerfile
+          push: false
+          tags: mockinterviewai-realtime:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
