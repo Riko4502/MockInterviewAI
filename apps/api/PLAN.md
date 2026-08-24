@@ -206,18 +206,27 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [ ] `AuthService.logout(refreshToken?)` (§60, строгая семантика): `verifyRefreshToken` → `getSession(sid)` → отсутствие сессии **или** несовпадение `hashRefreshToken(token)` с сохранённым → `401`; иначе `revokeSession(sid)`.
-- [ ] `AuthController.logout()`: `@Post("logout")`, чтение `req.cookies[REFRESH_TOKEN_COOKIE_NAME]`, вызов сервиса, всегда `clearCookie` (атрибуты §25–28), `204` при успехе / `401` при отказе.
+- [x] `AuthService.logout(refreshToken?)` (§60, строгая семантика): `verifyRefreshToken` → `getSession(sid)` → отсутствие сессии **или** несовпадение `hashRefreshToken(token)` с сохранённым → `401`; иначе `revokeSession(sid)`.
+- [x] `AuthController.logout()`: `@Post("logout")`, чтение `req.cookies[REFRESH_TOKEN_COOKIE_NAME]`, вызов сервиса, всегда `clearCookie` (атрибуты §25–28), `204` при успехе / `401` при отказе.
 
 **Тесты:**
 
-- [ ] Unit `AuthService.logout`: успех → `revokeSession(sid)` вызван; сессия отсутствует → `401`; hash mismatch (ротация) → `401`; невалидный/просроченный JWT → `401`; Redis недоступен → `500`.
-- [ ] Unit `AuthController.logout`: clearCookie с теми же атрибутами; статусы `204`/`401`.
-- [ ] Integration: после logout ключ `auth:session:{sessionId}` удалён из Redis.
-- [ ] E2E LO-01: logout с валидной cookie → `204`, Set-Cookie сброса, сессия удалена из Redis.
-- [ ] E2E LO-02: без cookie → `401`.
-- [ ] E2E LO-03: подделанная cookie → `401`, clearCookie присутствует.
-- [ ] E2E LO-04: повторный logout с тем же токеном после успешного выхода → `401` (строгая семантика), cookie сброшен.
+- [x] Unit `AuthService.logout`: успех → `revokeSession(sid)` вызван; сессия отсутствует → `401`; hash mismatch (ротация) → `401`; невалидный/просроченный JWT → `401`; Redis недоступен → `500`.
+- [x] Unit `AuthController.logout`: clearCookie с теми же атрибутами; статусы `204`/`401`.
+- [x] Integration (`test/integration/logout-persistence.e2e-spec.ts`): после logout ключ `auth:session:{sessionId}` удалён из Redis; User остаётся в PostgreSQL.
+- [x] E2E LO-01: logout с валидной cookie → `204`, Set-Cookie сброса, сессия удалена из Redis.
+- [x] E2E LO-02: без cookie → `401`.
+- [x] E2E LO-03: подделанная cookie → `401`, clearCookie присутствует.
+- [x] E2E LO-04: повторный logout с тем же токеном после успешного выхода → `401` (строгая семантика), cookie сброшен.
+- [x] Доп. e2e: logout с access JWT вместо refresh → `401` (typ mismatch); logout с битой подписью → `401`.
+
+**Результат:** unit — 114, e2e — 20, lint/build — зелёные.
+
+**Решения по ходу Phase 9:**
+1. Все условия отказа 1–4 нормализованы к единому телу `401 "Invalid credentials"` — включая ошибки `verifyRefreshToken` («Invalid token»/«Invalid token type»), чтобы ответы logout были однородными (§60 не требует байт-равенства, как §59, но единый формат проще для клиентов).
+2. Cookie name читается из конфига (`cookie.refreshTokenName`, дефолт `refresh_token`) вместо константы — консистентно с set-cookie логикой контроллера; атрибуты §25–28 вынесены в общий приватный хелпер.
+3. `clearCookie` передаёт атрибуты §25–28 **без** `Max-Age`: express добавляет заголовок удаления (`Expires=Thu, 01 Jan 1970`), а переданный `Max-Age` восстановил бы пустую cookie на 7 дней. При ошибке Redis (`500`) cookie не сбрасывается (таблица §60).
+4. CSRF для `/auth/logout` обеспечивается глобальным `OriginCheckGuard` (APP_GUARD) — отдельное подключение не требуется.
 
 ## Phase 10 — OpenAPI/Swagger документация (SPEC.md §61–§63)
 

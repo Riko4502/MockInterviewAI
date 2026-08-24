@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   ConflictException,
   InternalServerErrorException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import argon2 from "argon2";
@@ -20,6 +21,7 @@ jest.mock("argon2", () => ({
   __esModule: true,
   default: {
     hash: jest.fn(),
+    verify: jest.fn(),
     argon2id: 2,
   },
 }));
@@ -33,6 +35,7 @@ const DTO = {
 };
 
 const USER = { id: "user-1", email: DTO.email };
+const USER_PASSWORD_HASH = "$argon2id$user-password-hash";
 
 type LoggerAccessor = {
   logger: {
@@ -61,6 +64,9 @@ describe("AuthService", () => {
   let generateRefreshToken: jest.Mock;
   let hashRefreshToken: jest.Mock;
   let createSession: jest.Mock;
+  let verifyRefreshToken: jest.Mock;
+  let getSession: jest.Mock;
+  let revokeSession: jest.Mock;
   let deleteUser: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
@@ -77,6 +83,21 @@ describe("AuthService", () => {
     createSession = jest.fn().mockResolvedValue(undefined);
     deleteUser = jest.fn().mockResolvedValue(undefined);
     (argon2.hash as jest.Mock).mockResolvedValue("$argon2id$test-hash");
+    (argon2.verify as jest.Mock).mockResolvedValue(true);
+
+    verifyRefreshToken = jest.fn().mockReturnValue({
+      sub: USER.id,
+      sid: SESSION_ID,
+      typ: "refresh",
+    });
+    getSession = jest.fn().mockResolvedValue({
+      userId: USER.id,
+      refreshTokenHash: "stored.hmac.hash",
+      tokenFamilyId: TOKEN_FAMILY_ID,
+      createdAt: "2026-08-24T00:00:00.000Z",
+      lastUsedAt: "2026-08-24T00:00:00.000Z",
+    });
+    revokeSession = jest.fn().mockResolvedValue(undefined);
 
     (randomUUID as unknown as jest.Mock)
       .mockReturnValueOnce(SESSION_ID)
@@ -88,8 +109,13 @@ describe("AuthService", () => {
         generateAccessToken,
         generateRefreshToken,
         hashRefreshToken,
+        verifyRefreshToken,
       } as unknown as TokenService,
-      { createSession } as unknown as AuthSessionService,
+      {
+        createSession,
+        getSession,
+        revokeSession,
+      } as unknown as AuthSessionService,
       { user: { delete: deleteUser } } as unknown as PrismaService,
       createConfigService(),
     );
@@ -194,6 +220,258 @@ describe("AuthService", () => {
       await expect(service.register(DTO)).rejects.toBeInstanceOf(
         InternalServerErrorException,
       );
+    });
+  });
+
+  describe("login: успешный вход (§58 SPEC.md)", () => {
+    it("проверяет пароль против хеша пользователя, создаёт новую session, возвращает токены", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+      const verify = argon2.verify as jest.Mock;
+
+      const result = await service.login(DTO);
+
+      expect(findByEmail).toHaveBeenCalledWith(DTO.email);
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(verify).toHaveBeenCalledWith(USER_PASSWORD_HASH, DTO.password);
+      expect(generateAccessToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
+      expect(createSession).toHaveBeenCalledWith(
+        SESSION_ID,
+        USER.id,
+        "stored.hmac.hash",
+        TOKEN_FAMILY_ID,
+      );
+      expect(result).toEqual({
+        accessToken: "raw.access.token",
+        refreshToken: "raw.refresh.token",
+      });
+    });
+
+    it("каждый логин порождает новый sessionId и tokenFamilyId", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+
+      await service.login(DTO);
+
+      expect(createSession).toHaveBeenCalledWith(
+        SESSION_ID,
+        USER.id,
+        "stored.hmac.hash",
+        TOKEN_FAMILY_ID,
+      );
+    });
+
+    it("результат login не содержит forbidden данных (§45)", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+      const result = await service.login(DTO);
+
+      expect(Object.keys(result).sort()).toEqual([
+        "accessToken",
+        "refreshToken",
+      ]);
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain(DTO.password);
+      expect(serialized).not.toContain(USER_PASSWORD_HASH);
+      expect(serialized).not.toContain("stored.hmac.hash");
+    });
+  });
+
+  describe("login: unknown email (§59 account enumeration)", () => {
+    it("выполняет dummy argon2-проверку и возвращает generic 401", async () => {
+      findByEmail.mockResolvedValue(null);
+      const verify = argon2.verify as jest.Mock;
+      verify.mockResolvedValue(false);
+
+      const error = await service.login(DTO).catch((e) => e);
+
+      // dummy-проверка: единственный вызов verify — против argon2id-хеша,
+      // не совпадающего с хешем реального пользователя
+      expect(verify).toHaveBeenCalledTimes(1);
+      const [hashedArg] = verify.mock.calls[0];
+      expect(hashedArg).toMatch(/^\$argon2id\$/);
+      expect(hashedArg).not.toBe(USER_PASSWORD_HASH);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Invalid credentials",
+      });
+      expect(generateAccessToken).not.toHaveBeenCalled();
+      expect(generateRefreshToken).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("login: неверный пароль (§59)", () => {
+    it("возвращает generic 401 с телом, идентичным unknown email (байт-в-байт)", async () => {
+      const verify = argon2.verify as jest.Mock;
+
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+      verify.mockResolvedValue(false);
+      const wrongPasswordError = await service.login(DTO).catch((e) => e);
+
+      findByEmail.mockResolvedValue(null);
+      const unknownEmailError = await service.login(DTO).catch((e) => e);
+
+      expect(wrongPasswordError).toBeInstanceOf(UnauthorizedException);
+      expect(wrongPasswordError.getStatus()).toBe(401);
+      expect(JSON.stringify(wrongPasswordError.getResponse())).toBe(
+        JSON.stringify(unknownEmailError.getResponse()),
+      );
+      expect(createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("login: Redis unavailable (§58)", () => {
+    beforeEach(() => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+      createSession.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+    });
+
+    it("выбрасывает 500 без внутренних деталей, компенсация не требуется", async () => {
+      const error = await service.login(DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+      expect(JSON.stringify(error.getResponse())).not.toContain("127.0.0.1");
+      expect(deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("password и токены не попадают в логи (§46)", async () => {
+      await service.login(DTO).catch(() => undefined);
+
+      const logged = JSON.stringify([
+        loggerErrorSpy.mock.calls,
+        loggerWarnSpy.mock.calls,
+        loggerDebugSpy.mock.calls,
+      ]);
+
+      expect(logged).not.toContain(DTO.password);
+      expect(logged).not.toContain(USER_PASSWORD_HASH);
+      expect(logged).not.toContain("raw.refresh.token");
+      expect(logged).not.toContain("raw.access.token");
+      expect(logged).not.toContain("stored.hmac.hash");
+    });
+  });
+
+  describe("logout: успешный выход (§60 SPEC.md)", () => {
+    it("верифицирует JWT, сравнивает HMAC-хеш и отзывает session по sid", async () => {
+      await service.logout("raw.refresh.token");
+
+      expect(verifyRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
+      expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
+      expect(getSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(revokeSession).toHaveBeenCalledTimes(1);
+      expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+    });
+
+    it("отсутствие cookie → generic 401 без обращений к Redis", async () => {
+      const error = await service.logout(undefined).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Invalid credentials",
+      });
+      expect(verifyRefreshToken).not.toHaveBeenCalled();
+      expect(getSession).not.toHaveBeenCalled();
+      expect(revokeSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("logout: отказ (§60 строгая семантика)", () => {
+    it("сессия отсутствует в Redis → 401, session не отзывается", async () => {
+      getSession.mockResolvedValue(null);
+
+      const error = await service.logout("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Invalid credentials",
+      });
+      expect(revokeSession).not.toHaveBeenCalled();
+    });
+
+    it("hash mismatch (ротация сессии) → 401, session не отзывается", async () => {
+      getSession.mockResolvedValue({
+        userId: USER.id,
+        refreshTokenHash: "rotated.hmac.hash",
+        tokenFamilyId: TOKEN_FAMILY_ID,
+        createdAt: "2026-08-24T00:00:00.000Z",
+        lastUsedAt: "2026-08-24T00:00:00.000Z",
+      });
+
+      const error = await service.logout("old.refresh.token").catch((e) => e);
+
+      expect(hashRefreshToken).toHaveBeenCalledWith("old.refresh.token");
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(revokeSession).not.toHaveBeenCalled();
+    });
+
+    it("невалидный / просроченный JWT → 401 до обращения к Redis", async () => {
+      verifyRefreshToken.mockImplementation(() => {
+        throw new UnauthorizedException("Invalid token");
+      });
+
+      const error = await service.logout("broken.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(getSession).not.toHaveBeenCalled();
+      expect(revokeSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("logout: Redis unavailable (§60)", () => {
+    it("выбрасывает 500 без внутренних деталей, session не отзывается", async () => {
+      getSession.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      const error = await service.logout("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+      expect(JSON.stringify(error.getResponse())).not.toContain("127.0.0.1");
+      expect(revokeSession).not.toHaveBeenCalled();
+    });
+
+    it("ошибка при revoke → 500; token и hash не попадают в логи (§46)", async () => {
+      revokeSession.mockRejectedValue(new Error("redis down"));
+
+      const error = await service.logout("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+
+      const logged = JSON.stringify([
+        loggerErrorSpy.mock.calls,
+        loggerWarnSpy.mock.calls,
+        loggerDebugSpy.mock.calls,
+      ]);
+      expect(logged).not.toContain("raw.refresh.token");
+      expect(logged).not.toContain("stored.hmac.hash");
     });
   });
 

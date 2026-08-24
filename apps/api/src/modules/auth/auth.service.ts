@@ -208,6 +208,67 @@ export class AuthService {
   }
 
   /**
+   * Выполняет выход пользователя (§60 SPEC.md).
+   *
+   * Строгая семантика — logout успешен только при одновременном выполнении:
+   * 1. refresh token присутствует (cookie);
+   * 2. JWT валиден (HS256, подпись, issuer, audience, expiration,
+   *    typ = `refresh` — проверяет `TokenService.verifyRefreshToken`);
+   * 3. session `auth:session:{sid}` существует в Redis;
+   * 4. `hashRefreshToken(token)` совпадает с сохранённым
+   *    `session.refreshTokenHash` (защита от отзыва ротированной сессии
+   *    старым токеном, §30–32 SPEC.md).
+   *
+   * Нарушение любого условия → generic `401`. При ошибке Redis → `500`
+   * без внутренних деталей; компенсация не требуется.
+   *
+   * @param refreshToken - JWT refresh token из cookie (может отсутствовать).
+   * @returns `void` — сессия отозвана в Redis.
+   * @throws {UnauthorizedException} Если любое из условий 1–4 не выполнено
+   *   (generic-ответ без указания причины).
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async logout(refreshToken?: string): Promise<void> {
+    if (!refreshToken) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    let payload: ReturnType<TokenService["verifyRefreshToken"]>;
+    try {
+      payload = this.tokenService.verifyRefreshToken(refreshToken);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        // Единый generic-ответ для всех условий отказа 1–4 (§60 SPEC.md)
+        throw new UnauthorizedException("Invalid credentials");
+      }
+      throw error;
+    }
+
+    try {
+      const session = await this.sessionService.getSession(payload.sid);
+
+      if (
+        !session ||
+        session.refreshTokenHash !==
+          this.tokenService.hashRefreshToken(refreshToken)
+      ) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      await this.sessionService.revokeSession(payload.sid);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.error(
+        "Redis unavailable during logout",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+  }
+
+  /**
    * Хеширует пароль через Argon2id с параметрами из конфигурации (§11, §12 SPEC.md).
    *
    * @param password - Пароль в открытом виде.
