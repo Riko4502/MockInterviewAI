@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loginSchema } from "./login.dto";
+import { PASSWORD_MAX_LENGTH } from "./password-policy";
 
 const PASSWORD = "Str0ngPassw0rd!123";
 
@@ -43,7 +44,7 @@ describe("loginSchema", () => {
       });
       expect(r.success).toBe(false);
       if (!r.success) {
-        expect(r.error.issues[0].message).toBe("Password is required");
+        expect(r.error.issues[0].message).toBe("Пароль обязателен");
       }
     });
 
@@ -55,7 +56,7 @@ describe("loginSchema", () => {
       expect(r.success).toBe(false);
       if (!r.success) {
         expect(r.error.issues[0].message).toBe(
-          "Password must be at most 128 characters",
+          `Пароль должен содержать максимум ${PASSWORD_MAX_LENGTH} символов`,
         );
       }
     });
@@ -77,7 +78,7 @@ describe("loginSchema", () => {
       });
       expect(r.success).toBe(false);
       if (!r.success) {
-        expect(r.error.issues[0].message).toBe("Invalid email format");
+        expect(r.error.issues[0].message).toBe("Некорректный email");
       }
     });
   });

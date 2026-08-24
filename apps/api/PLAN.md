@@ -273,25 +273,25 @@ curl http://localhost:3001/api/v1/health
 
 **Пакет `@packages/dto`:**
 
-- [ ] `src/auth/register.dto.ts`: схема дополняется обязательным полем `passwordConfirmation` — non-empty («Подтверждение пароля обязательно»); `.refine()` совпадения с `password` («Пароли не совпадают», путь `passwordConfirmation`); `.transform()` удаляет поле из результата — выходной тип `RegisterDto` остаётся `{ email, password }`, поле не попадает в сервисы/логи (§5).
-- [ ] Перевод сообщений об ошибках на русский (единые для API и UI, §63): «Email обязателен», «Некорректный email», «Пароль должен содержать минимум N символов», «Пароль должен содержать максимум N символов».
+- [x] `src/auth/register.dto.ts`: схема дополняется обязательным полем `passwordConfirmation` — non-empty («Подтверждение пароля обязательно»); `.refine()` совпадения с `password` («Пароли не совпадают», путь `passwordConfirmation`); `.transform()` удаляет поле из результата — выходной тип `RegisterDto` остаётся `{ email, password }`, поле не попадает в сервисы/логи (§5).
+- [x] Перевод сообщений об ошибках на русский (единые для API и UI, §63): «Email обязателен», «Некорректный email», «Пароль должен содержать минимум N символов», «Пароль должен содержать максимум N символов». **Решения:** (1) миграция deprecated `z.string().email()` → `.pipe(z.email("Некорректный email"))` выполнена; потерю `format:"email"` в OpenAPI компенсирует патч в `zod-openapi.ts` (`containsZodEmail` ищет ZodEmail в поддереве полей, включая обе стороны pipe); (2) login-схема русифицирована полностью, включая min(1) → «Пароль обязателен» (отступление от буквы §63 «остальные тексты остаются» — по выбору пользователя).
 
 **Тесты dto:**
 
-- [ ] Обновить существующие фикстуры `register.dto.test.ts` — во все инпуты добавляется `passwordConfirmation`.
-- [ ] Новые кейсы: совпадающие пароли проходят; mismatch → «Пароли не совпадают» на пути `passwordConfirmation`; пустое подтверждение → ошибка; поле отсутствует → ошибка.
+- [x] Обновить существующие фикстуры `register.dto.test.ts` — во все инпуты добавляется `passwordConfirmation`.
+- [x] Новые кейсы: совпадающие пароли проходят; mismatch → «Пароли не совпадают» на пути `passwordConfirmation`; пустое подтверждение → ошибка; поле отсутствует → ошибка.
 
 **API:**
 
-- [ ] Юнит-тесты `AuthService`/`AuthController` — без правок логики (вход `RegisterDto` не меняется); обновить ассерты, если они завязаны на тексты сообщений.
-- [ ] Тела запросов e2e/integration (`auth-register.e2e-spec.ts`, `register-persistence.e2e-spec.ts`) дополняются `passwordConfirmation`; новый e2e-кейс: несовпадение паролей → `400`.
-- [ ] OpenAPI-спецификация (Phase 10) подхватывает поле автоматически (`z.toJSONSchema()`): `passwordConfirmation` — required в схеме RegisterDto.
+- [x] Юнит-тесты `AuthService`/`AuthController` — без правок логики (вход `RegisterDto` не меняется); обновить ассерты, если они завязаны на тексты сообщений.
+- [x] Тела запросов e2e/integration (`auth-register.e2e-spec.ts`, `register-persistence.e2e-spec.ts`, а также `auth-login/auth-logout/login-persistence/logout-persistence`) дополняются `passwordConfirmation`; новый e2e-кейс E2E-06: несовпадение паролей → `400`, ошибка на пути `passwordConfirmation`, user не создаётся.
+- [x] OpenAPI-спецификация (Phase 10) подхватывает поле автоматически (`z.toJSONSchema()`): `passwordConfirmation` — required в схеме RegisterDto.
 
 **Верификация:**
 
-- [ ] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`;
-- [ ] `pnpm --filter api lint && pnpm --filter api test`;
-- [ ] При выполненной Phase 10: регенерация `pnpm generate:api` → в `openapi.yaml/json` `passwordConfirmation` присутствует и required.
+- [x] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`;
+- [x] `pnpm --filter api lint && pnpm --filter api test`;
+- [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `openapi.yaml/json` `passwordConfirmation` присутствует и required.
 
 ---
 

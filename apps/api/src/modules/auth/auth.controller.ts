@@ -46,7 +46,7 @@ const VALIDATION_ERROR_SCHEMA: SchemaObject = {
     message: {
       type: "object",
       additionalProperties: { type: "string" },
-      example: { email: "Invalid email format" },
+      example: { email: "Некорректный email" },
       description: "Карта ошибок `{ field: message }`.",
     },
   },

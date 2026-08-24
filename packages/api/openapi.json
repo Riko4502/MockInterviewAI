@@ -88,18 +88,22 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "format": "email"
                   },
                   "password": {
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
+                  },
+                  "passwordConfirmation": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
                   "email",
-                  "password"
+                  "password",
+                  "passwordConfirmation"
                 ]
               }
             }
@@ -142,7 +146,7 @@
                         "type": "string"
                       },
                       "example": {
-                        "email": "Invalid email format"
+                        "email": "Некорректный email"
                       },
                       "description": "Карта ошибок `{ field: message }`."
                     }
@@ -204,8 +208,7 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "format": "email"
                   },
                   "password": {
                     "type": "string",
@@ -258,7 +261,7 @@
                         "type": "string"
                       },
                       "example": {
-                        "email": "Invalid email format"
+                        "email": "Некорректный email"
                       },
                       "description": "Карта ошибок `{ field: message }`."
                     }

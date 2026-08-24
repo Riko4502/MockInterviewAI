@@ -41,8 +41,8 @@ describe("HttpExceptionFilter", () => {
 
     filter.catch(
       new BadRequestException({
-        email: "Invalid email format",
-        password: "String must contain at least 12 character(s)",
+        email: "Некорректный email",
+        password: "Пароль должен содержать минимум 12 символов",
       }),
       host,
     );
@@ -50,8 +50,8 @@ describe("HttpExceptionFilter", () => {
     expect(json).toHaveBeenCalledWith({
       statusCode: 400,
       message: {
-        email: "Invalid email format",
-        password: "String must contain at least 12 character(s)",
+        email: "Некорректный email",
+        password: "Пароль должен содержать минимум 12 символов",
       },
     });
   });

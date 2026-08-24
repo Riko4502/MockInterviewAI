@@ -4,13 +4,94 @@ import { ApiBody } from "@nestjs/swagger";
 import { z } from "zod";
 
 /**
+ * Определяет, что узел zod-дерева — `z.email()` (в том числе на выходе
+ * `.pipe(z.email())`). Используется для восстановления `format: "email"`
+ * в OpenAPI-схеме: режим `io: "input"` переносит email-проверку pipe
+ * на output-сторону и JSON Schema её теряет.
+ */
+function isZodEmail(node: unknown): boolean {
+  if (node instanceof z.ZodEmail) {
+    return true;
+  }
+  // Fallback по имени класса — защита от дубликатов инстансов zod
+  // в workspace-монорепе (разные физические копии пакета).
+  return (
+    (node as { constructor?: { name?: string } } | undefined)?.constructor
+      ?.name === "ZodEmail"
+  );
+}
+
+/**
+ * Ищет `ZodEmail` где угодно в поддереве схемы (обе стороны pipe:
+ * `.in` и `.out`, любая вложенность).
+ */
+function containsZodEmail(node: unknown, depth = 0): boolean {
+  if (!node || typeof node !== "object" || depth > 10) {
+    return false;
+  }
+  if (isZodEmail(node)) {
+    return true;
+  }
+  const composite = node as { in?: unknown; out?: unknown };
+  return (
+    containsZodEmail(composite.in, depth + 1) ||
+    containsZodEmail(composite.out, depth + 1)
+  );
+}
+
+function defInputOf(node: unknown): unknown {
+  return (
+    (node as { in?: unknown }).in ??
+    (node as { _zod?: { def?: { in?: unknown } } })._zod?.def?.in
+  );
+}
+
+/**
+ * Возвращает shape объектной схемы, раскручивая обёртки `.refine()` /
+ * `.transform()` (в zod v4 корень превращается в pipe — `shape`
+ * доступен только на input-стороне).
+ */
+function resolveShape(node: unknown, maxDepth = 5): Record<string, unknown> {
+  let current: unknown = node;
+  for (let depth = 0; depth < maxDepth && current; depth++) {
+    const shape = (current as { shape?: Record<string, unknown> }).shape;
+    if (shape) {
+      return shape;
+    }
+    current = defInputOf(current);
+  }
+  return {};
+}
+
+/**
+ * Проставляет `format: "email"` в сконвертированной схеме для полей,
+ * исходный zod-тип которых — `z.email()` (см. {@link isZodEmail}).
+ */
+function injectEmailFormats(
+  jsonSchema: { properties?: Record<string, SchemaObject> },
+  shape: Record<string, unknown>,
+): void {
+  if (!jsonSchema.properties) {
+    return;
+  }
+  for (const [key, propertySchema] of Object.entries(shape)) {
+    if (containsZodEmail(propertySchema) && jsonSchema.properties[key]) {
+      jsonSchema.properties[key].format = "email";
+    }
+  }
+}
+
+/**
  * Конвертирует zod-схему в OpenAPI `SchemaObject` (§61 SPEC.md).
  *
  * Используется нативный `z.toJSONSchema()` (zod v4) в режиме `io: "input"` —
  * описывается контракт *входящего* запроса. Шаги `.transform()` (например,
- * нормализация email) непредставимы в JSON Schema и в этом режиме
- * корректно пропускаются. Служебное поле `$schema` удаляется — OpenAPI
- * определяет собственный диалект.
+ * нормализация email или удаление `passwordConfirmation`) непредставимы
+ * в JSON Schema и в этом режиме корректно пропускаются. Служебное поле
+ * `$schema` удаляется — OpenAPI определяет собственный диалект.
+ *
+ * Для полей на базе `z.email()` восстанавливается `format: "email"`,
+ * который pipe-обёртка в input-режиме не экспортирует.
  *
  * @param schema - Zod-схема DTO.
  * @returns Схема для документации (`ApiBody`, `ApiResponse`).
@@ -21,6 +102,14 @@ export function zodToSchemaObject(schema: z.ZodType): SchemaObject {
   }) as Record<string, unknown>;
 
   delete jsonSchema.$schema;
+
+  const shape = resolveShape(schema);
+  if (Object.keys(shape).length > 0) {
+    injectEmailFormats(
+      jsonSchema as { properties?: Record<string, SchemaObject> },
+      shape,
+    );
+  }
 
   return jsonSchema as SchemaObject;
 }

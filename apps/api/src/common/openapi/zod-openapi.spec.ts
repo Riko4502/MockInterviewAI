@@ -7,10 +7,21 @@ function propertyOf(schema: SchemaObject, name: string): SchemaObject {
 }
 
 describe("zodToSchemaObject", () => {
-  it("registerSchema: тип object и required [email, password]", () => {
+  it("registerSchema: тип object и required [email, password, passwordConfirmation]", () => {
     const schema = zodToSchemaObject(registerSchema);
     expect(schema.type).toBe("object");
-    expect(schema.required).toEqual(["email", "password"]);
+    expect(schema.required).toEqual([
+      "email",
+      "password",
+      "passwordConfirmation",
+    ]);
+  });
+
+  it("registerSchema: passwordConfirmation присутствует в схеме (§5)", () => {
+    const schema = zodToSchemaObject(registerSchema);
+    const confirmation = propertyOf(schema, "passwordConfirmation");
+    expect(confirmation.type).toBe("string");
+    expect(confirmation.minLength).toBe(1);
   });
 
   it("registerSchema: email — строка с format email", () => {
@@ -69,7 +80,11 @@ describe("ZodBody", () => {
       descriptor.value,
     ) as Array<{ in: string; schema: SchemaObject }> | undefined;
     const body = parameters?.find((parameter) => parameter.in === "body");
-    expect(body?.schema?.required).toEqual(["email", "password"]);
+    expect(body?.schema?.required).toEqual([
+      "email",
+      "password",
+      "passwordConfirmation",
+    ]);
     expect(body && propertyOf(body.schema, "email").format).toBe("email");
   });
 });

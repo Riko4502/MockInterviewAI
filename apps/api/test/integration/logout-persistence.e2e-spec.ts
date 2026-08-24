@@ -33,7 +33,7 @@ describe("Integration: выход → Redis (§60 SPEC.md)", () => {
 
     const registerRes = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(registerRes.status).toBe(201);
 
     const loginRes = await request(started.app.getHttpServer())

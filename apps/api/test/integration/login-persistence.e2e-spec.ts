@@ -34,12 +34,12 @@ describe("Integration: вход → PostgreSQL + Redis (§13, §58 SPEC.md)", ()
 
     const registerRes = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(registerRes.status).toBe(201);
 
     const loginRes = await request(started.app.getHttpServer())
       .post(LOGIN_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(loginRes.status).toBe(200);
     expect(typeof loginRes.body.accessToken).toBe("string");
 
@@ -68,12 +68,12 @@ describe("Integration: вход → PostgreSQL + Redis (§13, §58 SPEC.md)", ()
 
     const registerRes = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(registerRes.status).toBe(201);
 
     const loginRes = await request(started.app.getHttpServer())
       .post(LOGIN_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(loginRes.status).toBe(200);
 
     const registerPayload = jwt.decode(registerRes.body.accessToken) as {
