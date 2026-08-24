@@ -8,6 +8,7 @@
     "start": "nest start",
     "lint": "biome check",
     "test": "jest --passWithNoTests",
+    "test:cov": "jest --coverage --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "generate:openapi": "ts-node scripts/generate-openapi.ts",
     "db:generate": "prisma generate",
