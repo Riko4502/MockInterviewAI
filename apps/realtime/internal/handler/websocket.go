@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/coder/websocket"
-	"github.com/go-chi/chi/v5"
+	chi "github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/mockinterviewai/realtime/internal/auth"
 	"github.com/mockinterviewai/realtime/internal/storage"

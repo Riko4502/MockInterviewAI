@@ -22,7 +22,7 @@ build
 .idea
 .cursor
 
-# Logs
+# Logs & Coverage
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -30,3 +30,6 @@ pnpm-debug.log*
 
 *storybook.log
 storybook-static
+coverage/
+*.lcov
+coverage.out

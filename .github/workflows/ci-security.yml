@@ -1,4 +1,4 @@
-name: "CI Security (Secrets Scan)"
+name: "CI Security (Secrets & Docker Lint)"
 
 on:
   workflow_call:
@@ -17,3 +17,16 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --only-verified
+
+  docker-lint:
+    name: "Линтинг Dockerfile (Hadolint)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка всех Dockerfile на безопасность и ошибки"
+        uses: hadolint/hadolint-action@v3.4.0
+        with:
+          recursive: true
+          failure-threshold: error
