@@ -1,22 +1,22 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
 
+# Builder stage
+FROM base AS builder
 WORKDIR /app
 
-# Устанавливаем pnpm
-RUN npm i -g pnpm@9
+RUN apk add --no-cache libc6-compat && \
+    corepack enable && \
+    corepack prepare pnpm@9.15.9 --activate
 
-# Копируем файлы конфигурации монорепозитория
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* ./
 COPY apps/landing/package.json ./apps/landing/
 COPY packages ./packages
 
-# Устанавливаем зависимости
 RUN pnpm install --frozen-lockfile
 
-# Копируем исходный код Landing
 COPY apps/landing ./apps/landing
 
-# Сборка только Landing‑приложения
+RUN pnpm --filter='./packages/*' build
 RUN pnpm --filter landing build
 
 # -------------------------------------------------------------

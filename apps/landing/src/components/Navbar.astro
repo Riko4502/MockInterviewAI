@@ -1,18 +1,18 @@
 ---
+import { getAuthUrl, getRegisterUrl } from "@/config/navigation";
 // Navbar.astro
-import { useTranslations, type Lang } from '@/i18n/ui';
-import { getAuthUrl, getRegisterUrl } from '@/config/navigation';
+import { type Lang, useTranslations } from "@/i18n/ui";
 
 interface Props {
   lang?: Lang;
 }
 
-const { lang = 'ru' } = Astro.props;
+const { lang = "ru" } = Astro.props;
 const t = useTranslations(lang);
-const homeUrl = lang === 'ru' ? '/' : '/en';
+const homeUrl = lang === "ru" ? "/" : "/en";
 // When in RU, button directs to EN ('/en'); when in EN, button directs to RU ('/')
-const switchLangUrl = lang === 'ru' ? '/en' : '/';
-const switchLangLabel = lang === 'ru' ? 'EN' : 'RU';
+const switchLangUrl = lang === "ru" ? "/en" : "/";
+const switchLangLabel = lang === "ru" ? "EN" : "RU";
 const authUrl = getAuthUrl();
 const registerUrl = getRegisterUrl();
 ---

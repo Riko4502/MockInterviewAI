@@ -1,10 +1,10 @@
-import { defineConfig } from 'astro/config';
-import tailwindcss from '@tailwindcss/vite';
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "astro/config";
 
 export default defineConfig({
   i18n: {
-    defaultLocale: 'ru',
-    locales: ['en', 'ru'],
+    defaultLocale: "ru",
+    locales: ["en", "ru"],
     routing: {
       prefixDefaultLocale: false,
     },

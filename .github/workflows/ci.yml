@@ -135,7 +135,7 @@ jobs:
 
   pr-status-comment:
     name: "Обновление статуса PR"
-    needs: [realtime, web, api, security]
+    needs: [realtime, web, api, landing, security]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -150,6 +150,8 @@ jobs:
           sed -e "s|{{SHA}}|${{ github.event.pull_request.head.sha }}|g" \
               -e "s|{{WEB_COV}}|${{ needs.web.outputs.coverage || '—' }}|g" \
               -e "s|{{WEB_STATUS}}|${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{LANDING_COV}}|${{ needs.landing.outputs.coverage || '—' }}|g" \
+              -e "s|{{LANDING_STATUS}}|${{ needs.landing.result == 'success' && '✅ Успешно' || (needs.landing.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{API_COV}}|${{ needs.api.outputs.coverage || '—' }}|g" \
               -e "s|{{API_STATUS}}|${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{REALTIME_COV}}|${{ needs.realtime.outputs.coverage || '—' }}|g" \

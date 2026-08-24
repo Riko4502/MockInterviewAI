@@ -1,19 +1,19 @@
 ---
 // LandingPage.astro
-import '@/styles/globals.css';
-import { useTranslations, type Lang } from '@/i18n/ui';
-import Navbar from '@/components/Navbar.astro';
-import Hero from '@/components/Hero.astro';
-import HowItWorks from '@/components/HowItWorks.astro';
-import Features from '@/components/Features.astro';
-import CTA from '@/components/CTA.astro';
-import Footer from '@/components/Footer.astro';
+import "@/styles/globals.css";
+import CTA from "@/components/CTA.astro";
+import Features from "@/components/Features.astro";
+import Footer from "@/components/Footer.astro";
+import Hero from "@/components/Hero.astro";
+import HowItWorks from "@/components/HowItWorks.astro";
+import Navbar from "@/components/Navbar.astro";
+import { type Lang, useTranslations } from "@/i18n/ui";
 
 interface Props {
   lang?: Lang;
 }
 
-const { lang = 'ru' } = Astro.props;
+const { lang = "ru" } = Astro.props;
 const t = useTranslations(lang);
 ---
 

@@ -1,15 +1,15 @@
 ---
+import { getAppUrl, getAuthUrl, navigationConfig } from "@/config/navigation";
 // Footer.astro
-import { useTranslations, type Lang } from '@/i18n/ui';
-import { navigationConfig, getAuthUrl, getAppUrl } from '@/config/navigation';
+import { type Lang, useTranslations } from "@/i18n/ui";
 
 interface Props {
   lang?: Lang;
 }
 
-const { lang = 'ru' } = Astro.props;
+const { lang = "ru" } = Astro.props;
 const t = useTranslations(lang);
-const homeUrl = lang === 'ru' ? '/' : '/en';
+const homeUrl = lang === "ru" ? "/" : "/en";
 const authUrl = getAuthUrl();
 ---
 

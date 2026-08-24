@@ -1,16 +1,16 @@
 ---
 // HowItWorks.astro
-import { useTranslations, type Lang } from '@/i18n/ui';
-import StepTrackSelect from './how-it-works/StepTrackSelect.astro';
-import StepAiInterview from './how-it-works/StepAiInterview.astro';
-import StepLiveCoding from './how-it-works/StepLiveCoding.astro';
-import StepScorecard from './how-it-works/StepScorecard.astro';
+import { type Lang, useTranslations } from "@/i18n/ui";
+import StepAiInterview from "./how-it-works/StepAiInterview.astro";
+import StepLiveCoding from "./how-it-works/StepLiveCoding.astro";
+import StepScorecard from "./how-it-works/StepScorecard.astro";
+import StepTrackSelect from "./how-it-works/StepTrackSelect.astro";
 
 interface Props {
   lang?: Lang;
 }
 
-const { lang = 'ru' } = Astro.props;
+const { lang = "ru" } = Astro.props;
 const t = useTranslations(lang);
 ---
 
