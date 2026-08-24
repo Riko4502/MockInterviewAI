@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v5"
+	chi "github.com/go-chi/chi/v5"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/mockinterviewai/realtime/internal/auth"
 	"github.com/mockinterviewai/realtime/internal/ws"
 )
@@ -43,33 +43,33 @@ type mockSessionStore struct {
 	codeState map[string][]byte
 }
 
-func (m *mockSessionStore) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) {
+func (m *mockSessionStore) IsTokenRevoked(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
-func (m *mockSessionStore) IsSessionActive(ctx context.Context, sessionID string) (bool, error) {
+func (m *mockSessionStore) IsSessionActive(_ context.Context, _ string) (bool, error) {
 	return true, nil
 }
-func (m *mockSessionStore) GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error) {
+func (m *mockSessionStore) GetSessionUserRole(_ context.Context, _ string, userID string) (string, error) {
 	if role, ok := m.roles[userID]; ok {
 		return role, nil
 	}
 	return "candidate", nil
 }
-func (m *mockSessionStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
+func (m *mockSessionStore) SaveCodeState(_ context.Context, sessionID string, data []byte) error {
 	if m.codeState == nil {
 		m.codeState = make(map[string][]byte)
 	}
 	m.codeState[sessionID] = data
 	return nil
 }
-func (m *mockSessionStore) GetCodeState(ctx context.Context, sessionID string) ([]byte, error) {
+func (m *mockSessionStore) GetCodeState(_ context.Context, sessionID string) ([]byte, error) {
 	if m.codeState == nil {
 		return nil, nil
 	}
 	return m.codeState[sessionID], nil
 }
-func (m *mockSessionStore) Ping(ctx context.Context) error { return nil }
-func (m *mockSessionStore) Close() error                  { return nil }
+func (m *mockSessionStore) Ping(_ context.Context) error { return nil }
+func (m *mockSessionStore) Close() error                 { return nil }
 
 func dialWebSocket(
 	ctx context.Context,

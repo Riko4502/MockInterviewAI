@@ -55,6 +55,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 
+  /**
+   * Приводит тело `HttpException` к санитизированному `HttpErrorBody`.
+   *
+   * @param status - HTTP-статус исключения.
+   * @param exceptionResponse - Исходное тело исключения (строка или объект).
+   * @returns Нормализованное тело ответа без внутренних деталей.
+   */
   private toHttpErrorBody(
     status: number,
     exceptionResponse: unknown,

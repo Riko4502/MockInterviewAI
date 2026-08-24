@@ -115,3 +115,33 @@ jobs:
       web_result: ${{ needs.web.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}
+
+  pr-status-comment:
+    name: "Обновление статуса PR"
+    needs: [realtime, web, api, security]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Генерация отчета из шаблона"
+        run: |
+          sed -e "s|{{SHA}}|${{ github.event.pull_request.head.sha }}|g" \
+              -e "s|{{WEB_COV}}|${{ needs.web.outputs.coverage || '—' }}|g" \
+              -e "s|{{WEB_STATUS}}|${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{API_COV}}|${{ needs.api.outputs.coverage || '—' }}|g" \
+              -e "s|{{API_STATUS}}|${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{REALTIME_COV}}|${{ needs.realtime.outputs.coverage || '—' }}|g" \
+              -e "s|{{REALTIME_STATUS}}|${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{SECURITY_STATUS}}|${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }}|g" \
+              .github/templates/pr-status-summary.md > pr-comment.md
+
+      - name: "Публикация сводного комментария"
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: ci-status-summary
+          path: pr-comment.md

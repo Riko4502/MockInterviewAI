@@ -1,6 +1,5 @@
 import { Controller, Get, HttpStatus, Logger, Res } from "@nestjs/common";
 import type { Response } from "express";
-// biome-ignore lint/style/useImportType: value import требуется для DI metadata (design:paramtypes)
 import { PrismaService } from "../../prisma/prisma.service";
 
 interface HealthResponse {
