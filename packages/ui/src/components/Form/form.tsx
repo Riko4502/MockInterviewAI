@@ -11,10 +11,12 @@ import { cn } from "@lib/utils"
 
 type FieldContextValue = {
   invalid: boolean
+  inputId: string
 }
 
 const FieldContext = React.createContext<FieldContextValue>({
   invalid: false,
+  inputId: "",
 })
 
 function useFieldContext() {
@@ -53,8 +55,10 @@ function FieldRoot({
   invalid = false,
   ...props
 }: FieldProps) {
+  const inputId = React.useId()
+
   return (
-    <FieldContext.Provider value={{ invalid }}>
+    <FieldContext.Provider value={{ invalid, inputId }}>
       <div
         role="group"
         data-slot="field"
@@ -123,11 +127,12 @@ function FieldLabel({
   className,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
-  const { invalid } = useFieldContext()
+  const { invalid, inputId } = useFieldContext()
 
   return (
     <LabelPrimitive.Root
       data-slot="field-label"
+      htmlFor={inputId}
       className={cn(
         "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-muted/50 has-[>[data-slot=field]]:has-[:focus-visible]:border-ring has-[>[data-slot=field]]:has-[:focus-visible]:ring-3 has-[>[data-slot=field]]:has-[:focus-visible]:ring-ring/50 *:data-[slot=field]:p-2.5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10",
         "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col",
@@ -156,7 +161,18 @@ function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
 
 // ----------- Field.Content -----------
 
-function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
+function FieldContent({ className, children, ...props }: React.ComponentProps<"div">) {
+  const { inputId } = useFieldContext()
+
+  const childrenWithId = React.Children.map(children, (child) => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child as React.ReactElement<{ id?: string }>, {
+        id: inputId,
+      })
+    }
+    return child
+  })
+
   return (
     <div
       data-slot="field-content"
@@ -165,7 +181,9 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
         className,
       )}
       {...props}
-    />
+    >
+      {childrenWithId}
+    </div>
   )
 }
 
