@@ -1,6 +1,6 @@
-# Справочник типов и контрактов Realtime подсистемы (WebSocket & SSE)
+# Справочник типов, контрактов и архитектуры Realtime подсистемы (WebSocket & SSE)
 
-Данный документ содержит полную типизацию (TypeScript Contracts), схемы пакетов и форматы событий для взаимодействия фронтенд-приложения (`apps/web`) с бэкендом `apps/realtime`.
+Данный документ содержит исчерпывающее руководство, схемы пакетов, дискриминированные объединения типов (Discriminated Unions), последовательности событий и правила интеграции фронтенд-приложения (`apps/web`) с сервисом `apps/realtime`.
 
 ---
 
@@ -25,136 +25,124 @@
                 |  - `room.sync`, `presence.*`       |                        |  - `notification.new`, `badge`     |
                 |  - `code.update`, `cursor.move`    |                        |  - `session.invited`               |
                 |  - `chat.message`, `media.*`       |                        |  - `code_runner.status`            |
-                |  - `ai.suggestion`, `system.error` |                        |  - `ai.report_ready`, `broadcast`  |
+                |  - `ai.request_hint`, `ai.suggest` |                        |  - `ai.report_ready`, `broadcast`  |
+                |  - `system.error`, `system.ping`   |                        |  - `account.updated`               |
                 +------------------------------------+                        +------------------------------------+
 ```
 
+### 1.1. Расположение типов в монорепозитории (Import Paths)
+* **Канонические DTO и схемы протоколов:** `@packages/dto/realtime` (пакет `packages/dto`).
+* **UI-состояния, хуки и селекторы:** `apps/web/src/shared/types/realtime` и `widgets/session-workspace/model/`.
+
 ---
 
-## 2. Базовые конверты сообщений (Envelopes)
+## 2. Базовые конверты сообщений и Дискриминированные объединения
 
 ### 2.1. Конверт WebSocket пакета
 
-Все сообщения (входящие и исходящие) внутри WebSocket-комнаты упакованы в строго типизированный конверт:
-
 ```typescript
-export interface WebSocketEnvelope<T = unknown> {
-  /** Уникальное имя события протокола (например, "code.update") */
-  type: WebSocketEventType;
-
-  /** Версия протокола (на текущий момент всегда 1) */
+export interface BaseWebSocketEnvelope<TType extends string, TPayload> {
+  /** Имя события протокола */
+  type: TType;
+  /** Версия протокола (всегда 1) */
   version: 1;
-
-  /** Идентификатор текущей сессии интервью (UUID) */
+  /** UUID текущей сессии интервью */
   sessionId: string;
-
-  /** Опциональный ID запроса (UUID) для сопоставления ответа или отслеживания */
+  /** Необязательный UUID запроса для трейсинга и сопоставления ответа */
   requestId?: string;
-
-  /** Время отправки пакета по UTC в формате ISO 8601 */
+  /** Время формирования пакета по ISO 8601 */
   timestamp: string;
-
-  /** Типизированное тело события */
-  payload: T;
+  /** Типизированная полезная нагрузка */
+  payload: TPayload;
 }
 ```
 
-### 2.2. Конверт Server-Sent Events (SSE)
+### 2.2. Дискриминированное объединение всех WebSocket событий (AnyWebSocketEnvelope)
 
-Каждое входящее событие в SSE-потоке глобальных уведомлений содержит стандартные метаданные:
-
-```typescript
-export interface SSEEnvelope<T = unknown> {
-  /** Уникальный ID события из Redis Stream (например, "1724500000000-0") */
-  id: string;
-
-  /** Тип события (дублирует поле `event:` из wire-протокола) */
-  type: SSEEventType;
-
-  /** Время генерации события в формате ISO 8601 */
-  timestamp: string;
-
-  /** Типизированные данные уведомления */
-  payload: T;
-}
-```
-
----
-
-## 3. Справочник типов событий WebSocket (Интервью-комната)
-
-### 3.1. Перечисление всех типов событий WebSocket
+Благодаря дискриминированному объединению при проверке `envelope.type` TypeScript **автоматически выводит точный тип `envelope.payload` без ручного приведения типов**:
 
 ```typescript
-export type WebSocketEventType =
-  // Синхронизация комнаты и присутствие
-  | "room.sync"
-  | "presence.join"
-  | "presence.leave"
-  // Совместная работа с кодом
-  | "code.update"
-  | "cursor.move"
-  // Чат сессии
-  | "chat.message"
+export type AnyWebSocketEnvelope =
+  // Сервер ➔ Клиент (Входящие события синхронизации)
+  | BaseWebSocketEnvelope<"room.sync", RoomSyncPayload>
+  | BaseWebSocketEnvelope<"presence.join", PresenceJoinPayload>
+  | BaseWebSocketEnvelope<"presence.leave", PresenceLeavePayload>
+  // Двунаправленные события (Клиент ⇄ Сервер)
+  | BaseWebSocketEnvelope<"code.update", CodeUpdatePayload>
+  | BaseWebSocketEnvelope<"cursor.move", CursorPayload>
+  | BaseWebSocketEnvelope<"chat.message", ChatMessagePayload>
   // Медиа-сигналинг LiveKit
-  | "media.token_request"
-  | "media.token_response"
-  | "media.state_update"
-  | "media.speaker"
-  | "media.recording"
-  // AI-подсказки и системные сообщения
-  | "ai.suggestion"
-  | "system.error"
-  | "system.ack";
+  | BaseWebSocketEnvelope<"media.token_request", MediaTokenRequestPayload>
+  | BaseWebSocketEnvelope<"media.token_response", MediaTokenResponsePayload>
+  | BaseWebSocketEnvelope<"media.state_update", MediaStatePayload>
+  | BaseWebSocketEnvelope<"media.speaker", MediaSpeakerPayload>
+  | BaseWebSocketEnvelope<"media.recording", MediaRecordingPayload>
+  // AI-ассистент
+  | BaseWebSocketEnvelope<"ai.request_hint", AIRequestHintPayload>
+  | BaseWebSocketEnvelope<"ai.suggestion", AISuggestionPayload>
+  // Системные события
+  | BaseWebSocketEnvelope<"system.ping", SystemPingPayload>
+  | BaseWebSocketEnvelope<"system.ack", SystemAckPayload>
+  | BaseWebSocketEnvelope<"system.error", SystemErrorPayload>;
+```
+
+### 2.3. Конверт и Дискриминированное объединение SSE событий (AnySSEEnvelope)
+
+```typescript
+export interface BaseSSEEnvelope<TType extends string, TPayload> {
+  /** Redis Stream ID (например, "1724500000000-0") */
+  id: string;
+  /** Тип события */
+  type: TType;
+  /** Время генерации по ISO 8601 */
+  timestamp: string;
+  /** Данные уведомления */
+  payload: TPayload;
+}
+
+export type AnySSEEnvelope =
+  | BaseSSEEnvelope<"notification.new", NotificationNewPayload>
+  | BaseSSEEnvelope<"notification.badge", NotificationBadgePayload>
+  | BaseSSEEnvelope<"session.invited", SessionInvitedPayload>
+  | BaseSSEEnvelope<"code_runner.status", CodeRunnerStatusPayload>
+  | BaseSSEEnvelope<"ai.report_ready", AIReportReadyPayload>
+  | BaseSSEEnvelope<"account.updated", AccountUpdatedPayload>
+  | BaseSSEEnvelope<"system.broadcast", SystemBroadcastPayload>;
 ```
 
 ---
 
-### 3.2. Синхронизация комнаты и Участники (Presence)
+## 3. Справочник контрактов WebSocket (Интервью-комната)
+
+### 3.1. Синхронизация комнаты и Присутствие (Presence)
 
 ```typescript
-/** Роли участников в комнате собеседования */
 export type ParticipantRole = "candidate" | "interviewer" | "observer" | "ai";
 
-/** Информация об участнике сессии */
 export interface ParticipantInfo {
-  /** ID пользователя (из JWT токена) */
   userId: string;
-  /** Отображаемое имя */
   username: string;
-  /** Роль участника в комнате */
   role: ParticipantRole;
-  /** HEX-цвет курсора/аватара (опционально, генерируется сервером) */
-  color?: string;
+  color?: string; // HEX-цвет курсора/аватара
 }
 
-/**
- * Событие "room.sync" (Сервер ➔ Клиент)
- * Отправляется клиенту первым сообщением сразу после успешного рукопожатия сокета.
- */
+/** Событие "room.sync" (Сервер ➔ Клиент): первый снимок комнаты после входа */
 export interface RoomSyncPayload {
   sessionId: string;
   participants: ParticipantInfo[];
   codeState: CodeUpdatePayload | null;
 }
 
-/**
- * Событие "presence.join" (Сервер ➔ Клиенты)
- * Уведомление о входе нового участника в комнату.
- */
+/** Событие "presence.join" (Сервер ➔ Клиенты): подключение участника */
 export interface PresenceJoinPayload {
   userId: string;
   username: string;
   role: ParticipantRole;
   color?: string;
-  /** Общее текущее количество участников в комнате */
   userCount: number;
 }
 
-/**
- * Событие "presence.leave" (Сервер ➔ Клиенты)
- * Уведомление о выходе участника или закрытии вкладки.
- */
+/** Событие "presence.leave" (Сервер ➔ Клиенты): отключение участника */
 export interface PresenceLeavePayload {
   userId: string;
   username: string;
@@ -165,96 +153,66 @@ export interface PresenceLeavePayload {
 
 ---
 
-### 3.3. Совместный редактор кода (Code Collaboration)
+### 3.2. Совместный редактор кода (Code Collaboration)
 
 ```typescript
-/** Поддерживаемые языки подсветки и выполнения */
 export type SupportedLanguage = "typescript" | "javascript" | "go" | "python" | "cpp" | "java";
 
-/**
- * Событие "code.update" (Клиент ➔ Сервер ➔ Другие участники)
- * Полный снимок содержимого редактируемого файла.
- */
+/** Событие "code.update" (Клиент ➔ Сервер ➔ Другие участники) */
 export interface CodeUpdatePayload {
-  /** Относительный путь к файлу (макс. 255 символов, без '..') */
+  /** Относительный путь к файлу (макс. 255 символов) */
   filePath: string;
   /** Язык программирования */
   language: SupportedLanguage | string;
-  /** Полное содержимое файла (ограничение: макс. 500 KB) */
+  /** Полное содержимое файла (макс. 500 KB) */
   content: string;
-  /** Инкрементный номер ревизии (версия) */
+  /** Инкрементный номер ревизии */
   version: number;
 }
 
-/**
- * Событие "cursor.move" (Клиент ➔ Сервер ➔ Другие участники)
- * Положение курсора и выделенного фрагмента текста.
- */
+/** Событие "cursor.move" (Клиент ➔ Сервер ➔ Другие участники) */
 export interface CursorPayload {
-  /** ID пользователя (подставляется сервером из JWT) */
   userId: string;
-  /** Имя пользователя (подставляется сервером) */
   username: string;
-  /** Номер строки в редакторе (начиная с 1) */
   line: number;
-  /** Номер столбца в строке (начиная с 1) */
   column: number;
-  /** Конечная строка выделения (если есть выделенный блок) */
   selectionEndLine?: number;
-  /** Конечный столбец выделения (если есть выделенный блок) */
   selectionEndColumn?: number;
 }
 ```
 
 ---
 
-### 3.4. Текстовый чат сессии (Session Chat)
+### 3.3. Текстовый чат сессии (Session Chat)
 
 ```typescript
-/**
- * Событие "chat.message" (Клиент ➔ Сервер ➔ Другие участники)
- */
+/** Событие "chat.message" (Клиент ➔ Сервер ➔ Другие участники) */
 export interface ChatMessagePayload {
-  /** Уникальный UUID сообщения */
   messageId: string;
-  /** ID отправителя (заполняется сервером из JWT) */
   senderId: string;
-  /** Имя отправителя (заполняется сервером) */
   senderName: string;
-  /** Текст сообщения (максимум 4 000 символов) */
-  text: string;
-  /** Время отправки по ISO 8601 */
+  text: string; // Максимум 4 000 символов
   sentAt: string;
 }
 ```
 
 ---
 
-### 3.5. Медиа-сигналинг LiveKit (WebRTC Audio/Video)
+### 3.4. Медиа-сигналинг LiveKit (WebRTC Audio/Video)
 
 ```typescript
-/**
- * Событие "media.token_request" (Клиент ➔ Сервер)
- * Запрос JWT-токена для подключения к LiveKit комнате.
- */
+/** Событие "media.token_request" (Клиент ➔ Сервер): запрос LiveKit JWT */
 export interface MediaTokenRequestPayload {
   roomName: string;
 }
 
-/**
- * Событие "media.token_response" (Сервер ➔ Клиент)
- */
+/** Событие "media.token_response" (Сервер ➔ Клиент) */
 export interface MediaTokenResponsePayload {
-  /** JWT токен доступа к LiveKit Server */
   token: string;
-  /** URL LiveKit SFU инстанса */
   serverUrl: string;
 }
 
-/**
- * Событие "media.state_update" (Клиент ➔ Сервер ➔ Другие участники)
- * Изменение статуса локальных устройств пользователя.
- */
+/** Событие "media.state_update" (Клиент ➔ Сервер ➔ Другие участники) */
 export interface MediaStatePayload {
   userId: string;
   audioEnabled: boolean;
@@ -262,21 +220,14 @@ export interface MediaStatePayload {
   screenShare: boolean;
 }
 
-/**
- * Событие "media.speaker" (Сервер ➔ Клиенты)
- * Индикатор активности голоса (Voice Activity Detection).
- */
+/** Событие "media.speaker" (Сервер ➔ Клиенты): активность голоса */
 export interface MediaSpeakerPayload {
   userId: string;
   isSpeaking: boolean;
-  /** Уровень громкости аудиосигнала от 0.0 до 1.0 */
-  audioLevel: number;
+  audioLevel: number; // 0.0 - 1.0
 }
 
-/**
- * Событие "media.recording" (Сервер ➔ Клиенты)
- * Статус облачной записи собеседования (Egress).
- */
+/** Событие "media.recording" (Сервер ➔ Клиенты): статус записи */
 export interface MediaRecordingPayload {
   isRecording: boolean;
   recordingId?: string;
@@ -286,15 +237,19 @@ export interface MediaRecordingPayload {
 
 ---
 
-### 3.6. Подсказки AI и Системные события
+### 3.5. Подсказки AI-интервьюера
 
 ```typescript
-/** Категории AI-подсказок для интервьюера */
 export type AICategory = "hint" | "follow_up_question" | "code_complexity_alert";
 
-/**
- * Событие "ai.suggestion" (Сервер ➔ Собеседующему/Кандидату)
- */
+/** Событие "ai.request_hint" (Интервьюер ➔ Сервер): запрос генерации подсказки */
+export interface AIRequestHintPayload {
+  category: AICategory;
+  /** Дополнительный контекст или фокус вопроса */
+  contextPrompt?: string;
+}
+
+/** Событие "ai.suggestion" (Сервер ➔ Собеседующему/Кандидату) */
 export interface AISuggestionPayload {
   suggestionId: string;
   targetRole: "interviewer" | "candidate";
@@ -302,102 +257,76 @@ export interface AISuggestionPayload {
   content: string;
   createdAt: string;
 }
+```
 
-/** Коды системных ошибок протокола */
+---
+
+### 3.6. Системные события и Диагностика
+
+```typescript
 export type SystemErrorCode =
-  | "RATE_LIMIT_EXCEEDED" // Превышен лимит отправки (>60 msg/sec)
-  | "INVALID_PAYLOAD"     // Ошибка валидации структуры JSON
-  | "SESSION_MISMATCH"    // Отправка сообщения в чужую сессию
-  | "FORBIDDEN"           // Недостаточно прав для выполнения действия
-  | "ROOM_FULL";          // Достигнут лимит участников в комнате
+  | "RATE_LIMIT_EXCEEDED"
+  | "INVALID_PAYLOAD"
+  | "SESSION_MISMATCH"
+  | "FORBIDDEN"
+  | "ROOM_FULL";
 
-/**
- * Событие "system.error" (Сервер ➔ Клиент)
- */
+/** Событие "system.error" (Сервер ➔ Клиент) */
 export interface SystemErrorPayload {
   code: SystemErrorCode;
   message: string;
   details?: string;
 }
 
-/**
- * Событие "system.ack" (Сервер ➔ Клиент)
- * Подтверждение успешной обработки запроса с requestId.
- */
+/** Событие "system.ping" (Клиент ➔ Сервер): измерение сетевой задержки RTT */
+export interface SystemPingPayload {
+  clientTime: number; // Unix timestamp в миллисекундах
+}
+
+/** Событие "system.ack" (Сервер ➔ Клиент): подтверждение обработки */
 export interface SystemAckPayload {
   targetRequestId: string;
   status: "ok" | "processed";
+  serverTime?: number;
 }
 ```
 
 ---
 
-## 4. Справочник типов событий SSE (Глобальные уведомления)
-
-### 4.1. Перечисление всех типов событий SSE
+## 4. Справочник контрактов SSE (Глобальные уведомления)
 
 ```typescript
-export type SSEEventType =
-  | "notification.new"     // Новое персональное уведомление
-  | "notification.badge"   // Актуализация счетчика непрочитанных
-  | "session.invited"      // Инвайт в активную комнату интервью
-  | "code_runner.status"   // Статус асинхронного выполнения тестов
-  | "ai.report_ready"      // Готовность итогового отчета собеседования
-  | "account.updated"      // Изменение баланса токенов/тарифа
-  | "system.broadcast";    // Общесистемное оповещение
-```
-
----
-
-### 4.2. Контракты полезной нагрузки SSE-событий
-
-```typescript
-/** Категории визуального оформления уведомлений */
 export type NotificationCategory = "info" | "success" | "warning" | "error";
 
-/**
- * Событие "notification.new"
- * Основное событие для вывода Toast и сохранения в список колокольчика.
- */
+/** Событие "notification.new": тосты и список колокольчика */
 export interface NotificationNewPayload {
   id: string;
   category: NotificationCategory;
   title: string;
   message: string;
-  /** Опциональная ссылка для быстрого перехода */
   actionUrl?: string;
   createdAt: string;
   read: boolean;
 }
 
-/**
- * Событие "notification.badge"
- * Синхронизация числа непрочитанных сообщений на бейдже колокольчика.
- */
+/** Событие "notification.badge": число непрочитанных */
 export interface NotificationBadgePayload {
   unreadCount: number;
 }
 
-/**
- * Событие "session.invited"
- * Всплывающее приглашение в комнату собеседования.
- */
+/** Событие "session.invited": инвайт в комнату */
 export interface SessionInvitedPayload {
   sessionId: string;
   sessionTitle: string;
   inviterName: string;
   role: "candidate" | "interviewer";
   joinUrl: string;
-  /** ISO 8601 время истечения срока действия инвайта */
   expiresAt: string;
 }
 
-/** Статусы выполнения автотестов в code-runner */
+/** Событие "code_runner.status": статус прогона тестов */
 export type CodeRunnerExecutionStatus = "success" | "failed" | "timeout" | "memory_limit";
 
-/**
- * Событие "code_runner.status"
- */
 export interface CodeRunnerStatusPayload {
   taskId: string;
   sessionId: string;
@@ -407,29 +336,23 @@ export interface CodeRunnerStatusPayload {
   executionTimeMs: number;
 }
 
-/**
- * Событие "ai.report_ready"
- */
+/** Событие "ai.report_ready": готовность отчета */
 export interface AIReportReadyPayload {
   sessionId: string;
   reportId: string;
-  score: number; // Общий балл от 0 до 100
+  score: number; // 0-100
   summary: string;
   reportUrl: string;
 }
 
-/**
- * Событие "account.updated"
- */
+/** Событие "account.updated": изменение баланса токенов/тарифа */
 export interface AccountUpdatedPayload {
   remainingCredits: number;
   plan: "free" | "pro" | "enterprise";
   reason?: string;
 }
 
-/**
- * Событие "system.broadcast"
- */
+/** Событие "system.broadcast": системные алерты */
 export interface SystemBroadcastPayload {
   severity: "info" | "warning" | "critical";
   message: string;
@@ -442,38 +365,115 @@ export interface SystemBroadcastPayload {
 
 ---
 
-## 5. Статусы соединений и Коды закрытия сокетов
+## 5. Последовательность событий сессии (Event Flow Diagram)
 
-### 5.1. Статусы подключения на клиенте
+Типичный жизненный цикл подключения и работы в комнате интервью:
 
-```typescript
-export type RealtimeConnectionStatus =
-  | "idle"          // Соединение еще не инициализировано
-  | "connecting"    // Идет процесс установления соединения
-  | "connected"     // Соединение активно и готово к обмену
-  | "reconnecting"  // Потеря связи, попытка авто-восстановления
-  | "disconnected"; // Соединение закрыто
 ```
-
-### 5.2. Коды закрытия WebSocket (WebSocket Close Codes)
-
-| Код (Code) | Название | Причина со стороны сервера | Реакция фронтенда |
-| :--- | :--- | :--- | :--- |
-| `1000` | `Normal Closure` | Сессия завершена или комната закрыта | Плавный сброс состояния, выход на дашборд |
-| `1001` | `Going Away` | `displaced by new connection` (открыта новая вкладка) | Показать предупреждающий баннер о вытеснении |
-| `1008` | `Policy Violation`| `user authentication revoked` (отзыв JWT токена) | Принудительный Logout и редирект на `/login` |
-| `1008` | `Policy Violation`| `origin not allowed` (нарушение CORS) | Ошибка конфигурации среды |
-| `1011` | `Internal Error` | `server error or redis failure` | Автоматический реконнект с задержкой (Backoff) |
+[ Frontend (Client) ]                              [ Realtime Server ]                        [ LiveKit SFU ]
+          |                                                 |                                        |
+          |====== 1. HTTP Upgrade GET /ws/sessions/:id =====>|                                        |
+          |<===== 2. 101 Switching Protocols ===============|                                        |
+          |                                                 |                                        |
+          |<----- 3. event: "room.sync" (участники, код) ---|                                        |
+          |       (Монтирование Monaco Editor)              |                                        |
+          |                                                 |                                        |
+          |------ 4. event: "media.token_request" --------->|                                        |
+          |<----- 5. event: "media.token_response" ---------|                                        |
+          |====== 6. Подключение WebRTC медиа ======================================================>|
+          |                                                 |                                        |
+          |------ 7. event: "code.update" (version: 1) ---->|                                        |
+          |                                                 |---- 8. Бродкаст "code.update" -------->|
+          |------ 9. event: "cursor.move" (line: 12) ------>|                                        |
+          |                                                 |---- 10. Бродкаст "cursor.move" ------->|
+          |                                                 |                                        |
+          |------ 11. event: "ai.request_hint" ------------>|                                        |
+          |                                                 |-- (Вызов LLM воркера)                  |
+          |<----- 12. event: "ai.suggestion" ---------------|                                        |
+```
 
 ---
 
-## 6. Ограничения протоколов и валидация (Validation Constraints)
+## 6. Стратегия разрешения конфликтов кода (Conflict Resolution)
 
-| Параметр | Лимит | Поведение при нарушении |
+1. **Модель оптимистичных ревизий (`version`):**
+   * Каждый `code.update` содержит монотонно возрастающий номер версии.
+   * При локальном наборе клиент инкрементирует `localVersion = localVersion + 1` и отправляет пакет на сервер.
+2. **Обработка входящих обновлений от собеседника:**
+   * Если `incoming.version > local.version`: локальная модель Monaco Editor обновляется через `executeEdits`, сохраняя текущее положение курсора пользователя без сброса выделения текста.
+   * Если `incoming.version <= local.version`: пакет считается устаревшим (out-of-order) и игнорируется.
+
+---
+
+## 7. Мокирование для Storybook, Unit и E2E тестов (Mocking Guide)
+
+Для тестирования интерфейса комнаты в Storybook и Vitest без поднятия живого Go-сервера используется библиотека `mock-socket` или MSW:
+
+### 7.1. Пример мок-сервера для Storybook / Vitest
+```typescript
+import { Server } from 'mock-socket';
+
+export function setupMockRealtimeServer(wsUrl = 'ws://localhost:8080/ws/sessions/mock-session') {
+  const mockServer = new Server(wsUrl);
+
+  mockServer.on('connection', (socket) => {
+    // 1. Сразу шлем room.sync
+    socket.send(
+      JSON.stringify({
+        type: 'room.sync',
+        version: 1,
+        sessionId: 'mock-session',
+        timestamp: new Date().toISOString(),
+        payload: {
+          sessionId: 'mock-session',
+          participants: [
+            { userId: 'u1', username: 'Кандидат', role: 'candidate' },
+            { userId: 'u2', username: 'Интервьюер', role: 'interviewer' },
+          ],
+          codeState: {
+            filePath: 'solution.ts',
+            language: 'typescript',
+            content: 'function twoSum(nums: number[], target: number) {\n  // your code\n}',
+            version: 1,
+          },
+        },
+      })
+    );
+
+    // 2. Эхо для проверки сообщений чата и кода
+    socket.on('message', (data) => {
+      const parsed = JSON.parse(data as string);
+      if (parsed.type === 'chat.message') {
+        socket.send(JSON.stringify(parsed));
+      }
+    });
+  });
+
+  return mockServer;
+}
+```
+
+---
+
+## 8. Статусы соединений и Коды закрытия
+
+| Код | Название | Причина со стороны сервера | Реакция фронтенда |
+| :--- | :--- | :--- | :--- |
+| `1000` | `Normal Closure` | Сессия завершена | Плавный выход на экран результатов |
+| `1001` | `Going Away` | `displaced by new connection` | Показать предупреждение «Сессия открыта в другой вкладке» |
+| `1008` | `Policy Violation`| `user authentication revoked` | Принудительный Logout и редирект на `/login` |
+| `1008` | `Policy Violation`| `origin not allowed` | Ошибка CORS конфигурации |
+| `1011` | `Internal Error` | Ошибка сервера / потеря Redis | Авто-реконнект с экспоненциальным Backoff |
+
+---
+
+## 9. Ограничения протокола (Validation Constraints)
+
+| Параметр | Лимит | Поведение при превышении |
 | :--- | :--- | :--- |
-| **Размер кода (`content`)** | `500 KB` | Отклонение пакета с `INVALID_PAYLOAD` |
-| **Длина сообщения чата (`text`)** | `4 000 символов` | Обрезка текста или ошибка `INVALID_PAYLOAD` |
+| **Размер кода (`content`)** | `500 KB` | Ошибка `INVALID_PAYLOAD` |
+| **Длина чат-сообщения (`text`)** | `4 000 символов` | Обрезка или ошибка `INVALID_PAYLOAD` |
 | **Путь к файлу (`filePath`)** | `255 символов` (без `..`) | Отклонение пакета |
-| **Частота отправки сообщений** | `60 msg/sec` (всплеск до `120`) | Сброс сокета с ошибкой `RATE_LIMIT_EXCEEDED` |
-| **Рекомендуемый троттлинг курсоров** | `16–30 мс` (~30–60 FPS) | Обязательно троттлить на фронтенде |
-| **Heartbeat SSE (Keep-Alive)** | `15 секунд` | Автоматический комментарий `: ping\n\n` |
+| **Частота отправки сообщений** | `60 msg/sec` (всплеск `120`) | Сброс сокета с ошибкой `RATE_LIMIT_EXCEEDED` |
+| **Троттлинг курсоров** | `16–30 мс` (~30–60 FPS) | Обязателен на клиенте |
+| **Heartbeat SSE** | `15 секунд` | Авто-пинг `: ping\n\n` |
