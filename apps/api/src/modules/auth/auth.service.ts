@@ -4,14 +4,28 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { RegisterDto } from "@packages/dto";
+import type { LoginDto, RegisterDto } from "@packages/dto";
 import argon2 from "argon2";
 import { PrismaService } from "../../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
+
+/**
+ * Предвычисленный Argon2id-хеш фиктивного пароля для выравнивания времени
+ * ответа при логине с несуществующим email (§59 SPEC.md).
+ *
+ * Сгенерирован с теми же параметрами (memoryCost 65536, timeCost 3,
+ * parallelism 4), что используются при хешировании реальных паролей
+ * (`src/config/configuration.ts`), поэтому `argon2.verify()` против него
+ * занимает сопоставимое время. При изменении параметров Argon2 в конфигурации
+ * константу необходимо перегенерировать.
+ */
+const DUMMY_PASSWORD_HASH =
+  "$argon2id$v=19$m=65536,p=4,t=3$pQGt8+MPFESK5Ef2UikoJQ$4jf5eIVNfxQ9mkX6iI4/AXQBgGUZf9BpsX3BHOk1B1w";
 
 /** Результат успешной регистрации. */
 export interface RegisterResult {
@@ -19,12 +33,19 @@ export interface RegisterResult {
   refreshToken: string;
 }
 
+/** Результат успешного входа. */
+export interface LoginResult {
+  accessToken: string;
+  refreshToken: string;
+}
+
 /**
- * Сервис аутентификации (§37, §48 SPEC.md).
+ * Сервис аутентификации (§37, §48, §58 SPEC.md).
  *
- * Реализует алгоритм регистрации пользователя: валидация, проверка уникальности,
- * хеширование пароля, создание пользователя, генерация JWT, создание Redis session.
- * При ошибке Redis — компенсация: удаление пользователя (§48 SPEC.md).
+ * Реализует алгоритмы регистрации пользователя (валидация, проверка
+ * уникальности, хеширование пароля, создание пользователя, генерация JWT,
+ * создание Redis session; при ошибке Redis — компенсация, §48 SPEC.md)
+ * и входа (проверка учётных данных без account enumeration, §58–§59 SPEC.md).
  */
 @Injectable()
 export class AuthService {
@@ -113,6 +134,73 @@ export class AuthService {
         error instanceof Error ? error.message : String(error),
       );
       await this.compensateUserCleanup(userId);
+      throw new InternalServerErrorException();
+    }
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Выполняет вход пользователя (§58 SPEC.md).
+   *
+   * Алгоритм:
+   * 1. Поиск пользователя по email → не найден → фиктивная argon2-проверка
+   *    против `DUMMY_PASSWORD_HASH` (выравнивание времени ответа) → generic `401`.
+   * 2. Проверка пароля через `argon2.verify()` → не совпал → тот же generic `401`
+   *    (§59 SPEC.md: тела ответов байт-в-байт совпадают, причина не раскрывается).
+   * 3. Успех: новая authentication session — каждый логин порождает новый
+   *    `sessionId` и новый `tokenFamilyId` (§13–17 SPEC.md); генерация access +
+   *    refresh JWT; запись session в Redis с HMAC-хешем refresh token.
+   *
+   * При ошибке Redis компенсация не требуется — пользователь не создаётся.
+   *
+   * @param dto - Валидированный DTO входа (email уже нормализован схемой).
+   * @returns Access и refresh токены.
+   * @throws {UnauthorizedException} Если пользователь не найден или пароль неверен
+   *   (generic-ответ без указания причины, §59 SPEC.md).
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async login(dto: LoginDto): Promise<LoginResult> {
+    const { email, password } = dto;
+
+    const user = await this.usersService.findByEmail(email);
+
+    // Единый кодовый путь: ровно одна argon2-проверка против хеша реального
+    // пользователя либо против dummy-хеша — идентичный ответ и время для
+    // обоих случаев отказа (§59 SPEC.md).
+    const passwordHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordValid = await argon2.verify(passwordHash, password);
+
+    if (!user || !passwordValid) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    const sessionId = randomUUID();
+    const tokenFamilyId = randomUUID();
+
+    const accessToken = this.tokenService.generateAccessToken(
+      user.id,
+      sessionId,
+    );
+    const refreshToken = this.tokenService.generateRefreshToken(
+      user.id,
+      sessionId,
+    );
+
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+
+    try {
+      await this.sessionService.createSession(
+        sessionId,
+        user.id,
+        refreshTokenHash,
+        tokenFamilyId,
+      );
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during login",
+        error instanceof Error ? error.message : String(error),
+      );
       throw new InternalServerErrorException();
     }
 

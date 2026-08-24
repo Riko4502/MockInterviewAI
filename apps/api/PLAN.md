@@ -91,6 +91,7 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
 - [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
 - [x] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
+- [x] Применить `@UseGuards(AuthThrottlerGuard)` на маршруте `/auth/register` (§41 SPEC.md; упущено в Phase 5, добавлено при выполнении Phase 8).
 - [x] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
 
 ## Phase 6 — Тестирование
@@ -178,10 +179,11 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [ ] `packages/dto`: `src/auth/login.dto.ts` — zod-схема `loginSchema`, тип `LoginDto` (email — валидация и нормализация как в `register.dto.ts`; password — `.min(1).max(128)` без password policy, §58); экспорт из `src/index.ts`.
-- [ ] `AuthService.login(dto)` (§58): `findByEmail` → не найден → dummy argon2-verify против предвычисленного хеша + generic `401` (§59); `argon2.verify` → не совпал → тот же generic `401`; успех: новые `sessionId`/`tokenFamilyId` → access/refresh JWT → `hashRefreshToken` → `createSession`.
-- [ ] Dummy-hash для выравнивания timing — константа AuthService с JSDoc-пояснением (§57).
-- [ ] `AuthController.login()`: `@Post("login")`, ZodValidationPipe, `@UseGuards(AuthThrottlerGuard)`, Set-Cookie атрибуты как у register (§25–28), статус `200`, body `{ accessToken }`.
+- [x] `packages/dto`: `src/auth/login.dto.ts` — zod-схема `loginSchema`, тип `LoginDto` (email — валидация и нормализация как в `register.dto.ts`; password — `.min(1).max(128)` без password policy, §58); экспорт из `src/index.ts`.
+- [x] `AuthService.login(dto)` (§58): `findByEmail` → не найден → dummy argon2-verify против предвычисленного хеша + generic `401` (§59); `argon2.verify` → не совпал → тот же generic `401`; успех: новые `sessionId`/`tokenFamilyId` → access/refresh JWT → `hashRefreshToken` → `createSession`.
+- [x] Dummy-hash для выравнивания timing — константа AuthService с JSDoc-пояснением (§57).
+- [x] `AuthController.login()`: `@Post("login")`, ZodValidationPipe, `@UseGuards(AuthThrottlerGuard)`, Set-Cookie атрибуты как у register (§25–28), статус `200`, body `{ accessToken }`.
+- [x] Cookie Max-Age вычисляется из `jwt.refreshExpiresIn` через общий хелпер `getRefreshTokenTtlSeconds` (`AuthSessionService` + `AuthController`) вместо захардкоженного 30d; SPEC §25 обновлён.
 
 **Тесты:**
 

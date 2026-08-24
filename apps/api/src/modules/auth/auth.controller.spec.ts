@@ -15,12 +15,13 @@ const REGISTER_RESULT = {
 };
 
 function createConfigService(secure: boolean): ConfigService {
+  const defaults: Record<string, unknown> = {
+    "cookie.secure": secure,
+    "cookie.refreshTokenName": "refresh_token",
+    "jwt.refreshExpiresIn": "7d",
+  };
   return {
-    get: jest
-      .fn()
-      .mockImplementation((key: string) =>
-        key === "cookie.refreshTokenName" ? "refresh_token" : secure,
-      ),
+    get: jest.fn().mockImplementation((key: string) => defaults[key]),
   } as unknown as ConfigService;
 }
 
@@ -67,7 +68,7 @@ describe("AuthController", () => {
   });
 
   describe("refresh cookie (§25–28 SPEC.md)", () => {
-    it("ставит refresh_token cookie HttpOnly, SameSite=Lax, Path, Max-Age", async () => {
+    it("ставит refresh_token cookie HttpOnly, SameSite=Lax, Path, Max-Age из JWT_REFRESH_EXPIRATION", async () => {
       await createController(false).register(DTO, response);
 
       expect(cookieMock).toHaveBeenCalledTimes(1);
@@ -80,7 +81,7 @@ describe("AuthController", () => {
         secure: false,
         sameSite: "lax",
         path: "/api/v1/auth",
-        maxAge: 2_592_000,
+        maxAge: 604_800,
       });
     });
 

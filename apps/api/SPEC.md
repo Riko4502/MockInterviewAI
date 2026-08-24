@@ -342,8 +342,10 @@ Access token не должен содержать: password, passwordHash, refre
 - Передаётся через HttpOnly cookie:
 
 ```
-Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000
+Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=<T>
 ```
+
+- `Max-Age=<T>` вычисляется из `JWT_REFRESH_EXPIRATION` (времени жизни refresh JWT, §24): по умолчанию `7d` → `Max-Age=604800`. Cookie, Redis-сессия (§18) и JWT истекают одновременно — единый источник истины, рассинхрон времён жизни исключён.
 
 ### 26. HttpOnly
 
