@@ -19,7 +19,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: "Копирование docker-compose.prod.yml на сервер"
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -30,7 +30,7 @@ jobs:
           target: '/opt/mock-interview-ai'
 
       - name: "Выполнение команд обновления контейнеров по SSH"
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           GITHUB_OWNER: ${{ github.repository_owner }}
           BRANCH_NAME: ${{ inputs.ref || github.ref_name }}
@@ -60,6 +60,7 @@ jobs:
             export REALTIME_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-realtime:${BRANCH_NAME}"
             export WEB_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-web:${BRANCH_NAME}"
             export API_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:${BRANCH_NAME}"
+            export LANDING_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-landing:${BRANCH_NAME}"
 
             # Загрузка свежих образов
             docker compose -f docker-compose.prod.yml pull
@@ -84,7 +85,7 @@ jobs:
             # --- Health checks ---
             echo "Checking container status..."
             sleep 5
-            for svc in mock-interview-api mock-interview-realtime mock-interview-web; do
+            for svc in mock-interview-api mock-interview-realtime mock-interview-web mock-interview-landing; do
               STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
               if [ "$STATUS" != "running" ]; then
                 echo "❌ Container $svc is not running (status: $STATUS)"

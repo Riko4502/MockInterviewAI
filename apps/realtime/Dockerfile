@@ -27,6 +27,6 @@ COPY --from=builder /app/realtime-server /app/realtime-server
 
 EXPOSE 8080
 
-USER nonroot:nonroot
+USER 65532:65532
 
 ENTRYPOINT ["/app/realtime-server"]
