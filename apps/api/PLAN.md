@@ -187,15 +187,20 @@ curl http://localhost:3001/api/v1/health
 
 **Тесты:**
 
-- [ ] Unit DTO (`login.dto.test.ts`): нормализация email; пустой пароль → ошибка; пароль >128 символов → ошибка.
-- [ ] Unit `AuthService.login`: успех (новая session, новые sid/family, корректный HMAC-хеш); unknown email → generic `401` + вызвана dummy-проверка; неверный пароль → идентичный generic `401`; Redis недоступен → `500`, детали не раскрываются.
-- [ ] Unit `AuthController.login`: статус `200`, body `{ accessToken }`, Set-Cookie HttpOnly/SameSite=Lax/Path=`/api/v1/auth`; guard применён к маршруту.
-- [ ] Integration: после login ключ `auth:session:{sessionId}` существует в Redis (userId, refreshTokenHash, tokenFamilyId).
-- [ ] E2E L-01: register → login → `200 { accessToken }`, новый Set-Cookie.
-- [ ] E2E L-02: неверный пароль → `401` generic, Set-Cookie отсутствует.
-- [ ] E2E L-03: неизвестный email → `401`, тело байт-в-байт как у L-02.
-- [ ] E2E L-04: невалидный email / пустой password → `400`.
-- [ ] Security (§45–46): refresh token не в JSON-ответе; password/токены/secrets не в логах.
+- [x] Unit DTO (`login.dto.test.ts`): нормализация email; пустой пароль → ошибка; пароль >128 символов → ошибка.
+- [x] Unit `AuthService.login`: успех (новая session, новые sid/family, корректный HMAC-хеш); unknown email → generic `401` + вызвана dummy-проверка; неверный пароль → идентичный generic `401`; Redis недоступен → `500`, детали не раскрываются.
+- [x] Unit `AuthController.login`: статус `200`, body `{ accessToken }`, Set-Cookie HttpOnly/SameSite=Lax/Path=`/api/v1/auth`; guard применён к маршруту.
+- [x] Integration (`test/integration/login-persistence.e2e-spec.ts`): после login ключ `auth:session:{sessionId}` существует в Redis (userId, refreshTokenHash, tokenFamilyId); sid/tokenFamilyId login отличаются от register.
+- [x] E2E L-01: register → login → `200 { accessToken }`, новый Set-Cookie.
+- [x] E2E L-02: неверный пароль → `401` generic, Set-Cookie отсутствует.
+- [x] E2E L-03: неизвестный email → `401`, тело байт-в-байт как у L-02.
+- [x] E2E L-04: невалидный email / пустой password → `400`.
+- [x] Security (§45–46): refresh token не в JSON-ответе; password/токены/secrets не в логах.
+
+**Результат:** dto — 29 тестов, unit — 100, e2e — 13, lint/build — зелёные.
+
+**Исправления по ходу Phase 8:**
+1. `AuthThrottlerGuard.getTracker` переписан под API `@nestjs/throttler` v6: базовый `handleRequest` вызывает `getTracker(req, context)` — первым аргументом передаётся **request**, а не ExecutionContext; прежняя реализация падала (`context.switchToHttp is not a function`) на любом запросе к маршруту с guard'ом. Баг не был виден в Phase 7: per-route guard появился только при выполнении Phase 8. Unit-тесты guard'а обновлены (передаётся request напрямую).
 
 ## Phase 9 — Auth: Logout (`POST /api/v1/auth/logout`, SPEC.md §60)
 
