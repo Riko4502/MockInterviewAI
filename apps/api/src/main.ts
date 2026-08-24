@@ -27,7 +27,25 @@ export function configureApp(app: INestApplication): void {
   const isProduction = config.get<string>("env") === "production";
 
   app.setGlobalPrefix(config.get<string>("apiPrefix") ?? "/api/v1");
-  app.use(helmet(isProduction ? undefined : { contentSecurityPolicy: false }));
+  app.use(
+    helmet(
+      isProduction
+        ? undefined
+        : {
+            contentSecurityPolicy: {
+              directives: {
+                defaultSrc: ["'self'"],
+                baseUri: ["'self'"],
+                objectSrc: ["'none'"],
+                frameAncestors: ["'self'"],
+                imgSrc: ["'self'", "data:"],
+                scriptSrc: ["'self'", "'unsafe-inline'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+              },
+            },
+          },
+    ),
+  );
   app.use(cookieParser());
   app.enableCors({
     origin: config.get<string[]>("allowedOrigins"),
