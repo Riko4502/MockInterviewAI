@@ -16,8 +16,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/landing ./apps/landing
 
-RUN pnpm --filter='./packages/*' build
-RUN pnpm --filter landing build
+RUN pnpm --filter='./packages/*' build && \
+    pnpm --filter landing build
 
 # -------------------------------------------------------------
 # Runtime stage – отдаём статический контент через nginx
