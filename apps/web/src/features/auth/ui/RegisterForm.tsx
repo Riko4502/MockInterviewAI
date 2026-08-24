@@ -1,14 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Button,
-  Field,
-  FieldContent,
-  FieldError,
-  FieldLabel,
-  Input,
-} from "@packages/ui";
+import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
 
@@ -28,9 +21,9 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <Field>
-        <FieldLabel>Email</FieldLabel>
-        <FieldContent>
+      <Field invalid={!!errors.email}>
+        <Field.Label>Email</Field.Label>
+        <Field.Content>
           <Input
             type="email"
             placeholder="example@mail.com"
@@ -38,13 +31,13 @@ export function RegisterForm() {
             aria-invalid={!!errors.email}
             {...register("email")}
           />
-          <FieldError>{errors.email?.message}</FieldError>
-        </FieldContent>
+          <Field.Error>{errors.email?.message}</Field.Error>
+        </Field.Content>
       </Field>
 
-      <Field>
-        <FieldLabel>Пароль</FieldLabel>
-        <FieldContent>
+      <Field invalid={!!errors.password}>
+        <Field.Label>Пароль</Field.Label>
+        <Field.Content>
           <Input
             type="password"
             placeholder="Введите пароль"
@@ -52,13 +45,13 @@ export function RegisterForm() {
             aria-invalid={!!errors.password}
             {...register("password")}
           />
-          <FieldError>{errors.password?.message}</FieldError>
-        </FieldContent>
+          <Field.Error>{errors.password?.message}</Field.Error>
+        </Field.Content>
       </Field>
 
-      <Field>
-        <FieldLabel>Подтверждение пароля</FieldLabel>
-        <FieldContent>
+      <Field invalid={!!errors.confirmPassword}>
+        <Field.Label>Подтверждение пароля</Field.Label>
+        <Field.Content>
           <Input
             type="password"
             placeholder="Введите пароль"
@@ -66,8 +59,8 @@ export function RegisterForm() {
             aria-invalid={!!errors.confirmPassword}
             {...register("confirmPassword")}
           />
-          <FieldError>{errors.confirmPassword?.message}</FieldError>
-        </FieldContent>
+          <Field.Error>{errors.confirmPassword?.message}</Field.Error>
+        </Field.Content>
       </Field>
 
       <Button

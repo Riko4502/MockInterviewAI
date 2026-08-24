@@ -63,5 +63,12 @@ services:
       - realtime
       - api
 
+  landing:
+    image: ${LANDING_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-landing:latest}
+    container_name: mock-interview-landing
+    restart: unless-stopped
+    ports:
+      - "4321:80"
+
 volumes:
   redis_data:

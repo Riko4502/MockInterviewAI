@@ -13,6 +13,7 @@ on:
           - 'api'
           - 'realtime'
           - 'web'
+          - 'landing'
       ref:
         description: 'Ветка или тег для деплоя (по умолчанию — текущая)'
         required: false
@@ -49,10 +50,17 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
 
+  build-landing:
+    name: "Landing"
+    if: inputs.target_service == 'all' || inputs.target_service == 'landing'
+    uses: ./.github/workflows/deploy-build-landing.yml
+    with:
+      ref: ${{ inputs.ref }}
+
   deploy:
     name: "Сервер"
-    needs: [build-realtime, build-web, build-api]
-    if: always() && (needs.build-realtime.result == 'success' || needs.build-realtime.result == 'skipped') && (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') && (needs.build-api.result == 'success' || needs.build-api.result == 'skipped')
+    needs: [build-realtime, build-web, build-api, build-landing]
+    if: always() && (needs.build-realtime.result == 'success' || needs.build-realtime.result == 'skipped') && (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') && (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') && (needs.build-landing.result == 'success' || needs.build-landing.result == 'skipped')
     uses: ./.github/workflows/deploy-server.yml
     secrets: inherit
     with:
