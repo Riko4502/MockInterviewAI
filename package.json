@@ -6,6 +6,7 @@
     "dev": "turbo dev",
     "dev:web": "turbo dev --filter=web",
     "dev:realtime": "turbo dev --filter=@apps/realtime",
+    "generate:api": "pnpm --filter api generate:openapi",
     "build:web": "turbo build --filter=web",
     "build:realtime": "turbo build --filter=@apps/realtime",
     "lint:realtime": "pnpm --filter=@apps/realtime lint",

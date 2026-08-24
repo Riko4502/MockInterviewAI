@@ -10,15 +10,34 @@ import type { Response } from "express";
 
 interface HttpErrorBody {
   statusCode: number;
-  message: string | string[];
+  message: string | string[] | Record<string, string>;
   error?: string;
+}
+
+/**
+ * Определяет тело ошибки валидации: объект `{ field: message }` без
+ * служебных ключей `statusCode`/`message`/`error` (так бросает
+ * `ZodValidationPipe`). Такие тела прокидываются клиенту как есть.
+ */
+function isFieldErrorMap(value: Record<string, unknown>): boolean {
+  const keys = Object.keys(value);
+  if (
+    keys.length === 0 ||
+    "statusCode" in value ||
+    "message" in value ||
+    "error" in value
+  ) {
+    return false;
+  }
+  return keys.every((key) => typeof value[key] === "string");
 }
 
 /**
  * Глобальный фильтр исключений.
  *
  * Обрабатывает `HttpException` (возвращает санитизированное тело
- * `{ statusCode, message, error }`) и маскирует необработанные ошибки
+ * `{ statusCode, message, error }`; для ошибок валидации `message`
+ * содержит карту `{ field: message }`) и маскирует необработанные ошибки
  * (Prisma, Redis, прочее) до `500 Internal server error` без внутренних
  * деталей в любом окружении (§47, §56 SPEC.md).
  */
@@ -71,6 +90,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const record = exceptionResponse as Record<string, unknown>;
+
+    // ZodValidationPipe: BadRequestException({ field: message }) —
+    // прокидываем карту ошибок полей без маскировки (§47, §63 SPEC.md).
+    if (isFieldErrorMap(record)) {
+      return {
+        statusCode: status,
+        message: record as Record<string, string>,
+      };
+    }
+
     const message = record.message ?? "Unknown error";
     const error = typeof record.error === "string" ? record.error : undefined;
 

@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { SchemaObject } from "@nestjs/swagger";
+import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   type LoginDto,
   loginSchema,
@@ -17,10 +19,54 @@ import {
   registerSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
+
+/**
+ * Схемы ответов для OpenAPI (§61 SPEC.md).
+ *
+ * Refresh token в схемах отсутствует — он передаётся только через
+ * HttpOnly cookie (§25 SPEC.md).
+ */
+const ACCESS_TOKEN_RESPONSE_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    accessToken: { type: "string", description: "JWT access token" },
+  },
+  required: ["accessToken"],
+};
+
+const VALIDATION_ERROR_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    statusCode: { type: "number", example: 400 },
+    message: {
+      type: "object",
+      additionalProperties: { type: "string" },
+      example: { email: "Invalid email format" },
+      description: "Карта ошибок `{ field: message }`.",
+    },
+  },
+  required: ["statusCode", "message"],
+};
+
+const ERROR_RESPONSE_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    statusCode: { type: "number", example: 401 },
+    message: { type: "string", example: "Invalid credentials" },
+    error: { type: "string" },
+  },
+  required: ["statusCode", "message"],
+};
+
+const REFRESH_COOKIE_DESCRIPTION =
+  "Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; " +
+  "Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). " +
+  "Refresh token не возвращается в JSON response.";
 
 /**
  * Контроллер аутентификации (§36 SPEC.md).
@@ -29,6 +75,7 @@ import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
  * вызов `AuthService`, установка cookie, форматирование response.
  * Бизнес-логика в Controller не размещается.
  */
+@ApiTags("auth")
 @Controller("auth")
 export class AuthController {
   /**
@@ -57,6 +104,23 @@ export class AuthController {
    */
   @Post("register")
   @UseGuards(AuthThrottlerGuard)
+  @ZodBody(registerSchema)
+  @ApiOperation({ summary: "Регистрация нового пользователя (§4)" })
+  @ApiResponse({
+    status: 201,
+    description: `Успешная регистрация. ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: VALIDATION_ERROR_SCHEMA,
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Email уже зарегистрирован.",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
   async register(
     @Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto,
     @Res({ passthrough: true }) response: Response,
@@ -86,6 +150,23 @@ export class AuthController {
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthThrottlerGuard)
+  @ZodBody(loginSchema)
+  @ApiOperation({ summary: "Вход пользователя (§58)" })
+  @ApiResponse({
+    status: 200,
+    description: `Успешный вход. ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: VALIDATION_ERROR_SCHEMA,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Неверные учётные данные (единый ответ без деталей, §59).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
   async login(
     @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -112,6 +193,24 @@ export class AuthController {
    */
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Выход пользователя (§60)" })
+  @ApiResponse({
+    status: 204,
+    description:
+      "Успешный выход. Set-Cookie: refresh_token=; Expires=в прошлом — cookie сброшена (§60).",
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Refresh cookie отсутствует/невалиден. Cookie при этом очищается всегда (§60).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      "Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию (§60).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
   async logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

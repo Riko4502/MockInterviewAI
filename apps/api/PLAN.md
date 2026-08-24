@@ -232,40 +232,42 @@ curl http://localhost:3001/api/v1/health
 
 **Миграция dto:**
 
-- [ ] `packages/dto`: зависимость `zod` → `^4.4.3` (`pnpm --filter @packages/dto add zod@^4.4.3`); прогон `test`/`typecheck`/`build` (§63).
+- [x] `packages/dto`: зависимость `zod` → `^4.4.3` (`pnpm --filter @packages/dto add zod@^4.4.3`); прогон `test`/`typecheck`/`build` (§63).
 
 **Код:**
 
-- [ ] Зависимости api: `pnpm --filter api add @nestjs/swagger yaml`.
-- [ ] `src/common/openapi/zod-openapi.ts` — хелпер конвертации zod → OpenAPI SchemaObject (`z.toJSONSchema()`) + обёртки-декораторы (`ZodBody` и т.п.) (§61).
-- [ ] `AuthController`: `@ApiTags("auth")`, схема body из `registerSchema`, ответы `201 { accessToken }` (+ описание Set-Cookie §25–28), `400 { field: message }`, `409`.
-- [ ] `HealthController`: `@ApiTags("health")`, ответы `200` / `503`.
-- [ ] DocumentBuilder: title/description/version, `addBearerAuth()` (задел под access-token, §61), server `http://localhost:{port}`.
-- [ ] `configureApp`: при `NODE_ENV !== "production"` — `SwaggerModule.createDocument` + `SwaggerModule.setup("docs")`; в этом режиме helmet с `contentSecurityPolicy: false` (§61).
-- [ ] `OriginCheckGuard`: пропуск собственного origin API (`http://localhost:{port}`) + кейс в `origin-check.guard.spec.ts`.
-- [ ] При последующей реализации Phase 8–9 их endpoints также описываются декораторами swagger (§61).
+- [x] Зависимости api: `pnpm --filter api add @nestjs/swagger yaml`.
+- [x] `src/common/openapi/zod-openapi.ts` — хелпер конвертации zod → OpenAPI SchemaObject (`z.toJSONSchema()`) + обёртки-декораторы (`ZodBody` и т.п.) (§61). **Примечание:** `z.toJSONSchema()` в zod v4 бросает ошибку на `.transform()` (следствие миграции из item 1); используется режим `{ io: "input" }` — описывается контракт входящего запроса, transform корректно пропускается. Дополнительно `openapi-document.ts` — общий DocumentBuilder для UI и скрипта.
+- [x] `AuthController`: `@ApiTags("auth")`, схема body из `registerSchema`, ответы `201 { accessToken }` (+ описание Set-Cookie §25–28), `400 { field: message }`, `409`. **Исправление:** `HttpExceptionFilter` маскировал карту полей до `"Unknown error"` — добавлено прокидывание тел вида `{ field: message }` от `ZodValidationPipe`; контракт подтверждён вручную: `{"statusCode":400,"message":{"email":"Invalid email format",...}}`. Добавлена спека `http-exception.filter.spec.ts`.
+- [x] `HealthController`: `@ApiTags("health")`, ответы `200` / `503`.
+- [x] DocumentBuilder: title/description/version, `addBearerAuth()` (задел под access-token, §61), server `http://localhost:{port}`.
+- [x] `configureApp`: при `NODE_ENV !== "production"` — `SwaggerModule.createDocument` + `SwaggerModule.setup("docs")`; в этом режиме helmet с `contentSecurityPolicy: false` (§61).
+- [x] `OriginCheckGuard`: пропуск собственного origin API (`http://localhost:{port}`) + кейс в `origin-check.guard.spec.ts`.
+- [x] При последующей реализации Phase 8–9 их endpoints также описываются декораторами swagger (§61) — login/logout задекорированы в этом же заходе (200/400/401; 204/401/500).
 
 **Скрипт генерации:**
 
-- [ ] `apps/api/scripts/generate-openapi.ts` — по образцу `test/helpers/test-app.helper.ts`: `Test.createTestingModule` + `overrideProvider(PrismaService/RedisService)` стабами → `createNestApplication()` → `configureApp(app)` (prefix `/api/v1` попадает в пути) → `SwaggerModule.createDocument` → запись `packages/api/openapi.yaml` + `openapi.json`; Docker PG/Redis не требуются (§62).
-- [ ] Скрипты: `apps/api/package.json` — `"generate:openapi": "ts-node scripts/generate-openapi.ts"`; корневой `package.json` — `"generate:api": "pnpm --filter api generate:openapi"`.
+- [x] `apps/api/scripts/generate-openapi.ts` — по образцу `test/helpers/test-app.helper.ts`: `Test.createTestingModule` + `overrideProvider(PrismaService/RedisService)` стабами → `createNestApplication()` → `configureApp(app)` (prefix `/api/v1` попадает в пути) → `SwaggerModule.createDocument` → запись `packages/api/openapi.yaml` + `openapi.json`; Docker PG/Redis не требуются (§62).
+- [x] Скрипты: `apps/api/package.json` — `"generate:openapi": "ts-node scripts/generate-openapi.ts"`; корневой `package.json` — `"generate:api": "pnpm --filter api generate:openapi"`.
 
 **Пакет `@packages/api`:**
 
-- [ ] `packages/api/package.json` (name `@packages/api`, private, exports `./openapi.yaml` / `./openapi.json`, files), `README.md` (назначение, команда регенерации, ссылка на `docs/frontend/data/api-contracts.md`).
-- [ ] Сгенерировать и закоммитить `openapi.yaml` + `openapi.json`.
+- [x] `packages/api/package.json` (name `@packages/api`, private, exports `./openapi.yaml` / `./openapi.json`, files), `README.md` (назначение, команда регенерации, ссылка на `docs/frontend/data/api-contracts.md`).
+- [x] Сгенерировать и закоммитить `openapi.yaml` + `openapi.json`.
 
 **Тесты:**
 
-- [ ] Unit `zod-openapi.spec.ts`: конвертация `registerSchema` — типы, required, minLength/maxLength, format email.
-- [ ] Unit `origin-check.guard.spec.ts`: собственный origin API пропускается.
+- [x] Unit `zod-openapi.spec.ts`: конвертация `registerSchema` — типы, required, minLength/maxLength, format email.
+- [x] Unit `origin-check.guard.spec.ts`: собственный origin API пропускается.
 
 **Верификация:**
 
-- [ ] `pnpm install` → `pnpm --filter @packages/dto test && pnpm --filter @packages/dto build`;
-- [ ] `pnpm --filter api lint && pnpm --filter api test`;
-- [ ] `pnpm generate:api` без запущенного Docker → проверка артефактов: paths `/api/v1/health`, `/api/v1/auth/register`, components schema RegisterDto;
-- [ ] Ручная проверка: `pnpm --filter api dev` → `http://localhost:3001/docs` загружается, `/docs-json` отдаёт 200 (self-origin разрешён).
+- [x] `pnpm install` → `pnpm --filter @packages/dto test && pnpm --filter @packages/dto build`;
+- [x] `pnpm --filter api lint && pnpm --filter api test`;
+- [x] `pnpm generate:api` без запущенного Docker → проверка артефактов: paths `/api/v1/health`, `/api/v1/auth/register`, components schema RegisterDto; **примечание:** схемы DTO встроены inline в requestBody (не в components) — единственный источник остаётся `z.toJSONSchema(registerSchema)`;
+- [x] Ручная проверка: `pnpm --filter api dev` → `http://localhost:3001/docs` загружается, `/docs-json` отдаёт 200 (self-origin разрешён). **Примечание:** Swagger-роуты монтируются как express-middleware и не проходят через глобальные guard'ы Nest (стандартное поведение); `OriginCheckGuard` на `/docs-json` не действует, но CORS читание чужих origin всё равно блокирует; проверено: API-маршрут с чужим Origin → 403.
+
+**Результат Phase 10:** dto тесты 29 ✓ (vitest), api unit 128 ✓ (jest), e2e 20 ✓ (jest-e2e), lint ✓, build ✓; артефакты `packages/api/openapi.{yaml,json}` сгенерированы без Docker.
 
 ## Phase 11 — Password confirmation и унификация dto (SPEC.md §5–§6, §63)
 

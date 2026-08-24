@@ -1,0 +1,277 @@
+openapi: 3.0.0
+paths:
+  /api/v1/health:
+    get:
+      operationId: HealthController_check
+      parameters: []
+      responses:
+        "200":
+          description: Приложение и PostgreSQL доступны.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                      - error
+                  db:
+                    type: string
+                    enum:
+                      - up
+                      - down
+                required:
+                  - status
+                  - db
+        "503":
+          description: PostgreSQL недоступен. Детали ошибки только в логах (§56).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                      - error
+                  db:
+                    type: string
+                    enum:
+                      - up
+                      - down
+                required:
+                  - status
+                  - db
+      summary: Проверка состояния приложения (§56)
+      tags:
+        - health
+  /api/v1/auth/register:
+    post:
+      operationId: AuthController_register
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  minLength: 1
+                  format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+              required:
+                - email
+                - password
+      responses:
+        "201":
+          description: "Успешная регистрация. Set-Cookie: refresh_token={JWT}; HttpOnly;
+            SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION
+            (§25–28 SPEC.md). Refresh token не возвращается в JSON response."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT access token
+                required:
+                  - accessToken
+        "400":
+          description: Ошибка валидации DTO.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 400
+                  message:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      email: Invalid email format
+                    description: "Карта ошибок `{ field: message }`."
+                required:
+                  - statusCode
+                  - message
+        "409":
+          description: Email уже зарегистрирован.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+      summary: Регистрация нового пользователя (§4)
+      tags: &a1
+        - auth
+  /api/v1/auth/login:
+    post:
+      operationId: AuthController_login
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  minLength: 1
+                  format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+              required:
+                - email
+                - password
+      responses:
+        "200":
+          description: "Успешный вход. Set-Cookie: refresh_token={JWT}; HttpOnly;
+            SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION
+            (§25–28 SPEC.md). Refresh token не возвращается в JSON response."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT access token
+                required:
+                  - accessToken
+        "400":
+          description: Ошибка валидации DTO.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 400
+                  message:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      email: Invalid email format
+                    description: "Карта ошибок `{ field: message }`."
+                required:
+                  - statusCode
+                  - message
+        "401":
+          description: Неверные учётные данные (единый ответ без деталей, §59).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+      summary: Вход пользователя (§58)
+      tags: *a1
+  /api/v1/auth/logout:
+    post:
+      operationId: AuthController_logout
+      parameters: []
+      responses:
+        "204":
+          description: "Успешный выход. Set-Cookie: refresh_token=; Expires=в прошлом —
+            cookie сброшена (§60)."
+        "401":
+          description: Refresh cookie отсутствует/невалиден. Cookie при этом очищается
+            всегда (§60).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+        "500":
+          description: Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию
+            (§60).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+      summary: Выход пользователя (§60)
+      tags: *a1
+info:
+  title: Mock Interview AI API
+  description: |-
+    Auth API: register, login, logout.
+
+    Refresh token передаётся только через HttpOnly cookie
+    (HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION)
+    и не возвращается в JSON response.
+  version: 0.1.0
+  contact: {}
+tags: []
+servers:
+  - url: http://localhost:3001
+components:
+  securitySchemes:
+    bearer:
+      scheme: bearer
+      bearerFormat: JWT
+      type: http
+  schemas: {}

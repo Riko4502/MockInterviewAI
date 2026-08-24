@@ -1,0 +1,14 @@
+{
+  "name": "@packages/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Сгенерированные OpenAPI-артефакты API Mock Interview AI (§63 SPEC.md)",
+  "exports": {
+    "./openapi.yaml": "./openapi.yaml",
+    "./openapi.json": "./openapi.json"
+  },
+  "files": [
+    "openapi.yaml",
+    "openapi.json"
+  ]
+}
