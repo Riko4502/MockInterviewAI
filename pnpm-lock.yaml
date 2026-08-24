@@ -213,8 +213,8 @@ importers:
   packages/dto:
     dependencies:
       zod:
-        specifier: ^3
-        version: 3.25.76
+        specifier: ^4
+        version: 4.4.3
     devDependencies:
       '@biomejs/biome':
         specifier: 2.4.2
