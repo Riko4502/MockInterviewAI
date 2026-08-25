@@ -118,3 +118,38 @@ pnpm lint && pnpm test
 ### 👥 Процессы
 * [**Pull Request Policy**](./docs/frontend/processes/pull-request.md) — правила ревью, линтеры, критерии слияния.
 * [**Архитектурные решения (ADR)**](./docs/frontend/processes/adr.md) — как фиксировать значимые изменения.
+
+---
+
+## 📚 Документация Backend
+
+Вся техническая документация серверной части собрана в каталоге [`docs/backend/`](./docs/backend/README.md):
+
+### 🏗 Архитектура
+* [**Обзор бэкенд-архитектуры**](./docs/backend/architecture/overview.md) — сервисы `apps/api`, `apps/realtime`, `apps/code-runner`.
+* [**NestJS Модули**](./docs/backend/architecture/nestjs-modules.md) — структура контроллеров, сервисов, DTO/Zod валидация.
+* [**Realtime сервис (Go)**](./docs/backend/architecture/realtime-go.md) — WebSocket Hub, комнаты, Redis Pub/Sub, LiveKit.
+
+### 💾 Базы данных и Хранилище
+* [**PostgreSQL и Prisma ORM**](./docs/backend/data/database-prisma.md) — схемы, миграции, соглашения по именованию.
+* [**Redis**](./docs/backend/data/redis-caching.md) — хранение сессий, блэклисты токенов, рейт-лимиты.
+* [**S3 Хранилище**](./docs/backend/data/storage-s3.md) — объектное хранилище MinIO/R2, бакеты и префиксы.
+
+### 🔒 Безопасность и Стандарты
+* [**Безопасность и JWT**](./docs/backend/security/auth-jwt.md) — токены в HttpOnly cookies, Argon2id, CSRF защита.
+* [**Стандарты разработки**](./docs/backend/development/guidelines.md) — линтинг (Biome/golangci-lint), обработка ошибок, логирование и тесты.
+
+---
+
+## 🛠️ Документация DevOps & CI/CD
+
+Вся документация по инфраструктуре, пайплайнам и деплою собрана в каталоге [`docs/devops/`](./docs/devops/README.md):
+
+### 🐳 Инфраструктура и Пайплайны
+* [**Локальная инфраструктура**](./docs/devops/infrastructure/local-docker.md) — Docker Compose (PostgreSQL, Redis, MinIO S3), команды `infra:up` / `infra:down`.
+* [**CI/CD Пайплайны**](./docs/devops/ci-cd/pipelines.md) — Reusable workflows, paths-filter, кэширование Turborepo.
+* [**Релизы и Версионирование**](./docs/devops/ci-cd/releases.md) — сборка архивов по тегам, S3 хранилище, Release Drafter.
+* [**Production Деплой**](./docs/devops/deployment/production.md) — `docker-compose.prod.yml`, multi-stage Dockerfiles, SSH деплой.
+* [**Мониторинг и Алерты**](./docs/devops/monitoring/telegram-alerts.md) — Telegram-бот, топики чата и GitHub Secrets.
+
+
