@@ -14,12 +14,20 @@ interface HttpErrorBody {
   error?: string;
 }
 
+/** Утверждает, что `value` — непустой объект-словарь (не `null`, не массив). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Определяет тело ошибки валидации: объект `{ field: message }` без
  * служебных ключей `statusCode`/`message`/`error` (так бросает
  * `ZodValidationPipe`). Такие тела прокидываются клиенту как есть.
  */
-function isFieldErrorMap(value: Record<string, unknown>): boolean {
+function isFieldErrorMap(value: unknown): value is Record<string, string> {
+  if (!isRecord(value)) {
+    return false;
+  }
   const keys = Object.keys(value);
   if (
     keys.length === 0 ||
@@ -89,19 +97,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return { statusCode: status, message: exceptionResponse };
     }
 
-    const record = exceptionResponse as Record<string, unknown>;
-
     // ZodValidationPipe: BadRequestException({ field: message }) —
     // прокидываем карту ошибок полей без маскировки (§47, §63 SPEC.md).
-    if (isFieldErrorMap(record)) {
-      return {
-        statusCode: status,
-        message: record as Record<string, string>,
-      };
+    if (isFieldErrorMap(exceptionResponse)) {
+      return { statusCode: status, message: exceptionResponse };
     }
 
-    const message = record.message ?? "Unknown error";
-    const error = typeof record.error === "string" ? record.error : undefined;
+    if (!isRecord(exceptionResponse)) {
+      return { statusCode: status, message: "Unknown error" };
+    }
+
+    const message = exceptionResponse.message ?? "Unknown error";
+    const error =
+      typeof exceptionResponse.error === "string"
+        ? exceptionResponse.error
+        : undefined;
 
     return {
       statusCode: status,
