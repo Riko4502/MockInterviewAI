@@ -181,7 +181,7 @@ curl http://localhost:3001/api/v1/health
 
 - [x] `packages/dto`: `src/auth/login.dto.ts` — zod-схема `loginSchema`, тип `LoginDto` (email — валидация и нормализация как в `register.dto.ts`; password — `.min(1).max(128)` без password policy, §58); экспорт из `src/index.ts`.
 - [x] `AuthService.login(dto)` (§58): `findByEmail` → не найден → dummy argon2-verify против предвычисленного хеша + generic `401` (§59); `argon2.verify` → не совпал → тот же generic `401`; успех: новые `sessionId`/`tokenFamilyId` → access/refresh JWT → `hashRefreshToken` → `createSession`.
-- [x] Dummy-hash для выравнивания timing — константа AuthService с JSDoc-пояснением (§57).
+- [x] Dummy-hash для выравнивания timing — вычисляется при старте модуля через `OnModuleInit` (с теми же параметрами Argon2id, что и `hashPassword`), JSDoc-пояснение (§57).
 - [x] `AuthController.login()`: `@Post("login")`, ZodValidationPipe, `@UseGuards(AuthThrottlerGuard)`, Set-Cookie атрибуты как у register (§25–28), статус `200`, body `{ accessToken }`.
 - [x] Cookie Max-Age вычисляется из `jwt.refreshExpiresIn` через общий хелпер `getRefreshTokenTtlSeconds` (`AuthSessionService` + `AuthController`) вместо захардкоженного 30d; SPEC §25 обновлён.
 

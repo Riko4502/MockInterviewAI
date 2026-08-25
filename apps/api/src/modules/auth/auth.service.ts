@@ -4,6 +4,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  OnModuleInit,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -13,19 +14,6 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
-
-/**
- * Предвычисленный Argon2id-хеш фиктивного пароля для выравнивания времени
- * ответа при логине с несуществующим email (§59 SPEC.md).
- *
- * Сгенерирован с теми же параметрами (memoryCost 65536, timeCost 3,
- * parallelism 4), что используются при хешировании реальных паролей
- * (`src/config/configuration.ts`), поэтому `argon2.verify()` против него
- * занимает сопоставимое время. При изменении параметров Argon2 в конфигурации
- * константу необходимо перегенерировать.
- */
-const DUMMY_PASSWORD_HASH =
-  "$argon2id$v=19$m=65536,p=4,t=3$pQGt8+MPFESK5Ef2UikoJQ$4jf5eIVNfxQ9mkX6iI4/AXQBgGUZf9BpsX3BHOk1B1w";
 
 /** Результат успешной регистрации. */
 export interface RegisterResult {
@@ -48,8 +36,18 @@ export interface LoginResult {
  * и входа (проверка учётных данных без account enumeration, §58–§59 SPEC.md).
  */
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
+  private dummyPasswordHash = "";
+
+  async onModuleInit(): Promise<void> {
+    this.dummyPasswordHash = await argon2.hash("dummy-password", {
+      type: argon2.argon2id,
+      memoryCost: this.configService.get<number>("argon2.memoryCost"),
+      timeCost: this.configService.get<number>("argon2.timeCost"),
+      parallelism: this.configService.get<number>("argon2.parallelism"),
+    });
+  }
 
   /**
    * @param usersService - Сервис управления пользователями.
@@ -168,7 +166,7 @@ export class AuthService {
     // Единый кодовый путь: ровно одна argon2-проверка против хеша реального
     // пользователя либо против dummy-хеша — идентичный ответ и время для
     // обоих случаев отказа (§59 SPEC.md).
-    const passwordHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
     const passwordValid = await argon2.verify(passwordHash, password);
 
     if (!user || !passwordValid) {

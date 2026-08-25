@@ -72,7 +72,7 @@ describe("AuthService", () => {
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     findByEmail = jest.fn().mockResolvedValue(null);
@@ -119,6 +119,9 @@ describe("AuthService", () => {
       { user: { delete: deleteUser } } as unknown as PrismaService,
       createConfigService(),
     );
+
+    await service.onModuleInit();
+    jest.clearAllMocks();
 
     loggerErrorSpy = jest
       .spyOn((service as unknown as LoggerAccessor).logger, "error")
