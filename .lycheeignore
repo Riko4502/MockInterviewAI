@@ -1,0 +1,8 @@
+# Ignore local development and test links
+^http://localhost
+^http://127\.0\.0\.1
+^https?://.*\.example\.com
+^https?://.*\.preview\.
+^https?://tanstack.com
+^file://
+^mailto:

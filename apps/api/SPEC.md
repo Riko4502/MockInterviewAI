@@ -4,6 +4,7 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
+| 1.2.0 | 2026-08-23 | Актуальный |
 | 1.1.0 | 2026-08-14 | Актуальный |
 | 1.0.0 | 2026-08-14 | Актуальный |
 
@@ -11,6 +12,7 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.2.0 | 2026-08-23 | Имя refresh cookie вынесено в окружение: env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`), конфигурация `cookie.refreshTokenName`, §25/§36/§49. |
 | 1.1.0 | 2026-08-14 | Добавлен раздел §57 — обязательное документирование кода. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия спецификации. |
 
@@ -120,7 +122,7 @@ Response (успех):
 
 - `201 Created`
 - Body: `{ "accessToken": "eyJhbGciOi..." }`
-- `Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000`
+- `Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000` (имя cookie `refresh_token` — значение по умолчанию env `REFRESH_TOKEN_COOKIE_NAME`, §49)
 
 ### 5. RegisterDto
 
@@ -313,11 +315,14 @@ Access token не должен содержать: password, passwordHash, refre
 ### 25. Refresh Token Cookie
 
 - Refresh token не возвращается в JSON response.
+- Имя cookie конфигурируется через env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`, дефолт `refresh_token`; §49). Значение читается через `ConfigService` (`cookie.refreshTokenName`).
 - Передаётся через HttpOnly cookie:
 
 ```
 Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000
 ```
+
+где `refresh_token` — значение `REFRESH_TOKEN_COOKIE_NAME`.
 
 ### 26. HttpOnly
 
@@ -387,7 +392,7 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 ### 36. AuthController
 
 - Отвечает только за HTTP layer.
-- `POST /api/v1/auth/register`: принимает request, валидирует DTO, вызывает `AuthService.register()`, устанавливает refresh cookie, возвращает `{ accessToken }`.
+- `POST /api/v1/auth/register`: принимает request, валидирует DTO, вызывает `AuthService.register()`, устанавливает refresh cookie (имя — из конфигурации `cookie.refreshTokenName`, §25/§49), возвращает `{ accessToken }`.
 - Бизнес-логика в Controller не размещается.
 
 ### 37. AuthService
@@ -503,8 +508,8 @@ AuthService → AuthSessionService → RedisService → Redis
 
 Переменные окружения разделены по месту хранения:
 
-- Корневой `.env` монорепы (общие настройки: Server, JWT, Refresh token hashing, Redis).
-- `apps/api/.env` (специфичные для api: Database, Argon2id, Cookie, Rate limiting).
+- Корневой `.env` монорепы (общие настройки: Server, JWT, Refresh token hashing, Redis, имя refresh cookie).
+- `apps/api/.env` (специфичные для api: Database, Argon2id, параметры cookie (`COOKIE_SECURE`), Rate limiting).
 
 `ConfigModule` загружает оба файла через `envFilePath: ["../../.env", ".env"]` (пути относительно `apps/api`; приоритет у файла, идущего раньше). Docker Compose читает корневой `.env` через `--env-file ../../.env` (нужно для `REDIS_PASSWORD`).
 
@@ -527,6 +532,9 @@ JWT_AUDIENCE=api
 
 # Refresh token hashing
 REFRESH_TOKEN_HASH_SECRET=
+
+# Cookie (имя refresh cookie)
+REFRESH_TOKEN_COOKIE_NAME=refresh_token
 
 # Redis
 REDIS_HOST=localhost
