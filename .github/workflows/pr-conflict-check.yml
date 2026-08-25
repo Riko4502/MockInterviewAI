@@ -1,0 +1,24 @@
+name: "Проверка конфликтов PR"
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  check-conflicts:
+    name: "Проверка конфликтов слияния"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Проверка конфликтов с целевой веткой"
+        uses: eps1lon/actions-label-merge-conflict@v3
+        with:
+          dirtyLabel: "has-conflicts"
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          commentOnDirty: "⚠️ **Внимание:** в этом PR обнаружены конфликты слияния с целевой веткой. Пожалуйста, обновите ветку (`git rebase` или `git merge`) перед слиянием."
+          commentOnClean: "✅ Конфликты слияния устранены."

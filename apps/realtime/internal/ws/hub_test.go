@@ -76,7 +76,7 @@ func TestRoomLifecycle(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	emptyCalled := false
 
-	room := NewRoom("test-session", nil, nil, logger, func(id string) {
+	room := NewRoom("test-session", nil, nil, logger, func(_ string) {
 		emptyCalled = true
 	})
 
