@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mockinterviewai/realtime/internal/config"
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // Broadcaster интерфейс для распределенной рассылки событий между репликами сервиса.

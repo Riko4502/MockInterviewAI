@@ -5,7 +5,7 @@
 Frontend монорепозитория разделен на приложения (`apps/`) и переиспользуемые пакеты (`packages/`):
 
 ```text
-MockInterviewAI/
+monorepo/
 ├── apps/
 │   ├── web/           # Основное продуктовое веб-приложение (Next.js App Router)
 │   └── landing/       # Публичный маркетинговый сайт и SEO (Astro)

@@ -1,0 +1,4 @@
+# Hadolint configuration
+failure-threshold: error
+ignored:
+  - DL3018 # Pin versions in apk add (alpine best practice, allow general security updates)

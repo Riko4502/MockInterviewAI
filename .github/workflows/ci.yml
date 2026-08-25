@@ -49,6 +49,7 @@ jobs:
     outputs:
       realtime: ${{ steps.filter.outputs.realtime }}
       web: ${{ steps.filter.outputs.web }}
+      landing: ${{ steps.filter.outputs.landing }}
       api: ${{ steps.filter.outputs.api }}
     steps:
       - name: "Клонирование репозитория"
@@ -81,6 +82,15 @@ jobs:
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-api.yml'
+            landing:
+              - 'apps/landing/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-landing.yml'
 
   realtime:
     name: "Realtime"
@@ -100,18 +110,57 @@ jobs:
     if: needs.changes.outputs.api == 'true'
     uses: ./.github/workflows/ci-api.yml
 
+  landing:
+    name: "Landing"
+    needs: changes
+    if: needs.changes.outputs.landing == 'true'
+    uses: ./.github/workflows/ci-landing.yml
+
   security:
     name: "Security"
     uses: ./.github/workflows/ci-security.yml
 
   notify:
     name: "Telegram"
-    needs: [realtime, web, api, security]
+    needs: [realtime, web, api, security, landing]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
     with:
       realtime_result: ${{ needs.realtime.result }}
       web_result: ${{ needs.web.result }}
+      landing_result: ${{ needs.landing.result }}
       api_result: ${{ needs.api.result }}
       security_result: ${{ needs.security.result }}
+
+  pr-status-comment:
+    name: "Обновление статуса PR"
+    needs: [realtime, web, api, landing, security]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Генерация отчета из шаблона"
+        run: |
+          sed -e "s|{{SHA}}|${{ github.event.pull_request.head.sha }}|g" \
+              -e "s|{{WEB_COV}}|${{ needs.web.outputs.coverage || '—' }}|g" \
+              -e "s|{{WEB_STATUS}}|${{ needs.web.result == 'success' && '✅ Успешно' || (needs.web.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{LANDING_COV}}|${{ needs.landing.outputs.coverage || '—' }}|g" \
+              -e "s|{{LANDING_STATUS}}|${{ needs.landing.result == 'success' && '✅ Успешно' || (needs.landing.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{API_COV}}|${{ needs.api.outputs.coverage || '—' }}|g" \
+              -e "s|{{API_STATUS}}|${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{REALTIME_COV}}|${{ needs.realtime.outputs.coverage || '—' }}|g" \
+              -e "s|{{REALTIME_STATUS}}|${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{SECURITY_STATUS}}|${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }}|g" \
+              .github/templates/pr-status-summary.md > pr-comment.md
+
+      - name: "Публикация сводного комментария"
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: ci-status-summary
+          path: pr-comment.md

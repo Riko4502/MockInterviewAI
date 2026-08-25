@@ -1,0 +1,41 @@
+'🎨 frontend':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/web/**'
+          - 'apps/landing/**'
+          - 'packages/ui/**'
+
+'⚙️ backend':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/api/**'
+          - 'packages/dto/**'
+
+'⚡ realtime':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/realtime/**'
+          - 'go.mod'
+          - 'go.sum'
+
+'🛠️ devops':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'docker-compose*.yml'
+          - '**/Dockerfile*'
+          - '.dockerignore'
+
+'📚 documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '**/*.md'
+
+'📦 dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'pnpm-lock.yaml'
+          - 'pnpm-workspace.yaml'
+          - 'turbo.json'
