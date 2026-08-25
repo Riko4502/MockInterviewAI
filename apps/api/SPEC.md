@@ -664,14 +664,14 @@ Production secrets хранятся вне исходного кода (Secret M
   - helmet: при включённом UI CSP отключается (`contentSecurityPolicy: false`) — дефолтная CSP блокирует ассеты swagger-ui;
   - `OriginCheckGuard` пропускает запросы с собственным origin API (`http://localhost:{API_PORT}`), иначе загрузка `/docs-json` из UI получает 403 (`ALLOWED_ORIGINS` содержит только origins веб-клиентов).
 
-### 62. Генерация спецификации, пакет `@packages/api`
+### 62. Генерация спецификации OpenAPI
 
 - Скрипт `apps/api/scripts/generate-openapi.ts` собирает OpenAPI-документ без запущенной инфраструктуры:
   - приложение поднимается через `Test.createTestingModule({ imports: [AppModule] })` с переопределением `PrismaService`/`RedisService` стабами — Docker PG/Redis не требуются;
   - применяется `configureApp` — глобальный prefix `/api/v1` попадает в пути спецификации;
   - документ сериализуется в YAML и JSON.
-- Артефакты: `packages/api/openapi.yaml`, `packages/api/openapi.json` — коммитятся в git.
-- Пакет `@packages/api`: приватный, без исходного кода и сборки; экспортирует `./openapi.yaml` и `./openapi.json`; назначение — единый контракт для будущей кодогенерации клиента (`docs/frontend/data/api-contracts.md`). Правило «пакеты не зависят от приложений» не нарушается: скрипт генерации живёт в `apps/api` и записывает файлы в пакет.
+- Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env` (дефолт `./apps/api/openapi`). Скрипт загружает `.env` через `dotenv` и записывает `openapi.yaml` и `openapi.json` по указанному пути.
+- Артефакты коммитятся в git — фронтенд может читать их без запуска бэкенда.
 - Команды: `pnpm --filter api generate:openapi`; из корня монорепо — `pnpm generate:api`.
 
 ### 63. Пакет `@packages/dto` — единый источник контрактов

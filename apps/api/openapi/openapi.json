@@ -15,23 +15,14 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "ok",
-                        "error"
-                      ]
+                      "enum": ["ok", "error"]
                     },
                     "db": {
                       "type": "string",
-                      "enum": [
-                        "up",
-                        "down"
-                      ]
+                      "enum": ["up", "down"]
                     }
                   },
-                  "required": [
-                    "status",
-                    "db"
-                  ]
+                  "required": ["status", "db"]
                 }
               }
             }
@@ -45,32 +36,21 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "ok",
-                        "error"
-                      ]
+                      "enum": ["ok", "error"]
                     },
                     "db": {
                       "type": "string",
-                      "enum": [
-                        "up",
-                        "down"
-                      ]
+                      "enum": ["up", "down"]
                     }
                   },
-                  "required": [
-                    "status",
-                    "db"
-                  ]
+                  "required": ["status", "db"]
                 }
               }
             }
           }
         },
         "summary": "Проверка состояния приложения (§56)",
-        "tags": [
-          "health"
-        ]
+        "tags": ["health"]
       }
     },
     "/api/v1/auth/register": {
@@ -88,23 +68,16 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email"
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "password": {
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
-                  },
-                  "passwordConfirmation": {
-                    "type": "string",
-                    "minLength": 1
                   }
                 },
-                "required": [
-                  "email",
-                  "password",
-                  "passwordConfirmation"
-                ]
+                "required": ["email", "password"]
               }
             }
           }
@@ -122,9 +95,7 @@
                       "description": "JWT access token"
                     }
                   },
-                  "required": [
-                    "accessToken"
-                  ]
+                  "required": ["accessToken"]
                 }
               }
             }
@@ -151,10 +122,7 @@
                       "description": "Карта ошибок `{ field: message }`."
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
@@ -178,19 +146,14 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
           }
         },
         "summary": "Регистрация нового пользователя (§4)",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/api/v1/auth/login": {
@@ -208,7 +171,8 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email"
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "password": {
                     "type": "string",
@@ -216,10 +180,7 @@
                     "maxLength": 128
                   }
                 },
-                "required": [
-                  "email",
-                  "password"
-                ]
+                "required": ["email", "password"]
               }
             }
           }
@@ -237,9 +198,7 @@
                       "description": "JWT access token"
                     }
                   },
-                  "required": [
-                    "accessToken"
-                  ]
+                  "required": ["accessToken"]
                 }
               }
             }
@@ -266,10 +225,7 @@
                       "description": "Карта ошибок `{ field: message }`."
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
@@ -293,19 +249,14 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
           }
         },
         "summary": "Вход пользователя (§58)",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/api/v1/auth/logout": {
@@ -335,10 +286,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
@@ -362,19 +310,14 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "statusCode",
-                    "message"
-                  ]
+                  "required": ["statusCode", "message"]
                 }
               }
             }
           }
         },
         "summary": "Выход пользователя (§60)",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     }
   },

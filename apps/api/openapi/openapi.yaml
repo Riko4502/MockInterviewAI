@@ -64,17 +64,14 @@ paths:
                   type: string
                   minLength: 1
                   format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
                 password:
                   type: string
                   minLength: 12
                   maxLength: 128
-                passwordConfirmation:
-                  type: string
-                  minLength: 1
               required:
                 - email
                 - password
-                - passwordConfirmation
       responses:
         "201":
           description: "Успешная регистрация. Set-Cookie: refresh_token={JWT}; HttpOnly;
@@ -147,6 +144,7 @@ paths:
                   type: string
                   minLength: 1
                   format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
                 password:
                   type: string
                   minLength: 1

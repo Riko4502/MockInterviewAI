@@ -247,13 +247,12 @@ curl http://localhost:3001/api/v1/health
 
 **Скрипт генерации:**
 
-- [x] `apps/api/scripts/generate-openapi.ts` — по образцу `test/helpers/test-app.helper.ts`: `Test.createTestingModule` + `overrideProvider(PrismaService/RedisService)` стабами → `createNestApplication()` → `configureApp(app)` (prefix `/api/v1` попадает в пути) → `SwaggerModule.createDocument` → запись `packages/api/openapi.yaml` + `openapi.json`; Docker PG/Redis не требуются (§62).
+- [x] `apps/api/scripts/generate-openapi.ts` — по образцу `test/helpers/test-app.helper.ts`: `Test.createTestingModule` + `overrideProvider(PrismaService/RedisService)` стабами → `createNestApplication()` → `configureApp(app)` (prefix `/api/v1` попадает в пути) → `SwaggerModule.createDocument` → запись `apps/api/openapi/openapi.yaml` + `openapi.json`; Docker PG/Redis не требуются (§62). Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env`.
 - [x] Скрипты: `apps/api/package.json` — `"generate:openapi": "ts-node scripts/generate-openapi.ts"`; корневой `package.json` — `"generate:api": "pnpm --filter api generate:openapi"`.
 
-**Пакет `@packages/api`:**
+**Артефакты OpenAPI:**
 
-- [x] `packages/api/package.json` (name `@packages/api`, private, exports `./openapi.yaml` / `./openapi.json`, files), `README.md` (назначение, команда регенерации, ссылка на `docs/frontend/data/api-contracts.md`).
-- [x] Сгенерировать и закоммитить `openapi.yaml` + `openapi.json`.
+- [x] Сгенерировать и закоммитить `apps/api/openapi/openapi.yaml` + `openapi.json`.
 
 **Тесты:**
 
@@ -267,7 +266,7 @@ curl http://localhost:3001/api/v1/health
 - [x] `pnpm generate:api` без запущенного Docker → проверка артефактов: paths `/api/v1/health`, `/api/v1/auth/register`, components schema RegisterDto; **примечание:** схемы DTO встроены inline в requestBody (не в components) — единственный источник остаётся `z.toJSONSchema(registerSchema)`;
 - [x] Ручная проверка: `pnpm --filter api dev` → `http://localhost:3001/docs` загружается, `/docs-json` отдаёт 200 (self-origin разрешён). **Примечание:** Swagger-роуты монтируются как express-middleware и не проходят через глобальные guard'ы Nest (стандартное поведение); `OriginCheckGuard` на `/docs-json` не действует, но CORS читание чужих origin всё равно блокирует; проверено: API-маршрут с чужим Origin → 403.
 
-**Результат Phase 10:** dto тесты 29 ✓ (vitest), api unit 128 ✓ (jest), e2e 20 ✓ (jest-e2e), lint ✓, build ✓; артефакты `packages/api/openapi.{yaml,json}` сгенерированы без Docker.
+**Результат Phase 10:** dto тесты 29 ✓ (vitest), api unit 128 ✓ (jest), e2e 20 ✓ (jest-e2e), lint ✓, build ✓; артефакты `apps/api/openapi/openapi.{yaml,json}` сгенерированы без Docker.
 
 ## Phase 11 — Password confirmation и унификация dto (SPEC.md §5–§6, §63)
 
@@ -291,7 +290,7 @@ curl http://localhost:3001/api/v1/health
 
 - [x] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`;
 - [x] `pnpm --filter api lint && pnpm --filter api test`;
-- [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `openapi.yaml/json` `passwordConfirmation` присутствует и required.
+- [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `apps/api/openapi/openapi.yaml/json` `passwordConfirmation` присутствует и required.
 
 ---
 
