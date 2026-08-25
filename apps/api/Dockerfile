@@ -46,7 +46,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 
-USER nestjs
+USER 1001:1001
 
 EXPOSE 3001
 

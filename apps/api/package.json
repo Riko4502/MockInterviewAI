@@ -14,9 +14,7 @@
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:up": "docker compose -f docker-compose.yml --env-file ../../.env up -d --wait",
-    "db:down": "docker compose -f docker-compose.yml --env-file ../../.env down",
-    "predev": "pnpm run db:up && pnpm run db:migrate:deploy",
+    "predev": "pnpm --filter=mock-interview-ai run infra:up && pnpm run db:migrate:deploy",
     "postinstall": "prisma generate"
   },
   "dependencies": {
