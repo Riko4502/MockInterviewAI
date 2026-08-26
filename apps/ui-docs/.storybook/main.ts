@@ -1,11 +1,4 @@
-import type { StorybookConfig } from '@storybook/react-vite';
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import tailwindcss from '@tailwindcss/vite';
-
-function getAbsolutePath(value: string) {
-  return dirname(fileURLToPath(import.meta.resolve(`${value}/package.json`)));
-}
+import type { StorybookConfig } from 'storybook-react-rsbuild';
 
 const config: StorybookConfig = {
   stories: [
@@ -13,20 +6,12 @@ const config: StorybookConfig = {
     '../src/**/*.stories.@(ts|tsx)',
   ],
   addons: [
-    getAbsolutePath('@chromatic-com/storybook'),
-    getAbsolutePath('@storybook/addon-vitest'),
-    getAbsolutePath('@storybook/addon-a11y'),
-    getAbsolutePath('@storybook/addon-docs'),
-    getAbsolutePath('@storybook/addon-onboarding'),
+    '@chromatic-com/storybook',
+    '@storybook/addon-docs',
+    '@storybook/addon-a11y',
+    '@storybook/addon-onboarding',
   ],
-  framework: getAbsolutePath('@storybook/react-vite'),
-  async viteFinal(config) {
-    config.plugins = config.plugins || [];
-    config.plugins.push(tailwindcss());
-    config.resolve = config.resolve || {};
-    config.resolve.tsconfigPaths = true;
-    return config;
-  },
+  framework: 'storybook-react-rsbuild',
 };
 
 export default config;

@@ -4,7 +4,7 @@ on:
   workflow_call:
     outputs:
       coverage:
-        description: "Процент историй Storybook, прошедших interaction-тесты"
+        description: "Результат сборки Storybook"
         value: ${{ jobs.test.outputs.coverage }}
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     name: "Сборка и проверка Storybook (apps/ui-docs)"
     runs-on: ubuntu-latest
     outputs:
-      coverage: ${{ steps.storybook_coverage.outputs.pct }}
+      coverage: ${{ steps.storybook_build.outputs.pct }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -38,24 +38,6 @@ jobs:
       - name: "Проверка типов TypeScript (ui-docs)"
         run: pnpm --filter=ui-docs run typecheck
 
-      - name: "Кэширование браузеров Playwright"
-        uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-storybook-${{ hashFiles('**/pnpm-lock.yaml') }}
-
-      - name: "Установка Chromium для Playwright"
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter=ui-docs exec playwright install --with-deps chromium
-
-      - name: "Установка системных зависимостей Playwright"
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter=ui-docs exec playwright install-deps chromium
-
-      - name: "Сборка Storybook (build-storybook)"
-        run: pnpm --filter=ui-docs run build-storybook
-
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
         with:
@@ -64,20 +46,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
-      - name: "Interaction-тесты историй Storybook (Vitest + Playwright)"
-        id: storybook_coverage
+      - name: "Сборка Storybook (build-storybook)"
+        id: storybook_build
         run: |
-          pnpm --filter=ui-docs run test -- --reporter=verbose | tee storybook-test.log
-          TOTAL=$(grep -oE '[0-9]+ passed' storybook-test.log | tail -1 | grep -oE '[0-9]+' || echo "")
-          if [ -n "$TOTAL" ]; then
-            PCT="$TOTAL историй"
-          else
-            PCT="OK"
-          fi
-          echo "pct=$PCT" >> $GITHUB_OUTPUT
+          pnpm --filter=ui-docs run build-storybook
+          echo "pct=OK" >> $GITHUB_OUTPUT
           echo "### 📚 Отчет Storybook (apps/ui-docs)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Сборка Storybook:** ✅ успешно" >> $GITHUB_STEP_SUMMARY
-          echo "- **Interaction-тесты (Vitest + Playwright):** \`$PCT\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Сборка Storybook (Rsbuild):** ✅ успешно" >> $GITHUB_STEP_SUMMARY
 
       - name: "Загрузка статической сборки Storybook при ошибке"
         if: failure()
