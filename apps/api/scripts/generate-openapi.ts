@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Test } from "@nestjs/testing";
@@ -51,6 +52,10 @@ async function main(): Promise<void> {
     `${JSON.stringify(document, null, 2)}\n`,
   );
   writeFileSync(resolve(outDir, "openapi.yaml"), stringifyYaml(document));
+
+  execSync(`npx biome format --write ${resolve(outDir, "openapi.json")}`, {
+    stdio: "pipe",
+  });
 
   await app.close();
 

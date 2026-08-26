@@ -11,7 +11,12 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { SchemaObject } from "@nestjs/swagger";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import {
   type LoginDto,
   loginSchema,
@@ -19,6 +24,7 @@ import {
   registerSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { Public } from "../../common/decorators/public.decorator";
 import { ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
@@ -103,6 +109,7 @@ export class AuthController {
    * @returns `{ accessToken }` в body.
    */
   @Post("register")
+  @Public()
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(registerSchema)
   @ApiOperation({ summary: "Регистрация нового пользователя (§4)" })
@@ -148,6 +155,7 @@ export class AuthController {
    * @returns `{ accessToken }` в body.
    */
   @Post("login")
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(loginSchema)
@@ -193,6 +201,7 @@ export class AuthController {
    */
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Выход пользователя (§60)" })
   @ApiResponse({
     status: 204,

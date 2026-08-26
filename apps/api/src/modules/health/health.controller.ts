@@ -2,6 +2,7 @@ import { Controller, Get, HttpStatus, Logger, Res } from "@nestjs/common";
 import type { SchemaObject } from "@nestjs/swagger";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
+import { Public } from "../../common/decorators/public.decorator";
 import { PrismaService } from "../../prisma/prisma.service";
 
 interface HealthResponse {
@@ -44,6 +45,7 @@ export class HealthController {
    * @returns Объект статуса с состоянием базы данных.
    */
   @Get()
+  @Public()
   @ApiOperation({ summary: "Проверка состояния приложения (§56)" })
   @ApiResponse({
     status: 200,
