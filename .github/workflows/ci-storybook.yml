@@ -1,4 +1,4 @@
-name: "CI Storybook (UI)"
+name: "CI Storybook (ui-docs)"
 
 on:
   workflow_call:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: "Сборка и проверка Storybook (@packages/ui)"
+    name: "Сборка и проверка Storybook (apps/ui-docs)"
     runs-on: ubuntu-latest
     outputs:
       coverage: ${{ steps.storybook_coverage.outputs.pct }}
@@ -32,6 +32,9 @@ jobs:
       - name: "Проверка типов TypeScript (@packages/ui)"
         run: pnpm --filter=@packages/ui run typecheck
 
+      - name: "Проверка типов TypeScript (ui-docs)"
+        run: pnpm --filter=ui-docs run typecheck
+
       - name: "Кэширование браузеров Playwright"
         uses: actions/cache@v6
         id: playwright-cache
@@ -41,14 +44,14 @@ jobs:
 
       - name: "Установка Chromium для Playwright"
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter=@packages/ui exec playwright install --with-deps chromium
+        run: pnpm --filter=ui-docs exec playwright install --with-deps chromium
 
       - name: "Установка системных зависимостей Playwright"
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter=@packages/ui exec playwright install-deps chromium
+        run: pnpm --filter=ui-docs exec playwright install-deps chromium
 
       - name: "Сборка Storybook (build-storybook)"
-        run: pnpm --filter=@packages/ui run build-storybook
+        run: pnpm --filter=ui-docs run build-storybook
 
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
@@ -61,7 +64,7 @@ jobs:
       - name: "Interaction-тесты историй Storybook (Vitest + Playwright)"
         id: storybook_coverage
         run: |
-          pnpm --filter=@packages/ui run test -- --reporter=verbose | tee storybook-test.log
+          pnpm --filter=ui-docs run test -- --reporter=verbose | tee storybook-test.log
           TOTAL=$(grep -oE '[0-9]+ passed' storybook-test.log | tail -1 | grep -oE '[0-9]+' || echo "")
           if [ -n "$TOTAL" ]; then
             PCT="$TOTAL историй"
@@ -69,7 +72,7 @@ jobs:
             PCT="OK"
           fi
           echo "pct=$PCT" >> $GITHUB_OUTPUT
-          echo "### 📚 Отчет Storybook (@packages/ui)" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 Отчет Storybook (apps/ui-docs)" >> $GITHUB_STEP_SUMMARY
           echo "- **Сборка Storybook:** ✅ успешно" >> $GITHUB_STEP_SUMMARY
           echo "- **Interaction-тесты (Vitest + Playwright):** \`$PCT\`" >> $GITHUB_STEP_SUMMARY
 
@@ -78,5 +81,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: storybook-static
-          path: packages/ui/storybook-static/
+          path: apps/ui-docs/storybook-static/
           retention-days: 7

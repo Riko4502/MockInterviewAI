@@ -1,26 +1,25 @@
 import type { StorybookConfig } from '@storybook/react-vite';
-
-import { dirname } from "path"
-import { fileURLToPath } from "url"
-import tailwindcss from "@tailwindcss/vite"
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 
 function getAbsolutePath(value: string) {
-  return dirname(fileURLToPath(import.meta.resolve(`${value}/package.json`)))
+  return dirname(fileURLToPath(import.meta.resolve(`${value}/package.json`)));
 }
 
 const config: StorybookConfig = {
-  "stories": [
-    "../src/**/*.mdx",
-    "../src/**/*.stories.@(ts|tsx)"
+  stories: [
+    '../src/**/*.mdx',
+    '../src/**/*.stories.@(ts|tsx)',
   ],
-  "addons": [
+  addons: [
     getAbsolutePath('@chromatic-com/storybook'),
     getAbsolutePath('@storybook/addon-vitest'),
     getAbsolutePath('@storybook/addon-a11y'),
     getAbsolutePath('@storybook/addon-docs'),
-    getAbsolutePath('@storybook/addon-onboarding')
+    getAbsolutePath('@storybook/addon-onboarding'),
   ],
-  "framework": getAbsolutePath('@storybook/react-vite'),
+  framework: getAbsolutePath('@storybook/react-vite'),
   async viteFinal(config) {
     config.plugins = config.plugins || [];
     config.plugins.push(tailwindcss());
@@ -29,4 +28,5 @@ const config: StorybookConfig = {
     return config;
   },
 };
+
 export default config;
