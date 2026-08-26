@@ -107,6 +107,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Публикует сообщение в Redis-канал Pub/Sub.
+   *
+   * @param channel - Имя канала.
+   * @param message - Текст сообщения (JSON).
+   */
+  async publish(channel: string, message: string): Promise<void> {
+    await this.client.publish(channel, message);
+  }
+
+  /**
    * Проверяет доступность Redis (PING/PONG).
    *
    * @returns Ответ сервера (`"PONG"`).
