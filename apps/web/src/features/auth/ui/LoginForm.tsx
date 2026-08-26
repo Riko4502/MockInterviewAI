@@ -3,19 +3,27 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
+import { useLoginMutation } from "@/shared/api/auth";
 import { type LoginFormValues, loginSchema } from "../lib/schemas";
 
 export function LoginForm() {
+  const loginMutation = useLoginMutation();
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    console.log("Login payload:", data);
+    loginMutation.mutate(data, {
+      onSuccess: (res) => {
+        sessionStorage.setItem("accessToken", res.accessToken);
+        window.location.href = "/";
+      },
+    });
   };
 
   return (
@@ -51,11 +59,17 @@ export function LoginForm() {
       <Button
         type="submit"
         size="lg"
-        disabled={isSubmitting}
+        disabled={loginMutation.isPending}
         className="w-full mt-4"
       >
-        Войти
+        {loginMutation.isPending ? "Вход..." : "Войти"}
       </Button>
+
+      {loginMutation.isError && (
+        <p className="text-sm text-destructive">
+          Ошибка входа. Проверьте данные.
+        </p>
+      )}
     </form>
   );
 }

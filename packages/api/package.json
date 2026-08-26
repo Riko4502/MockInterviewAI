@@ -1,0 +1,24 @@
+{
+    "name": "@packages/api",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "generate": "openapi-typescript ./schema/openapi.json -o ./src/generated.ts",
+        "build": "tsc",
+        "lint": "biome check",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "openapi-typescript": "^7.6.1",
+        "typescript": "^5"
+    }
+}
