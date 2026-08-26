@@ -8,7 +8,6 @@ import {
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   PayloadTooLargeException,
   ServiceUnavailableException,
