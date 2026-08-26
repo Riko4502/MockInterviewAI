@@ -3,6 +3,7 @@
  *
  * ## Использование
  *
+ * После генерации:
  * ```ts
  * import type { paths, components } from "@packages/api";
  *
@@ -22,3 +23,4 @@
  */
 
 export type * from "./generated";
+
