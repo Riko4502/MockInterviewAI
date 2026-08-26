@@ -2,77 +2,31 @@
 
 import * as React from "react"
 import { Select as SelectPrimitive } from "radix-ui"
-import { cva, type VariantProps } from "class-variance-authority"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 import { cn } from "@lib/utils"
-
-export type SelectVariant = "default" | "primary" | "secondary"
-
-interface SelectContextValue {
-  variant: SelectVariant
-}
+import {
+  selectTriggerVariants,
+  selectContentVariants,
+  selectItemVariants,
+} from "./constants"
+import type {
+  SelectProps,
+  SelectGroupProps,
+  SelectValueProps,
+  SelectTriggerProps,
+  SelectContentProps,
+  SelectLabelProps,
+  SelectItemProps,
+  SelectSeparatorProps,
+  SelectScrollUpButtonProps,
+  SelectScrollDownButtonProps,
+  SelectContextValue,
+} from "./types"
 
 const SelectContext = React.createContext<SelectContextValue>({
   variant: "default",
 })
-
-const selectTriggerVariants = cva(
-  "cursor-pointer flex w-fit items-center justify-between gap-1.5 rounded-lg border py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-  {
-    variants: {
-      variant: {
-        default:
-          "border-input bg-transparent hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/50",
-        primary:
-          "border-transparent bg-primary text-background hover:bg-primary/90",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-      },
-      size: {
-        default: "h-8",
-        sm: "h-7 rounded-[min(var(--radius-md),10px)]",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
-
-const selectContentVariants = cva(
-  "relative z-50 max-h-(--radix-select-content-available-height) min-w-36 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-md duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-  {
-    variants: {
-      variant: {
-        default:
-          "border border-border bg-popover text-popover-foreground ring-1 ring-foreground/10",
-        primary:
-          "border border-primary/20 bg-primary text-background",
-        secondary:
-          "border border-secondary/20 bg-secondary text-secondary-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
-
-export type SelectProps = React.ComponentProps<typeof SelectPrimitive.Root> & {
-  variant?: SelectVariant
-}
-
-export type SelectTriggerProps = React.ComponentProps<
-  typeof SelectPrimitive.Trigger
-> &
-  VariantProps<typeof selectTriggerVariants>
-
-export type SelectContentProps = React.ComponentProps<
-  typeof SelectPrimitive.Content
-> &
-  VariantProps<typeof selectContentVariants>
 
 function SelectRoot({
   variant = "default",
@@ -90,10 +44,7 @@ function SelectRoot({
   )
 }
 
-function SelectGroup({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Group>) {
+function SelectGroup({ className, ...props }: SelectGroupProps) {
   return (
     <SelectPrimitive.Group
       data-slot="select-group"
@@ -103,9 +54,7 @@ function SelectGroup({
   )
 }
 
-function SelectValue({
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Value>) {
+function SelectValue({ ...props }: SelectValueProps) {
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
@@ -178,10 +127,7 @@ function SelectContent({
   )
 }
 
-function SelectLabel({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Label>) {
+function SelectLabel({ className, ...props }: SelectLabelProps) {
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
@@ -193,25 +139,18 @@ function SelectLabel({
 
 function SelectItem({
   className,
+  variant: customVariant,
   children,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
-  const { variant } = React.useContext(SelectContext)
+}: SelectItemProps) {
+  const context = React.useContext(SelectContext)
+  const variant = customVariant ?? context.variant
 
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       data-variant={variant}
-      className={cn(
-        "relative flex w-full cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-8 pl-1.5 text-sm outline-hidden select-none transition-colors data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-        variant === "default" &&
-          "focus:bg-accent focus:text-accent-foreground",
-        variant === "primary" &&
-          "focus:bg-background/20 focus:text-background",
-        variant === "secondary" &&
-          "focus:bg-secondary-foreground/15 focus:text-secondary-foreground",
-        className
-      )}
+      className={cn(selectItemVariants({ variant, className }))}
       {...props}
     >
       <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
@@ -224,10 +163,7 @@ function SelectItem({
   )
 }
 
-function SelectSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+function SelectSeparator({ className, ...props }: SelectSeparatorProps) {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
@@ -240,7 +176,7 @@ function SelectSeparator({
 function SelectScrollUpButton({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
+}: SelectScrollUpButtonProps) {
   return (
     <SelectPrimitive.ScrollUpButton
       data-slot="select-scroll-up-button"
@@ -258,7 +194,7 @@ function SelectScrollUpButton({
 function SelectScrollDownButton({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
+}: SelectScrollDownButtonProps) {
   return (
     <SelectPrimitive.ScrollDownButton
       data-slot="select-scroll-down-button"
@@ -284,5 +220,3 @@ export const Select = Object.assign(SelectRoot, {
   ScrollUpButton: SelectScrollUpButton,
   ScrollDownButton: SelectScrollDownButton,
 })
-
-export { selectTriggerVariants, selectContentVariants }
