@@ -86,6 +86,50 @@ describe("UsersService", () => {
     });
   });
 
+  describe("updateProfile", () => {
+    it("успешно обновляет профиль пользователя", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      const updatedProfile = {
+        ...mockUser,
+        displayName: "New Name",
+        telegramUsername: "new_tg",
+        gitUrl: "https://gitlab.com/new_user",
+      };
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        displayName: "New Name",
+        telegramUsername: "new_tg",
+        gitUrl: "https://gitlab.com/new_user",
+      });
+
+      expect(result.displayName).toBe("New Name");
+      expect(result.gitUrl).toBe("https://gitlab.com/new_user");
+      expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException при попытке занять чужой username", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(mockUser)
+        .mockResolvedValueOnce({
+          id: "22222222-2222-4222-a222-222222222222",
+          username: "taken_username",
+        });
+
+      await expect(
+        service.updateProfile(mockUser.id, { username: "taken_username" }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("выбрасывает NotFoundException если обновляемый пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateProfile("non-existent", { displayName: "Test" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("updateAvatar and deleteAvatar", () => {
     it("загружает новый аватар, сохраняет в БД и удаляет старый", async () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
