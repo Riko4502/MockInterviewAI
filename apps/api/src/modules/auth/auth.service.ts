@@ -173,6 +173,19 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    if (user.deletedAt) {
+      const elapsedMs = Date.now() - user.deletedAt.getTime();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      if (elapsedMs > thirtyDaysMs) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      await this.usersService.restoreAccount(user.id);
+      this.logger.log(
+        `Account ${user.id} (${user.email}) automatically restored upon login`,
+      );
+    }
+
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
