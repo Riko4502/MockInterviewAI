@@ -366,9 +366,6 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
-      '@tailwindcss/vite':
-        specifier: ^4.3.3
-        version: 4.3.3(vite@8.2.1(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(yaml@2.9.0))
       '@types/node':
         specifier: ^20
         version: 20.19.43
@@ -387,9 +384,6 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
-      vite:
-        specifier: ^8.2.1
-        version: 8.2.1(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(yaml@2.9.0)
 
 packages:
 

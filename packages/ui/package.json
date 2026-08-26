@@ -45,14 +45,12 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "tsc-alias": "^1.8.16",
-    "typescript": "^5",
-    "vite": "^8.2.1"
+    "typescript": "^5"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15"
