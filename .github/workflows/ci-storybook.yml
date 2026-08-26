@@ -32,21 +32,6 @@ jobs:
       - name: "Проверка типов TypeScript (@packages/ui)"
         run: pnpm --filter=@packages/ui run typecheck
 
-      - name: "Кэширование браузеров Playwright"
-        uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-storybook-${{ hashFiles('**/pnpm-lock.yaml') }}
-
-      - name: "Установка Chromium для Playwright"
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter=@packages/ui exec playwright install --with-deps chromium
-
-      - name: "Установка системных зависимостей Playwright"
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter=@packages/ui exec playwright install-deps chromium
-
       - name: "Сборка Storybook (build-storybook)"
         run: pnpm --filter=@packages/ui run build-storybook
 
