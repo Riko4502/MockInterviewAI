@@ -1,6 +1,5 @@
 import "multer";
 import {
-  BadRequestException,
   ConflictException,
   GoneException,
   Injectable,
