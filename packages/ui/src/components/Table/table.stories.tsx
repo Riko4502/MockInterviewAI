@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table } from "./table";
 import { Badge } from "../Badge/badge";
+import { Table } from "./table";
 
 const meta = {
   title: "Components/Table",
@@ -15,9 +15,24 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const candidates = [
-  { name: "Анна Иванова", email: "anna@example.com", status: "ready" as const, statusLabel: "Готово" },
-  { name: "Пётр Смирнов", email: "petr@example.com", status: "waiting" as const, statusLabel: "Ожидание" },
-  { name: "Мария Кузнецова", email: "maria@example.com", status: "confirmed" as const, statusLabel: "Подтверждено" },
+  {
+    name: "Анна Иванова",
+    email: "anna@example.com",
+    status: "ready" as const,
+    statusLabel: "Готово",
+  },
+  {
+    name: "Пётр Смирнов",
+    email: "petr@example.com",
+    status: "waiting" as const,
+    statusLabel: "Ожидание",
+  },
+  {
+    name: "Мария Кузнецова",
+    email: "maria@example.com",
+    status: "confirmed" as const,
+    statusLabel: "Подтверждено",
+  },
 ];
 
 export const Default: Story = {

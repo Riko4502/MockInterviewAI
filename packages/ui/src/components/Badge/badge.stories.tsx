@@ -1,29 +1,29 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Badge } from './badge';
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Badge } from "./badge";
 
 const meta = {
-  title: 'UI/Badge',
+  title: "UI/Badge",
   component: Badge,
   parameters: {
-    layout: 'centered',
+    layout: "centered",
   },
-  tags: ['autodocs'],
+  tags: ["autodocs"],
   argTypes: {
     variant: {
-      control: 'select',
+      control: "select",
       options: [
-        'tag',
-        'statusSuccess',
-        'statusInfo',
-        'statusDanger',
-        'confirmed',
-        'ready',
-        'waiting',
+        "tag",
+        "statusSuccess",
+        "statusInfo",
+        "statusDanger",
+        "confirmed",
+        "ready",
+        "waiting",
       ],
     },
   },
   args: {
-    children: 'Badge',
+    children: "Badge",
   },
 } satisfies Meta<typeof Badge>;
 
@@ -31,36 +31,36 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Tag: Story = {
-  args: { variant: 'tag', children: 'Тег' },
+  args: { variant: "tag", children: "Тег" },
 };
 
 export const StatusSuccess: Story = {
-  args: { variant: 'statusSuccess', children: 'Успешно' },
+  args: { variant: "statusSuccess", children: "Успешно" },
 };
 
 export const StatusInfo: Story = {
-  args: { variant: 'statusInfo', children: 'Информация' },
+  args: { variant: "statusInfo", children: "Информация" },
 };
 
 export const StatusDanger: Story = {
-  args: { variant: 'statusDanger', children: 'Ошибка' },
+  args: { variant: "statusDanger", children: "Ошибка" },
 };
 
 export const Confirmed: Story = {
-  args: { variant: 'confirmed', children: 'Подтверждено' },
+  args: { variant: "confirmed", children: "Подтверждено" },
 };
 
 export const Ready: Story = {
-  args: { variant: 'ready', children: 'Готово' },
+  args: { variant: "ready", children: "Готово" },
 };
 
 export const Waiting: Story = {
-  args: { variant: 'waiting', children: 'Ожидание' },
+  args: { variant: "waiting", children: "Ожидание" },
 };
 
 export const AllVariants: Story = {
   render: () => (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       <Badge variant="tag">Тег</Badge>
       <Badge variant="statusSuccess">Успешно</Badge>
       <Badge variant="statusInfo">Информация</Badge>

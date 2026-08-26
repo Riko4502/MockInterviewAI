@@ -1,12 +1,6 @@
 export default {
-  'apps/web/**/*.{js,jsx,ts,tsx,json,css,mjs}': [
-    'pnpm --filter web exec biome check --write --no-errors-on-unmatched',
+  "**/*.{js,jsx,ts,tsx,json,css,mjs,astro}": [
+    "biome check --write --no-errors-on-unmatched",
   ],
-  'apps/realtime/**/*.go': () => 'pnpm run lint:realtime',
-  'apps/api/**/*.{js,ts,json}': [
-    'pnpm --filter api exec biome check --write --no-errors-on-unmatched',
-  ],
-  'packages/dto/**/*.{js,ts,json}': [
-    'pnpm --filter @packages/dto exec biome check --write --no-errors-on-unmatched',
-  ],
-}
+  "apps/realtime/**/*.go": () => "pnpm run lint:realtime",
+};

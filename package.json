@@ -10,6 +10,9 @@
     "build:web": "turbo build --filter=web",
     "build:landing": "turbo build --filter=landing",
     "build:realtime": "turbo build --filter=@apps/realtime",
+    "lint": "biome check --no-errors-on-unmatched",
+    "format": "biome format --write --no-errors-on-unmatched",
+    "lint:fix": "biome check --write --no-errors-on-unmatched",
     "lint:realtime": "pnpm --filter=@apps/realtime lint",
     "test": "turbo test",
     "test:web": "pnpm --filter=web test",
@@ -20,6 +23,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
     "turbo": "^2.4.0"

@@ -17,11 +17,28 @@ const meta = {
   argTypes: {
     variant: {
       control: "select",
-      options: ["default", "outline", "secondary", "success", "ghost", "destructive", "link"],
+      options: [
+        "default",
+        "outline",
+        "secondary",
+        "success",
+        "ghost",
+        "destructive",
+        "link",
+      ],
     },
     size: {
       control: "select",
-      options: ["default", "xs", "sm", "lg", "icon", "icon-xs", "icon-sm", "icon-lg"],
+      options: [
+        "default",
+        "xs",
+        "sm",
+        "lg",
+        "icon",
+        "icon-xs",
+        "icon-sm",
+        "icon-lg",
+      ],
     },
     rounded: {
       control: "select",
@@ -110,15 +127,30 @@ export const AllVariants: Story = {
 
 export const AllSizes: Story = {
   render: () => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
       <Button size="xs">XS</Button>
       <Button size="sm">SM</Button>
       <Button size="default">Default</Button>
       <Button size="lg">LG</Button>
-      <Button size="icon"><PlusIcon /></Button>
-      <Button size="icon-xs"><PlusIcon /></Button>
-      <Button size="icon-sm"><PlusIcon /></Button>
-      <Button size="icon-lg"><PlusIcon /></Button>
+      <Button size="icon">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-xs">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-sm">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-lg">
+        <PlusIcon />
+      </Button>
     </div>
   ),
 };

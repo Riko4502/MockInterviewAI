@@ -1,5 +1,5 @@
 import "../src/styles/globals.css";
-import type { Preview } from '@storybook/react-vite'
+import type { Preview } from "@storybook/react-vite";
 
 const preview: Preview = {
   parameters: {
@@ -10,8 +10,8 @@ const preview: Preview = {
       },
     },
     a11y: {
-      test: 'todo'
-    }
+      test: "todo",
+    },
   },
 };
 
