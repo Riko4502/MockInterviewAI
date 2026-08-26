@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { configuration } from "./config/configuration";
@@ -40,6 +41,7 @@ import { RedisModule } from "./redis/redis.module";
     }),
     PrismaModule,
     RedisModule,
+    ScheduleModule.forRoot(),
     HealthModule,
     UsersModule,
     AuthModule,

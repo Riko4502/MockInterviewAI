@@ -75,6 +75,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Устанавливает ключ только если он не существует (NX) с временем жизни (Distributed Lock).
+   *
+   * @param key - Имя ключа.
+   * @param value - Значение.
+   * @param ttlSeconds - Время жизни в секундах.
+   * @returns `true`, если ключ был успешно установлен (захвачен лок), иначе `false`.
+   */
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return result === "OK";
+  }
+
+  /**
    * Получает значение по ключу.
    *
    * @param key - Имя ключа.
