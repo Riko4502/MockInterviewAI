@@ -16,9 +16,11 @@ model User {
   avatarUrl        String?
   telegramUsername String?
   gitUrl           String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@map("users")
   @@index([username])
+  @@index([deletedAt])
 }
