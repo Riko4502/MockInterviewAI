@@ -11,3 +11,17 @@ export {
   PASSWORD_MIN_LENGTH,
 } from "./auth/password-policy";
 export { type RegisterDto, registerSchema } from "./auth/register.dto";
+export {
+  GIT_URL_REGEX,
+  normalizeTelegramUsername,
+  TELEGRAM_USERNAME_REGEX,
+  type UpdateProfileDto,
+  USERNAME_REGEX,
+  updateProfileSchema,
+} from "./profile/update-profile.dto";
+export {
+  type PublicUserProfileDto,
+  publicUserProfileSchema,
+  type UserProfileDto,
+  userProfileSchema,
+} from "./profile/user-profile.dto";
