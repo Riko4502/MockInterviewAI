@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { UsersModule } from "../users/users.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
@@ -13,7 +13,7 @@ import { TokenService } from "./services/token.service";
  * `PrismaService` и `RedisService` доступны через глобальные модули.
  */
 @Module({
-  imports: [UsersModule],
+  imports: [forwardRef(() => UsersModule)],
   controllers: [AuthController],
   providers: [AuthService, TokenService, AuthSessionService],
   exports: [AuthService, TokenService, AuthSessionService],
