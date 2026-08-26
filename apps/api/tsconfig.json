@@ -15,6 +15,6 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest", "multer"]
   }
 }

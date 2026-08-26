@@ -7,6 +7,7 @@ import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
+import { StorageModule } from "./modules/storage/storage.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
@@ -42,6 +43,7 @@ import { RedisModule } from "./redis/redis.module";
     HealthModule,
     UsersModule,
     AuthModule,
+    StorageModule,
   ],
   providers: [
     {
