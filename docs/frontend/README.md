@@ -1,6 +1,6 @@
 # Frontend Documentation
 
-Добро пожаловать в техническую документацию фронтенда **MockInterviewAI**! Здесь собраны правила, стандарты, примеры и архитектурные решения.
+Добро пожаловать в техническую документацию фронтенда платформы! Здесь собраны правила, стандарты, примеры и архитектурные решения.
 
 ---
 
@@ -49,6 +49,8 @@
 * [API Contracts & OpenAPI](./data/api-contracts.md)
 * [TanStack Query](./data/tanstack-query.md)
 * [State Management Decision Tree](./data/state-management.md)
+* [Realtime Integration (WS & SSE)](./data/realtime.md)
+
 
 ### 4. [Разработка и качество](./development/typescript.md)
 * [TypeScript стандарты](./development/typescript.md)

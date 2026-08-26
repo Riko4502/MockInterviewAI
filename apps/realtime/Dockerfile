@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -27,6 +27,6 @@ COPY --from=builder /app/realtime-server /app/realtime-server
 
 EXPOSE 8080
 
-USER nonroot:nonroot
+USER 65532:65532
 
 ENTRYPOINT ["/app/realtime-server"]

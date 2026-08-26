@@ -39,6 +39,7 @@ export const configuration = () => ({
   },
   cookie: {
     secure: process.env.COOKIE_SECURE === "true",
+    refreshTokenName: process.env.REFRESH_TOKEN_COOKIE_NAME ?? "refresh_token",
   },
   throttle: {
     ttl: Number(process.env.THROTTLE_TTL ?? 60000),

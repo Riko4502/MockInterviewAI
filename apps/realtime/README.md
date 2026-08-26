@@ -7,10 +7,14 @@
 ## 📌 1. Подключение с frontend (Connection Guide)
 
 ### URL подключения
-```text
-ws://localhost:8080/ws/sessions/:sessionId      (Локальная разработка)
-wss://realtime.yourdomain.com/ws/sessions/:sessionId  (Prod)
-```
+* **WebSocket (Двунаправленный сессионный канал):**
+  * `ws://localhost:8080/ws/sessions/:sessionId` (Локальная разработка)
+  * `wss://realtime.yourdomain.com/ws/sessions/:sessionId` (Prod)
+* **Server-Sent Events (Глобальный поток уведомлений пользователя):**
+  * `http://localhost:8080/sse/notifications` (Персональные инвайты, результаты тестов, AI-отчеты)
+  * Подробная спецификация: [SSE_SPEC.md](./SSE_SPEC.md)
+
+
 
 ### Аутентификация
 * Сервер считывает токен **исключительно из HTTP Cookie `access_token`**.

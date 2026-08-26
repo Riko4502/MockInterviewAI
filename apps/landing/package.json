@@ -1,0 +1,29 @@
+{
+  "name": "landing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@packages/ui": "workspace:*",
+    "astro": "^7.2.4",
+    "tailwindcss": "^4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@biomejs/biome": "2.4.2",
+    "@tailwindcss/vite": "^4",
+    "@types/node": "^20",
+    "@vitest/coverage-v8": "^4.1.11",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  }
+}
