@@ -41,7 +41,12 @@
   },
   "overrides": [
     {
-      "includes": ["apps/web/**", "packages/ui/**", "apps/landing/**"],
+      "includes": [
+        "apps/web/**",
+        "packages/ui/**",
+        "packages/icons/**",
+        "apps/landing/**"
+      ],
       "css": {
         "parser": {
           "tailwindDirectives": true
@@ -266,7 +271,7 @@
       }
     },
     {
-      "includes": ["packages/ui/**"],
+      "includes": ["packages/ui/**", "packages/icons/**"],
       "linter": {
         "rules": {
           "a11y": {

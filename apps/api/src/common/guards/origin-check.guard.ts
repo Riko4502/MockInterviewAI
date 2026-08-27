@@ -12,8 +12,9 @@ import type { Request } from "express";
  *
  * Сравнивает значение `Origin` или `Referer` с списком `ALLOWED_ORIGINS`.
  * Если ни один заголовок не присутствует — запрос пропускается (не все клиенты
- * отправляют заголовки). Если заголовок есть, но не совпадает с разрешёнными
- *起源ами — бросает `ForbiddenException` (403).
+ * отправляют заголовки). Собственный origin API (`http://localhost:{port}`)
+ * пропускается всегда — Swagger UI (§61 SPEC.md). Если заголовок есть, но не
+ * совпадает с разрешёнными起源ами — бросает `ForbiddenException` (403).
  *
  * Регистрируется глобально через `APP_GUARD` провайдер.
  * Защищает state-changing endpoints: `/auth/refresh`, `/logout`,
@@ -44,6 +45,15 @@ export class OriginCheckGuard implements CanActivate {
     const value = origin ?? referer;
 
     if (!value) {
+      return true;
+    }
+
+    // Собственный origin API (Swagger UI на `/docs`, §61 SPEC.md):
+    // страница docs отправляет запросы к `/docs-json` со своим Origin.
+    const selfOrigin = `http://localhost:${
+      this.configService.get<number>("port") ?? 3001
+    }`;
+    if (value.startsWith(selfOrigin)) {
       return true;
     }
 

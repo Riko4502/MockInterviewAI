@@ -93,6 +93,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-landing.yml'
             storybook:
+                - 'apps/ui-docs/**'
                 - 'packages/ui/**'
                 - 'package.json'
                 - 'pnpm-lock.yaml'
