@@ -7,11 +7,11 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "paths": {
-      "@/*": ["./*"],
+      "@/*": ["./src/*"],
       "@lib/*": ["./src/lib/*"],
       "@components/*": ["./src/components/*"],
       "@hooks/*": ["./src/hooks/*"]
