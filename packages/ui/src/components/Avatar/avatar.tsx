@@ -2,7 +2,6 @@
 
 import { cn } from "@lib/utils";
 import { Avatar as AvatarPrimitive } from "radix-ui";
-import * as React from "react";
 import { avatarVariants } from "./constants";
 import type {
   AvatarFallbackProps,

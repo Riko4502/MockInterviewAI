@@ -1,5 +1,5 @@
+import { Button, Card } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
-import { Card, Button } from "@packages/ui";
 
 const meta = {
   title: "Components/Card",
@@ -18,13 +18,18 @@ export const Default: Story = {
     <Card className="w-[360px]">
       <Card.Header>
         <Card.Title>Заголовок карточки</Card.Title>
-        <Card.Description>Короткое описание того, что внутри карточки.</Card.Description>
+        <Card.Description>
+          Короткое описание того, что внутри карточки.
+        </Card.Description>
       </Card.Header>
       <Card.Content>
-        Основной контент карточки — сюда помещается любая разметка: текст, изображения, списки.
+        Основной контент карточки — сюда помещается любая разметка: текст,
+        изображения, списки.
       </Card.Content>
       <Card.Footer className="justify-end gap-2">
-        <Button variant="outline" size="sm">Отмена</Button>
+        <Button variant="outline" size="sm">
+          Отмена
+        </Button>
         <Button size="sm">Сохранить</Button>
       </Card.Footer>
     </Card>
@@ -36,9 +41,13 @@ export const WithAction: Story = {
     <Card className="w-[360px]">
       <Card.Header>
         <Card.Title>Уведомление</Card.Title>
-        <Card.Description>Новое сообщение от команды поддержки.</Card.Description>
+        <Card.Description>
+          Новое сообщение от команды поддержки.
+        </Card.Description>
         <Card.Action>
-          <Button variant="ghost" size="icon-sm">✕</Button>
+          <Button variant="ghost" size="icon-sm">
+            ✕
+          </Button>
         </Card.Action>
       </Card.Header>
       <Card.Content>

@@ -3,35 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "src/styles"
+    "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "build": "rslib build",
+    "dev": "rslib build --watch",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
     "format": "biome format --write"
   },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
-    "./globals.css": "./src/styles/globals.css",
-    "./postcss.config": "./postcss.config.mjs",
-    "./components/*": {
-      "types": "./dist/components/*.d.ts",
-      "import": "./dist/components/*.js",
-      "default": "./dist/components/*.js"
-    },
-    "./lib/*": {
-      "types": "./dist/lib/*.d.ts",
-      "import": "./dist/lib/*.js",
-      "default": "./dist/lib/*.js"
+    "./globals.css": {
+      "style": "./src/styles/globals.css",
+      "import": "./src/styles/globals.css",
+      "default": "./src/styles/globals.css"
     }
   },
   "peerDependencies": {
@@ -47,12 +40,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
+    "@rsbuild/plugin-react": "^1.1.0",
+    "@rslib/core": "^0.23.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "tsc-alias": "^1.8.16",
     "typescript": "^5"
   },
   "dependencies": {

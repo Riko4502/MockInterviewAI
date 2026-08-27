@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import { Input } from '@packages/ui';
+import { Input } from "@packages/ui";
+import type { Meta, StoryObj } from "@storybook/react";
 
 const meta = {
   title: "UI/Input",

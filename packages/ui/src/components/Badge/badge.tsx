@@ -1,5 +1,4 @@
 import { cn } from "@lib/utils";
-import * as React from "react";
 import { badgeVariants } from "./constants";
 import type { BadgeProps } from "./types";
 

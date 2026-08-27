@@ -1,5 +1,4 @@
 import { cn } from "@lib/utils";
-import * as React from "react";
 import { CARD_STYLES } from "./constants";
 import type {
   CardActionProps,

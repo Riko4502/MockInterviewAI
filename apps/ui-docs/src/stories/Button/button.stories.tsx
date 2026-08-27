@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { Button } from "@packages/ui";
+import type { Meta, StoryObj } from "@storybook/react";
 
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -130,15 +130,30 @@ export const AllVariants: Story = {
 
 export const AllSizes: Story = {
   render: () => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
       <Button size="xs">XS</Button>
       <Button size="sm">SM</Button>
       <Button size="default">Default</Button>
       <Button size="lg">LG</Button>
-      <Button size="icon"><PlusIcon /></Button>
-      <Button size="icon-xs"><PlusIcon /></Button>
-      <Button size="icon-sm"><PlusIcon /></Button>
-      <Button size="icon-lg"><PlusIcon /></Button>
+      <Button size="icon">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-xs">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-sm">
+        <PlusIcon />
+      </Button>
+      <Button size="icon-lg">
+        <PlusIcon />
+      </Button>
     </div>
   ),
 };

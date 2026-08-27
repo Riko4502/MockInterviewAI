@@ -1,5 +1,5 @@
-import '@packages/ui/globals.css';
-import type { Preview } from 'storybook-react-rsbuild';
+import "@packages/ui/globals.css";
+import type { Preview } from "storybook-react-rsbuild";
 
 const preview: Preview = {
   parameters: {
@@ -10,7 +10,7 @@ const preview: Preview = {
       },
     },
     a11y: {
-      test: 'todo',
+      test: "todo",
     },
   },
 };

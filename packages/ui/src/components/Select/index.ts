@@ -1,20 +1,20 @@
-export { Select } from "./select"
 export {
-  selectTriggerVariants,
   selectContentVariants,
   selectItemVariants,
-} from "./constants"
+  selectTriggerVariants,
+} from "./constants";
+export { Select } from "./select";
 export type {
-  SelectProps,
-  SelectGroupProps,
-  SelectValueProps,
-  SelectTriggerProps,
   SelectContentProps,
-  SelectLabelProps,
-  SelectItemProps,
-  SelectSeparatorProps,
-  SelectScrollUpButtonProps,
-  SelectScrollDownButtonProps,
-  SelectVariant,
   SelectContextValue,
-} from "./types"
+  SelectGroupProps,
+  SelectItemProps,
+  SelectLabelProps,
+  SelectProps,
+  SelectScrollDownButtonProps,
+  SelectScrollUpButtonProps,
+  SelectSeparatorProps,
+  SelectTriggerProps,
+  SelectValueProps,
+  SelectVariant,
+} from "./types";

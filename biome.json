@@ -1,0 +1,284 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.2/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.next",
+      "!.turbo",
+      "!.astro",
+      "!dist",
+      "!build",
+      "!coverage",
+      "!apps/api/src/generated",
+      "!**/*.astro"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "apps/web/**",
+        "packages/ui/**",
+        "packages/icons/**",
+        "apps/landing/**"
+      ],
+      "css": {
+        "parser": {
+          "tailwindDirectives": true
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/**"],
+      "linter": {
+        "domains": {
+          "next": "recommended",
+          "react": "recommended"
+        },
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/features/*/**",
+                      "@features/*/**",
+                      "@/entities/*/**",
+                      "@entities/*/**",
+                      "@/widgets/*/**",
+                      "@widgets/*/**",
+                      "@/pages/*/**",
+                      "@pages/*/**",
+                      "@/views/*/**",
+                      "@views/*/**"
+                    ],
+                    "message": "FSD Violation: Deep imports into slices are forbidden. Import only through the public API (e.g. '@/features/auth' or '@features/auth')."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/**",
+                      "@app/**",
+                      "@/pages/**",
+                      "@pages/**",
+                      "@/views/**",
+                      "@views/**",
+                      "@/widgets/**",
+                      "@widgets/**",
+                      "@/features/**",
+                      "@features/**",
+                      "@/entities/**",
+                      "@entities/**",
+                      "../*/entities/**",
+                      "../*/features/**",
+                      "../*/widgets/**",
+                      "../*/pages/**",
+                      "../*/app/**"
+                    ],
+                    "message": "FSD Violation: 'shared' layer cannot import from higher layers (entities, features, widgets, pages, app)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/entities/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/**",
+                      "@app/**",
+                      "@/pages/**",
+                      "@pages/**",
+                      "@/views/**",
+                      "@views/**",
+                      "@/widgets/**",
+                      "@widgets/**",
+                      "@/features/**",
+                      "@features/**",
+                      "../*/features/**",
+                      "../*/widgets/**",
+                      "../*/pages/**",
+                      "../*/app/**"
+                    ],
+                    "message": "FSD Violation: 'entities' layer cannot import from higher layers (features, widgets, pages, app)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/**",
+                      "@app/**",
+                      "@/pages/**",
+                      "@pages/**",
+                      "@/views/**",
+                      "@views/**",
+                      "@/widgets/**",
+                      "@widgets/**",
+                      "../*/widgets/**",
+                      "../*/pages/**",
+                      "../*/app/**"
+                    ],
+                    "message": "FSD Violation: 'features' layer cannot import from higher layers (widgets, pages, app)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/widgets/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/**",
+                      "@app/**",
+                      "@/pages/**",
+                      "@pages/**",
+                      "@/views/**",
+                      "@views/**",
+                      "../*/pages/**",
+                      "../*/app/**"
+                    ],
+                    "message": "FSD Violation: 'widgets' layer cannot import from higher layers (pages, app)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/pages/**", "apps/web/src/views/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/app/**", "@app/**", "../*/app/**"],
+                    "message": "FSD Violation: 'pages' layer cannot import from 'app' layer."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/api/**"],
+      "javascript": {
+        "parser": {
+          "unsafeParameterDecoratorsEnabled": true
+        }
+      },
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.stories.tsx", "**/*.stories.ts", "**/.storybook/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noSvgWithoutTitle": "off"
+          },
+          "style": {
+            "useNodejsImportProtocol": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/**", "packages/icons/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    }
+  ]
+}

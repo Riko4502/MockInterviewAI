@@ -1,5 +1,4 @@
 import { cn } from "@lib/utils";
-import * as React from "react";
 import { TABLE_STYLES } from "./constants";
 import type {
   TableBodyProps,

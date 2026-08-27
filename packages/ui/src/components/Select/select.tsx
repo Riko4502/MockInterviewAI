@@ -1,39 +1,34 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Select as SelectPrimitive } from "radix-ui"
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
-
-import { cn } from "@lib/utils"
+import { cn } from "@lib/utils";
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
+import * as React from "react";
 import {
-  selectTriggerVariants,
   selectContentVariants,
   selectItemVariants,
-} from "./constants"
+  selectTriggerVariants,
+} from "./constants";
 import type {
-  SelectProps,
-  SelectGroupProps,
-  SelectValueProps,
-  SelectTriggerProps,
   SelectContentProps,
-  SelectLabelProps,
-  SelectItemProps,
-  SelectSeparatorProps,
-  SelectScrollUpButtonProps,
-  SelectScrollDownButtonProps,
   SelectContextValue,
-} from "./types"
+  SelectGroupProps,
+  SelectItemProps,
+  SelectLabelProps,
+  SelectProps,
+  SelectScrollDownButtonProps,
+  SelectScrollUpButtonProps,
+  SelectSeparatorProps,
+  SelectTriggerProps,
+  SelectValueProps,
+} from "./types";
 
 const SelectContext = React.createContext<SelectContextValue>({
   variant: "default",
-})
+});
 
-function SelectRoot({
-  variant = "default",
-  children,
-  ...props
-}: SelectProps) {
-  const contextValue = React.useMemo(() => ({ variant }), [variant])
+function SelectRoot({ variant = "default", children, ...props }: SelectProps) {
+  const contextValue = React.useMemo(() => ({ variant }), [variant]);
 
   return (
     <SelectContext.Provider value={contextValue}>
@@ -41,7 +36,7 @@ function SelectRoot({
         {children}
       </SelectPrimitive.Root>
     </SelectContext.Provider>
-  )
+  );
 }
 
 function SelectGroup({ className, ...props }: SelectGroupProps) {
@@ -51,11 +46,11 @@ function SelectGroup({ className, ...props }: SelectGroupProps) {
       className={cn("scroll-my-1 p-1", className)}
       {...props}
     />
-  )
+  );
 }
 
 function SelectValue({ ...props }: SelectValueProps) {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />
+  return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
 function SelectTrigger({
@@ -65,8 +60,8 @@ function SelectTrigger({
   children,
   ...props
 }: SelectTriggerProps) {
-  const context = React.useContext(SelectContext)
-  const variant = customVariant ?? context.variant
+  const context = React.useContext(SelectContext);
+  const variant = customVariant ?? context.variant;
 
   return (
     <SelectPrimitive.Trigger
@@ -81,7 +76,7 @@ function SelectTrigger({
         <ChevronDownIcon className="pointer-events-none size-4 opacity-70" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
-  )
+  );
 }
 
 function SelectContent({
@@ -92,8 +87,8 @@ function SelectContent({
   variant: customVariant,
   ...props
 }: SelectContentProps) {
-  const context = React.useContext(SelectContext)
-  const variant = customVariant ?? context.variant
+  const context = React.useContext(SelectContext);
+  const variant = customVariant ?? context.variant;
 
   return (
     <SelectPrimitive.Portal>
@@ -105,7 +100,7 @@ function SelectContent({
           selectContentVariants({ variant }),
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-          className
+          className,
         )}
         position={position}
         align={align}
@@ -116,7 +111,7 @@ function SelectContent({
           data-position={position}
           className={cn(
             "data-[position=popper]:h-(--radix-select-trigger-height) data-[position=popper]:w-full data-[position=popper]:min-w-(--radix-select-trigger-width)",
-            position === "popper" && ""
+            position === "popper" && "",
           )}
         >
           {children}
@@ -124,7 +119,7 @@ function SelectContent({
         <SelectScrollDownButton />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
-  )
+  );
 }
 
 function SelectLabel({ className, ...props }: SelectLabelProps) {
@@ -134,7 +129,7 @@ function SelectLabel({ className, ...props }: SelectLabelProps) {
       className={cn("px-1.5 py-1 text-xs opacity-70", className)}
       {...props}
     />
-  )
+  );
 }
 
 function SelectItem({
@@ -143,8 +138,8 @@ function SelectItem({
   children,
   ...props
 }: SelectItemProps) {
-  const context = React.useContext(SelectContext)
-  const variant = customVariant ?? context.variant
+  const context = React.useContext(SelectContext);
+  const variant = customVariant ?? context.variant;
 
   return (
     <SelectPrimitive.Item
@@ -160,17 +155,20 @@ function SelectItem({
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
-  )
+  );
 }
 
 function SelectSeparator({ className, ...props }: SelectSeparatorProps) {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("pointer-events-none -mx-1 my-1 h-px bg-border/50", className)}
+      className={cn(
+        "pointer-events-none -mx-1 my-1 h-px bg-border/50",
+        className,
+      )}
       {...props}
     />
-  )
+  );
 }
 
 function SelectScrollUpButton({
@@ -182,13 +180,13 @@ function SelectScrollUpButton({
       data-slot="select-scroll-up-button"
       className={cn(
         "z-10 flex cursor-default items-center justify-center bg-inherit py-1 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     >
       <ChevronUpIcon />
     </SelectPrimitive.ScrollUpButton>
-  )
+  );
 }
 
 function SelectScrollDownButton({
@@ -200,13 +198,13 @@ function SelectScrollDownButton({
       data-slot="select-scroll-down-button"
       className={cn(
         "z-10 flex cursor-default items-center justify-center bg-inherit py-1 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     >
       <ChevronDownIcon />
     </SelectPrimitive.ScrollDownButton>
-  )
+  );
 }
 
 export const Select = Object.assign(SelectRoot, {
@@ -219,4 +217,4 @@ export const Select = Object.assign(SelectRoot, {
   Separator: SelectSeparator,
   ScrollUpButton: SelectScrollUpButton,
   ScrollDownButton: SelectScrollDownButton,
-})
+});
