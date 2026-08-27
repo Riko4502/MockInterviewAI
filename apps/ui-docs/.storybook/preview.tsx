@@ -1,4 +1,4 @@
-import "@packages/ui/globals.css";
+import "../src/globals.css";
 import type { Preview } from "storybook-react-rsbuild";
 
 const preview: Preview = {

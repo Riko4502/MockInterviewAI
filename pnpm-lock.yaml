@@ -176,6 +176,9 @@ importers:
 
   apps/ui-docs:
     dependencies:
+      '@packages/icons':
+        specifier: workspace:*
+        version: link:../../packages/icons
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
