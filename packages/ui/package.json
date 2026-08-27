@@ -12,9 +12,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "test": "vitest run --project=storybook",
     "lint": "biome check",
     "format": "biome format --write"
   },
@@ -50,26 +47,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
-    "@chromatic-com/storybook": "latest",
-    "@storybook/addon-a11y": "^10.5.8",
-    "@storybook/addon-docs": "^10.5.8",
-    "@storybook/addon-onboarding": "^10.5.8",
-    "@storybook/addon-vitest": "^10.5.8",
-    "@storybook/react-vite": "^10.5.8",
     "@tailwindcss/postcss": "^4",
-    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/browser-playwright": "latest",
-    "@vitest/coverage-v8": "latest",
-    "playwright": "latest",
-    "storybook": "^10.5.8",
     "tailwindcss": "^4",
     "tsc-alias": "^1.8.16",
-    "typescript": "^5",
-    "vite": "^8.2.1",
-    "vitest": "latest"
+    "typescript": "^5"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15"
