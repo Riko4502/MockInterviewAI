@@ -12,7 +12,8 @@
         }
     },
     "scripts": {
-        "generate": "openapi-typescript ./schema/openapi.json -o ./src/generated.ts",
+        "generate": "node ./scripts/generate.mjs",
+        "prebuild": "pnpm run generate",
         "build": "tsc",
         "lint": "biome check",
         "typecheck": "tsc --noEmit"
