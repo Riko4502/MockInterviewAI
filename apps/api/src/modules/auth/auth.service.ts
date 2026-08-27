@@ -27,13 +27,20 @@ export interface LoginResult {
   refreshToken: string;
 }
 
+/** Результат успешного обновления токенов (§65 SPEC.md). */
+export interface RefreshResult {
+  accessToken: string;
+  refreshToken: string;
+}
+
 /**
  * Сервис аутентификации (§37, §48, §58 SPEC.md).
  *
  * Реализует алгоритмы регистрации пользователя (валидация, проверка
  * уникальности, хеширование пароля, создание пользователя, генерация JWT,
- * создание Redis session; при ошибке Redis — компенсация, §48 SPEC.md)
- * и входа (проверка учётных данных без account enumeration, §58–§59 SPEC.md).
+ * создание Redis session; при ошибке Redis — компенсация, §48 SPEC.md),
+ * входа (проверка учётных данных без account enumeration, §58–§59 SPEC.md)
+ * и обновления токенов — refresh token rotation (§65 SPEC.md).
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -260,6 +267,96 @@ export class AuthService implements OnModuleInit {
       }
       this.logger.error(
         "Redis unavailable during logout",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+  }
+
+  /**
+   * Выполняет обновление токенов — refresh token rotation (§65 SPEC.md).
+   *
+   * Алгоритм:
+   * 1. cookie отсутствует → `401`.
+   * 2. `verifyRefreshToken(token)` — HS256, issuer, audience, expiration,
+   *    typ = `refresh` (§33).
+   * 3. Невалиден → `401`, clear cookie.
+   * 4. `getSession(sid)` из Redis.
+   * 5. Сессия не найдена → `401`, clear cookie.
+   * 6. `hashRefreshToken(token)` → сравнить с `session.refreshTokenHash`.
+   * 7. Hash не совпадает → replay detected → `revokeSession(sid)` → `401`,
+   *    clear cookie.
+   * 8. Успех: `revokeSession(sid)`, создать новую сессию (новый `sessionId`,
+   *    `tokenFamilyId`), новые access/refresh JWT, запись в Redis,
+   *    Set-Cookie с новым refresh token.
+   *
+   * Ошибки Redis → `500 Internal Server Error`, cookie не сбрасывается (§60).
+   *
+   * @param refreshToken - JWT refresh token из cookie (может отсутствовать).
+   * @returns Access и refresh токены.
+   * @throws {UnauthorizedException} Если любое из условий 1–7 не выполнено
+   *   (generic-ответ без указания причины).
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async refresh(refreshToken?: string): Promise<RefreshResult> {
+    if (!refreshToken) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    let payload: ReturnType<TokenService["verifyRefreshToken"]>;
+    try {
+      payload = this.tokenService.verifyRefreshToken(refreshToken);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+      throw error;
+    }
+
+    try {
+      const session = await this.sessionService.getSession(payload.sid);
+
+      if (!session) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      const incomingHash = this.tokenService.hashRefreshToken(refreshToken);
+      if (session.refreshTokenHash !== incomingHash) {
+        await this.sessionService.revokeSession(payload.sid);
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      await this.sessionService.revokeSession(payload.sid);
+
+      const newSessionId = randomUUID();
+      const newTokenFamilyId = randomUUID();
+
+      const newAccessToken = this.tokenService.generateAccessToken(
+        session.userId,
+        newSessionId,
+      );
+      const newRefreshToken = this.tokenService.generateRefreshToken(
+        session.userId,
+        newSessionId,
+      );
+
+      const newRefreshTokenHash =
+        this.tokenService.hashRefreshToken(newRefreshToken);
+
+      await this.sessionService.createSession(
+        newSessionId,
+        session.userId,
+        newRefreshTokenHash,
+        newTokenFamilyId,
+      );
+
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.error(
+        "Redis unavailable during refresh",
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();

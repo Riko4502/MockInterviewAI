@@ -317,23 +317,23 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [ ] `packages/dto`: DTO для refresh не требуется (тело запроса отсутствует, token в cookie).
-- [ ] `AuthService.refresh(refreshToken?)` (§65): verify → getSession → hash comparison → revoke old → create new session → new JWT pair → Set-Cookie.
-- [ ] `AuthController.refresh()`: `@Post("refresh")`, чтение cookie, вызов сервиса, `200` + `{ accessToken }` + Set-Cookie / `401` + clear cookie.
-- [ ] Применить `@Public()` на `AuthController.refresh()` — guard требует access token, но refresh endpoint его не имеет (читает refresh token из cookie).
+- [x] `packages/dto`: DTO для refresh не требуется (тело запроса отсутствует, token в cookie).
+- [x] `AuthService.refresh(refreshToken?)` (§65): verify → getSession → hash comparison → revoke old → create new session → new JWT pair → Set-Cookie.
+- [x] `AuthController.refresh()`: `@Post("refresh")`, чтение cookie, вызов сервиса, `200` + `{ accessToken }` + Set-Cookie / `401` + clear cookie.
+- [x] Применить `@Public()` на `AuthController.refresh()` — guard требует access token, но refresh endpoint его не имеет (читает refresh token из cookie).
 
 **Тесты:**
 
-- [ ] Unit `AuthService.refresh`: успех (новая сессия, новый accessToken, Set-Cookie); невалидный JWT → 401; сессия не найдена → 401; hash mismatch (replay) → 401 + revokeSession; Redis недоступен → 500.
-- [ ] Unit `AuthController.refresh`: статусы 200/401; Set-Cookie атрибуты §25–28; clear cookie при 401.
-- [ ] Integration (`test/integration/refresh-persistence.e2e-spec.ts`): после refresh старая сессия удалена из Redis, новая создана; accessToken отличается от предыдущего.
-- [ ] E2E R-01: register → refresh → 200, новый accessToken, новый Set-Cookie.
-- [ ] E2E R-02: refresh с невалидной cookie → 401, clear cookie.
-- [ ] E2E R-03: refresh с уже использованным токеном (replay) → 401, сессия отозвана.
+- [x] Unit `AuthService.refresh`: успех (новая сессия, новый accessToken, Set-Cookie); невалидный JWT → 401; сессия не найдена → 401; hash mismatch (replay) → 401 + revokeSession; Redis недоступен → 500.
+- [x] Unit `AuthController.refresh`: статусы 200/401; Set-Cookie атрибуты §25–28; clear cookie при 401.
+- [x] Integration (`test/integration/refresh-persistence.e2e-spec.ts`): после refresh старая сессия удалена из Redis, новая создана; accessToken отличается от предыдущего.
+- [x] E2E R-01: register → refresh → 200, новый accessToken, новый Set-Cookie.
+- [x] E2E R-02: refresh с невалидной cookie → 401, clear cookie.
+- [x] E2E R-03: refresh с уже использованным токеном (replay) → 401, сессия отозвана.
 
 **Верификация:**
 
-- [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+- [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
 ## Phase 14 — Auth: Logout All (`POST /api/v1/auth/logout-all`, SPEC.md §66)
 

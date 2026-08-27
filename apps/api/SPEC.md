@@ -483,12 +483,17 @@ AuthService → AuthSessionService → RedisService → Redis
 
 ### 41. Rate Limiting
 
-`POST /api/v1/auth/register`:
+Глобально: `ThrottlerModule` — все endpoints, `ttl: 60_000`, `limit: 100`.
 
-- глобально по IP (ThrottlerModule, default guard);
-- на `/auth/register` — кастомный `AuthThrottlerGuard` с tracker `ip + body.email` (защита от массовой регистрации).
+Per-route `AuthThrottlerGuard` (кастомный tracker):
 
-Цели: защита от массовой регистрации, brute-force, resource exhaustion, abuse prevention.
+| Endpoint | Tracker | Цель |
+|---|---|---|
+| `POST /api/v1/auth/register` | `ip + body.email` | Защита от массовой регистрации одного email с разных IP |
+| `POST /api/v1/auth/login` | `ip + body.email` | Brute-force паролей, account enumeration |
+| `POST /api/v1/auth/refresh` | `ip` (body отсутствует) | Brute-force refresh token |
+
+Logout (`POST /api/v1/auth/logout`) не имеет per-route throttler — требует валидный refresh cookie, нет вектора brute-force; глобального лимита достаточно.
 
 ### 42. Account Enumeration
 
@@ -675,6 +680,7 @@ Production secrets хранятся вне исходного кода (Secret M
 - Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env` (дефолт `./apps/api/openapi`). Скрипт загружает `.env` через `dotenv` и записывает `openapi.yaml` и `openapi.json` по указанному пути.
 - Артефакты коммитятся в git — фронтенд может читать их без запуска бэкенда.
 - Команды: `pnpm --filter api generate:openapi`; из корня монорепо — `pnpm generate:api`.
+- **Обязательность перегенерации:** при каждом изменении эндпоинтов (добавление/модификация/удаление endpoint, изменение декораторов `@ApiResponse`, `@ApiOperation`, `@ApiBearerAuth`, `@Public`, `@HttpCode`, `@UseGuards`, ZodBody-схем) необходимо перегенерировать OpenAPI-артефакты и закоммитить их вместе с кодом. Артефакты `openapi.yaml`/`openapi.json` должны всегда соответствовать текущему состоянию контроллеров.
 
 ### 63. Пакет `@packages/dto` — единый источник контрактов
 
@@ -698,6 +704,8 @@ Production secrets хранятся вне исходного кода (Secret M
 | `GET /api/v1/health` | Проверка доступности, не требует аутентификации |
 | `POST /api/v1/auth/register` | Регистрация нового пользователя |
 | `POST /api/v1/auth/login` | Вход в существующий аккаунт |
+| `POST /api/v1/auth/refresh` | Обновление токенов — refresh token rotation (§65) |
+| `POST /api/v1/auth/logout` | Выход пользователя (§60) — аутентификация через refresh cookie |
 | `GET /api/v1/docs` | Swagger UI (только dev) |
 | `GET /api/v1/docs-json` | OpenAPI JSON (только dev) |
 
