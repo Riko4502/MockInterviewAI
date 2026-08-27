@@ -22,7 +22,9 @@
       "import": "./dist/index.js"
     },
     "./globals.css": {
-      "import": "./dist/styles/globals.css"
+      "style": "./dist/styles/globals.css",
+      "import": "./dist/styles/globals.css",
+      "default": "./dist/styles/globals.css"
     }
   },
   "peerDependencies": {
