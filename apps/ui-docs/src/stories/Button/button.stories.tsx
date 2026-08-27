@@ -17,11 +17,28 @@ const meta = {
   argTypes: {
     variant: {
       control: "select",
-      options: ["default", "outline", "secondary", "success", "ghost", "destructive", "link"],
+      options: [
+        "default",
+        "outline",
+        "secondary",
+        "success",
+        "ghost",
+        "destructive",
+        "link",
+      ],
     },
     size: {
       control: "select",
-      options: ["default", "xs", "sm", "lg", "icon", "icon-xs", "icon-sm", "icon-lg"],
+      options: [
+        "default",
+        "xs",
+        "sm",
+        "lg",
+        "icon",
+        "icon-xs",
+        "icon-sm",
+        "icon-lg",
+      ],
     },
     rounded: {
       control: "select",
@@ -91,7 +108,10 @@ export const IconOnly: Story = {
 };
 
 export const Disabled: Story = {
-  args: { children: "Button", disabled: true },
+  args: {
+    children: "Button",
+    disabled: true,
+  },
 };
 
 export const AllVariants: Story = {

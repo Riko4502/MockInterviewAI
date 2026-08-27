@@ -33,7 +33,7 @@ describe("E2E: POST /api/v1/auth/register (§4, §47 SPEC.md)", () => {
 
     const res = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
 
     expect(res.status).toBe(201);
     expect(Object.keys(res.body)).toEqual(["accessToken"]);
@@ -62,12 +62,16 @@ describe("E2E: POST /api/v1/auth/register (§4, §47 SPEC.md)", () => {
 
     const first = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
     expect(first.status).toBe(201);
 
     const second = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email: email.toUpperCase(), password: PASSWORD });
+      .send({
+        email: email.toUpperCase(),
+        password: PASSWORD,
+        passwordConfirmation: PASSWORD,
+      });
 
     expect(second.status).toBe(409);
     expect(second.body.message).toBe("Email already registered");
@@ -96,10 +100,36 @@ describe("E2E: POST /api/v1/auth/register (§4, §47 SPEC.md)", () => {
 
     const res = await request(started.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: "short12char" });
+      .send({
+        email,
+        password: "short12char",
+        passwordConfirmation: "short12char",
+      });
 
     expect(res.status).toBe(400);
     expect(res.body).not.toHaveProperty("accessToken");
+
+    const user = await started.prisma.user.findUnique({ where: { email } });
+    expect(user).toBeNull();
+  });
+
+  it("E2E-06: несовпадение паролей → 400 с ошибкой на passwordConfirmation, user не создаётся (§5, §6)", async () => {
+    const email = uniqueEmail();
+    usedEmails.push(email);
+
+    const res = await request(started.app.getHttpServer())
+      .post(REGISTER_PATH)
+      .send({
+        email,
+        password: PASSWORD,
+        passwordConfirmation: "otherPass123",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).not.toHaveProperty("accessToken");
+    expect(
+      (res.body.message as Record<string, string>).passwordConfirmation,
+    ).toBe("Пароли не совпадают");
 
     const user = await started.prisma.user.findUnique({ where: { email } });
     expect(user).toBeNull();
@@ -122,7 +152,7 @@ describe("E2E-04: Redis недоступен (§48 SPEC.md)", () => {
 
     const res = await request(handles.app.getHttpServer())
       .post(REGISTER_PATH)
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
 
     expect(res.status).toBe(500);
     expect(res.body).not.toHaveProperty("accessToken");

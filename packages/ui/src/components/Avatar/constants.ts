@@ -1,4 +1,4 @@
-import {cva} from "class-variance-authority"
+import { cva } from "class-variance-authority";
 
 export const avatarVariants = cva(
   "relative flex shrink-0 overflow-hidden rounded-full border border-border bg-secondary text-muted-foreground",
@@ -11,7 +11,7 @@ export const avatarVariants = cva(
       },
     },
     defaultVariants: {
-      size: "md"
-    }
-  }
-)
+      size: "md",
+    },
+  },
+);

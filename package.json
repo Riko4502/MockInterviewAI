@@ -7,6 +7,7 @@
     "dev:web": "turbo dev --filter=web",
     "dev:landing": "turbo dev --filter=landing",
     "dev:realtime": "turbo dev --filter=@apps/realtime",
+    "generate:api": "pnpm --filter api generate:openapi",
     "storybook": "pnpm --filter=ui-docs storybook",
     "dev:storybook": "pnpm --filter=ui-docs storybook",
     "build:web": "turbo build --filter=web",

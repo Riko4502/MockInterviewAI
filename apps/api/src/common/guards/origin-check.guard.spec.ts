@@ -13,9 +13,13 @@ function createExecutionContext(headers: Record<string, string | undefined>) {
   } as any;
 }
 
-function createGuard(overrides?: string[]) {
+function createGuard(allowedOrigins?: string[], port = 3001) {
   const configService = {
-    get: jest.fn().mockReturnValue(overrides ?? ALLOWED_ORIGINS),
+    get: jest
+      .fn()
+      .mockImplementation((key: string) =>
+        key === "port" ? port : (allowedOrigins ?? ALLOWED_ORIGINS),
+      ),
   } as unknown as ConfigService;
   return new OriginCheckGuard(configService);
 }
@@ -100,6 +104,32 @@ describe("OriginCheckGuard", () => {
       const context = createExecutionContext({
         origin: "http://evil.com",
         referer: "http://localhost:3000/page",
+      });
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    });
+  });
+
+  describe("собственный origin API (Swagger UI, §61 SPEC.md)", () => {
+    it("пропускает Origin собственного origin даже с пустым allowlist", () => {
+      const guard = createGuard([], 3001);
+      const context = createExecutionContext({
+        origin: "http://localhost:3001",
+      });
+      expect(guard.canActivate(context)).toBe(true);
+    });
+
+    it("пропускает Referer собственного origin", () => {
+      const guard = createGuard([], 3001);
+      const context = createExecutionContext({
+        referer: "http://localhost:3001/docs",
+      });
+      expect(guard.canActivate(context)).toBe(true);
+    });
+
+    it("не пропускает другой порт как собственный origin", () => {
+      const guard = createGuard([], 3001);
+      const context = createExecutionContext({
+        origin: "http://localhost:4000",
       });
       expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
     });

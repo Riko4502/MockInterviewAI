@@ -1,4 +1,4 @@
-import { type ExecutionContext, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ThrottlerGuard } from "@nestjs/throttler";
 
 /**
@@ -17,13 +17,19 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
    * Формат: `{ip}:{email}` — комбинация IP и email из request body.
    * Если email отсутствует — используется только IP.
    *
-   * @param context - ExecutionContext NestJS.
+   * Переопределяет `ThrottlerGuard.getTracker`; в `@nestjs/throttler` v6
+   * первым аргументом передаётся request (см. `handleRequest`).
+   *
+   * @param request - Express request текущего HTTP-вызова.
    * @returns Tracker строка для кэша rate limiter.
    */
-  async getTracker(context: ExecutionContext): Promise<string> {
-    const request = context.switchToHttp().getRequest();
-    const ip = request.ip ?? request.socket?.remoteAddress ?? "unknown";
-    const email = request.body?.email as string | undefined;
+  async getTracker(request: Record<string, unknown>): Promise<string> {
+    const ip =
+      (request.ip as string | undefined) ??
+      ((request.socket as { remoteAddress?: string } | undefined)
+        ?.remoteAddress as string | undefined) ??
+      "unknown";
+    const email = (request.body as { email?: string } | undefined)?.email;
 
     return email ? `${ip}:${email}` : ip;
   }
