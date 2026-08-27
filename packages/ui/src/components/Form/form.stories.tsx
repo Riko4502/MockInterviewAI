@@ -33,7 +33,10 @@ export const Vertical: Story = {
       <>
         <Field.Label>Email</Field.Label>
         <Field.Content>
-          <input className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="example@mail.com" />
+          <input
+            className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="example@mail.com"
+          />
           <Field.Error>Обязательное поле</Field.Error>
         </Field.Content>
       </>
@@ -47,7 +50,10 @@ export const Valid: Story = {
       <>
         <Field.Label>Email</Field.Label>
         <Field.Content>
-          <input className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="example@mail.com" />
+          <input
+            className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="example@mail.com"
+          />
           <Field.Error />
         </Field.Content>
       </>
@@ -77,7 +83,10 @@ export const WithDescription: Story = {
         <Field.Label>Email</Field.Label>
         <Field.Content>
           <Field.Description>Введите ваш email для входа</Field.Description>
-          <input className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="example@mail.com" />
+          <input
+            className="flex h-[46px] w-full min-w-0 rounded-lg border border-input bg-background px-4 py-[13px] text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="example@mail.com"
+          />
           <Field.Error />
         </Field.Content>
       </>

@@ -1,17 +1,17 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Avatar, AvatarImage, AvatarFallback } from './avatar';
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 
 const meta = {
-  title: 'UI/Avatar',
+  title: "UI/Avatar",
   component: Avatar,
   parameters: {
-    layout: 'centered',
+    layout: "centered",
   },
-  tags: ['autodocs'],
+  tags: ["autodocs"],
   argTypes: {
     size: {
-      control: 'select',
-      options: ['sm', 'md', 'lg'],
+      control: "select",
+      options: ["sm", "md", "lg"],
     },
   },
 } satisfies Meta<typeof Avatar>;
@@ -20,7 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WithImage: Story = {
-  args: { size: 'md' },
+  args: { size: "md" },
   render: (args) => (
     <Avatar {...args}>
       <AvatarImage src="https://github.com/shadcn.png" alt="User avatar" />
@@ -30,7 +30,7 @@ export const WithImage: Story = {
 };
 
 export const FallbackOnly: Story = {
-  args: { size: 'md' },
+  args: { size: "md" },
   render: (args) => (
     <Avatar {...args}>
       <AvatarFallback>AB</AvatarFallback>
@@ -39,7 +39,7 @@ export const FallbackOnly: Story = {
 };
 
 export const Small: Story = {
-  args: { size: 'sm' },
+  args: { size: "sm" },
   render: (args) => (
     <Avatar {...args}>
       <AvatarFallback>SM</AvatarFallback>
@@ -48,7 +48,7 @@ export const Small: Story = {
 };
 
 export const Large: Story = {
-  args: { size: 'lg' },
+  args: { size: "lg" },
   render: (args) => (
     <Avatar {...args}>
       <AvatarFallback>LG</AvatarFallback>

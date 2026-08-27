@@ -16,8 +16,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@packages/ui": "workspace:*",
     "@hookform/resolvers": "^5.7.1",
+    "@packages/icons": "workspace:*",
+    "@packages/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
     "next": "16.3.0",
     "react": "19.2.8",

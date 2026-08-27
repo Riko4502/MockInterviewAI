@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 
 export type CardProps = React.ComponentProps<"div">;
 export type CardHeaderProps = React.ComponentProps<"div">;
