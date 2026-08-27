@@ -4,15 +4,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import type { Request } from "express";
-import { AuthSessionService } from "../../modules/auth/services/auth-session.service";
-import { TokenService } from "../../modules/auth/services/token.service";
+import type { AuthSessionService } from "../../modules/auth/services/auth-session.service";
+import type { TokenService } from "../../modules/auth/services/token.service";
 
 /**
  * Гард JWT-аутентификации.
  *
- * Извлекает JWT access token из HTTP-only cookie или заголовка `Authorization: Bearer <token>`,
+ * Извлекает JWT access token исключительно из заголовка `Authorization: Bearer <token>`,
  * верифицирует подпись, срок действия и проверяет активность сессии в Redis.
  */
 @Injectable()
@@ -20,7 +19,6 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     private readonly authSessionService: AuthSessionService,
-    private readonly configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -46,19 +44,11 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   /**
-   * Извлекает access token из cookies или заголовка Authorization.
+   * Извлекает access token исключительно из заголовка Authorization (Bearer <token>).
    */
   private extractToken(request: Request): string | null {
-    const accessTokenCookieName =
-      this.configService.get<string>("cookie.accessTokenName") ??
-      "access_token";
-
-    if (request.cookies?.[accessTokenCookieName]) {
-      return request.cookies[accessTokenCookieName];
-    }
-
     const authHeader = request.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
+    if (authHeader?.startsWith("Bearer ")) {
       return authHeader.slice(7).trim();
     }
 

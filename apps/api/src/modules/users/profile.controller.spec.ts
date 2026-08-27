@@ -44,7 +44,6 @@ describe("ProfileController", () => {
     };
     configServiceMock = {
       get: jest.fn().mockImplementation((key: string) => {
-        if (key === "cookie.accessTokenName") return "access_token";
         if (key === "cookie.refreshTokenName") return "refresh_token";
         return null;
       }),
@@ -95,7 +94,7 @@ describe("ProfileController", () => {
     expect(result).toEqual({ avatarUrl: null });
   });
 
-  it("deleteMyProfile деактивирует аккаунт и очищает cookie", async () => {
+  it("deleteMyProfile деактивирует аккаунт и очищает refresh cookie", async () => {
     const result = await controller.deleteMyProfile(
       mockProfile.id,
       "session-123",
@@ -106,7 +105,7 @@ describe("ProfileController", () => {
       mockProfile.id,
       "session-123",
     );
-    expect(responseMock.clearCookie).toHaveBeenCalledWith("access_token");
+    expect(responseMock.clearCookie).toHaveBeenCalledTimes(1);
     expect(responseMock.clearCookie).toHaveBeenCalledWith("refresh_token", {
       path: "/api/v1/auth",
     });

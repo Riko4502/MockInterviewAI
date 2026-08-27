@@ -1,5 +1,4 @@
 import { type ExecutionContext, UnauthorizedException } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
 import type { AuthSessionService } from "../../modules/auth/services/auth-session.service";
 import type {
   TokenPayload,
@@ -10,7 +9,6 @@ import { JwtAuthGuard } from "./jwt-auth.guard";
 describe("JwtAuthGuard", () => {
   let tokenServiceMock: jest.Mocked<Partial<TokenService>>;
   let authSessionServiceMock: jest.Mocked<Partial<AuthSessionService>>;
-  let configServiceMock: jest.Mocked<Partial<ConfigService>>;
   let guard: JwtAuthGuard;
 
   const validPayload: TokenPayload = {
@@ -37,17 +35,10 @@ describe("JwtAuthGuard", () => {
         lastUsedAt: new Date().toISOString(),
       }),
     };
-    configServiceMock = {
-      get: jest.fn().mockImplementation((key: string) => {
-        if (key === "cookie.accessTokenName") return "access_token";
-        return null;
-      }),
-    };
 
     guard = new JwtAuthGuard(
       tokenServiceMock as TokenService,
       authSessionServiceMock as AuthSessionService,
-      configServiceMock as ConfigService,
     );
   });
 
@@ -60,25 +51,6 @@ describe("JwtAuthGuard", () => {
       }),
     } as unknown as ExecutionContext;
   }
-
-  it("успешно пропускает запрос с токеном в HttpOnly cookies", async () => {
-    const request: Record<string, unknown> = {
-      cookies: { access_token: "valid.jwt.cookie" },
-      headers: {},
-    };
-    const context = createMockExecutionContext(request);
-
-    const result = await guard.canActivate(context);
-
-    expect(result).toBe(true);
-    expect(tokenServiceMock.verifyAccessToken).toHaveBeenCalledWith(
-      "valid.jwt.cookie",
-    );
-    expect(authSessionServiceMock.getSession).toHaveBeenCalledWith(
-      validPayload.sid,
-    );
-    expect(request.user).toEqual(validPayload);
-  });
 
   it("успешно пропускает запрос с токеном в заголовке Authorization: Bearer", async () => {
     const request: Record<string, unknown> = {
@@ -93,10 +65,26 @@ describe("JwtAuthGuard", () => {
     expect(tokenServiceMock.verifyAccessToken).toHaveBeenCalledWith(
       "valid.jwt.bearer",
     );
+    expect(authSessionServiceMock.getSession).toHaveBeenCalledWith(
+      validPayload.sid,
+    );
     expect(request.user).toEqual(validPayload);
   });
 
-  it("выбрасывает 401 Unauthorized если токен отсутствует", async () => {
+  it("отклоняет запрос, если токен передан только в cookies (access token принимается строго в заголовке)", async () => {
+    const request: Record<string, unknown> = {
+      cookies: { access_token: "valid.jwt.cookie" },
+      headers: {},
+    };
+    const context = createMockExecutionContext(request);
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(tokenServiceMock.verifyAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("выбрасывает 401 Unauthorized если заголовок Authorization отсутствует", async () => {
     const request: Record<string, unknown> = {
       cookies: {},
       headers: {},
@@ -111,8 +99,8 @@ describe("JwtAuthGuard", () => {
   it("выбрасывает 401 Unauthorized если сессия в Redis отозвана/не найдена", async () => {
     authSessionServiceMock.getSession = jest.fn().mockResolvedValue(null);
     const request: Record<string, unknown> = {
-      cookies: { access_token: "valid.jwt.cookie" },
-      headers: {},
+      cookies: {},
+      headers: { authorization: "Bearer valid.jwt.bearer" },
     };
     const context = createMockExecutionContext(request);
 

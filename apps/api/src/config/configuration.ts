@@ -39,10 +39,6 @@ export const configuration = () => ({
   },
   cookie: {
     secure: process.env.COOKIE_SECURE === "true",
-    accessTokenName:
-      process.env.JWT_ACCESS_COOKIE_NAME ??
-      process.env.ACCESS_TOKEN_COOKIE_NAME ??
-      "access_token",
     refreshTokenName:
       process.env.REFRESH_TOKEN_COOKIE_NAME ??
       process.env.JWT_REFRESH_COOKIE_NAME ??

@@ -26,7 +26,6 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().default(""),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
-  JWT_ACCESS_COOKIE_NAME: z.string().min(1).default("access_token"),
   REFRESH_TOKEN_COOKIE_NAME: z.string().min(1).default("refresh_token"),
   THROTTLE_TTL: z.coerce.number().int().positive().default(60000),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),

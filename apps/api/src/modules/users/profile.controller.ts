@@ -11,7 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   type UpdateProfileDto,
@@ -22,7 +22,7 @@ import type { Response } from "express";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { UsersService } from "./users.service";
+import type { UsersService } from "./users.service";
 
 /**
  * Контроллер профиля текущего пользователя (`/api/v1/profile`).
@@ -107,14 +107,10 @@ export class ProfileController {
   ): Promise<{ message: string }> {
     await this.usersService.deactivateAccount(userId, sessionId);
 
-    const accessTokenName =
-      this.configService.get<string>("cookie.accessTokenName") ??
-      "access_token";
     const refreshTokenName =
       this.configService.get<string>("cookie.refreshTokenName") ??
       "refresh_token";
 
-    response.clearCookie(accessTokenName);
     response.clearCookie(refreshTokenName, { path: "/api/v1/auth" });
 
     return {
