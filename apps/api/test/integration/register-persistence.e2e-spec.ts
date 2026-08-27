@@ -32,7 +32,11 @@ describe("Integration: регистрация → PostgreSQL + Redis (§13, §48
 
     const res = await request(started.app.getHttpServer())
       .post("/api/v1/auth/register")
-      .send({ email: mixedCaseEmail, password: PASSWORD });
+      .send({
+        email: mixedCaseEmail,
+        password: PASSWORD,
+        passwordConfirmation: PASSWORD,
+      });
 
     expect(res.status).toBe(201);
     expect(typeof res.body.accessToken).toBe("string");
@@ -52,7 +56,7 @@ describe("Integration: регистрация → PostgreSQL + Redis (§13, §48
 
     const res = await request(started.app.getHttpServer())
       .post("/api/v1/auth/register")
-      .send({ email, password: PASSWORD });
+      .send({ email, password: PASSWORD, passwordConfirmation: PASSWORD });
 
     expect(res.status).toBe(201);
 
