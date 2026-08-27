@@ -1,11 +1,12 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
+import openapiTS, { astToString } from "openapi-typescript";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, "..", "..", "..");
 const packageDir = resolve(__dirname, "..");
+const outputPath = resolve(packageDir, "src", "generated.ts");
 
 // Читаем OPENAPI_OUTPUT_DIR из process.env или дефолтный путь
 const openApiOutputDir = process.env.OPENAPI_OUTPUT_DIR ?? "./apps/api/openapi";
@@ -25,10 +26,14 @@ if (!existsSync(schemaPath)) {
 }
 
 const relSchemaPath = relative(packageDir, schemaPath).replace(/\\/g, "/");
-const relOutputPath = "./src/generated.ts";
+const relOutputPath = relative(packageDir, outputPath).replace(/\\/g, "/");
 
 console.log(`[packages/api] Generating types: ${relSchemaPath} -> ${relOutputPath}`);
-execSync(`npx openapi-typescript "${relSchemaPath}" -o "${relOutputPath}"`, {
-  stdio: "inherit",
-  cwd: packageDir,
-});
+
+const schemaContent = JSON.parse(readFileSync(schemaPath, "utf-8"));
+const ast = await openapiTS(schemaContent);
+const output = astToString(ast);
+
+writeFileSync(outputPath, output, "utf-8");
+
+console.log(`[packages/api] Successfully generated ${relOutputPath}`);
