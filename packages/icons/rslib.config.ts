@@ -14,5 +14,13 @@ export default defineConfig({
       dts: true,
     },
   ],
+  output: {
+    copy: [
+      {
+        from: "./src/styles",
+        to: "./styles",
+      },
+    ],
+  },
   plugins: [pluginReact()],
 });

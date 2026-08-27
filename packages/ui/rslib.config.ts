@@ -1,18 +1,40 @@
+import path from "node:path";
 import { pluginReact } from "@rsbuild/plugin-react";
 import { defineConfig } from "@rslib/core";
 
 export default defineConfig({
-  source: {
-    entry: {
-      index: ["./src/**"],
-    },
-  },
+  plugins: [pluginReact()],
   lib: [
     {
-      bundle: false,
       format: "esm",
+      output: {
+        distPath: {
+          root: "./dist",
+        },
+      },
       dts: true,
     },
+    {
+      format: "cjs",
+      output: {
+        distPath: {
+          root: "./dist",
+        },
+        minify: false,
+      },
+    },
   ],
-  plugins: [pluginReact()],
+  source: {
+    entry: {
+      index: "./src/index.ts",
+      rsbuild: "./rsbuild/index.ts",
+    },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  output: {
+    cleanDistPath: true,
+    target: "web",
+  },
 });
