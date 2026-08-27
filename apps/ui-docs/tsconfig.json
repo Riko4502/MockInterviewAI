@@ -11,9 +11,9 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["@rsbuild/core/types"]
   },
-  "types": ["vite/client"],
   "include": ["src", ".storybook"],
   "exclude": ["node_modules", "storybook-static"]
 }
