@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
-    "@biomejs/biome": "2.4.2",
+    "@biomejs/biome": "2.5.10",
     "@tailwindcss/vite": "^4",
     "@types/node": "^20",
     "@vitest/coverage-v8": "^4.1.11",
