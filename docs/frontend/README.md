@@ -49,6 +49,8 @@
 * [API Contracts & OpenAPI](./data/api-contracts.md)
 * [TanStack Query](./data/tanstack-query.md)
 * [State Management Decision Tree](./data/state-management.md)
+* [Realtime Integration (WS & SSE)](./data/realtime.md)
+
 
 ### 4. [Разработка и качество](./development/typescript.md)
 * [TypeScript стандарты](./development/typescript.md)

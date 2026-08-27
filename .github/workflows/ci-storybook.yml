@@ -1,0 +1,82 @@
+name: "CI Storybook (UI)"
+
+on:
+  workflow_call:
+    outputs:
+      coverage:
+        description: "Процент историй Storybook, прошедших interaction-тесты"
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    name: "Сборка и проверка Storybook (@packages/ui)"
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.storybook_coverage.outputs.pct }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Проверка типов TypeScript (@packages/ui)"
+        run: pnpm --filter=@packages/ui run typecheck
+
+      - name: "Кэширование браузеров Playwright"
+        uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-storybook-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: "Установка Chromium для Playwright"
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter=@packages/ui exec playwright install --with-deps chromium
+
+      - name: "Установка системных зависимостей Playwright"
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter=@packages/ui exec playwright install-deps chromium
+
+      - name: "Сборка Storybook (build-storybook)"
+        run: pnpm --filter=@packages/ui run build-storybook
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: "Interaction-тесты историй Storybook (Vitest + Playwright)"
+        id: storybook_coverage
+        run: |
+          pnpm --filter=@packages/ui run test -- --reporter=verbose | tee storybook-test.log
+          TOTAL=$(grep -oE '[0-9]+ passed' storybook-test.log | tail -1 | grep -oE '[0-9]+' || echo "")
+          if [ -n "$TOTAL" ]; then
+            PCT="$TOTAL историй"
+          else
+            PCT="OK"
+          fi
+          echo "pct=$PCT" >> $GITHUB_OUTPUT
+          echo "### 📚 Отчет Storybook (@packages/ui)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Сборка Storybook:** ✅ успешно" >> $GITHUB_STEP_SUMMARY
+          echo "- **Interaction-тесты (Vitest + Playwright):** \`$PCT\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: "Загрузка статической сборки Storybook при ошибке"
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: storybook-static
+          path: packages/ui/storybook-static/
+          retention-days: 7

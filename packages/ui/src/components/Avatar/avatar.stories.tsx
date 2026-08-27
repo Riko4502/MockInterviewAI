@@ -4,6 +4,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 const meta = {
   title: "UI/Avatar",
   component: Avatar,
+  parameters: {
+    layout: "centered",
+  },
   tags: ["autodocs"],
   argTypes: {
     size: {

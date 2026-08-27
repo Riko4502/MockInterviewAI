@@ -1,8 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import ms from "ms";
 import { RedisService } from "../../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth.constants";
+import { getRefreshTokenTtlSeconds } from "./refresh-token-ttl";
 
 /** Payload authentication session в Redis (§16 SPEC.md). */
 export interface AuthSession {
@@ -62,7 +62,7 @@ export class AuthSessionService {
       lastUsedAt: now,
     };
 
-    const ttlSeconds = this.getTtlSeconds();
+    const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
     await this.redisService.set(
       this.key(sessionId),
       JSON.stringify(session),
@@ -107,7 +107,7 @@ export class AuthSessionService {
     }
 
     const updated: AuthSession = { ...existing, ...fields };
-    const ttlSeconds = this.getTtlSeconds();
+    const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
     await this.redisService.set(
       this.key(sessionId),
       JSON.stringify(updated),
@@ -179,17 +179,5 @@ export class AuthSessionService {
    */
   private key(sessionId: string): string {
     return `${REDIS_SESSION_PREFIX}${sessionId}`;
-  }
-
-  /**
-   * Вычисляет TTL сессии в секундах из конфига `jwt.refreshExpiresIn` (§18 SPEC.md).
-   *
-   * @returns TTL в секундах.
-   */
-  private getTtlSeconds(): number {
-    const expiresIn =
-      this.configService.get<string>("jwt.refreshExpiresIn") ?? "7d";
-    const ttlMs = ms(expiresIn as ms.StringValue);
-    return Math.ceil(ttlMs / 1000);
   }
 }
