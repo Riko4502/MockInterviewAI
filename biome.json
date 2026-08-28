@@ -45,7 +45,8 @@
         "apps/web/**",
         "packages/ui/**",
         "packages/icons/**",
-        "apps/landing/**"
+        "apps/landing/**",
+        "apps/ui-docs/**"
       ],
       "css": {
         "parser": {

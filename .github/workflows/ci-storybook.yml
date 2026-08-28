@@ -29,6 +29,12 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
+      - name: "Сборка @packages/icons"
+        run: pnpm --filter=@packages/icons run build
+
+      - name: "Проверка типов TypeScript (@packages/icons)"
+        run: pnpm --filter=@packages/icons run typecheck
+
       - name: "Сборка @packages/ui"
         run: pnpm --filter=@packages/ui run build
 
