@@ -25,6 +25,7 @@
     "infra:up": "docker compose --env-file .env up -d --wait",
     "infra:down": "docker compose --env-file .env down",
     "vercel-ignore:ui-docs": "bash scripts/vercel-ignore-ui-docs.sh",
+    "vercel-ignore:landing": "bash scripts/vercel-ignore-landing.sh",
     "prepare": "husky"
   },
   "devDependencies": {
