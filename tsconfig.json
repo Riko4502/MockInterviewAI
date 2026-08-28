@@ -11,5 +11,6 @@
     "isolatedModules": true,
     "jsx": "preserve"
   },
+  "include": ["types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

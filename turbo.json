@@ -1,11 +1,23 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalPassThroughEnv": ["LOCALAPPDATA", "GOPATH", "GOROOT", "GOCACHE", "GOMODCACHE", "HOME"],
+  "globalPassThroughEnv": [
+    "LOCALAPPDATA",
+    "GOPATH",
+    "GOROOT",
+    "GOCACHE",
+    "GOMODCACHE",
+    "HOME"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**",
+        "storybook-static/**"
+      ]
     },
     "generate": {
       "cache": false
@@ -19,7 +31,14 @@
     },
     "test": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "passThroughEnv": ["GOPATH", "GOROOT", "GOCACHE", "LOCALAPPDATA", "PATH", "HOME"]
+      "passThroughEnv": [
+        "GOPATH",
+        "GOROOT",
+        "GOCACHE",
+        "LOCALAPPDATA",
+        "PATH",
+        "HOME"
+      ]
     },
     "dev#landing": {
       "cache": false,
