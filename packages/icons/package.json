@@ -23,9 +23,8 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.6.0"
+    "@packages/utils": "workspace:*",
+    "class-variance-authority": "^0.7.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",

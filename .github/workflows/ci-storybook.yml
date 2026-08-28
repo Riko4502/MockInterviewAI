@@ -29,21 +29,6 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: "Сборка @packages/icons"
-        run: pnpm --filter=@packages/icons run build
-
-      - name: "Проверка типов TypeScript (@packages/icons)"
-        run: pnpm --filter=@packages/icons run typecheck
-
-      - name: "Сборка @packages/ui"
-        run: pnpm --filter=@packages/ui run build
-
-      - name: "Проверка типов TypeScript (@packages/ui)"
-        run: pnpm --filter=@packages/ui run typecheck
-
-      - name: "Проверка типов TypeScript (ui-docs)"
-        run: pnpm --filter=ui-docs run typecheck
-
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
         with:
@@ -51,6 +36,12 @@ jobs:
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
+
+      - name: "Сборка зависимостей UI (@packages/utils, @packages/icons, @packages/ui)"
+        run: pnpm turbo run build --filter=ui-docs^...
+
+      - name: "Проверка типов TypeScript"
+        run: pnpm --filter=@packages/icons --filter=@packages/ui --filter=ui-docs run typecheck
 
       - name: "Сборка Storybook (build-storybook)"
         id: storybook_build
