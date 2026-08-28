@@ -48,3 +48,4 @@ jobs:
 
       - name: "Проверка уязвимостей в пакетах (pnpm audit)"
         run: pnpm audit --audit-level=high
+
