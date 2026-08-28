@@ -17,7 +17,7 @@
 ## Обязательный функционал
 
 1. **Аутентификация и авторизация**
-2. **Лендинг**
+2. **Лендинг** – [доступно онлайн](https://mock-interview-ai-landing.vercel.app/)
 3. **Создание сессий и приглашение участников**
    - Создание сессии и приглашение участников.
    - Создание закрытых сессий с паролем.
@@ -53,7 +53,7 @@
 ## Технические требования и стек
 
 * **Frontend:** Next.js (App Router), React, TypeScript
-* **Design System & UI Docs:** Storybook (`apps/ui-docs`), `@packages/ui`, `@packages/icons`
+* **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
