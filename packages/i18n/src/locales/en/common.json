@@ -1,0 +1,23 @@
+{
+  "appName": "Mock Interview AI",
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "continue": "Continue",
+    "back": "Back",
+    "submit": "Submit",
+    "loading": "Loading..."
+  },
+  "navigation": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "interviews": "Interviews",
+    "settings": "Settings",
+    "profile": "Profile",
+    "login": "Log in",
+    "register": "Sign up",
+    "logout": "Log out"
+  }
+}

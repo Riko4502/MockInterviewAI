@@ -1,0 +1,23 @@
+{
+  "appName": "Mock Interview AI",
+  "actions": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "continue": "Продолжить",
+    "back": "Назад",
+    "submit": "Отправить",
+    "loading": "Загрузка..."
+  },
+  "navigation": {
+    "home": "Главная",
+    "dashboard": "Панель управления",
+    "interviews": "Интервью",
+    "settings": "Настройки",
+    "profile": "Профиль",
+    "login": "Войти",
+    "register": "Зарегистрироваться",
+    "logout": "Выйти"
+  }
+}
