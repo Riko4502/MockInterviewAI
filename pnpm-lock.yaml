@@ -188,6 +188,9 @@ importers:
       '@packages/icons':
         specifier: workspace:*
         version: link:../../packages/icons
+      '@packages/tailwind-config':
+        specifier: workspace:*
+        version: link:../../packages/tailwind-config
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui

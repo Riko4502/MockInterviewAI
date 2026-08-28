@@ -24,6 +24,7 @@
     "test:realtime": "pnpm --filter=@apps/realtime test",
     "infra:up": "docker compose --env-file .env up -d --wait",
     "infra:down": "docker compose --env-file .env down",
+    "vercel-ignore:ui-docs": "bash scripts/vercel-ignore-ui-docs.sh",
     "prepare": "husky"
   },
   "devDependencies": {
