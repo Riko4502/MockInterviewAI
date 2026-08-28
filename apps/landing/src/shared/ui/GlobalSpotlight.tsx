@@ -13,11 +13,13 @@ export function GlobalSpotlight() {
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(() => {
         setMousePosition({ x: e.clientX, y: e.clientY });
-        if (!isVisible) setIsVisible(true);
+        setIsVisible(true);
       });
     };
 
-    const handleMouseLeave = () => setIsVisible(false);
+    const handleMouseLeave = () => {
+      setIsVisible(false);
+    };
 
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
     document.body.addEventListener("mouseleave", handleMouseLeave);
@@ -27,9 +29,7 @@ export function GlobalSpotlight() {
       window.removeEventListener("mousemove", handleMouseMove);
       document.body.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [isVisible]);
-
-  if (!isVisible) return null;
+  }, []);
 
   return (
     <div
