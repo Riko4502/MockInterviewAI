@@ -11957,7 +11957,7 @@ snapshots:
 
   '@storybook/react-docgen-typescript-plugin@1.0.1(typescript@5.9.3)(webpack@5.106.2(esbuild@0.28.2))':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       endent: 2.1.0
       find-cache-dir: 3.3.2
       flat-cache: 3.2.0
