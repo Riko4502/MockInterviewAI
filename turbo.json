@@ -39,13 +39,6 @@
         "PATH",
         "HOME"
       ]
-    },
-    "dev#landing": {
-      "cache": false,
-      "persistent": true
-    },
-    "build#landing": {
-      "outputs": ["apps/landing/dist/**"]
     }
   }
 }
