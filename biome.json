@@ -12,12 +12,10 @@
       "!node_modules",
       "!.next",
       "!.turbo",
-      "!.astro",
       "!dist",
       "!build",
       "!coverage",
-      "!apps/api/src/generated",
-      "!**/*.astro"
+      "!apps/api/src/generated"
     ]
   },
   "formatter": {
@@ -56,7 +54,7 @@
       }
     },
     {
-      "includes": ["apps/web/**"],
+      "includes": ["apps/web/**", "apps/landing/**"],
       "linter": {
         "domains": {
           "next": "recommended",
@@ -91,7 +89,7 @@
       }
     },
     {
-      "includes": ["apps/web/src/shared/**"],
+      "includes": ["apps/web/src/shared/**", "apps/landing/src/shared/**"],
       "linter": {
         "rules": {
           "style": {
@@ -117,9 +115,10 @@
                       "../*/features/**",
                       "../*/widgets/**",
                       "../*/pages/**",
+                      "../*/views/**",
                       "../*/app/**"
                     ],
-                    "message": "FSD Violation: 'shared' layer cannot import from higher layers (entities, features, widgets, pages, app)."
+                    "message": "FSD Violation: 'shared' layer cannot import from higher layers (entities, features, widgets, pages, views, app)."
                   }
                 ]
               }
@@ -129,7 +128,7 @@
       }
     },
     {
-      "includes": ["apps/web/src/entities/**"],
+      "includes": ["apps/web/src/entities/**", "apps/landing/src/entities/**"],
       "linter": {
         "rules": {
           "style": {
@@ -152,9 +151,10 @@
                       "../*/features/**",
                       "../*/widgets/**",
                       "../*/pages/**",
+                      "../*/views/**",
                       "../*/app/**"
                     ],
-                    "message": "FSD Violation: 'entities' layer cannot import from higher layers (features, widgets, pages, app)."
+                    "message": "FSD Violation: 'entities' layer cannot import from higher layers (features, widgets, pages, views, app)."
                   }
                 ]
               }
@@ -164,7 +164,7 @@
       }
     },
     {
-      "includes": ["apps/web/src/features/**"],
+      "includes": ["apps/web/src/features/**", "apps/landing/src/features/**"],
       "linter": {
         "rules": {
           "style": {
@@ -184,9 +184,10 @@
                       "@widgets/**",
                       "../*/widgets/**",
                       "../*/pages/**",
+                      "../*/views/**",
                       "../*/app/**"
                     ],
-                    "message": "FSD Violation: 'features' layer cannot import from higher layers (widgets, pages, app)."
+                    "message": "FSD Violation: 'features' layer cannot import from higher layers (widgets, pages, views, app)."
                   }
                 ]
               }
@@ -196,7 +197,7 @@
       }
     },
     {
-      "includes": ["apps/web/src/widgets/**"],
+      "includes": ["apps/web/src/widgets/**", "apps/landing/src/widgets/**"],
       "linter": {
         "rules": {
           "style": {
@@ -213,9 +214,10 @@
                       "@/views/**",
                       "@views/**",
                       "../*/pages/**",
+                      "../*/views/**",
                       "../*/app/**"
                     ],
-                    "message": "FSD Violation: 'widgets' layer cannot import from higher layers (pages, app)."
+                    "message": "FSD Violation: 'widgets' layer cannot import from higher layers (pages, views, app)."
                   }
                 ]
               }
@@ -225,7 +227,12 @@
       }
     },
     {
-      "includes": ["apps/web/src/pages/**", "apps/web/src/views/**"],
+      "includes": [
+        "apps/web/src/pages/**",
+        "apps/web/src/views/**",
+        "apps/landing/src/pages/**",
+        "apps/landing/src/views/**"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -235,7 +242,7 @@
                 "patterns": [
                   {
                     "group": ["@/app/**", "@app/**", "../*/app/**"],
-                    "message": "FSD Violation: 'pages' layer cannot import from 'app' layer."
+                    "message": "FSD Violation: 'pages' / 'views' layer cannot import from 'app' layer."
                   }
                 ]
               }

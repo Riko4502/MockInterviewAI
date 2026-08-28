@@ -3,7 +3,7 @@
 | Сервис | Проверки | Покрытие тестами | Статус |
 | :--- | :--- | :---: | :---: |
 | 🎨 **Web (Next.js)** | TypeScript, Biome, Vitest, Playwright, Lighthouse | `{{WEB_COV}}` | {{WEB_STATUS}} |
-| 🚀 **Landing (Astro)** | Astro Check, Biome, Vitest, Docker Smoke | `{{LANDING_COV}}` | {{LANDING_STATUS}} |
+| 🚀 **Landing (Next.js)** | TypeCheck, Biome, Vitest, Docker Smoke | `{{LANDING_COV}}` | {{LANDING_STATUS}} |
 | ⚙️ **API (Nest.js)** | Prisma Validate, Jest Unit Tests, Docker Smoke | `{{API_COV}}` | {{API_STATUS}} |
 | ⚡ **Realtime (Go)** | Go Tests, Revive, Govulncheck, Docker Smoke | `{{REALTIME_COV}}` | {{REALTIME_STATUS}} |
 | 📚 **Storybook** | TypeScript, Build Storybook, Interaction-тесты| `{{STORYBOOK_COV}}`| {{STORYBOOK_STATUS}} |

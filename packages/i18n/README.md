@@ -2,7 +2,7 @@
 
 Пакет интернационализации (i18n) для монорепозитория **MockInterviewAI**.
 
-Служит **единым источником правды** для словарей переводов, поддерживаемых локалей и TypeScript-типов. Формат словарей и структуры оптимизирован для прямой интеграции с **`i18next` / `react-i18next`** в `apps/web` (Next.js) и стандартного использования в `apps/landing` (Astro).
+Служит **единым источником правды** для словарей переводов, поддерживаемых локалей и TypeScript-типов. Формат словарей и структуры оптимизирован для прямой интеграции с **`i18next` / `react-i18next`** в `apps/web` (Next.js) и стандартного использования в `apps/landing` (Next.js).
 
 ---
 
@@ -154,29 +154,30 @@ export function LoginForm() {
 
 ---
 
-## Подключение в `apps/landing` (Astro)
+## Подключение в `apps/landing` (Next.js)
 
-В Astro словари можно использовать напрямую без рантайма i18next:
+В `apps/landing` словари можно использовать напрямую через хук/функцию `useTranslations` или серверные компоненты:
 
-```astro
----
+```tsx
 import { getMessages, defaultLocale, type Locale } from '@packages/i18n';
 
-interface Props {
+interface HeaderProps {
   lang?: Locale;
 }
 
-const { lang = defaultLocale } = Astro.props;
-const messages = getMessages(lang);
----
+export function Header({ lang = defaultLocale }: HeaderProps) {
+  const messages = getMessages(lang);
 
-<header>
-  <h1>{messages.common.appName}</h1>
-  <nav>
-    <a href="/login">{messages.common.navigation.login}</a>
-    <a href="/register">{messages.common.navigation.register}</a>
-  </nav>
-</header>
+  return (
+    <header>
+      <h1>{messages.common.appName}</h1>
+      <nav>
+        <a href="/login">{messages.common.navigation.login}</a>
+        <a href="/register">{messages.common.navigation.register}</a>
+      </nav>
+    </header>
+  );
+}
 ```
 
 ---

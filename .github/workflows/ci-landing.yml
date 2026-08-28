@@ -1,4 +1,4 @@
-name: "CI Landing (Astro)"
+name: "CI Landing (Next.js)"
 
 on:
   workflow_call:
@@ -14,7 +14,7 @@ on:
 
 jobs:
   landing:
-    name: "Тесты и проверки Landing (Biome, Astro Check, Vitest, Build)"
+    name: "Тесты и проверки Landing (Biome, TypeCheck, Vitest, Build)"
     runs-on: ubuntu-latest
     outputs:
       coverage: ${{ steps.landing_coverage.outputs.pct }}
@@ -51,7 +51,7 @@ jobs:
       - name: "Проверка стиля и линтинг (Biome)"
         run: pnpm --filter landing lint
 
-      - name: "Проверка типов (Astro Check)"
+      - name: "Проверка типов (TypeCheck)"
         run: pnpm --filter landing check
 
       - name: "Запуск тестов с отчетом о покрытии (Vitest)"
@@ -60,11 +60,11 @@ jobs:
           pnpm --filter landing run test:cov || pnpm --filter landing test
           LANDING_COV=$(node -e "try { const c = require('./apps/landing/coverage/coverage-summary.json'); console.log(c.total.lines.pct + '%'); } catch(e) { console.log('100% (Pass)'); }")
           echo "pct=$LANDING_COV" >> $GITHUB_OUTPUT
-          echo "### 📊 Отчет о покрытии тестами Landing (Astro / Vitest)" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Отчет о покрытии тестами Landing (Next.js / Vitest)" >> $GITHUB_STEP_SUMMARY
           echo "- **Общее покрытие кода (Lines):** \`$LANDING_COV\`" >> $GITHUB_STEP_SUMMARY
           echo "✅ Unit-тесты и целостность словарей i18n успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
-      - name: "Сборка проекта (Astro Build)"
+      - name: "Сборка проекта (Next.js Build)"
         run: pnpm --filter landing build
 
       - name: "Настройка Docker Buildx"
