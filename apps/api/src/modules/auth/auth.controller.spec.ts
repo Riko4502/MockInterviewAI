@@ -100,7 +100,7 @@ describe("AuthController", () => {
         secure: false,
         sameSite: "lax",
         path: "/api/v1/auth",
-        maxAge: 604_800,
+        maxAge: 604_800_000,
       });
     });
 
@@ -161,7 +161,7 @@ describe("AuthController", () => {
         secure: false,
         sameSite: "lax",
         path: "/api/v1/auth",
-        maxAge: 604_800,
+        maxAge: 604_800_000,
       });
     });
 
@@ -302,7 +302,7 @@ describe("AuthController", () => {
         secure: false,
         sameSite: "lax",
         path: "/api/v1/auth",
-        maxAge: 604_800,
+        maxAge: 604_800_000,
       });
     });
 

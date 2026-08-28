@@ -341,7 +341,7 @@ export class AuthController {
   ): void {
     response.cookie(this.getRefreshTokenCookieName(), refreshToken, {
       ...this.getRefreshCookieAttributes(),
-      maxAge: getRefreshTokenTtlSeconds(this.configService),
+      maxAge: getRefreshTokenTtlSeconds(this.configService) * 1000,
     });
   }
 
