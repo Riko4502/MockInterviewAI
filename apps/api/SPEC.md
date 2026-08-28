@@ -17,7 +17,7 @@
 |---|---|---|
 | 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
 | 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
-| 1.3.0 | 2026-08-23 | Добавлены разделы §61–§63: OpenAPI/Swagger документация, генерация спецификации и пакет `@packages/api`, zod v4 в `packages/dto`. |
+| 1.3.0 | 2026-08-23 | Добавлены разделы §61–§63: OpenAPI/Swagger документация, генерация спецификации и артефакты `apps/api/openapi`, zod v4 в `packages/dto`. |
 | 1.2.0 | 2026-08-22 | Добавлены разделы §58–§60: Login, Account Enumeration (Login), Logout. |
 | 1.1.0 | 2026-08-14 | Добавлен раздел §57 — обязательное документирование кода. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия спецификации. |
@@ -58,7 +58,7 @@ Backend должен:
 | Rate limiting | `@nestjs/throttler` |
 | Cookie | express `Set-Cookie`, `cookie-parser` |
 | Security headers | `helmet` |
-| API-документация | `@nestjs/swagger` (OpenAPI 3.0) + генерация `openapi.yaml`/`openapi.json` в `packages/api` |
+| API-документация | `@nestjs/swagger` (OpenAPI 3.0) + генерация `openapi.yaml`/`openapi.json` в `apps/api/openapi` |
 | Тесты | Jest + ts-jest (unit), supertest (e2e) |
 | Локальная среда | Docker Compose (postgres:16-alpine, redis:7-alpine) |
 
@@ -113,15 +113,14 @@ packages/
             └── email.ts
 ```
 
-Пакет API-контракта (генерируемые артефакты, коммитятся в git):
+Генерируемые артефакты OpenAPI (коммитятся в git):
 
 ```
-packages/
+apps/
 └── api/
-    ├── package.json
-    ├── README.md
-    ├── openapi.yaml
-    └── openapi.json
+    └── openapi/
+        ├── openapi.yaml
+        └── openapi.json
 ```
 
 ### 4. API
