@@ -24,13 +24,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages ./packages
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
 COPY types/ ./types/
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter='./packages/*' build && \
+RUN pnpm turbo run build --filter=web^... && \
     pnpm --filter web build
 
 # Production image, copy all the files and run next

@@ -20,13 +20,19 @@ if (!existsSync(schemaPath)) {
   }
 }
 
+const relSchemaPath = relative(packageDir, schemaPath).replace(/\\/g, "/");
+const relOutputPath = relative(packageDir, outputPath).replace(/\\/g, "/");
+
 if (!existsSync(schemaPath)) {
+  if (existsSync(outputPath)) {
+    console.warn(
+      `[packages/api] openapi.json not found at ${schemaPath}, reusing existing ${relOutputPath}`,
+    );
+    process.exit(0);
+  }
   console.error(`[packages/api] openapi.json not found at ${schemaPath}`);
   process.exit(1);
 }
-
-const relSchemaPath = relative(packageDir, schemaPath).replace(/\\/g, "/");
-const relOutputPath = relative(packageDir, outputPath).replace(/\\/g, "/");
 
 console.log(
   `[packages/api] Generating types: ${relSchemaPath} -> ${relOutputPath}`,
