@@ -7,7 +7,7 @@ RUN apk add --no-cache libc6-compat && \
     corepack enable && \
     corepack prepare pnpm@9.15.9 --activate
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
 COPY types ./types
 COPY apps/web/package.json ./apps/web/
 COPY packages ./packages
@@ -24,7 +24,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages ./packages
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
 COPY types/ ./types/
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
