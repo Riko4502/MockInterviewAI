@@ -1,0 +1,42 @@
+{
+  "name": "@packages/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./theme.css": "./src/theme.css",
+    "./utilities.css": "./src/utilities.css",
+    "./globals.css": "./src/globals.css",
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "import": "./dist/tokens.js",
+      "default": "./dist/tokens.js"
+    }
+  },
+  "scripts": {
+    "build": "rslib build",
+    "dev": "rslib build --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --no-errors-on-unmatched",
+    "format": "biome format --write --no-errors-on-unmatched"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.2",
+    "@rslib/core": "^0.23.2",
+    "@types/node": "^20",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

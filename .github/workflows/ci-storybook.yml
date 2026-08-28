@@ -37,11 +37,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
-      - name: "Сборка зависимостей UI (@packages/utils, @packages/icons, @packages/ui)"
+      - name: "Сборка зависимостей UI (@packages/utils, @packages/icons, @packages/ui, @packages/tailwind-config)"
         run: pnpm turbo run build --filter=ui-docs^...
 
       - name: "Проверка типов TypeScript"
-        run: pnpm --filter=@packages/icons --filter=@packages/ui --filter=ui-docs run typecheck
+        run: pnpm --filter=@packages/icons --filter=@packages/ui --filter=@packages/tailwind-config --filter=ui-docs run typecheck
 
       - name: "Сборка Storybook (build-storybook)"
         id: storybook_build

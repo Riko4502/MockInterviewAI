@@ -96,6 +96,7 @@ jobs:
               - 'apps/ui-docs/**'
               - 'packages/ui/**'
               - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
