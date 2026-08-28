@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve, dirname, relative } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import openapiTS, { astToString } from "openapi-typescript";
 
@@ -28,7 +28,9 @@ if (!existsSync(schemaPath)) {
 const relSchemaPath = relative(packageDir, schemaPath).replace(/\\/g, "/");
 const relOutputPath = relative(packageDir, outputPath).replace(/\\/g, "/");
 
-console.log(`[packages/api] Generating types: ${relSchemaPath} -> ${relOutputPath}`);
+console.log(
+  `[packages/api] Generating types: ${relSchemaPath} -> ${relOutputPath}`,
+);
 
 const schemaContent = JSON.parse(readFileSync(schemaPath, "utf-8"));
 const ast = await openapiTS(schemaContent);
