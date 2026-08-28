@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@string/*": ["./src/string/*"]
+    }
+  },
+  "include": ["src"]
+}

@@ -53,6 +53,7 @@
 ## Технические требования и стек
 
 * **Frontend:** Next.js (App Router), React, TypeScript
+* **Design System & UI Docs:** Storybook (`apps/ui-docs`), `@packages/ui`, `@packages/icons`
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
@@ -119,11 +120,27 @@ pnpm dev
   ```bash
   pnpm dev:web
   ```
+* **Storybook / UI-документация и каталог иконок (порт 6006):**
+  ```bash
+  pnpm dev:storybook
+  # или: pnpm --filter ui-docs storybook
+  ```
 * **Realtime WebSocket сервис (Go - порт 8080):**
   ```bash
   pnpm dev:realtime
   ```
   *(или напрямую через Go: `cd apps/realtime && go run cmd/server/main.go`)*
+
+---
+
+## 📚 Документация
+
+* 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
+* 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
+* 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.
+* 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
+* 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
+* 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
 
 ---
 

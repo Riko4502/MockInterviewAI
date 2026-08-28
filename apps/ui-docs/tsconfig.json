@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["@rsbuild/core/types"]
+  },
+  "include": ["src", ".storybook", "../../types/*.d.ts"],
+  "exclude": ["node_modules", "storybook-static"]
+}

@@ -1,2 +1,5 @@
 @import "tailwindcss";
+/* Пакет ui-компонентов */
 @import "@packages/ui/globals.css";
+/* Пакет иконок */
+@import "@packages/icons/globals.css";

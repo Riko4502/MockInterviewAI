@@ -6,7 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "nest start",
-    "lint": "biome check",
+    "lint": "biome check --no-errors-on-unmatched",
     "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",

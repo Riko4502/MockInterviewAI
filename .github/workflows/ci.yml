@@ -93,13 +93,15 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-landing.yml'
             storybook:
-                - 'packages/ui/**'
-                - 'package.json'
-                - 'pnpm-lock.yaml'
-                - 'pnpm-workspace.yaml'
-                - 'turbo.json'
-                - '.github/workflows/ci.yml'
-                - '.github/workflows/ci-storybook.yml'
+              - 'apps/ui-docs/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-storybook.yml'
   realtime:
     name: "Realtime"
     needs: changes
