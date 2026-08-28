@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "pnpm run build-storybook",
+  "buildCommand": "pnpm turbo build --filter=ui-docs",
   "outputDirectory": "storybook-static",
   "installCommand": "pnpm install",
   "ignoreCommand": "bash ../../scripts/vercel-ignore-ui-docs.sh"
