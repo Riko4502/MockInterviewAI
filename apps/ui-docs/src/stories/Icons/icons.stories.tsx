@@ -424,13 +424,13 @@ export const WithButtonsAndBadges: Story = {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Badge variant="default" className="gap-1.5">
+        <Badge variant="statusSuccess" className="gap-1.5">
           <Icons.CheckIcon size="xs" /> Проверено
         </Badge>
-        <Badge variant="secondary" className="gap-1.5">
+        <Badge variant="tag" className="gap-1.5">
           <Icons.ReactIcon size="xs" /> React
         </Badge>
-        <Badge variant="destructive" className="gap-1.5">
+        <Badge variant="statusDanger" className="gap-1.5">
           <Icons.BugIcon size="xs" /> 2 проблемы
         </Badge>
       </div>

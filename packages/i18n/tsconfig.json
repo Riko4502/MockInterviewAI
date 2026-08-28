@@ -1,8 +1,6 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
     "declaration": true,
     "noEmit": true,
     "rootDir": "./src"
