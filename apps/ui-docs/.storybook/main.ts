@@ -21,6 +21,9 @@ const config: StorybookConfig = {
     "@storybook/addon-docs",
     "@storybook/addon-a11y",
     "@storybook/addon-onboarding",
+    "@storybook/addon-interactions",
+    "@storybook/addon-test-runner",
+    "@storybook/addon-vitest",
   ],
   framework: "storybook-react-rsbuild",
   rsbuildFinal(config) {
