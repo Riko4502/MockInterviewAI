@@ -146,6 +146,9 @@ importers:
 
   apps/landing:
     dependencies:
+      '@packages/tailwind-config':
+        specifier: workspace:*
+        version: link:../../packages/tailwind-config
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -185,6 +188,9 @@ importers:
       '@packages/icons':
         specifier: workspace:*
         version: link:../../packages/icons
+      '@packages/tailwind-config':
+        specifier: workspace:*
+        version: link:../../packages/tailwind-config
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -249,6 +255,9 @@ importers:
       '@packages/icons':
         specifier: workspace:*
         version: link:../../packages/icons
+      '@packages/tailwind-config':
+        specifier: workspace:*
+        version: link:../../packages/tailwind-config
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -388,8 +397,29 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/tailwind-config:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.4.2
+        version: 2.4.2
+      '@rslib/core':
+        specifier: ^0.23.2
+        version: 0.23.2(core-js@3.47.0)(typescript@5.9.3)
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      tailwindcss:
+        specifier: ^4
+        version: 4.3.3
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/ui:
     dependencies:
+      '@packages/tailwind-config':
+        specifier: workspace:*
+        version: link:../tailwind-config
       '@packages/utils':
         specifier: workspace:*
         version: link:../utils

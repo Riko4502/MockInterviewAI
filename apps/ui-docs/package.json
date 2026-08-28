@@ -8,10 +8,12 @@
     "storybook": "storybook dev -p 6006",
     "build": "storybook build",
     "build-storybook": "storybook build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vercel-ignore": "bash ../../scripts/vercel-ignore-ui-docs.sh"
   },
   "dependencies": {
     "@packages/icons": "workspace:*",
+    "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

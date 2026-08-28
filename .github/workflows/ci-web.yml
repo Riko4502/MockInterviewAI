@@ -37,7 +37,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
-      - name: "Сборка зависимостей Web (@packages/ui, @packages/icons, @packages/utils)"
+      - name: "Сборка зависимостей Web (@packages/ui, @packages/icons, @packages/tailwind-config, @packages/utils)"
         run: pnpm turbo run build --filter=web^...
 
       - name: "Проверка стиля и линтинг (Biome)"

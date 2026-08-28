@@ -45,6 +45,7 @@
         "apps/web/**",
         "packages/ui/**",
         "packages/icons/**",
+        "packages/tailwind-config/**",
         "apps/landing/**",
         "apps/ui-docs/**"
       ],
