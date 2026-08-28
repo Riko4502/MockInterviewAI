@@ -32,9 +32,12 @@ jobs:
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          path: |
+            .turbo
+            node_modules/.cache/turbo
+          key: ${{ runner.os }}-turbo-storybook-${{ github.sha }}
           restore-keys: |
+            ${{ runner.os }}-turbo-storybook-
             ${{ runner.os }}-turbo-
 
       - name: "Сборка зависимостей UI (@packages/utils, @packages/icons, @packages/ui, @packages/tailwind-config)"

@@ -52,6 +52,10 @@ jobs:
       landing: ${{ steps.filter.outputs.landing }}
       api: ${{ steps.filter.outputs.api }}
       storybook: ${{ steps.filter.outputs.storybook }}
+      docker_realtime: ${{ steps.filter.outputs.docker_realtime }}
+      docker_web: ${{ steps.filter.outputs.docker_web }}
+      docker_landing: ${{ steps.filter.outputs.docker_landing }}
+      docker_api: ${{ steps.filter.outputs.docker_api }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -63,32 +67,47 @@ jobs:
           filters: |
             realtime:
               - 'apps/realtime/**'
+              - 'go.mod'
+              - 'go.sum'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-realtime.yml'
             web:
               - 'apps/web/**'
-              - 'packages/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
+              - 'packages/dto/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-web.yml'
             api:
               - 'apps/api/**'
-              - 'packages/**'
+              - 'packages/dto/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-api.yml'
             landing:
               - 'apps/landing/**'
-              - 'packages/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
+              - 'packages/utils/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-landing.yml'
@@ -97,35 +116,74 @@ jobs:
               - 'packages/ui/**'
               - 'packages/icons/**'
               - 'packages/tailwind-config/**'
+              - 'packages/utils/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-storybook.yml'
+            docker_realtime:
+              - 'apps/realtime/Dockerfile*'
+              - 'apps/realtime/go.mod'
+              - 'apps/realtime/go.sum'
+              - '.dockerignore'
+            docker_web:
+              - 'apps/web/Dockerfile*'
+              - '.dockerignore'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/ci-storybook.yml'
+            docker_api:
+              - 'apps/api/Dockerfile*'
+              - 'apps/api/prisma/**'
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+            docker_landing:
+              - 'apps/landing/Dockerfile*'
+              - 'apps/landing/nginx.conf'
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+
   realtime:
     name: "Realtime"
     needs: changes
     if: needs.changes.outputs.realtime == 'true'
     uses: ./.github/workflows/ci-realtime.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_realtime == 'true' }}
 
   web:
     name: "Web"
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/ci-web.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_web == 'true' }}
 
   api:
     name: "API"
     needs: changes
     if: needs.changes.outputs.api == 'true'
     uses: ./.github/workflows/ci-api.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_api == 'true' }}
 
   landing:
     name: "Landing"
     needs: changes
     if: needs.changes.outputs.landing == 'true'
     uses: ./.github/workflows/ci-landing.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_landing == 'true' }}
 
   storybook:
     name: "Storybook"

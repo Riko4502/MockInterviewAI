@@ -2,6 +2,11 @@ name: "CI Realtime (Go)"
 
 on:
   workflow_call:
+    inputs:
+      should_build_docker:
+        type: boolean
+        default: true
+        description: "Флаг запуска сборки Docker"
     outputs:
       coverage:
         description: "Процент покрытия тестами Realtime"
@@ -89,11 +94,11 @@ jobs:
           revive -config .revive.toml -formatter friendly ./...
 
       - name: "Настройка Docker Buildx"
-        if: steps.check_realtime.outputs.exists == 'true'
+        if: steps.check_realtime.outputs.exists == 'true' && inputs.should_build_docker
         uses: docker/setup-buildx-action@v4
 
       - name: "Проверка сборки Docker-образа Realtime (Smoke Test)"
-        if: steps.check_realtime.outputs.exists == 'true'
+        if: steps.check_realtime.outputs.exists == 'true' && inputs.should_build_docker
         uses: docker/build-push-action@v7
         with:
           context: ./apps/realtime
