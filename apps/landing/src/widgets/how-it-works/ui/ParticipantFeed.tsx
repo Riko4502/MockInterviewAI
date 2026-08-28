@@ -25,7 +25,7 @@ export function ParticipantFeed({
   return (
     <div
       className={cn(
-        "relative rounded-xl bg-slate-900/90 p-4 aspect-video flex flex-col justify-between overflow-hidden shadow-inner",
+        "relative rounded-xl bg-slate-900/90 p-4 aspect-video flex flex-col justify-between overflow-hidden shadow-inner group",
         isLead ? "border border-violet-500/40" : "border border-white/10",
       )}
     >
@@ -46,22 +46,30 @@ export function ParticipantFeed({
       </div>
 
       <div className="relative z-10 flex items-center justify-center py-2">
-        <Avatar className="w-14 h-14">
-          <Avatar.Fallback
-            className={cn(
-              "font-bold text-sm tracking-wide size-full flex items-center justify-center",
-              avatarGradient,
-            )}
-          >
-            {avatarText}
-          </Avatar.Fallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="w-14 h-14">
+            <Avatar.Fallback
+              className={cn(
+                "font-bold text-sm tracking-wide size-full flex items-center justify-center transition-transform group-hover:scale-105",
+                avatarGradient,
+              )}
+            >
+              {avatarText}
+            </Avatar.Fallback>
+          </Avatar>
+        </div>
       </div>
 
       <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-400">
-        <span className="flex items-center gap-1 text-emerald-400">
-          ● {micActiveText}
-        </span>
+        <div className="flex items-center gap-1.5 text-emerald-400">
+          <div className="flex items-end gap-0.5 h-3">
+            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-1" />
+            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-2" />
+            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-3" />
+            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-4" />
+          </div>
+          <span>{micActiveText}</span>
+        </div>
         <span className="text-violet-300 font-mono">{videoQualityText}</span>
       </div>
     </div>

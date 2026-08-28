@@ -14,7 +14,7 @@ export function NavMobileMenu({ isOpen }: NavMobileMenuProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="md:hidden border-t border-white/10 bg-[#090a10]/95 backdrop-blur-2xl px-4 pt-4 pb-6 space-y-4">
+    <div className="md:hidden border-t border-white/[0.06] bg-[#07080e]/60 backdrop-blur-2xl px-4 pt-4 pb-6 space-y-4 shadow-2xl">
       <div className="flex flex-col space-y-3">
         <a
           href="#how-it-works"

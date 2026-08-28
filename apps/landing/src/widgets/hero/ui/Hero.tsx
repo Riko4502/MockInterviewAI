@@ -12,19 +12,14 @@ export function Hero() {
   const registerUrl = getRegisterUrl();
 
   return (
-    <section className="relative pt-12 pb-20 md:pt-24 md:pb-36 overflow-hidden bg-grid-pattern">
-      {/* Glowing Background Orbs */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-violet-600/20 blur-[140px] rounded-full pointer-events-none -z-10 animate-pulse-slow" />
-      <div className="absolute top-1/3 left-1/4 w-[450px] h-[350px] bg-indigo-500/15 blur-[120px] rounded-full pointer-events-none -z-10" />
-      <div className="absolute top-1/2 right-1/4 w-[350px] h-[250px] bg-purple-600/15 blur-[110px] rounded-full pointer-events-none -z-10" />
-
+    <section className="relative pt-12 pb-20 md:pt-24 md:pb-36 overflow-hidden bg-transparent">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-10 items-center">
           {/* Left Hero Content (7 cols) */}
           <div className="lg:col-span-7 flex flex-col items-start text-left">
             <Badge
               variant="statusInfo"
-              className="mb-6 bg-violet-500/10 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5"
+              className="mb-6 bg-violet-500/15 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
             >
               {landing.hero.badge}
             </Badge>

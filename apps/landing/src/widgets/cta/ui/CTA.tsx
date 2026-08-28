@@ -13,20 +13,20 @@ export function CTA() {
   return (
     <section
       id="cta"
-      className="relative py-20 md:py-28 overflow-hidden bg-[#07080e]"
+      className="relative py-20 md:py-28 overflow-hidden bg-transparent"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* CTA Card Box */}
-        <Card className="relative rounded-3xl p-8 sm:p-12 md:p-16 border-violet-500/30 overflow-hidden shadow-2xl glow-card text-center bg-gradient-to-b from-[#121424] to-[#0a0c16]">
-          {/* Ambient Glow Behind CTA */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-violet-600/30 via-indigo-600/30 to-purple-600/30 blur-[120px] pointer-events-none -z-10" />
+        {/* CTA Card Box with Aurora Theme */}
+        <Card className="relative rounded-3xl p-8 sm:p-12 md:p-16 border border-violet-500/40 overflow-hidden shadow-2xl glow-card text-center bg-gradient-to-b from-[#141226]/80 via-[#0d1022]/80 to-[#070914]/90 backdrop-blur-xl">
+          {/* Ambient Multi-Color Aurora Glow */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[750px] h-[350px] bg-gradient-to-r from-violet-600/30 via-fuchsia-600/25 to-cyan-500/30 blur-[130px] pointer-events-none -z-10" />
 
           <Card.Header className="p-0 text-center">
             {/* Badge */}
             <div className="flex justify-center">
               <Badge
                 variant="statusInfo"
-                className="mb-6 bg-violet-500/10 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5"
+                className="mb-6 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border-violet-500/40 text-violet-200 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
               >
                 {landing.cta.badge}
               </Badge>
@@ -49,7 +49,7 @@ export function CTA() {
               <Button
                 asChild
                 size="lg"
-                className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-xl shadow-violet-600/40 hover:shadow-violet-500/60 hover:scale-[1.03] active:scale-[0.98] transition-all px-9 py-4 h-auto text-base font-semibold group gap-2.5"
+                className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:via-indigo-500 hover:to-cyan-500 text-white shadow-xl shadow-violet-600/40 hover:shadow-cyan-500/50 hover:scale-[1.03] active:scale-[0.98] transition-all px-9 py-4 h-auto text-base font-semibold group gap-2.5"
               >
                 <a href={registerUrl}>
                   <span>{landing.cta.button}</span>

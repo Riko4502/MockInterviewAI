@@ -9,6 +9,7 @@ import { useLandingTranslations } from "@/shared/lib";
 import { Logo } from "@/shared/ui";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
+import { ScrollProgressBar } from "./ScrollProgressBar";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,7 +19,7 @@ export function Navbar() {
   const registerUrl = getRegisterUrl();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#090a10]/80 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 z-50 w-full border-b border-white/[0.06] bg-[#07080e]/35 backdrop-blur-2xl transition-all shadow-[0_4px_30px_rgba(0,0,0,0.15)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand Logo */}
         <Logo href={homeUrl} />
@@ -33,7 +34,7 @@ export function Navbar() {
           <Button
             asChild
             variant="ghost"
-            className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5"
+            className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
           >
             <a href={authUrl}>{landing.nav.signIn}</a>
           </Button>
@@ -61,6 +62,9 @@ export function Navbar() {
 
       {/* Mobile Dropdown Menu */}
       <NavMobileMenu isOpen={mobileMenuOpen} />
+
+      {/* Neon Scroll Progress Indicator */}
+      <ScrollProgressBar />
     </header>
   );
 }

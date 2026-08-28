@@ -13,12 +13,8 @@ export function Features() {
   return (
     <section
       id="features"
-      className="relative py-24 md:py-36 bg-[#090b13] border-t border-white/10 overflow-hidden"
+      className="relative py-24 md:py-36 bg-transparent overflow-hidden"
     >
-      {/* Glow Backdrop */}
-      <div className="absolute top-1/2 right-0 w-[500px] h-[500px] bg-violet-600/10 blur-[150px] pointer-events-none -z-10" />
-      <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-indigo-600/10 blur-[140px] pointer-events-none -z-10" />
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <SectionHeader
@@ -27,12 +23,20 @@ export function Features() {
           subtitle={landing.features.subtitle}
         />
 
-        {/* Bento Grid */}
+        {/* Bento Grid with Dynamic Ambient Glows */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <FeatureCollaboration />
-          <FeatureVoice />
-          <FeatureSandbox />
-          <FeatureAnalytics />
+          <div className="md:col-span-7">
+            <FeatureCollaboration />
+          </div>
+          <div className="md:col-span-5">
+            <FeatureVoice />
+          </div>
+          <div className="md:col-span-5">
+            <FeatureSandbox />
+          </div>
+          <div className="md:col-span-7">
+            <FeatureAnalytics />
+          </div>
         </div>
       </div>
     </section>
