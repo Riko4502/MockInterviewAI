@@ -1,26 +1,25 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useMemo } from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import * as LabelPrimitive from "@radix-ui/react-label"
-
-import { cn } from "@lib/utils"
+import { cn } from "@packages/utils";
+import * as LabelPrimitive from "@radix-ui/react-label";
+import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
+import { useMemo } from "react";
 
 // --------------- Context ---------------
 
 type FieldContextValue = {
-  invalid: boolean
-  inputId: string
-}
+  invalid: boolean;
+  inputId: string;
+};
 
 const FieldContext = React.createContext<FieldContextValue>({
   invalid: false,
   inputId: "",
-})
+});
 
 function useFieldContext() {
-  return React.useContext(FieldContext)
+  return React.useContext(FieldContext);
 }
 
 // ----------- Field (root) -----------
@@ -40,13 +39,13 @@ const fieldVariants = cva(
     defaultVariants: {
       orientation: "vertical",
     },
-  }
-)
+  },
+);
 
 interface FieldProps
   extends React.ComponentProps<"div">,
     VariantProps<typeof fieldVariants> {
-  invalid?: boolean
+  invalid?: boolean;
 }
 
 function FieldRoot({
@@ -55,7 +54,7 @@ function FieldRoot({
   invalid = false,
   ...props
 }: FieldProps) {
-  const inputId = React.useId()
+  const inputId = React.useId();
 
   return (
     <FieldContext.Provider value={{ invalid, inputId }}>
@@ -68,7 +67,7 @@ function FieldRoot({
         {...props}
       />
     </FieldContext.Provider>
-  )
+  );
 }
 
 // ----------- Field.Set -----------
@@ -83,7 +82,7 @@ function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Group -----------
@@ -98,7 +97,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Legend -----------
@@ -118,7 +117,7 @@ function FieldLegend({
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Label -----------
@@ -127,7 +126,7 @@ function FieldLabel({
   className,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
-  const { invalid, inputId } = useFieldContext()
+  const { invalid, inputId } = useFieldContext();
 
   return (
     <LabelPrimitive.Root
@@ -141,7 +140,7 @@ function FieldLabel({
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Title -----------
@@ -156,22 +155,26 @@ function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Content -----------
 
-function FieldContent({ className, children, ...props }: React.ComponentProps<"div">) {
-  const { inputId } = useFieldContext()
+function FieldContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  const { inputId } = useFieldContext();
 
   const childrenWithId = React.Children.map(children, (child) => {
     if (React.isValidElement(child)) {
       return React.cloneElement(child as React.ReactElement<{ id?: string }>, {
         id: inputId,
-      })
+      });
     }
-    return child
-  })
+    return child;
+  });
 
   return (
     <div
@@ -184,15 +187,12 @@ function FieldContent({ className, children, ...props }: React.ComponentProps<"d
     >
       {childrenWithId}
     </div>
-  )
+  );
 }
 
 // ----------- Field.Description -----------
 
-function FieldDescription({
-  className,
-  ...props
-}: React.ComponentProps<"p">) {
+function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
@@ -204,7 +204,7 @@ function FieldDescription({
       )}
       {...props}
     />
-  )
+  );
 }
 
 // ----------- Field.Error -----------
@@ -215,37 +215,39 @@ function FieldError({
   errors,
   ...props
 }: React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string } | undefined>
+  errors?: Array<{ message?: string } | undefined>;
 }) {
   const content = useMemo(() => {
     if (children) {
-      return children
+      return children;
     }
 
     if (!errors?.length) {
-      return null
+      return null;
     }
 
     const uniqueErrors = [
       ...new Map(errors.map((error) => [error?.message, error])).values(),
-    ]
+    ];
 
-    if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message
+    if (uniqueErrors?.length === 1) {
+      return uniqueErrors[0]?.message;
     }
 
     return (
       <ul className="ml-4 flex list-disc flex-col gap-1">
         {uniqueErrors.map(
           (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>,
+            error?.message && (
+              <li key={error.message || index}>{error.message}</li>
+            ),
         )}
       </ul>
-    )
-  }, [children, errors])
+    );
+  }, [children, errors]);
 
   if (!content) {
-    return null
+    return null;
   }
 
   return (
@@ -257,7 +259,7 @@ function FieldError({
     >
       {content}
     </div>
-  )
+  );
 }
 
 // ----------- Compound export -----------
@@ -271,6 +273,6 @@ const Field = Object.assign(FieldRoot, {
   Content: FieldContent,
   Description: FieldDescription,
   Error: FieldError,
-})
+});
 
-export { Field }
+export { Field };

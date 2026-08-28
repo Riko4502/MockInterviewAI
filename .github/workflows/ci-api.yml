@@ -50,6 +50,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
+      - name: "Сборка зависимостей API (@packages/dto, @packages/utils)"
+        if: steps.check_api.outputs.exists == 'true'
+        run: pnpm turbo run build --filter=api^...
+
       - name: "Валидация схемы Prisma и кодогенерация"
         if: steps.check_api.outputs.exists == 'true'
         run: |

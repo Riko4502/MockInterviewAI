@@ -1,10 +1,12 @@
-# Спецификация — `POST /api/v1/auth/register`
+# Спецификация — Auth API: `register`, `login`, `logout`
 
 ## Версия документа
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.2.0 | 2026-08-23 | Актуальный |
+| 1.4.0 | 2026-08-23 | Актуальный |
+| 1.3.0 | 2026-08-23 | Актуальный |
+| 1.2.0 | 2026-08-22 | Актуальный |
 | 1.1.0 | 2026-08-14 | Актуальный |
 | 1.0.0 | 2026-08-14 | Актуальный |
 
@@ -12,7 +14,9 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
-| 1.2.0 | 2026-08-23 | Имя refresh cookie вынесено в окружение: env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`), конфигурация `cookie.refreshTokenName`, §25/§36/§49. |
+| 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
+| 1.3.0 | 2026-08-23 | Добавлены разделы §61–§63: OpenAPI/Swagger документация, генерация спецификации и пакет `@packages/api`, zod v4 в `packages/dto`. |
+| 1.2.0 | 2026-08-22 | Добавлены разделы §58–§60: Login, Account Enumeration (Login), Logout. |
 | 1.1.0 | 2026-08-14 | Добавлен раздел §57 — обязательное документирование кода. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия спецификации. |
 
@@ -52,6 +56,7 @@ Backend должен:
 | Rate limiting | `@nestjs/throttler` |
 | Cookie | express `Set-Cookie`, `cookie-parser` |
 | Security headers | `helmet` |
+| API-документация | `@nestjs/swagger` (OpenAPI 3.0) + генерация `openapi.yaml`/`openapi.json` в `packages/api` |
 | Тесты | Jest + ts-jest (unit), supertest (e2e) |
 | Локальная среда | Docker Compose (postgres:16-alpine, redis:7-alpine) |
 
@@ -75,7 +80,8 @@ apps/
         ├── common/
         │   ├── pipes/zod-validation.pipe.ts
         │   ├── filters/http-exception.filter.ts
-        │   └── interceptors/sensitive-logging.interceptor.ts
+        │   ├── interceptors/sensitive-logging.interceptor.ts
+        │   └── openapi/zod-openapi.ts
         └── modules/
             ├── users/
             │   ├── users.module.ts
@@ -105,6 +111,17 @@ packages/
             └── email.ts
 ```
 
+Пакет API-контракта (генерируемые артефакты, коммитятся в git):
+
+```
+packages/
+└── api/
+    ├── package.json
+    ├── README.md
+    ├── openapi.yaml
+    └── openapi.json
+```
+
 ### 4. API
 
 `POST /api/v1/auth/register`
@@ -114,7 +131,8 @@ Request:
 ```json
 {
   "email": "user@example.com",
-  "password": "StrongPassword123!"
+  "password": "StrongPassword123!",
+  "passwordConfirmation": "StrongPassword123!"
 }
 ```
 
@@ -122,7 +140,7 @@ Response (успех):
 
 - `201 Created`
 - Body: `{ "accessToken": "eyJhbGciOi..." }`
-- `Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000` (имя cookie `refresh_token` — значение по умолчанию env `REFRESH_TOKEN_COOKIE_NAME`, §49)
+- `Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000`
 
 ### 5. RegisterDto
 
@@ -132,8 +150,12 @@ Response (успех):
 |---|---|---|
 | `email` | да | строка; корректный email-формат; trim; нормализация регистра (lowercase); non-empty |
 | `password` | да | строка; соответствует password policy; non-empty |
+| `passwordConfirmation` | да | строка; non-empty («Подтверждение пароля обязательно»); совпадает с `password` («Пароли не совпадают»); только для валидации — из результата парсинга удаляется |
 
-Реализация — zod-схема `registerSchema` + экспорт типа `RegisterDto = z.infer<typeof registerSchema>`.
+Реализация — zod-схема `registerSchema` + экспорт типа `RegisterDto = z.infer<typeof registerSchema>`:
+
+- проверка совпадения паролей через `.refine()` с ошибкой на пути `passwordConfirmation`;
+- `.transform()` удаляет `passwordConfirmation` из результата парсинга — выходной тип и `RegisterDto` остаются `{ email, password }`; поле не попадает в сервисы и логи (§45–46).
 
 ### 6. Validation
 
@@ -142,9 +164,11 @@ Response (успех):
 Проверки:
 
 - `email` non-empty, валидный формат;
-- `password` non-empty, соответствует policy.
+- `password` non-empty, соответствует policy;
+- `passwordConfirmation` non-empty;
+- `passwordConfirmation` совпадает с `password`.
 
-При ошибке: `400 Bad Request`. Пользователь не создаётся.
+При ошибке: `400 Bad Request`. Пользователь не создаётся. Ошибка несовпадения паролей возвращается на поле `passwordConfirmation`.
 
 ### 7. Password Policy
 
@@ -315,14 +339,13 @@ Access token не должен содержать: password, passwordHash, refre
 ### 25. Refresh Token Cookie
 
 - Refresh token не возвращается в JSON response.
-- Имя cookie конфигурируется через env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`, дефолт `refresh_token`; §49). Значение читается через `ConfigService` (`cookie.refreshTokenName`).
 - Передаётся через HttpOnly cookie:
 
 ```
-Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=2592000
+Set-Cookie: refresh_token=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=<T>
 ```
 
-где `refresh_token` — значение `REFRESH_TOKEN_COOKIE_NAME`.
+- `Max-Age=<T>` вычисляется из `JWT_REFRESH_EXPIRATION` (времени жизни refresh JWT, §24): по умолчанию `7d` → `Max-Age=604800`. Cookie, Redis-сессия (§18) и JWT истекают одновременно — единый источник истины, рассинхрон времён жизни исключён.
 
 ### 26. HttpOnly
 
@@ -392,7 +415,7 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 ### 36. AuthController
 
 - Отвечает только за HTTP layer.
-- `POST /api/v1/auth/register`: принимает request, валидирует DTO, вызывает `AuthService.register()`, устанавливает refresh cookie (имя — из конфигурации `cookie.refreshTokenName`, §25/§49), возвращает `{ accessToken }`.
+- `POST /api/v1/auth/register`: принимает request, валидирует DTO, вызывает `AuthService.register()`, устанавливает refresh cookie, возвращает `{ accessToken }`.
 - Бизнес-логика в Controller не размещается.
 
 ### 37. AuthService
@@ -508,8 +531,8 @@ AuthService → AuthSessionService → RedisService → Redis
 
 Переменные окружения разделены по месту хранения:
 
-- Корневой `.env` монорепы (общие настройки: Server, JWT, Refresh token hashing, Redis, имя refresh cookie).
-- `apps/api/.env` (специфичные для api: Database, Argon2id, параметры cookie (`COOKIE_SECURE`), Rate limiting).
+- Корневой `.env` монорепы (общие настройки: Server, JWT, Refresh token hashing, Redis).
+- `apps/api/.env` (специфичные для api: Database, Argon2id, Cookie, Rate limiting).
 
 `ConfigModule` загружает оба файла через `envFilePath: ["../../.env", ".env"]` (пути относительно `apps/api`; приоритет у файла, идущего раньше). Docker Compose читает корневой `.env` через `--env-file ../../.env` (нужно для `REDIS_PASSWORD`).
 
@@ -532,9 +555,6 @@ JWT_AUDIENCE=api
 
 # Refresh token hashing
 REFRESH_TOKEN_HASH_SECRET=
-
-# Cookie (имя refresh cookie)
-REFRESH_TOKEN_COOKIE_NAME=refresh_token
 
 # Redis
 REDIS_HOST=localhost
@@ -594,6 +614,72 @@ Production secrets хранятся вне исходного кода (Secret M
 - Тривиальный код (геттеры, присваивания без логики) может не иметь JSDoc.
 - Язык комментариев — русский (в едином стиле с документацией проекта).
 - Соответствие проверяется в code review (biome по умолчанию не требует JSDoc); в `PLAN.md`, Phase 6, зафиксирован чек-пункт.
+
+### 58. Login
+
+- Endpoint: `POST /api/v1/auth/login`.
+- Тело запроса: `{ email, password }`.
+- Email: валидация и нормализация как при регистрации (§5, §8).
+- Password: только проверка заполненности (1–128 символов). Password policy (min 12, §7) к логину **не применяется** — корректность пароля проверяется сравнением с сохранённым хешем.
+- Алгоритм:
+  1. Поиск пользователя по email → не найден → фиктивная argon2-проверка против dummy-хеша, вычисленного при старте модуля с теми же параметрами Argon2id (выравнивание времени ответа) → generic `401` (см. §59).
+  2. Проверка пароля через `argon2.verify(user.passwordHash, password)` → не совпал → тот же generic `401` (§59).
+  3. Успех: создание новой authentication session — каждый логин порождает новый `sessionId` и новый `tokenFamilyId` (§13–17); генерация access + refresh JWT (§19–24); запись session в Redis с HMAC-хешем refresh token.
+- Ответ: `200 OK`, body `{ "accessToken": "..." }`, refresh token через `Set-Cookie` с атрибутами §25–28 (идентично register).
+- Redis недоступен → `500 Internal Server Error`; компенсация не требуется (пользователь не создаётся).
+- Rate limiting: глобальный по IP (default guard) + на маршруте кастомный `AuthThrottlerGuard` c tracker `ip + body.email` (§41) — защита от brute-force.
+
+### 59. Account Enumeration (Login)
+
+- Неизвестный email и неверный пароль возвращают идентичный ответ: generic `401 Unauthorized` `"Invalid credentials"` без указания причины отказа.
+- Тела ответов для обоих случаев байт-в-байт совпадают; время ответа выравнивается фиктивной argon2-проверкой (dummy-хеш вычисляется при старте модуля через `OnModuleInit` с теми же параметрами Argon2id, что и реальное хеширование) при отсутствии пользователя в БД.
+
+### 60. Logout
+
+- Endpoint: `POST /api/v1/auth/logout`.
+- Refresh token читается из HttpOnly cookie (§25). Тело запроса отсутствует.
+- Строгая семантика: logout успешен только при одновременном выполнении условий:
+  1. cookie присутствует;
+  2. JWT валиден (HS256, подпись, issuer, audience, expiration, typ = `refresh`, §33);
+  3. session `auth:session:{sid}` существует в Redis;
+  4. `hashRefreshToken(cookie)` совпадает с `session.refreshTokenHash` (защита от отзыва ротированной сессии старым токеном, §30–32).
+
+| Случай | Код | Cookie |
+|---|---|---|
+| Успех | `204 No Content` | сбрасывается (`clearCookie`, атрибуты §25–28) |
+| Нет cookie / невалидный JWT / нет session / hash mismatch | `401 Unauthorized` | всегда сбрасывается |
+| Ошибка Redis | `500 Internal Server Error` | не сбрасывается |
+
+- Нарушение любого из условий 1–4 → `401`; cookie при этом очищается всегда, чтобы клиент мог восстановиться. Повторный logout с тем же токеном после успешного выхода → `401` (сессия уже отозвана; семантика строгая, не идемпотентная).
+- Access token остаётся валидным до истечения TTL (15m, stateless); серверный отзыв access-токенов не выполняется (blacklist вне текущего скоупа).
+- Логирование: токены и их хеши не логируются (§46).
+
+### 61. OpenAPI/Swagger документация
+
+- Документация API строится через `@nestjs/swagger` (OpenAPI 3.0).
+- Схемы запросов/ответов выводятся из zod-схем (`packages/dto`) конвертацией через нативный `z.toJSONSchema()` — контракты не дублируются вручную.
+- Каждый endpoint обязан быть описан в спецификации (текущие §4, §56 и будущие §58–§60); security scheme `bearerAuth` добавляется заранее как задел под access-token авторизацию.
+- Интерактивный Swagger UI доступен только при `NODE_ENV !== "production"` на маршруте `/docs` (спецификация для UI — `/docs-json`); в production UI отключён.
+- Инфраструктурные требования:
+  - helmet: при включённом UI CSP отключается (`contentSecurityPolicy: false`) — дефолтная CSP блокирует ассеты swagger-ui;
+  - `OriginCheckGuard` пропускает запросы с собственным origin API (`http://localhost:{API_PORT}`), иначе загрузка `/docs-json` из UI получает 403 (`ALLOWED_ORIGINS` содержит только origins веб-клиентов).
+
+### 62. Генерация спецификации OpenAPI
+
+- Скрипт `apps/api/scripts/generate-openapi.ts` собирает OpenAPI-документ без запущенной инфраструктуры:
+  - приложение поднимается через `Test.createTestingModule({ imports: [AppModule] })` с переопределением `PrismaService`/`RedisService` стабами — Docker PG/Redis не требуются;
+  - применяется `configureApp` — глобальный prefix `/api/v1` попадает в пути спецификации;
+  - документ сериализуется в YAML и JSON.
+- Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env` (дефолт `./apps/api/openapi`). Скрипт загружает `.env` через `dotenv` и записывает `openapi.yaml` и `openapi.json` по указанному пути.
+- Артефакты коммитятся в git — фронтенд может читать их без запуска бэкенда.
+- Команды: `pnpm --filter api generate:openapi`; из корня монорепо — `pnpm generate:api`.
+
+### 63. Пакет `@packages/dto` — единый источник контрактов
+
+- Зависимость `zod` пакета обновляется до `^4.4.3` — единая версия zod по монорепо (`apps/api` и `apps/web` уже на v4).
+- Все приложения потребляют схемы валидации через `@packages/dto`; локальные дубли zod-схем в приложениях недопустимы. Подключение `apps/web` (перевод формы регистрации на общий `registerSchema`, удаление локального дубликата) — отдельная будущая задача; до её выполнения web использует локальную схему временно.
+- Сообщения об ошибках — русские, единые для API-ответов и UI: «Email обязателен», «Некорректный email», «Пароль должен содержать минимум N символов», «Пароль должен содержать максимум N символов», «Подтверждение пароля обязательно», «Пароли не совпадают» (ранее существовавшие английские тексты заменяются; юнит-тесты обновляются синхронно).
+- `z.string().email()` в v4 deprecated, но работоспособен; допустим переход на top-level `z.email()` при сохранении сообщений.
 
 ---
 

@@ -29,9 +29,6 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: "Сборка пакетов (ui и другие)"
-        run: pnpm --filter='./packages/*' build
-
       - name: "Восстановление / сохранение кэша Turborepo"
         uses: actions/cache@v6
         with:
@@ -39,6 +36,9 @@ jobs:
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
+
+      - name: "Сборка зависимостей Web (@packages/ui, @packages/icons, @packages/utils)"
+        run: pnpm turbo run build --filter=web^...
 
       - name: "Проверка стиля и линтинг (Biome)"
         run: pnpm --filter web lint

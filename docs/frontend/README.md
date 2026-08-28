@@ -39,6 +39,7 @@
 * [Feature-Sliced Design (FSD)](./architecture/fsd.md)
 * [Next.js App Router интеграция](./architecture/nextjs.md)
 * [Astro Landing](./architecture/astro.md)
+* [Интернационализация (i18n)](./i18n.md)
 
 ### 2. [UI и дизайн-система](./ui/ui-kit.md)
 * [UI Kit & shadcn/ui](./ui/ui-kit.md)
@@ -49,6 +50,8 @@
 * [API Contracts & OpenAPI](./data/api-contracts.md)
 * [TanStack Query](./data/tanstack-query.md)
 * [State Management Decision Tree](./data/state-management.md)
+* [Realtime Integration (WS & SSE)](./data/realtime.md)
+
 
 ### 4. [Разработка и качество](./development/typescript.md)
 * [TypeScript стандарты](./development/typescript.md)

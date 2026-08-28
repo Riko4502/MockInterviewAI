@@ -1,10 +1,12 @@
-# План реализации — `POST /api/v1/auth/register`
+# План реализации — Auth API (`register`, `login`, `logout`)
 
 ## Версия документа
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.2.0 | 2026-08-23 | Актуальный |
+| 1.4.0 | 2026-08-23 | Актуальный |
+| 1.3.0 | 2026-08-23 | Актуальный |
+| 1.2.0 | 2026-08-22 | Актуальный |
 | 1.1.0 | 2026-08-14 | Актуальный |
 | 1.0.0 | 2026-08-14 | Актуальный |
 
@@ -12,7 +14,9 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
-| 1.2.0 | 2026-08-23 | Имя refresh cookie вынесено в env `REFRESH_TOKEN_COOKIE_NAME` (корневой `.env`, конфигурация `cookie.refreshTokenName`): Phase 2, Phase 5. |
+| 1.4.0 | 2026-08-23 | Добавлен Phase 11 «Password confirmation и унификация dto» (SPEC.md §5–§6, §63): обязательное `passwordConfirmation`, русские сообщения dto; подключение web — позже. |
+| 1.3.0 | 2026-08-23 | Добавлен Phase 10 «OpenAPI/Swagger документация» (SPEC.md §61–§63): Swagger UI (dev-only), скрипт генерации `openapi.yaml`/`openapi.json`, пакет `@packages/api`, миграция dto на zod v4. |
+| 1.2.0 | 2026-08-22 | Добавлены Phase 8 «Auth: Login» и Phase 9 «Auth: Logout» (SPEC.md §58–§60); `/auth/logout` убран из «Вне области». |
 | 1.1.0 | 2026-08-14 | Добавлены требования к документированию кода (SPEC.md §57): Phase 0 + чек-пункт Phase 6. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия плана. |
 
@@ -43,8 +47,8 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] `apps/api/docker-compose.yml`: postgres:16-alpine + redis:7-alpine, healthcheck, volume, `REDIS_PASSWORD` с дефолтом `${REDIS_PASSWORD:-mock-interview-redis}`.
 - [x] `prisma/schema.prisma` (модель `User`, `@unique` email), `prisma.config.ts` (Prisma 7: url в config, fallback URL для `prisma generate` без `.env`), миграция: `pnpm --filter api db:migrate:dev -- --name init`.
 - [x] `src/config/`:
-  - `env.validation.ts` — zod-схема полного набора env (§49 SPEC.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `REFRESH_TOKEN_COOKIE_NAME`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis/имя refresh cookie лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
-  - `configuration.ts` — типизированная конфигурация (секция `cookie`: `secure`, `refreshTokenName`).
+  - `env.validation.ts` — zod-схема полного набора env (§49 SPEC.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
+  - `configuration.ts` — типизированная конфигурация.
 - [x] `src/prisma/` — `PrismaModule`, `PrismaService` (@Global; Prisma 7 adapter `@prisma/adapter-pg` + `pg`).
 - [x] `src/common/filters/http-exception.filter.ts` — `HttpExceptionFilter` (маскировка деталей, §56 SPEC.md).
 - [x] `src/modules/health/` — `HealthModule`, `HealthController`; `GET /api/v1/health` — ping PostgreSQL (`SELECT 1` через `PrismaService.$queryRaw`); ответ: `200 { "status": "ok", "db": "up" }` / `503 { "status": "error", "db": "down" }`, без внутренних деталей; без auth.
@@ -81,12 +85,13 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 ## Phase 5 — Auth module
 
 - [x] `src/modules/users/` — `UsersModule`, `UsersService` (`findByEmail`, `create`).
-- [x] `src/modules/auth/auth.constants.ts` — константы: префикс Redis-ключа (`auth:session:`), `typ`-константы токенов (имя refresh cookie — из окружения `REFRESH_TOKEN_COOKIE_NAME` через конфигурацию `cookie.refreshTokenName`, §49 SPEC.md).
+- [x] `src/modules/auth/auth.constants.ts` — константы: имя cookie, префикс Redis-ключа (`auth:session:`), `typ`-константы токенов.
 - [x] `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
 - [x] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 SPEC.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
 - [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
-- [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie (имя из `ConfigService` → `cookie.refreshTokenName`), `{ accessToken }`.
+- [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
 - [x] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
+- [x] Применить `@UseGuards(AuthThrottlerGuard)` на маршруте `/auth/register` (§41 SPEC.md; упущено в Phase 5, добавлено при выполнении Phase 8).
 - [x] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
 
 ## Phase 6 — Тестирование
@@ -170,8 +175,127 @@ curl http://localhost:3001/api/v1/health
 1. Команда compose в плане дописана `--env-file ../../.env`: запуск без него пересоздаёт Redis с дефолтным паролем из compose вместо пароля из корневого `.env` → `WRONGPASS` у приложения.
 2. `packages/dto`: рантайм-резолв `@packages/dto` падал (`ERR_MODULE_NOT_FOUND`) — `exports: "." → ./src/index.ts` при `"type": "module"` заставлял Node исполнять TS-source с extensionless ESM-импортами (jest/tsc это прощают, `node dist/main.js` — нет). Фикс: emit CommonJS (`module: commonjs`), условный `exports` (`types → src`, `default → dist/index.js`), убран `"type": "module"`. Тестовые мапперы jest указывают на `src` и не затронуты.
 
+## Phase 8 — Auth: Login (`POST /api/v1/auth/login`, SPEC.md §58–§59)
+
+**Код:**
+
+- [x] `packages/dto`: `src/auth/login.dto.ts` — zod-схема `loginSchema`, тип `LoginDto` (email — валидация и нормализация как в `register.dto.ts`; password — `.min(1).max(128)` без password policy, §58); экспорт из `src/index.ts`.
+- [x] `AuthService.login(dto)` (§58): `findByEmail` → не найден → dummy argon2-verify против предвычисленного хеша + generic `401` (§59); `argon2.verify` → не совпал → тот же generic `401`; успех: новые `sessionId`/`tokenFamilyId` → access/refresh JWT → `hashRefreshToken` → `createSession`.
+- [x] Dummy-hash для выравнивания timing — вычисляется при старте модуля через `OnModuleInit` (с теми же параметрами Argon2id, что и `hashPassword`), JSDoc-пояснение (§57).
+- [x] `AuthController.login()`: `@Post("login")`, ZodValidationPipe, `@UseGuards(AuthThrottlerGuard)`, Set-Cookie атрибуты как у register (§25–28), статус `200`, body `{ accessToken }`.
+- [x] Cookie Max-Age вычисляется из `jwt.refreshExpiresIn` через общий хелпер `getRefreshTokenTtlSeconds` (`AuthSessionService` + `AuthController`) вместо захардкоженного 30d; SPEC §25 обновлён.
+
+**Тесты:**
+
+- [x] Unit DTO (`login.dto.test.ts`): нормализация email; пустой пароль → ошибка; пароль >128 символов → ошибка.
+- [x] Unit `AuthService.login`: успех (новая session, новые sid/family, корректный HMAC-хеш); unknown email → generic `401` + вызвана dummy-проверка; неверный пароль → идентичный generic `401`; Redis недоступен → `500`, детали не раскрываются.
+- [x] Unit `AuthController.login`: статус `200`, body `{ accessToken }`, Set-Cookie HttpOnly/SameSite=Lax/Path=`/api/v1/auth`; guard применён к маршруту.
+- [x] Integration (`test/integration/login-persistence.e2e-spec.ts`): после login ключ `auth:session:{sessionId}` существует в Redis (userId, refreshTokenHash, tokenFamilyId); sid/tokenFamilyId login отличаются от register.
+- [x] E2E L-01: register → login → `200 { accessToken }`, новый Set-Cookie.
+- [x] E2E L-02: неверный пароль → `401` generic, Set-Cookie отсутствует.
+- [x] E2E L-03: неизвестный email → `401`, тело байт-в-байт как у L-02.
+- [x] E2E L-04: невалидный email / пустой password → `400`.
+- [x] Security (§45–46): refresh token не в JSON-ответе; password/токены/secrets не в логах.
+
+**Результат:** dto — 29 тестов, unit — 100, e2e — 13, lint/build — зелёные.
+
+**Исправления по ходу Phase 8:**
+1. `AuthThrottlerGuard.getTracker` переписан под API `@nestjs/throttler` v6: базовый `handleRequest` вызывает `getTracker(req, context)` — первым аргументом передаётся **request**, а не ExecutionContext; прежняя реализация падала (`context.switchToHttp is not a function`) на любом запросе к маршруту с guard'ом. Баг не был виден в Phase 7: per-route guard появился только при выполнении Phase 8. Unit-тесты guard'а обновлены (передаётся request напрямую).
+
+## Phase 9 — Auth: Logout (`POST /api/v1/auth/logout`, SPEC.md §60)
+
+**Код:**
+
+- [x] `AuthService.logout(refreshToken?)` (§60, строгая семантика): `verifyRefreshToken` → `getSession(sid)` → отсутствие сессии **или** несовпадение `hashRefreshToken(token)` с сохранённым → `401`; иначе `revokeSession(sid)`.
+- [x] `AuthController.logout()`: `@Post("logout")`, чтение `req.cookies[REFRESH_TOKEN_COOKIE_NAME]`, вызов сервиса, всегда `clearCookie` (атрибуты §25–28), `204` при успехе / `401` при отказе.
+
+**Тесты:**
+
+- [x] Unit `AuthService.logout`: успех → `revokeSession(sid)` вызван; сессия отсутствует → `401`; hash mismatch (ротация) → `401`; невалидный/просроченный JWT → `401`; Redis недоступен → `500`.
+- [x] Unit `AuthController.logout`: clearCookie с теми же атрибутами; статусы `204`/`401`.
+- [x] Integration (`test/integration/logout-persistence.e2e-spec.ts`): после logout ключ `auth:session:{sessionId}` удалён из Redis; User остаётся в PostgreSQL.
+- [x] E2E LO-01: logout с валидной cookie → `204`, Set-Cookie сброса, сессия удалена из Redis.
+- [x] E2E LO-02: без cookie → `401`.
+- [x] E2E LO-03: подделанная cookie → `401`, clearCookie присутствует.
+- [x] E2E LO-04: повторный logout с тем же токеном после успешного выхода → `401` (строгая семантика), cookie сброшен.
+- [x] Доп. e2e: logout с access JWT вместо refresh → `401` (typ mismatch); logout с битой подписью → `401`.
+
+**Результат:** unit — 114, e2e — 20, lint/build — зелёные.
+
+**Решения по ходу Phase 9:**
+1. Все условия отказа 1–4 нормализованы к единому телу `401 "Invalid credentials"` — включая ошибки `verifyRefreshToken` («Invalid token»/«Invalid token type»), чтобы ответы logout были однородными (§60 не требует байт-равенства, как §59, но единый формат проще для клиентов).
+2. Cookie name читается из конфига (`cookie.refreshTokenName`, дефолт `refresh_token`) вместо константы — консистентно с set-cookie логикой контроллера; атрибуты §25–28 вынесены в общий приватный хелпер.
+3. `clearCookie` передаёт атрибуты §25–28 **без** `Max-Age`: express добавляет заголовок удаления (`Expires=Thu, 01 Jan 1970`), а переданный `Max-Age` восстановил бы пустую cookie на 7 дней. При ошибке Redis (`500`) cookie не сбрасывается (таблица §60).
+4. CSRF для `/auth/logout` обеспечивается глобальным `OriginCheckGuard` (APP_GUARD) — отдельное подключение не требуется.
+
+## Phase 10 — OpenAPI/Swagger документация (SPEC.md §61–§63)
+
+**Миграция dto:**
+
+- [x] `packages/dto`: зависимость `zod` → `^4.4.3` (`pnpm --filter @packages/dto add zod@^4.4.3`); прогон `test`/`typecheck`/`build` (§63).
+
+**Код:**
+
+- [x] Зависимости api: `pnpm --filter api add @nestjs/swagger yaml`.
+- [x] `src/common/openapi/zod-openapi.ts` — хелпер конвертации zod → OpenAPI SchemaObject (`z.toJSONSchema()`) + обёртки-декораторы (`ZodBody` и т.п.) (§61). **Примечание:** `z.toJSONSchema()` в zod v4 бросает ошибку на `.transform()` (следствие миграции из item 1); используется режим `{ io: "input" }` — описывается контракт входящего запроса, transform корректно пропускается. Дополнительно `openapi-document.ts` — общий DocumentBuilder для UI и скрипта.
+- [x] `AuthController`: `@ApiTags("auth")`, схема body из `registerSchema`, ответы `201 { accessToken }` (+ описание Set-Cookie §25–28), `400 { field: message }`, `409`. **Исправление:** `HttpExceptionFilter` маскировал карту полей до `"Unknown error"` — добавлено прокидывание тел вида `{ field: message }` от `ZodValidationPipe`; контракт подтверждён вручную: `{"statusCode":400,"message":{"email":"Invalid email format",...}}`. Добавлена спека `http-exception.filter.spec.ts`.
+- [x] `HealthController`: `@ApiTags("health")`, ответы `200` / `503`.
+- [x] DocumentBuilder: title/description/version, `addBearerAuth()` (задел под access-token, §61), server `http://localhost:{port}`.
+- [x] `configureApp`: при `NODE_ENV !== "production"` — `SwaggerModule.createDocument` + `SwaggerModule.setup("docs")`; в этом режиме helmet с `contentSecurityPolicy: false` (§61).
+- [x] `OriginCheckGuard`: пропуск собственного origin API (`http://localhost:{port}`) + кейс в `origin-check.guard.spec.ts`.
+- [x] При последующей реализации Phase 8–9 их endpoints также описываются декораторами swagger (§61) — login/logout задекорированы в этом же заходе (200/400/401; 204/401/500).
+
+**Скрипт генерации:**
+
+- [x] `apps/api/scripts/generate-openapi.ts` — по образцу `test/helpers/test-app.helper.ts`: `Test.createTestingModule` + `overrideProvider(PrismaService/RedisService)` стабами → `createNestApplication()` → `configureApp(app)` (prefix `/api/v1` попадает в пути) → `SwaggerModule.createDocument` → запись `apps/api/openapi/openapi.yaml` + `openapi.json`; Docker PG/Redis не требуются (§62). Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env`.
+- [x] Скрипты: `apps/api/package.json` — `"generate:openapi": "ts-node scripts/generate-openapi.ts"`; корневой `package.json` — `"generate:api": "pnpm --filter api generate:openapi"`.
+
+**Артефакты OpenAPI:**
+
+- [x] Сгенерировать и закоммитить `apps/api/openapi/openapi.yaml` + `openapi.json`.
+
+**Тесты:**
+
+- [x] Unit `zod-openapi.spec.ts`: конвертация `registerSchema` — типы, required, minLength/maxLength, format email.
+- [x] Unit `origin-check.guard.spec.ts`: собственный origin API пропускается.
+
+**Верификация:**
+
+- [x] `pnpm install` → `pnpm --filter @packages/dto test && pnpm --filter @packages/dto build`;
+- [x] `pnpm --filter api lint && pnpm --filter api test`;
+- [x] `pnpm generate:api` без запущенного Docker → проверка артефактов: paths `/api/v1/health`, `/api/v1/auth/register`, components schema RegisterDto; **примечание:** схемы DTO встроены inline в requestBody (не в components) — единственный источник остаётся `z.toJSONSchema(registerSchema)`;
+- [x] Ручная проверка: `pnpm --filter api dev` → `http://localhost:3001/docs` загружается, `/docs-json` отдаёт 200 (self-origin разрешён). **Примечание:** Swagger-роуты монтируются как express-middleware и не проходят через глобальные guard'ы Nest (стандартное поведение); `OriginCheckGuard` на `/docs-json` не действует, но CORS читание чужих origin всё равно блокирует; проверено: API-маршрут с чужим Origin → 403.
+
+**Результат Phase 10:** dto тесты 29 ✓ (vitest), api unit 128 ✓ (jest), e2e 20 ✓ (jest-e2e), lint ✓, build ✓; артефакты `apps/api/openapi/openapi.{yaml,json}` сгенерированы без Docker.
+
+## Phase 11 — Password confirmation и унификация dto (SPEC.md §5–§6, §63)
+
+**Пакет `@packages/dto`:**
+
+- [x] `src/auth/register.dto.ts`: схема дополняется обязательным полем `passwordConfirmation` — non-empty («Подтверждение пароля обязательно»); `.refine()` совпадения с `password` («Пароли не совпадают», путь `passwordConfirmation`); `.transform()` удаляет поле из результата — выходной тип `RegisterDto` остаётся `{ email, password }`, поле не попадает в сервисы/логи (§5).
+- [x] Перевод сообщений об ошибках на русский (единые для API и UI, §63): «Email обязателен», «Некорректный email», «Пароль должен содержать минимум N символов», «Пароль должен содержать максимум N символов». **Решения:** (1) миграция deprecated `z.string().email()` → `.pipe(z.email("Некорректный email"))` выполнена; потерю `format:"email"` в OpenAPI компенсирует патч в `zod-openapi.ts` (`containsZodEmail` ищет ZodEmail в поддереве полей, включая обе стороны pipe); (2) login-схема русифицирована полностью, включая min(1) → «Пароль обязателен» (отступление от буквы §63 «остальные тексты остаются» — по выбору пользователя).
+
+**Тесты dto:**
+
+- [x] Обновить существующие фикстуры `register.dto.test.ts` — во все инпуты добавляется `passwordConfirmation`.
+- [x] Новые кейсы: совпадающие пароли проходят; mismatch → «Пароли не совпадают» на пути `passwordConfirmation`; пустое подтверждение → ошибка; поле отсутствует → ошибка.
+
+**API:**
+
+- [x] Юнит-тесты `AuthService`/`AuthController` — без правок логики (вход `RegisterDto` не меняется); обновить ассерты, если они завязаны на тексты сообщений.
+- [x] Тела запросов e2e/integration (`auth-register.e2e-spec.ts`, `register-persistence.e2e-spec.ts`, а также `auth-login/auth-logout/login-persistence/logout-persistence`) дополняются `passwordConfirmation`; новый e2e-кейс E2E-06: несовпадение паролей → `400`, ошибка на пути `passwordConfirmation`, user не создаётся.
+- [x] OpenAPI-спецификация (Phase 10) подхватывает поле автоматически (`z.toJSONSchema()`): `passwordConfirmation` — required в схеме RegisterDto.
+
+**Верификация:**
+
+- [x] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`;
+- [x] `pnpm --filter api lint && pnpm --filter api test`;
+- [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `apps/api/openapi/openapi.yaml/json` `passwordConfirmation` присутствует и required.
+
 ---
 
 ## Вне области (будущие фазы)
 
-`/auth/refresh`, `/logout`, `/logout-all`, `/change-password`, access-token guard, CSRF-токен для cross-site сценария. Инфраструктура (TokenService, AuthSessionService, replay detection, token family) готова к их добавлению.
+`/auth/refresh`, `/logout-all`, `/change-password`, access-token guard, CSRF-токен для cross-site сценария. Инфраструктура (TokenService, AuthSessionService, replay detection, token family) готова к их добавлению.
+
+Подключение `apps/web` к `@packages/dto`: форма регистрации на общем `registerSchema` (поле `confirmPassword` → `passwordConfirmation`), удаление локального дубликата из `features/auth/lib/schemas.ts`; `loginSchema` переносится в dto в Phase 8. i18n-ключи вместо текстовых сообщений dto — будущая опция.

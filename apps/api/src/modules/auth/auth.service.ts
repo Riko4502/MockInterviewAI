@@ -4,9 +4,11 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  OnModuleInit,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { RegisterDto } from "@packages/dto";
+import type { LoginDto, RegisterDto } from "@packages/dto";
 import argon2 from "argon2";
 import { PrismaService } from "../../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
@@ -19,16 +21,33 @@ export interface RegisterResult {
   refreshToken: string;
 }
 
+/** Результат успешного входа. */
+export interface LoginResult {
+  accessToken: string;
+  refreshToken: string;
+}
+
 /**
- * Сервис аутентификации (§37, §48 SPEC.md).
+ * Сервис аутентификации (§37, §48, §58 SPEC.md).
  *
- * Реализует алгоритм регистрации пользователя: валидация, проверка уникальности,
- * хеширование пароля, создание пользователя, генерация JWT, создание Redis session.
- * При ошибке Redis — компенсация: удаление пользователя (§48 SPEC.md).
+ * Реализует алгоритмы регистрации пользователя (валидация, проверка
+ * уникальности, хеширование пароля, создание пользователя, генерация JWT,
+ * создание Redis session; при ошибке Redis — компенсация, §48 SPEC.md)
+ * и входа (проверка учётных данных без account enumeration, §58–§59 SPEC.md).
  */
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
+  private dummyPasswordHash = "";
+
+  async onModuleInit(): Promise<void> {
+    this.dummyPasswordHash = await argon2.hash("dummy-password", {
+      type: argon2.argon2id,
+      memoryCost: this.configService.get<number>("argon2.memoryCost"),
+      timeCost: this.configService.get<number>("argon2.timeCost"),
+      parallelism: this.configService.get<number>("argon2.parallelism"),
+    });
+  }
 
   /**
    * @param usersService - Сервис управления пользователями.
@@ -117,6 +136,134 @@ export class AuthService {
     }
 
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Выполняет вход пользователя (§58 SPEC.md).
+   *
+   * Алгоритм:
+   * 1. Поиск пользователя по email → не найден → фиктивная argon2-проверка
+   *    против `DUMMY_PASSWORD_HASH` (выравнивание времени ответа) → generic `401`.
+   * 2. Проверка пароля через `argon2.verify()` → не совпал → тот же generic `401`
+   *    (§59 SPEC.md: тела ответов байт-в-байт совпадают, причина не раскрывается).
+   * 3. Успех: новая authentication session — каждый логин порождает новый
+   *    `sessionId` и новый `tokenFamilyId` (§13–17 SPEC.md); генерация access +
+   *    refresh JWT; запись session в Redis с HMAC-хешем refresh token.
+   *
+   * При ошибке Redis компенсация не требуется — пользователь не создаётся.
+   *
+   * @param dto - Валидированный DTO входа (email уже нормализован схемой).
+   * @returns Access и refresh токены.
+   * @throws {UnauthorizedException} Если пользователь не найден или пароль неверен
+   *   (generic-ответ без указания причины, §59 SPEC.md).
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async login(dto: LoginDto): Promise<LoginResult> {
+    const { email, password } = dto;
+
+    const user = await this.usersService.findByEmail(email);
+
+    // Единый кодовый путь: ровно одна argon2-проверка против хеша реального
+    // пользователя либо против dummy-хеша — идентичный ответ и время для
+    // обоих случаев отказа (§59 SPEC.md).
+    const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
+    const passwordValid = await argon2.verify(passwordHash, password);
+
+    if (!user || !passwordValid) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    const sessionId = randomUUID();
+    const tokenFamilyId = randomUUID();
+
+    const accessToken = this.tokenService.generateAccessToken(
+      user.id,
+      sessionId,
+    );
+    const refreshToken = this.tokenService.generateRefreshToken(
+      user.id,
+      sessionId,
+    );
+
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+
+    try {
+      await this.sessionService.createSession(
+        sessionId,
+        user.id,
+        refreshTokenHash,
+        tokenFamilyId,
+      );
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during login",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Выполняет выход пользователя (§60 SPEC.md).
+   *
+   * Строгая семантика — logout успешен только при одновременном выполнении:
+   * 1. refresh token присутствует (cookie);
+   * 2. JWT валиден (HS256, подпись, issuer, audience, expiration,
+   *    typ = `refresh` — проверяет `TokenService.verifyRefreshToken`);
+   * 3. session `auth:session:{sid}` существует в Redis;
+   * 4. `hashRefreshToken(token)` совпадает с сохранённым
+   *    `session.refreshTokenHash` (защита от отзыва ротированной сессии
+   *    старым токеном, §30–32 SPEC.md).
+   *
+   * Нарушение любого условия → generic `401`. При ошибке Redis → `500`
+   * без внутренних деталей; компенсация не требуется.
+   *
+   * @param refreshToken - JWT refresh token из cookie (может отсутствовать).
+   * @returns `void` — сессия отозвана в Redis.
+   * @throws {UnauthorizedException} Если любое из условий 1–4 не выполнено
+   *   (generic-ответ без указания причины).
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async logout(refreshToken?: string): Promise<void> {
+    if (!refreshToken) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    let payload: ReturnType<TokenService["verifyRefreshToken"]>;
+    try {
+      payload = this.tokenService.verifyRefreshToken(refreshToken);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        // Единый generic-ответ для всех условий отказа 1–4 (§60 SPEC.md)
+        throw new UnauthorizedException("Invalid credentials");
+      }
+      throw error;
+    }
+
+    try {
+      const session = await this.sessionService.getSession(payload.sid);
+
+      if (
+        !session ||
+        session.refreshTokenHash !==
+          this.tokenService.hashRefreshToken(refreshToken)
+      ) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      await this.sessionService.revokeSession(payload.sid);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.error(
+        "Redis unavailable during logout",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
   }
 
   /**

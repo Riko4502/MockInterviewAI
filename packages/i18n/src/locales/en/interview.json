@@ -1,0 +1,17 @@
+{
+  "title": "Interview Simulator",
+  "startSession": "Start Interview",
+  "endSession": "End Interview",
+  "status": {
+    "idle": "Waiting to start",
+    "inProgress": "Interview in progress",
+    "paused": "Paused",
+    "completed": "Completed"
+  },
+  "feedback": {
+    "score": "Overall Score",
+    "strengths": "Strengths",
+    "improvements": "Areas for Improvement",
+    "summary": "Meeting Summary"
+  }
+}
