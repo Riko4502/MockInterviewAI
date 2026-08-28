@@ -290,6 +290,115 @@ paths:
         - bearer: []
       summary: Отзыв всех сессий пользователя (§66)
       tags: *a1
+  /api/v1/auth/change-password:
+    post:
+      operationId: AuthController_changePassword
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                newPassword:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                newPasswordConfirmation:
+                  type: string
+                  minLength: 1
+              required:
+                - currentPassword
+                - newPassword
+                - newPasswordConfirmation
+      responses:
+        "204":
+          description: "Пароль обновлён, все сессии отозваны. Set-Cookie: refresh_token=;
+            Expires=в прошлом — cookie сброшена (§67)."
+        "400":
+          description: Ошибка валидации DTO или новый пароль совпадает с текущим.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 400
+                  message:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      email: Некорректный email
+                    description: "Карта ошибок `{ field: message }`."
+                required:
+                  - statusCode
+                  - message
+        "401":
+          description: Неверный текущий пароль (§67).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+        "404":
+          description: Пользователь не найден (§67).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+        "500":
+          description: Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+      security:
+        - bearer: []
+      summary: Смена пароля (§67)
+      tags: *a1
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh

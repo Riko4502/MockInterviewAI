@@ -5,8 +5,8 @@ import { PrismaService } from "../../prisma/prisma.service";
 /**
  * Сервис управления пользователями (§9, §10 SPEC.md).
  *
- * Предоставляет поиск по email и создание пользователя.
- * Работает с уже захешированным паролем — хеширование
+ * Предоставляет поиск по email и по id, создание пользователя и обновление
+ * хеша пароля. Работает уже с захешированным паролем — хеширование
  * является ответственностью вызывающего модуля (AuthService).
  */
 @Injectable()
@@ -27,6 +27,16 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по id.
+   *
+   * @param id - UUID пользователя.
+   * @returns Объект пользователя или `null`, если не найден.
+   */
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  /**
    * Создаёт нового пользователя.
    *
    * @param data - Обязательные поля: `email` (нормализованный), `passwordHash` (Argon2id).
@@ -35,5 +45,20 @@ export class UsersService {
    */
   async create(data: { email: string; passwordHash: string }): Promise<User> {
     return this.prisma.user.create({ data });
+  }
+
+  /**
+   * Обновляет хеш пароля пользователя (§67 SPEC.md).
+   *
+   * @param id - UUID пользователя.
+   * @param passwordHash - Новый Argon2id хеш пароля.
+   * @returns Обновлённый объект пользователя.
+   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
   }
 }

@@ -31,6 +31,7 @@ describe("AuthController", () => {
   let loginMock: jest.Mock;
   let logoutMock: jest.Mock;
   let logoutAllMock: jest.Mock;
+  let changePasswordMock: jest.Mock;
   let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
@@ -42,6 +43,7 @@ describe("AuthController", () => {
     loginMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     logoutMock = jest.fn().mockResolvedValue(undefined);
     logoutAllMock = jest.fn().mockResolvedValue(undefined);
+    changePasswordMock = jest.fn().mockResolvedValue(undefined);
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
@@ -60,6 +62,7 @@ describe("AuthController", () => {
         login: loginMock,
         logout: logoutMock,
         logoutAll: logoutAllMock,
+        changePassword: changePasswordMock,
         refresh: refreshMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
@@ -326,6 +329,99 @@ describe("AuthController", () => {
 
       await expect(
         createController().logoutAll(request, response),
+      ).rejects.toBeInstanceOf(Error);
+      expect(clearCookieMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("changePassword (§67 SPEC.md)", () => {
+    const CHANGE_PASSWORD_DTO = {
+      currentPassword: "OldPassword123!",
+      newPassword: "NewPassword123!",
+    };
+
+    it("передаёт request.user.sub и dto сервису, очищает refresh cookie, возвращает void", async () => {
+      const request = createRequestWithUser({ sub: "user-uuid" });
+
+      const result = await createController().changePassword(
+        request,
+        CHANGE_PASSWORD_DTO,
+        response,
+      );
+
+      expect(changePasswordMock).toHaveBeenCalledTimes(1);
+      expect(changePasswordMock).toHaveBeenCalledWith(
+        "user-uuid",
+        CHANGE_PASSWORD_DTO,
+      );
+      expect(result).toBeUndefined();
+      expect(clearCookieMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("@HttpCode(204) объявлен на маршруте (§67)", () => {
+      const httpCode = Reflect.getMetadata(
+        "__httpCode__",
+        AuthController.prototype.changePassword,
+      );
+
+      expect(httpCode).toBe(HttpStatus.NO_CONTENT);
+    });
+
+    it("НЕ помечен @Public() — защищён глобальным AccessTokenGuard (§67)", () => {
+      const metadata = Reflect.getMetadata(
+        "isPublic",
+        AuthController.prototype.changePassword,
+      );
+
+      expect(metadata).toBeUndefined();
+    });
+
+    it("clearCookie с атрибутами §25–28 (кроме Max-Age)", async () => {
+      const request = createRequestWithUser({ sub: "user-uuid" });
+
+      await createController(false).changePassword(
+        request,
+        CHANGE_PASSWORD_DTO,
+        response,
+      );
+
+      expect(clearCookieMock.mock.calls[0]).toEqual([
+        "refresh_token",
+        {
+          httpOnly: true,
+          secure: false,
+          sameSite: "lax",
+          path: "/api/v1/auth",
+        },
+      ]);
+    });
+
+    it("401 при неверном пароле: cookie НЕ сбрасывается, ошибка пробрасывается (§67)", async () => {
+      changePasswordMock.mockRejectedValue(
+        new UnauthorizedException("Неверные учётные данные"),
+      );
+      const request = createRequestWithUser({ sub: "user-uuid" });
+
+      await expect(
+        createController().changePassword(
+          request,
+          CHANGE_PASSWORD_DTO,
+          response,
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(clearCookieMock).not.toHaveBeenCalled();
+    });
+
+    it("Redis недоступен: cookie НЕ сбрасывается, ошибка пробрасывается (§67)", async () => {
+      changePasswordMock.mockRejectedValue(new Error("redis down"));
+      const request = createRequestWithUser({ sub: "user-uuid" });
+
+      await expect(
+        createController().changePassword(
+          request,
+          CHANGE_PASSWORD_DTO,
+          response,
+        ),
       ).rejects.toBeInstanceOf(Error);
       expect(clearCookieMock).not.toHaveBeenCalled();
     });
