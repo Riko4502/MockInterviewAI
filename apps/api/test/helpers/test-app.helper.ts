@@ -40,7 +40,10 @@ export async function startTestApp(): Promise<StartedApp> {
 export interface RedisDownHandles {
   app: INestApplication;
   prisma: PrismaService;
-  redisMock: Record<"set" | "get" | "delete" | "expire" | "ping", jest.Mock>;
+  redisMock: Record<
+    "set" | "get" | "delete" | "expire" | "ping" | "scanKeys",
+    jest.Mock
+  >;
 }
 
 /**
@@ -57,6 +60,7 @@ export async function startTestAppWithRedisDown(): Promise<RedisDownHandles> {
     delete: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
     expire: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
     ping: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
+    scanKeys: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
   };
 
   const moduleRef = await Test.createTestingModule({

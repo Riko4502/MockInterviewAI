@@ -37,17 +37,20 @@ describe("AuthSessionService", () => {
   let redisSet: jest.Mock;
   let redisGet: jest.Mock;
   let redisDelete: jest.Mock;
+  let redisScanKeys: jest.Mock;
 
   beforeEach(() => {
     redisSet = jest.fn().mockResolvedValue("OK");
     redisGet = jest.fn().mockResolvedValue(null);
     redisDelete = jest.fn().mockResolvedValue(1);
+    redisScanKeys = jest.fn().mockResolvedValue([]);
 
     service = new AuthSessionService(
       {
         set: redisSet,
         get: redisGet,
         delete: redisDelete,
+        scanKeys: redisScanKeys,
       } as unknown as RedisService,
       createConfigService(),
     );
@@ -226,6 +229,66 @@ describe("AuthSessionService", () => {
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
       const [, raw] = redisSet.mock.calls[0];
       expect(JSON.parse(raw)).toMatchObject({ tokenFamilyId: FAMILY_ID });
+    });
+  });
+
+  describe("revokeAllUserSessions", () => {
+    it("удаляет все сессии пользователя (§66)", async () => {
+      const other1 = randomUUID();
+      const other2 = randomUUID();
+      redisScanKeys.mockResolvedValue([
+        `auth:session:${other1}`,
+        `auth:session:${other2}`,
+      ]);
+      redisGet
+        .mockResolvedValueOnce(JSON.stringify(createStoredSession("h1")))
+        .mockResolvedValueOnce(JSON.stringify(createStoredSession("h2")));
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisScanKeys).toHaveBeenCalledWith("auth:session:*");
+      expect(redisDelete).toHaveBeenCalledTimes(2);
+      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${other1}`);
+      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${other2}`);
+    });
+
+    it("сессии другого пользователя не удаляются (§66)", async () => {
+      const mine = randomUUID();
+      const theirs = randomUUID();
+      redisScanKeys.mockResolvedValue([
+        `auth:session:${mine}`,
+        `auth:session:${theirs}`,
+      ]);
+      redisGet
+        .mockResolvedValueOnce(JSON.stringify(createStoredSession("hm")))
+        .mockResolvedValueOnce(
+          JSON.stringify({ ...createStoredSession("ht"), userId: "other" }),
+        );
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisDelete).toHaveBeenCalledTimes(1);
+      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${mine}`);
+      expect(redisDelete).not.toHaveBeenCalledWith(`auth:session:${theirs}`);
+    });
+
+    it("нет сессий → no-op", async () => {
+      redisScanKeys.mockResolvedValue([]);
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisGet).not.toHaveBeenCalled();
+      expect(redisDelete).not.toHaveBeenCalled();
+    });
+
+    it("сессия с пустым/нулевым значением пропускается", async () => {
+      const key = `auth:session:${randomUUID()}`;
+      redisScanKeys.mockResolvedValue([key]);
+      redisGet.mockResolvedValue(null);
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisDelete).not.toHaveBeenCalled();
     });
   });
 });

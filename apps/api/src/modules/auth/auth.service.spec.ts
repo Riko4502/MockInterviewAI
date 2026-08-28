@@ -67,6 +67,7 @@ describe("AuthService", () => {
   let verifyRefreshToken: jest.Mock;
   let getSession: jest.Mock;
   let revokeSession: jest.Mock;
+  let revokeAllUserSessions: jest.Mock;
   let deleteUser: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
@@ -98,6 +99,7 @@ describe("AuthService", () => {
       lastUsedAt: "2026-08-24T00:00:00.000Z",
     });
     revokeSession = jest.fn().mockResolvedValue(undefined);
+    revokeAllUserSessions = jest.fn().mockResolvedValue(undefined);
 
     (randomUUID as unknown as jest.Mock)
       .mockReturnValueOnce(SESSION_ID)
@@ -115,6 +117,7 @@ describe("AuthService", () => {
         createSession,
         getSession,
         revokeSession,
+        revokeAllUserSessions,
       } as unknown as AuthSessionService,
       { user: { delete: deleteUser } } as unknown as PrismaService,
       createConfigService(),
@@ -684,6 +687,27 @@ describe("AuthService", () => {
       ]);
       expect(logged).not.toContain("raw.refresh.token");
       expect(logged).not.toContain("stored.hmac.hash");
+    });
+  });
+
+  describe("logoutAll (§66 SPEC.md)", () => {
+    it("отзывает все сессии пользователя", async () => {
+      await service.logoutAll(USER.id);
+
+      expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+    });
+
+    it("Redis unavailable → 500 без внутренних деталей", async () => {
+      revokeAllUserSessions.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      const error = await service.logoutAll(USER.id).catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
     });
   });
 });

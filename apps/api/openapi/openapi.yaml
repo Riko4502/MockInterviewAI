@@ -259,6 +259,37 @@ paths:
         - bearer: []
       summary: Выход пользователя (§60)
       tags: *a1
+  /api/v1/auth/logout-all:
+    post:
+      operationId: AuthController_logoutAll
+      parameters: []
+      responses:
+        "204":
+          description: "Все сессии пользователя отозваны. Set-Cookie: refresh_token=;
+            Expires=в прошлом — cookie сброшена (§66)."
+        "500":
+          description: Redis недоступен — отзыв сессий не выполнен. Cookie НЕ сбрасывается
+            (§66).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  statusCode:
+                    type: number
+                    example: 401
+                  message:
+                    type: string
+                    example: Invalid credentials
+                  error:
+                    type: string
+                required:
+                  - statusCode
+                  - message
+      security:
+        - bearer: []
+      summary: Отзыв всех сессий пользователя (§66)
+      tags: *a1
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh

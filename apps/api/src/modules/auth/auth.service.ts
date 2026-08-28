@@ -274,6 +274,29 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
+   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   *
+   * Вызывается для авторизованного пользователя (access token валиден,
+   * `request.user.sub` — его UUID). Проходит по всем сессионным ключам
+   * в Redis через `scanKeys` и удаляет те, что принадлежат пользователю.
+   * Access token остаётся валидным до истечения (stateless, §66).
+   *
+   * @param userId - UUID пользователя, чьи сессии отзываются.
+   * @throws {InternalServerErrorException} При ошибке Redis (§66).
+   */
+  async logoutAll(userId: string): Promise<void> {
+    try {
+      await this.sessionService.revokeAllUserSessions(userId);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during logoutAll",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+  }
+
+  /**
    * Выполняет обновление токенов — refresh token rotation (§65 SPEC.md).
    *
    * Алгоритм:

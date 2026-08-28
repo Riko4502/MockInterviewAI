@@ -339,24 +339,24 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [ ] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
-- [ ] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
-- [ ] `AuthController.logoutAll()`: `@Post("logout-all")`, `@UseGuards(AccessTokenGuard)` (protected), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
-- [ ] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).
+- [x] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
+- [x] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
+- [x] `AuthController.logoutAll()`: `@Post("logout-all")`, защищён глобальным `AccessTokenGuard` (без `@Public()`; явный `@UseGuards` избыточен), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
+- [x] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).
 
 **Тесты:**
 
-- [ ] Unit `AuthSessionService.revokeAllUserSessions`: несколько сессий для userId → все удалены; сессии другого userId → не удалены; нет сессий → no-op.
-- [ ] Unit `AuthService.logoutAll`: вызов `revokeAllUserSessions` с корректным userId.
-- [ ] Unit `AuthController.logoutAll`: статус 204, clear cookie, guard применён.
-- [ ] Integration (`test/integration/logout-all-persistence.e2e-spec.ts`): register + login (2 сессии) → logout-all → обе сессии удалены из Redis; User остаётся в PostgreSQL.
-- [ ] E2E LOA-01: register → login → logout-all → 204, обе сессии удалены.
-- [ ] E2E LOA-02: logout-all без access token → 401 (guard).
-- [ ] E2E LOA-03: logout-all с access token другого пользователя → 0 сессий удалено, 204 (idempotent).
+- [x] Unit `AuthSessionService.revokeAllUserSessions`: несколько сессий для userId → все удалены; сессии другого userId → не удалены; нет сессий → no-op.
+- [x] Unit `AuthService.logoutAll`: вызов `revokeAllUserSessions` с корректным userId.
+- [x] Unit `AuthController.logoutAll`: статус 204, clear cookie, guard применён.
+- [x] Integration (`test/integration/logout-all-persistence.e2e-spec.ts`): register + login (2 сессии) → logout-all → обе сессии удалены из Redis; User остаётся в PostgreSQL.
+- [x] E2E LOA-01: register → login → logout-all → 204, обе сессии удалены.
+- [x] E2E LOA-02: logout-all без access token → 401 (guard).
+- [x] E2E LOA-03: logout-all с access token другого пользователя → 0 сессий удалено, 204 (idempotent).
 
 **Верификация:**
 
-- [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+- [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
 ## Phase 15 — Auth: Change Password (`POST /api/v1/auth/change-password`, SPEC.md §67)
 
