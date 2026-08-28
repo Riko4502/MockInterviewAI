@@ -30,3 +30,22 @@ jobs:
         with:
           recursive: true
           failure-threshold: error
+
+  dependency-audit:
+    name: "Аудит безопасности зависимостей (pnpm audit)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: "Проверка уязвимостей в пакетах (pnpm audit)"
+        run: pnpm audit --audit-level=high

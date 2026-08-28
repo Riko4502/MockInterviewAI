@@ -2,6 +2,11 @@ name: "CI Web (Next.js)"
 
 on:
   workflow_call:
+    inputs:
+      should_build_docker:
+        type: boolean
+        default: true
+        description: "Флаг запуска сборки Docker"
     outputs:
       coverage:
         description: "Процент покрытия тестами Web"
@@ -29,12 +34,16 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: "Восстановление / сохранение кэша Turborepo"
+      - name: "Восстановление / сохранение кэша Turborepo и Next.js"
         uses: actions/cache@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          path: |
+            .turbo
+            node_modules/.cache/turbo
+            apps/web/.next/cache
+          key: ${{ runner.os }}-turbo-web-${{ github.sha }}
           restore-keys: |
+            ${{ runner.os }}-turbo-web-
             ${{ runner.os }}-turbo-
 
       - name: "Сборка зависимостей Web (@packages/ui, @packages/icons, @packages/tailwind-config, @packages/utils)"
@@ -60,9 +69,11 @@ jobs:
         run: pnpm --filter web build
 
       - name: "Настройка Docker Buildx"
+        if: inputs.should_build_docker
         uses: docker/setup-buildx-action@v4
 
       - name: "Проверка сборки Docker-образа Web (Smoke Test)"
+        if: inputs.should_build_docker
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -77,16 +88,3 @@ jobs:
         with:
           configPath: './apps/web/.lighthouserc.json'
           temporaryPublicStorage: true
-
-  audit:
-    name: "Аудит безопасности Web (pnpm audit)"
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Клонирование репозитория"
-        uses: actions/checkout@v7
-
-      - name: "Установка pnpm"
-        uses: pnpm/action-setup@v6
-
-      - name: "Проверка уязвимостей в пакетах (pnpm audit)"
-        run: pnpm audit --audit-level=high
