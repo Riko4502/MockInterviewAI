@@ -30,7 +30,7 @@ COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter='./packages/*' build && \
+RUN pnpm turbo run build --filter=web^... && \
     pnpm --filter web build
 
 # Production image, copy all the files and run next

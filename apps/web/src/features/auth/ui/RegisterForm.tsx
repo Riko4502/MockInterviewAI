@@ -3,20 +3,29 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
+import { useRegisterMutation } from "@/shared/api/auth";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
 
 export function RegisterForm() {
+  const registerMutation = useRegisterMutation();
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
   });
 
   const onSubmit = (data: RegisterFormValues) => {
     const { confirmPassword: _, ...payload } = data;
-    console.log("Register payload:", payload);
+
+    registerMutation.mutate(payload, {
+      onSuccess: (res) => {
+        sessionStorage.setItem("accessToken", res.accessToken);
+        window.location.href = "/";
+      },
+    });
   };
 
   return (
@@ -66,11 +75,17 @@ export function RegisterForm() {
       <Button
         type="submit"
         size="lg"
-        disabled={isSubmitting}
+        disabled={registerMutation.isPending}
         className="w-full mt-4"
       >
-        Зарегистрироваться
+        {registerMutation.isPending ? "Регистрация..." : "Зарегистрироваться"}
       </Button>
+
+      {registerMutation.isError && (
+        <p className="text-sm text-destructive">
+          Ошибка регистрации. Попробуйте снова.
+        </p>
+      )}
     </form>
   );
 }

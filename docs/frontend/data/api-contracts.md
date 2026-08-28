@@ -42,6 +42,21 @@ pnpm --filter @packages/api generate
 pnpm --filter @packages/api build
 ```
 
+## 3. Пакет @packages/api
+
+- **Исходники:** `packages/api/`
+- **Схема OpenAPI:** `packages/api/schema/openapi.json`
+- **Сгенерированный код:** `packages/api/src/generated.ts` (в `.gitignore`)
+- **Использование:** `import type { paths, components } from "@packages/api";`
+
+### Порядок работы
+
+1. Бэкенд обновляет `openapi.json` — кладёт в `packages/api/schema/openapi.json`
+2. Фронтенд запускает `pnpm --filter @packages/api generate`
+3. TypeScript проверяет типы через `pnpm typecheck`
+
+> ⚠️ `src/generated.ts` не коммитится (`.gitignore`). При CI сборке нужно сначала запустить `generate`, затем `build`.
+
 ---
 
 ## 3. Маппинг DTO к UI-моделям
