@@ -319,6 +319,9 @@ importers:
 
   packages/dto:
     dependencies:
+      '@packages/utils':
+        specifier: workspace:*
+        version: link:../utils
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -344,15 +347,12 @@ importers:
 
   packages/icons:
     dependencies:
+      '@packages/utils':
+        specifier: workspace:*
+        version: link:../utils
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      tailwind-merge:
-        specifier: ^3.6.0
-        version: 3.6.0
     devDependencies:
       '@biomejs/biome':
         specifier: 2.4.2
@@ -375,15 +375,15 @@ importers:
 
   packages/ui:
     dependencies:
+      '@packages/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@radix-ui/react-label':
         specifier: ^2.1.15
         version: 2.1.15(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -399,9 +399,6 @@ importers:
       shadcn:
         specifier: ^4.17.0
         version: 4.17.0(typescript@5.9.3)
-      tailwind-merge:
-        specifier: ^3.6.0
-        version: 3.6.0
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -433,6 +430,31 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  packages/utils:
+    dependencies:
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.4.2
+        version: 2.4.2
+      '@rslib/core':
+        specifier: ^0.23.2
+        version: 0.23.2(core-js@3.47.0)(typescript@5.9.3)
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@20.19.43)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.1(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(yaml@2.9.0))
 
 packages:
 

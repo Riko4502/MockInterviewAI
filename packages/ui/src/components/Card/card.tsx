@@ -1,4 +1,4 @@
-import { cn } from "@lib/utils";
+import { cn } from "@packages/utils";
 import { CARD_STYLES } from "./constants";
 import type {
   CardActionProps,
