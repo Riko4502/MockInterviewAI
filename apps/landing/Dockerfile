@@ -8,7 +8,8 @@ RUN apk add --no-cache libc6-compat && \
     corepack enable && \
     corepack prepare pnpm@9.15.9 --activate
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
+COPY types ./types
 COPY apps/landing/package.json ./apps/landing/
 COPY packages ./packages
 
@@ -16,7 +17,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/landing ./apps/landing
 
-RUN pnpm --filter='./packages/*' build && \
+RUN pnpm turbo run build --filter=landing^... && \
     pnpm --filter landing build
 
 # -------------------------------------------------------------

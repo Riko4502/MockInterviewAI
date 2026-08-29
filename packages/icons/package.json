@@ -1,0 +1,40 @@
+{
+  "name": "@packages/icons",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./globals.css": "./src/styles/globals.css"
+  },
+  "scripts": {
+    "build": "rslib build",
+    "dev": "rslib build --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome format --write"
+  },
+  "dependencies": {
+    "@packages/utils": "workspace:*",
+    "class-variance-authority": "^0.7.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.2",
+    "@rsbuild/plugin-react": "^1.1.0",
+    "@rslib/core": "^0.23.2",
+    "@types/react": "^19",
+    "react": "^19.0.0",
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

@@ -7,10 +7,10 @@ RUN apk add --no-cache libc6-compat && \
     corepack enable && \
     corepack prepare pnpm@9.15.9 --activate
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
+COPY types ./types
 COPY apps/web/package.json ./apps/web/
-COPY packages/ui/package.json ./packages/ui/
-COPY packages/types ./packages/types
+COPY packages ./packages
 
 RUN pnpm install --frozen-lockfile
 
@@ -22,14 +22,16 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
+COPY --from=deps /app/packages ./packages
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
+COPY types/ ./types/
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter web build
+RUN pnpm turbo run build --filter=web^... && \
+    pnpm --filter web build
 
 # Production image, copy all the files and run next
 FROM base AS runner

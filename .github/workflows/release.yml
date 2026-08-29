@@ -17,7 +17,7 @@ on:
         description: 'Заголовок релиза'
         required: true
         type: string
-        default: 'Релиз MockInterviewAI'
+        default: 'Релиз'
       description:
         description: 'Описание изменений (Changelog)'
         required: false

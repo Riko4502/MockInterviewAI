@@ -33,11 +33,8 @@ jobs:
       - name: "Установка зависимостей (frozen-lockfile)"
         run: pnpm install --frozen-lockfile
 
-      - name: "Сборка пакетов монорепозитория"
-        run: pnpm --filter='./packages/*' build
-
-      - name: "Сборка Next.js приложения"
-        run: pnpm --filter web build
+      - name: "Сборка пакетов монорепозитория и Next.js"
+        run: pnpm turbo run build --filter=...web
 
       - name: "Кэширование браузеров Playwright"
         uses: actions/cache@v6
