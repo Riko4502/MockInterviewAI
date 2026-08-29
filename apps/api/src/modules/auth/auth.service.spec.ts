@@ -572,4 +572,150 @@ describe("AuthService", () => {
       expect(serialized).not.toContain("stored.hmac.hash");
     });
   });
+
+  describe("refresh: успешное обновление (§65 SPEC.md)", () => {
+    const NEW_SESSION_ID = "33333333-3333-4333-8333-333333333333";
+    const NEW_TOKEN_FAMILY_ID = "44444444-4444-4444-8444-444444444444";
+
+    beforeEach(() => {
+      (randomUUID as unknown as jest.Mock).mockReset();
+      (randomUUID as unknown as jest.Mock)
+        .mockReturnValueOnce(NEW_SESSION_ID)
+        .mockReturnValueOnce(NEW_TOKEN_FAMILY_ID);
+      hashRefreshToken
+        .mockReturnValueOnce("stored.hmac.hash")
+        .mockReturnValueOnce("new.stored.hmac.hash");
+    });
+
+    it("верифицирует JWT, сравнивает хеш, отзывает старую сессию, создаёт новую и возвращает токены", async () => {
+      const result = await service.refresh("raw.refresh.token");
+
+      expect(verifyRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
+      expect(getSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
+      expect(revokeSession).toHaveBeenCalledTimes(1);
+      expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(createSession).toHaveBeenCalledTimes(1);
+      expect(createSession).toHaveBeenCalledWith(
+        NEW_SESSION_ID,
+        USER.id,
+        "new.stored.hmac.hash",
+        NEW_TOKEN_FAMILY_ID,
+      );
+      expect(generateAccessToken).toHaveBeenCalledWith(USER.id, NEW_SESSION_ID);
+      expect(generateRefreshToken).toHaveBeenCalledWith(
+        USER.id,
+        NEW_SESSION_ID,
+      );
+      expect(result).toEqual({
+        accessToken: "raw.access.token",
+        refreshToken: "raw.refresh.token",
+      });
+    });
+
+    it("отсутствие cookie → 401 без обращений к Redis", async () => {
+      const error = await service.refresh(undefined).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Invalid credentials",
+      });
+      expect(verifyRefreshToken).not.toHaveBeenCalled();
+      expect(getSession).not.toHaveBeenCalled();
+      expect(revokeSession).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("refresh: отказ (§65 строгая семантика)", () => {
+    it("невалидный / просроченный JWT → 401 до обращения к Redis", async () => {
+      verifyRefreshToken.mockImplementation(() => {
+        throw new UnauthorizedException("Invalid token");
+      });
+
+      const error = await service.refresh("broken.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(getSession).not.toHaveBeenCalled();
+      expect(revokeSession).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("сессия отсутствует в Redis → 401, session не отзывается", async () => {
+      getSession.mockResolvedValue(null);
+
+      const error = await service.refresh("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Invalid credentials",
+      });
+      expect(revokeSession).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("hash mismatch (replay) → 401, сессия отозвана (§32)", async () => {
+      getSession.mockResolvedValue({
+        userId: USER.id,
+        refreshTokenHash: "rotated.hmac.hash",
+        tokenFamilyId: TOKEN_FAMILY_ID,
+        createdAt: "2026-08-24T00:00:00.000Z",
+        lastUsedAt: "2026-08-24T00:00:00.000Z",
+      });
+
+      const error = await service.refresh("old.refresh.token").catch((e) => e);
+
+      expect(hashRefreshToken).toHaveBeenCalledWith("old.refresh.token");
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(revokeSession).toHaveBeenCalledTimes(1);
+      expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("refresh: Redis unavailable (§60)", () => {
+    it("getSession реджектится → 500 без внутренних деталей, session не отзывается", async () => {
+      getSession.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      const error = await service.refresh("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+      expect(revokeSession).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("createSession реджектится → 500, старая сессия уже отозвана (§65)", async () => {
+      createSession.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      const error = await service.refresh("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(revokeSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("токены и хеши не попадают в логи (§46)", async () => {
+      getSession.mockRejectedValue(new Error("redis down"));
+
+      await service.refresh("raw.refresh.token").catch(() => undefined);
+
+      const logged = JSON.stringify([
+        loggerErrorSpy.mock.calls,
+        loggerWarnSpy.mock.calls,
+        loggerDebugSpy.mock.calls,
+      ]);
+      expect(logged).not.toContain("raw.refresh.token");
+      expect(logged).not.toContain("stored.hmac.hash");
+    });
+  });
 });

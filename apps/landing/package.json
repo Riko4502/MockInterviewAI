@@ -10,9 +10,11 @@
     "lint": "biome check --no-errors-on-unmatched",
     "format": "biome format --write --no-errors-on-unmatched",
     "test": "vitest run",
-    "test:cov": "vitest run --coverage --passWithNoTests"
+    "test:cov": "vitest run --coverage --passWithNoTests",
+    "vercel-ignore": "bash ../../scripts/vercel-ignore-landing.sh"
   },
   "dependencies": {
+    "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
     "astro": "^7.2.4",
     "tailwindcss": "^4"

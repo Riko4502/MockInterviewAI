@@ -4,6 +4,7 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
+| 1.5.0 | 2026-08-26 | Актуальный |
 | 1.4.0 | 2026-08-23 | Актуальный |
 | 1.3.0 | 2026-08-23 | Актуальный |
 | 1.2.0 | 2026-08-22 | Актуальный |
@@ -14,6 +15,7 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
 | 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
 | 1.3.0 | 2026-08-23 | Добавлены разделы §61–§63: OpenAPI/Swagger документация, генерация спецификации и пакет `@packages/api`, zod v4 в `packages/dto`. |
 | 1.2.0 | 2026-08-22 | Добавлены разделы §58–§60: Login, Account Enumeration (Login), Logout. |
@@ -481,12 +483,17 @@ AuthService → AuthSessionService → RedisService → Redis
 
 ### 41. Rate Limiting
 
-`POST /api/v1/auth/register`:
+Глобально: `ThrottlerModule` — все endpoints, `ttl: 60_000`, `limit: 100`.
 
-- глобально по IP (ThrottlerModule, default guard);
-- на `/auth/register` — кастомный `AuthThrottlerGuard` с tracker `ip + body.email` (защита от массовой регистрации).
+Per-route `AuthThrottlerGuard` (кастомный tracker):
 
-Цели: защита от массовой регистрации, brute-force, resource exhaustion, abuse prevention.
+| Endpoint | Tracker | Цель |
+|---|---|---|
+| `POST /api/v1/auth/register` | `ip + body.email` | Защита от массовой регистрации одного email с разных IP |
+| `POST /api/v1/auth/login` | `ip + body.email` | Brute-force паролей, account enumeration |
+| `POST /api/v1/auth/refresh` | `ip` (body отсутствует) | Brute-force refresh token |
+
+Logout (`POST /api/v1/auth/logout`) не имеет per-route throttler — требует валидный refresh cookie, нет вектора brute-force; глобального лимита достаточно.
 
 ### 42. Account Enumeration
 
@@ -673,6 +680,7 @@ Production secrets хранятся вне исходного кода (Secret M
 - Путь вывода определяется переменной `OPENAPI_OUTPUT_DIR` в корневом `.env` (дефолт `./apps/api/openapi`). Скрипт загружает `.env` через `dotenv` и записывает `openapi.yaml` и `openapi.json` по указанному пути.
 - Артефакты коммитятся в git — фронтенд может читать их без запуска бэкенда.
 - Команды: `pnpm --filter api generate:openapi`; из корня монорепо — `pnpm generate:api`.
+- **Обязательность перегенерации:** при каждом изменении эндпоинтов (добавление/модификация/удаление endpoint, изменение декораторов `@ApiResponse`, `@ApiOperation`, `@ApiBearerAuth`, `@Public`, `@HttpCode`, `@UseGuards`, ZodBody-схем) необходимо перегенерировать OpenAPI-артефакты и закоммитить их вместе с кодом. Артефакты `openapi.yaml`/`openapi.json` должны всегда соответствовать текущему состоянию контроллеров.
 
 ### 63. Пакет `@packages/dto` — единый источник контрактов
 
@@ -680,6 +688,79 @@ Production secrets хранятся вне исходного кода (Secret M
 - Все приложения потребляют схемы валидации через `@packages/dto`; локальные дубли zod-схем в приложениях недопустимы. Подключение `apps/web` (перевод формы регистрации на общий `registerSchema`, удаление локального дубликата) — отдельная будущая задача; до её выполнения web использует локальную схему временно.
 - Сообщения об ошибках — русские, единые для API-ответов и UI: «Email обязателен», «Некорректный email», «Пароль должен содержать минимум N символов», «Пароль должен содержать максимум N символов», «Подтверждение пароля обязательно», «Пароли не совпадают» (ранее существовавшие английские тексты заменяются; юнит-тесты обновляются синхронно).
 - `z.string().email()` в v4 deprecated, но работоспособен; допустим переход на top-level `z.email()` при сохранении сообщений.
+
+### 64. Access-token guard (global)
+
+- Guard: глобальный (`APP_GUARD`), применяется ко всем endpoints по умолчанию.
+- Проверяет наличие и валидность access token в заголовке `Authorization: Bearer <token>`.
+- Verification: `TokenService.verifyAccessToken(token)` (§38) — HS256, issuer, audience, expiration, `typ = "access"`.
+- При успехе: payload токена добавляется в `request.user` для использования в сервисах.
+- При ошибке (отсутствует / невалиден / просрочен): `401 Unauthorized` без внутренних деталей.
+
+**Исключения (`@Public()`):**
+
+| Endpoint | Причина |
+|---|---|
+| `GET /api/v1/health` | Проверка доступности, не требует аутентификации |
+| `POST /api/v1/auth/register` | Регистрация нового пользователя |
+| `POST /api/v1/auth/login` | Вход в существующий аккаунт |
+| `POST /api/v1/auth/refresh` | Обновление токенов — refresh token rotation (§65) |
+| `POST /api/v1/auth/logout` | Выход пользователя (§60) — аутентификация через refresh cookie |
+| `GET /api/v1/docs` | Swagger UI (только dev) |
+| `GET /api/v1/docs-json` | OpenAPI JSON (только dev) |
+
+- Декоратор `@Public()` устанавливается на controller method (action level) — privileged action по умолчанию.
+- Guard размещается в `src/common/guards/` и регистрируется глобально в `main.ts` через `APP_GUARD`.
+
+### 65. Refresh Token Rotation (`POST /api/v1/auth/refresh`)
+
+- Endpoint: `POST /api/v1/auth/refresh`.
+- Тело запроса отсутствует. Refresh token читается из HttpOnly cookie (§25).
+- Алгоритм:
+  1. Прочитать cookie `refresh_token`.
+  2. Если cookie отсутствует → `401 Unauthorized`.
+  3. `verifyRefreshToken(token)` — HS256, issuer, audience, expiration, `typ = "refresh"` (§33).
+  4. Если невалиден → `401`, clear cookie (§25–28).
+  5. `getSession(sid)` из Redis — получить текущую сессию.
+  6. Если сессия не найдена → `401`, clear cookie.
+  7. `hashRefreshToken(token)` → сравнить с `session.refreshTokenHash`.
+  8. Если hash не совпадает → replay detected → `revokeSession(sid)` → `401`, clear cookie.
+  9. Успех: `revokeSession(sid)` (старая сессия отозвана), создать новую сессию (новый `sessionId`, `tokenFamilyId`), новые access/refresh JWT, запись в Redis, Set-Cookie с новым refresh token.
+- Ответ: `200 OK`, body `{ "accessToken": "..." }`, Set-Cookie с новым refresh token (атрибуты §25–28).
+- Ошибки Redis: `500 Internal Server Error`, cookie не сбрасывается (§60).
+
+### 66. Logout All (`POST /api/v1/auth/logout-all`)
+
+- Endpoint: `POST /api/v1/auth/logout-all`.
+- Protected by access-token guard (§64) — требует access token в `Authorization` header.
+- Тело запроса отсутствует.
+- Алгоритм:
+  1. Извлечь `userId` из payload access token (`request.user.sub`).
+  2. `SCAN 0 MATCH auth:session:*` → для каждой сессии `GET` → проверка `session.userId === userId` → `DELETE` при совпадении.
+  3. Удалить cookie `refresh_token` (clear cookie, §25–28).
+- Ответ: `204 No Content`.
+- Ошибки Redis: `500 Internal Server Error`.
+- Access token остаётся валидным до истечения TTL (stateless); серверный отзыв не выполняется.
+
+### 67. Change Password (`POST /api/v1/auth/change-password`)
+
+- Endpoint: `POST /api/v1/auth/change-password`.
+- Protected by access-token guard (§64) — требует access token в `Authorization` header.
+- Тело запроса: `{ currentPassword, newPassword, newPasswordConfirmation }`.
+- Валидация:
+  - `currentPassword`: non-empty.
+  - `newPassword`: password policy (§7, min 12, max 128).
+  - `newPasswordConfirmation`: non-empty, совпадает с `newPassword` (§5).
+- Алгоритм:
+  1. Извлечь `userId` из payload access token (`request.user.sub`).
+  2. Найти пользователя по `userId` → не найден → `404 Not Found` (защита от удалённого пользователя).
+  3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Invalid credentials"`.
+  4. Если `currentPassword === newPassword` → `400 "New password must differ from current"`.
+  5. `hashPassword(newPassword)` → обновить `passwordHash` в PostgreSQL.
+  6. Отозвать все сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (кроме текущей, определённой по `jti` access token).
+  7. Удалить cookie `refresh_token` (clear cookie, §25–28).
+- Ответ: `204 No Content`.
+- Ошибки Redis: `500 Internal Server Error`, пароль не меняется (транзакция PostgreSQL + best-effort Redis).
 
 ---
 

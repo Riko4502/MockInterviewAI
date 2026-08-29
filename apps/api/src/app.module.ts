@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { AccessTokenGuard } from "./common/guards/access-token.guard";
 import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
@@ -19,7 +20,8 @@ import { RedisModule } from "./redis/redis.module";
  * Регистрирует глобальный `ConfigModule` (валидация окружения, §49 SPEC.md),
  * глобальный `PrismaModule`, глобальный `RedisModule`, `ThrottlerModule`
  * (rate limiting, §41 SPEC.md), `HealthModule`, `UsersModule`, `AuthModule`
- * и глобальный `OriginCheckGuard` (CSRF, §29 SPEC.md).
+ * и глобальные guard'ы: `AccessTokenGuard` (§64 SPEC.md) и
+ * `OriginCheckGuard` (CSRF, §29 SPEC.md).
  */
 @Module({
   imports: [
@@ -48,6 +50,10 @@ import { RedisModule } from "./redis/redis.module";
     StorageModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AccessTokenGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: OriginCheckGuard,

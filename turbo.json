@@ -19,6 +19,9 @@
         "storybook-static/**"
       ]
     },
+    "generate": {
+      "cache": false
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$"]
     },

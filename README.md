@@ -17,7 +17,7 @@
 ## Обязательный функционал
 
 1. **Аутентификация и авторизация**
-2. **Лендинг**
+2. **Лендинг** – [доступно онлайн](https://mock-interview-ai-landing.vercel.app/)
 3. **Создание сессий и приглашение участников**
    - Создание сессии и приглашение участников.
    - Создание закрытых сессий с паролем.
@@ -53,7 +53,8 @@
 ## Технические требования и стек
 
 * **Frontend:** Next.js (App Router), React, TypeScript
-* **Design System & UI Docs:** Storybook (`apps/ui-docs`), `@packages/ui`, `@packages/icons`
+* **Design & UI Kit:** [Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)
+* **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
@@ -135,6 +136,7 @@ pnpm dev
 
 ## 📚 Документация
 
+* 🎨 **[Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)** — дизайн-макеты интерфейса и UI-кита.
 * 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
 * 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
 * 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.

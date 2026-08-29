@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/landing ./apps/landing
 
-RUN pnpm --filter='./packages/*' build && \
+RUN pnpm turbo run build --filter=landing^... && \
     pnpm --filter landing build
 
 # -------------------------------------------------------------
