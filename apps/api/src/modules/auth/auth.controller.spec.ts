@@ -30,6 +30,7 @@ describe("AuthController", () => {
   let registerMock: jest.Mock;
   let loginMock: jest.Mock;
   let logoutMock: jest.Mock;
+  let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
   let statusMock: jest.Mock;
@@ -39,6 +40,7 @@ describe("AuthController", () => {
     registerMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     loginMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     logoutMock = jest.fn().mockResolvedValue(undefined);
+    refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
     statusMock = jest.fn();
@@ -55,6 +57,7 @@ describe("AuthController", () => {
         register: registerMock,
         login: loginMock,
         logout: logoutMock,
+        refresh: refreshMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
     );
@@ -195,6 +198,15 @@ describe("AuthController", () => {
       expect(httpCode).toBe(HttpStatus.NO_CONTENT);
     });
 
+    it("@Public() декоратор присутствует (§64)", () => {
+      const metadata = Reflect.getMetadata(
+        "isPublic",
+        AuthController.prototype.logout,
+      );
+
+      expect(metadata).toBe(true);
+    });
+
     it("clearCookie с теми же атрибутами §25–28, кроме Max-Age", async () => {
       const request = createRequest({ refresh_token: "raw.refresh.token" });
 
@@ -251,6 +263,116 @@ describe("AuthController", () => {
         createController().logout(request, response),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(logoutMock).toHaveBeenCalledWith(undefined);
+      expect(clearCookieMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("refresh (§65 SPEC.md)", () => {
+    it("возвращает 200 и ТОЛЬКО accessToken в JSON", async () => {
+      const request = createRequest({ refresh_token: "raw.refresh.token" });
+
+      const body = await createController().refresh(request, response);
+
+      expect(refreshMock).toHaveBeenCalledWith("raw.refresh.token");
+      expect(body).toEqual({ accessToken: "raw.access.token" });
+      expect(Object.keys(body)).toEqual(["accessToken"]);
+    });
+
+    it("refresh token отсутствует в теле ответа (§45)", async () => {
+      const request = createRequest({ refresh_token: "raw.refresh.token" });
+
+      const body = await createController().refresh(request, response);
+
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain("raw.refresh.token");
+    });
+
+    it("ставит refresh_token cookie с атрибутами §25–28", async () => {
+      const request = createRequest({ refresh_token: "raw.refresh.token" });
+
+      await createController(false).refresh(request, response);
+
+      expect(cookieMock).toHaveBeenCalledTimes(1);
+      const [name, value, options] = cookieMock.mock.calls[0];
+
+      expect(name).toBe("refresh_token");
+      expect(value).toBe("raw.refresh.token");
+      expect(options).toEqual({
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 604_800,
+      });
+    });
+
+    it("Secure=true при cookie.secure=true (§27)", async () => {
+      const request = createRequest({ refresh_token: "raw.refresh.token" });
+
+      await createController(true).refresh(request, response);
+
+      expect(cookieMock.mock.calls[0][2]).toMatchObject({ secure: true });
+    });
+
+    it("@HttpCode(200) объявлен на маршруте (§65)", () => {
+      const httpCode = Reflect.getMetadata(
+        "__httpCode__",
+        AuthController.prototype.refresh,
+      );
+
+      expect(httpCode).toBe(HttpStatus.OK);
+    });
+
+    it("@Public() декоратор присутствует (§64)", () => {
+      const metadata = Reflect.getMetadata(
+        "isPublic",
+        AuthController.prototype.refresh,
+      );
+
+      expect(metadata).toBe(true);
+    });
+
+    it("на маршруте применён AuthThrottlerGuard (§41)", () => {
+      const guards = Reflect.getMetadata(
+        "__guards__",
+        AuthController.prototype.refresh,
+      ) as unknown[];
+
+      expect(guards).toContain(AuthThrottlerGuard);
+    });
+
+    it("401 при отказе: cookie очищается, ошибка пробрасывается (§65)", async () => {
+      refreshMock.mockRejectedValue(
+        new UnauthorizedException("Invalid credentials"),
+      );
+      const request = createRequest({ refresh_token: "tampered" });
+
+      await expect(
+        createController().refresh(request, response),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(clearCookieMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("500 при ошибке Redis: cookie НЕ сбрасывается (§60)", async () => {
+      refreshMock.mockRejectedValue(new Error("redis down"));
+      const request = createRequest({ refresh_token: "raw.refresh.token" });
+
+      await expect(
+        createController().refresh(request, response),
+      ).rejects.toBeInstanceOf(Error);
+      expect(clearCookieMock).not.toHaveBeenCalled();
+    });
+
+    it("без cookie: сервис вызывается с undefined, 401 → clearCookie", async () => {
+      refreshMock.mockRejectedValue(
+        new UnauthorizedException("Invalid credentials"),
+      );
+      const request = createRequest(undefined);
+
+      await expect(
+        createController().refresh(request, response),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(refreshMock).toHaveBeenCalledWith(undefined);
       expect(clearCookieMock).toHaveBeenCalledTimes(1);
     });
   });
