@@ -75,6 +75,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Устанавливает ключ только если он не существует (NX) с временем жизни (Distributed Lock).
+   *
+   * @param key - Имя ключа.
+   * @param value - Значение.
+   * @param ttlSeconds - Время жизни в секундах.
+   * @returns `true`, если ключ был успешно установлен (захвачен лок), иначе `false`.
+   */
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return result === "OK";
+  }
+
+  /**
    * Получает значение по ключу.
    *
    * @param key - Имя ключа.
@@ -104,6 +121,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async expire(key: string, ttlSeconds: number): Promise<void> {
     await this.client.expire(key, ttlSeconds);
+  }
+
+  /**
+   * Публикует сообщение в Redis-канал Pub/Sub.
+   *
+   * @param channel - Имя канала.
+   * @param message - Текст сообщения (JSON).
+   */
+  async publish(channel: string, message: string): Promise<void> {
+    await this.client.publish(channel, message);
   }
 
   /**

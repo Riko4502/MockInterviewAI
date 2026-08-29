@@ -29,6 +29,16 @@ const envSchema = z.object({
   REFRESH_TOKEN_COOKIE_NAME: z.string().min(1).default("refresh_token"),
   THROTTLE_TTL: z.coerce.number().int().positive().default(60000),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
+  S3_ENDPOINT: z.string().default("http://localhost:9000"),
+  S3_REGION: z.string().default("us-east-1"),
+  S3_ACCESS_KEY: z.string().default("minioadmin"),
+  S3_SECRET_KEY: z.string().default("minioadmin"),
+  S3_BUCKET_NAME: z.string().default("mock-interview-storage"),
+  S3_PUBLIC_URL: z
+    .string()
+    .default("http://localhost:9000/mock-interview-storage"),
+  S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("true"),
+  MAX_AVATAR_SIZE_BYTES: z.coerce.number().int().positive().default(2_097_152),
 });
 
 /** Тип валидированного окружения приложения. */

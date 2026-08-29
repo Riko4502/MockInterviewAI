@@ -39,11 +39,26 @@ export const configuration = () => ({
   },
   cookie: {
     secure: process.env.COOKIE_SECURE === "true",
-    refreshTokenName: process.env.REFRESH_TOKEN_COOKIE_NAME ?? "refresh_token",
+    refreshTokenName:
+      process.env.REFRESH_TOKEN_COOKIE_NAME ??
+      process.env.JWT_REFRESH_COOKIE_NAME ??
+      "refresh_token",
   },
   throttle: {
     ttl: Number(process.env.THROTTLE_TTL ?? 60000),
     limit: Number(process.env.THROTTLE_LIMIT ?? 100),
+  },
+  storage: {
+    endpoint: process.env.S3_ENDPOINT ?? "http://localhost:9000",
+    region: process.env.S3_REGION ?? "us-east-1",
+    accessKey: process.env.S3_ACCESS_KEY ?? "minioadmin",
+    secretKey: process.env.S3_SECRET_KEY ?? "minioadmin",
+    bucketName: process.env.S3_BUCKET_NAME ?? "mock-interview-storage",
+    publicUrl:
+      process.env.S3_PUBLIC_URL ??
+      "http://localhost:9000/mock-interview-storage",
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== "false",
+    maxAvatarSizeBytes: Number(process.env.MAX_AVATAR_SIZE_BYTES ?? 2_097_152),
   },
 });
 
