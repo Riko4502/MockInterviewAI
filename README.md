@@ -17,7 +17,7 @@
 ## Обязательный функционал
 
 1. **Аутентификация и авторизация**
-2. **Лендинг**
+2. **Лендинг** – [доступно онлайн](https://mock-interview-ai-landing.vercel.app/)
 3. **Создание сессий и приглашение участников**
    - Создание сессии и приглашение участников.
    - Создание закрытых сессий с паролем.
@@ -53,7 +53,9 @@
 ## Технические требования и стек
 
 * **Frontend:** Next.js (App Router), React, TypeScript
-* **Realtime Service:** Go 1.24, WebSocket (`coder/websocket`), Chi router
+* **Design & UI Kit:** [Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)
+* **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
+* **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
 * **Object Storage:** S3-совместимое хранилище (MinIO для dev / Cloudflare R2 / AWS S3 в prod)
@@ -66,7 +68,7 @@
 Перед началом работы убедитесь, что у вас установлены:
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Go:** >= 1.24 (для сервиса Realtime)
+* **Go:** >= 1.26.6 (для сервиса Realtime)
 * **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis и MinIO
 
 ---
@@ -119,11 +121,28 @@ pnpm dev
   ```bash
   pnpm dev:web
   ```
+* **Storybook / UI-документация и каталог иконок (порт 6006):**
+  ```bash
+  pnpm dev:storybook
+  # или: pnpm --filter ui-docs storybook
+  ```
 * **Realtime WebSocket сервис (Go - порт 8080):**
   ```bash
   pnpm dev:realtime
   ```
   *(или напрямую через Go: `cd apps/realtime && go run cmd/server/main.go`)*
+
+---
+
+## 📚 Документация
+
+* 🎨 **[Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)** — дизайн-макеты интерфейса и UI-кита.
+* 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
+* 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
+* 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.
+* 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
+* 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
+* 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
 
 ---
 

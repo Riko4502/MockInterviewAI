@@ -4,6 +4,13 @@
           - 'apps/web/**'
           - 'apps/landing/**'
           - 'packages/ui/**'
+          - 'packages/icons/**'
+          - 'packages/tailwind-config/**'
+
+'📖 storybook':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/ui-docs/**'
 
 '⚙️ backend':
   - changed-files:

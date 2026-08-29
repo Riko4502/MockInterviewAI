@@ -51,6 +51,11 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       landing: ${{ steps.filter.outputs.landing }}
       api: ${{ steps.filter.outputs.api }}
+      storybook: ${{ steps.filter.outputs.storybook }}
+      docker_realtime: ${{ steps.filter.outputs.docker_realtime }}
+      docker_web: ${{ steps.filter.outputs.docker_web }}
+      docker_landing: ${{ steps.filter.outputs.docker_landing }}
+      docker_api: ${{ steps.filter.outputs.docker_api }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -62,59 +67,129 @@ jobs:
           filters: |
             realtime:
               - 'apps/realtime/**'
+              - 'go.mod'
+              - 'go.sum'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-realtime.yml'
             web:
               - 'apps/web/**'
-              - 'packages/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
+              - 'packages/dto/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-web.yml'
             api:
               - 'apps/api/**'
-              - 'packages/**'
+              - 'packages/dto/**'
+              - 'packages/types/**'
+              - 'packages/utils/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
               - 'turbo.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-api.yml'
             landing:
               - 'apps/landing/**'
-              - 'packages/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
+              - 'packages/utils/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-landing.yml'
+            storybook:
+              - 'apps/ui-docs/**'
+              - 'packages/ui/**'
+              - 'packages/icons/**'
+              - 'packages/tailwind-config/**'
+              - 'packages/utils/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'turbo.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-storybook.yml'
+            docker_realtime:
+              - 'apps/realtime/Dockerfile*'
+              - 'apps/realtime/go.mod'
+              - 'apps/realtime/go.sum'
+              - '.dockerignore'
+            docker_web:
+              - 'apps/web/Dockerfile*'
+              - '.dockerignore'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/ci-landing.yml'
+            docker_api:
+              - 'apps/api/Dockerfile*'
+              - 'apps/api/prisma/**'
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+            docker_landing:
+              - 'apps/landing/Dockerfile*'
+              - 'apps/landing/nginx.conf'
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
 
   realtime:
     name: "Realtime"
     needs: changes
     if: needs.changes.outputs.realtime == 'true'
     uses: ./.github/workflows/ci-realtime.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_realtime == 'true' }}
 
   web:
     name: "Web"
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/ci-web.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_web == 'true' }}
 
   api:
     name: "API"
     needs: changes
     if: needs.changes.outputs.api == 'true'
     uses: ./.github/workflows/ci-api.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_api == 'true' }}
 
   landing:
     name: "Landing"
     needs: changes
     if: needs.changes.outputs.landing == 'true'
     uses: ./.github/workflows/ci-landing.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_landing == 'true' }}
+
+  storybook:
+    name: "Storybook"
+    needs: changes
+    if: needs.changes.outputs.storybook == 'true'
+    uses: ./.github/workflows/ci-storybook.yml
 
   security:
     name: "Security"
@@ -122,7 +197,7 @@ jobs:
 
   notify:
     name: "Telegram"
-    needs: [realtime, web, api, security, landing]
+    needs: [realtime, web, api, security, landing, storybook]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
@@ -131,11 +206,12 @@ jobs:
       web_result: ${{ needs.web.result }}
       landing_result: ${{ needs.landing.result }}
       api_result: ${{ needs.api.result }}
+      storybook_result: ${{ needs.storybook.result }}
       security_result: ${{ needs.security.result }}
 
   pr-status-comment:
     name: "Обновление статуса PR"
-    needs: [realtime, web, api, landing, security]
+    needs: [realtime, web, api, landing, storybook, security]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -156,6 +232,8 @@ jobs:
               -e "s|{{API_STATUS}}|${{ needs.api.result == 'success' && '✅ Успешно' || (needs.api.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{REALTIME_COV}}|${{ needs.realtime.outputs.coverage || '—' }}|g" \
               -e "s|{{REALTIME_STATUS}}|${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{STORYBOOK_COV}}|${{ needs.storybook.outputs.coverage || '—' }}|g" \
+              -e "s|{{STORYBOOK_STATUS}}|${{ needs.storybook.result == 'success' && '✅ Успешно' || (needs.storybook.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{SECURITY_STATUS}}|${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }}|g" \
               .github/templates/pr-status-summary.md > pr-comment.md
 
