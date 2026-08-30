@@ -29,10 +29,13 @@ Phase B требует одновременного выката зеркала 
 1. `apps/api/src/common/guards/access-token.guard.ts`:
    - внедрить `AuthSessionService`;
    - `canActivate` → `async`; после `verifyAccessToken`:
-     `getSession(payload.sid)` → `null` → `401 "Session has expired or been revoked"`;
+     `isSessionActive(payload.sid)` (новый метод `AuthSessionService`, `EXISTS auth:session:{sid}`
+     без чтения/парсинга JSON, P5) → `false` → `401 "Session has expired or been revoked"`;
      исключение Redis пробросить (Nest → `500`, поведение «как в API»);
+   - опционально: in-memory TTL-cache (1–5 s) для снижения roundtrip;
    - Bearer-парсер унифицировать со старой логикой `JwtAuthGuard`
      (`startsWith("Bearer ")` + `slice(7)`).
+1b. `apps/api/src/modules/auth/services/auth-session.service.ts`: добавить `isSessionActive(sid)`.
 2. `apps/api/src/modules/users/profile.controller.ts:31` — снять `@UseGuards(JwtAuthGuard)`.
 3. Удалить `apps/api/src/common/guards/jwt-auth.guard.ts` + `jwt-auth.guard.spec.ts`.
 4. `apps/api/src/common/guards/origin-check.guard.ts:45-66` — `startsWith` → точное
@@ -51,8 +54,10 @@ Phase B требует одновременного выката зеркала 
 
 ### Шаги
 1. Создать `apps/api/src/common/pubsub/revocation.ts`:
-   - `publishUserRevocation(redis: RedisService, userId: string): Promise<void>`
-   - сообщение: `{"instanceId":"api-<os.hostname()>","data":"<userId>"}`
+   - `publishUserRevocation(redis: RedisService, userId: string, sessionId?: string): Promise<void>`
+   - сообщение: `{"instanceId":"api-<os.hostname()>","data":"<userId>"}` (+ `sessionId`, если передан);
+   - `sessionId` передаётся только для close-сессии (room-scoped evict, P2),
+     не для logout/replay/deactivate;
    - не бросать исключений (best-effort, как в `users.service.ts:244-246`).
 2. `apps/api/src/modules/users/users.service.ts` — в `deactivateAccount` заменить
    `publish("auth:revocations", JSON.stringify({userId, reason}))` на хелпер.
@@ -63,13 +68,16 @@ Phase B требует одновременного выката зеркала 
     - На успешной ветке `refresh()` (`:343`, ротация → новый `sessionId`) публикацию
       НЕ добавлять — иначе каждый refresh обрывал бы активные WS; publish — только на replay.
 4. `apps/realtime/internal/storage/redis.go` — вынести разбор сообщения ревокации
-   в функцию `parseRevocationUser(payload []byte) string` (чистая), использовать в
-   `SubscribeRevocations`.
+   в чистую функцию `parseRevocation(payload []byte) (userID, sessionID string)`;
+   `SubscribeRevocations` отдаёт оба значения.
+5. `apps/realtime/internal/ws/hub.go` — добавить `EvictFromRoom(sessionID, userID, reason)`;
+   колбэк подписки: при `sessionID == ""` → `EvictUser` (logout/deactivate), иначе → `EvictFromRoom`.
 
 ### Проверка
-- `apps/realtime/internal/storage/parser_test.go`: `parseRevocationUser` на
-  `{"instanceId":"api-dev","data":"user-1"}` → `"user-1"`;
-  старый `{"userId":"u","reason":"..."}` → `""`.
+- `apps/realtime/internal/storage/parser_test.go`: `parseRevocation` на
+  `{"instanceId":"api-dev","data":"user-1"}` → `("user-1","")`;
+  `{"instanceId":"api-dev","data":"user-1","sessionId":"sess-9"}` → `("user-1","sess-9")`;
+  старый `{"userId":"u","reason":"..."}` → `("","")`.
 - `pnpm --filter api lint`, `pnpm --filter api test`, `pnpm --filter api test:e2e`.
 - `cd apps/realtime && go test ./... && go vet ./...`.
 
@@ -79,22 +87,27 @@ Phase B требует одновременного выката зеркала 
 
 ### B1. Prisma и зеркало
 1. `apps/api/prisma/schema.prisma` — добавить модели `InterviewSession` (включает поле
-   `userId` — владелец), `InterviewParticipant`, enum'ы (см. спецификацию §6). Выполнить:
-   `pnpm --filter api prisma generate` + миграцию.
+   `userId` — владелец), `InterviewParticipant`, enum'ы (см. спецификацию §6).
+   ВАЖНО: `InterviewParticipant.sessionId` — `@db.Uuid` (иначе FK text→uuid упадёт, P1).
+   Выполнить: `pnpm --filter api prisma generate` + миграцию.
 2. `apps/api/src/redis/redis.service.ts` — добавить `hset(key, field, value, ttlSeconds?)`,
    `hget(key, field)`, `hdel(key, field)`.
 3. Создать `apps/api/src/modules/sessions/`:
    - `sessions.module.ts` (импорт/экспорт `SessionsService`);
    - `sessions.service.ts`:
-     - `createSession(creatorUserId, role)` → статус ACTIVE, зеркало active+members;
+     - `createSession(creatorUserId)` → статус ACTIVE, зеркало active+members,
+       создатель = владелец с ролью `interviewer` (P14);
      - `addParticipant(sessionId, userId, role)` → HSET + продление TTL;
      - `removeParticipant(sessionId, userId)` → HDEL + продление TTL;
      - `closeSession(sessionId)` → `session:{id}:active="closed"`,
-       publish ревокации по каждому участнику (evict) — ВАЖНО: publish **до** удаления зеркала
-       (или через чтение members до очистки);
-     - TTL зеркала из env `SESSION_MIRROR_TTL_SECONDS` (default 2h).
+       publish ревокации по каждому участнику **с `sessionId`** (room-scoped evict, P2) —
+       ВАЖНО: publish **до** удаления зеркала (или через чтение members до очистки);
+     - TTL зеркала из env `SESSION_MIRROR_TTL_SECONDS` (default 2h);
+     - `reconcileMirrors()` @Cron (интервал env `SESSION_MIRROR_REFRESH_CRON`, default «ежечасно»):
+       восстановление зеркала ACTIVE-сессий из Postgres после потери/flush Redis (P3);
+       `ScheduleModule` уже зарегистрирован (`app.module.ts:46`).
    - `sessions.controller.ts` (минимальный, за глобальным `AccessTokenGuard`):
-     - `POST /sessions` (body: `{role}`; создатель = interviewer) → `{sessionId}`;
+     - `POST /sessions` (без тела; создатель = interviewer/владелец) → `{sessionId}`;
      - `POST /sessions/:id/participants` (body: `{userId, role}`) — только владелец;
      - `DELETE /sessions/:id/participants/:userId` — только владелец;
      - `POST /sessions/:id/close` — только владелец (`session.userId == req.user.sub`,
@@ -104,6 +117,8 @@ Phase B требует одновременного выката зеркала 
 ### B2. Realtime fail-closed
 1. `apps/realtime/internal/storage/redis.go`:
    - `IsSessionActive`: `redis.Nil`, ошибка, disabled → `false, nil`.
+     Семантика disabled (P12): `REDIS_ENABLED=false` ⇒ fail-closed на активность/роль/сессию —
+     все подключения отклоняются; «перимиссивный» `ConsumeTicket` в этой конфигурации не влияет.
    - `GetSessionUserRole`: `redis.Nil`/отсутствие → `("", nil)`; ошибка → пробросить.
    - вынести в чистые функции `isActiveValue(val string) bool` и семантику роли для unit-тестов.
 2. `apps/realtime/internal/handler/websocket.go`:
@@ -155,6 +170,7 @@ Phase B требует одновременного выката зеркала 
 4. `apps/api/src/modules/realtime/realtime.module.ts` + `realtime.controller.ts`:
    - `POST /realtime/ticket`, `@ZodBody(ticketSchema)`, ответ `{ ticket }`;
    - `AuthThrottlerGuard` на контроллере — трекер по IP (email в body тикета отсутствует);
+     за reverse-proxy проверить `trust proxy` (иначе throttle бьёт всех за одним IP, P8);
    - модуль подключить в `AppModule` (регистрация в `apps/api/src/app.module.ts`);
    - глобальный `AccessTokenGuard` (после Phase G —
      async, с проверкой живой `auth:session:{sid}`) применится автоматически.
@@ -165,8 +181,9 @@ Phase B требует одновременного выката зеркала 
 1. `internal/storage/redis.go` + интерфейс `SessionStore`:
    - `IsAuthSessionActive(ctx, sid) (bool, error)`: `EXISTS auth:session:{sid}`;
      отсутствие/ошибка/disabled → `false`.
-   - `ConsumeTicket(ctx, tokenID) (bool, error)`: `SET blacklist:token:{jti} EX <ttl> NX`
-     (`ttl` = 5 мин); true — тикет впервые; disabled → `true` (перимиссивно, комментарий).
+- `ConsumeTicket(ctx, tokenID) (bool, error)`: `SET ticket:consumed:{jti} EX <ttl> NX`
+      (`ttl` = 5 мин; отдельный namespace `ticket:consumed:*`, не пересекается с `blacklist:token:*`, P4);
+      true — тикет впервые; disabled → `true` (перимиссивно — не влияет, см. P12).
 2. `internal/handler/websocket.go`:
    - извлечение учётных данных — приоритет: **subprotocol-тикет → `Authorization: Bearer`
      → cookie** (закрывает слабость «cookie приоритетнее Bearer» из §3);
@@ -176,12 +193,16 @@ Phase B требует одновременного выката зеркала 
      - `typ == "realtime"`: `ConsumeTicket(jti)` → false → `401 token already used`;
        затем **bound-to-room**: `claims.SessionID != URL sessionId` → `403` (defense-in-depth);
      - `typ == "access"`: только `IsTokenRevoked(jti)` (без `ConsumeTicket` — access multi-use);
+        фолбэк-путь за флагом `REALTIME_ALLOW_ACCESS_FALLBACK` (P9);
      - затем для обоих типов: `IsAuthSessionActive(sid)` → false → `401 session is not active`;
        `IsSessionActive` / `GetSessionUserRole` (из Phase B);
    - все вызовы `SessionStore` — через nil-guard `h.store != nil` (паттерн Phase B2);
    - `AcceptOptions{Subprotocols: []string{"realtime"}, OriginPatterns: ...}` —
      чтобы браузер принял согласованный subprotocol.
-3. `jwt.go` ужесточение действует на оба типа токенов (из Phase B).
+3. `internal/config/config.go`: env `REALTIME_ALLOW_ACCESS_FALLBACK` (default true) —
+   выключатель мультиюз-фолбэка `typ=="access"`; после перевода всех клиентов на тикеты —
+   выключить (P9). Прокинуть флаг в `WebSocketHandler`.
+4. `jwt.go` ужесточение действует на оба типа токенов (из Phase B).
 
 ### C3. Тесты
 - `apps/api/test/realtime-ticket.e2e-spec.ts`:
@@ -209,8 +230,10 @@ Phase B требует одновременного выката зеркала 
    - `connectWebSocket(sessionId): { socket, close }`:
      - `ticket = await getTicket(sessionId)`;
      - `new WebSocket(url, ["realtime", ticket])`;
-     - `onclose`/`onerror` с кодом 403/переподключение: повторный тикет + reconnect
-       с экспоненциальным backoff (1s, 2s, 4s, ... cap 30s);
+     - reconnect: только на `close`/`403` (кроме `1008`/`1001`) — повторный тикет + reconnect
+       с экспоненциальным backoff (1s, 2s, 4s, ... cap 30s); на `1008` (evict) — без
+       auto-reconnect (повторный тикет → 401, auth-слой уводит на `/login`); на `1001`
+       (уход вкладки) — reconnect не нужен (P6);
      - тикет НЕ писать в sessionStorage/logs.
 3. `apps/web/package.json` — удалить `socket.io-client`; `pnpm install` для обновления lock.
 
@@ -226,6 +249,8 @@ Phase B требует одновременного выката зеркала 
 ## Контрольная проверка (сквозная, после всех фаз)
 
 1. `docker compose up -d redis`; `REDIS_ENABLED=true` для realtime.
+   Проверить выравнивание портов: `API_PORT=3001`, `NEXT_PUBLIC_API_URL=http://localhost:3001`,
+   `NEXT_PUBLIC_REALTIME_URL=ws://localhost:8080` (P7).
 2. API: login → access + refresh cookie.
 3. `POST /realtime/ticket {sessionId}` (Bearer access) → ticket.
 4. `ws://localhost:8080/ws/sessions/{sessionId}` с subprotocol `["realtime", ticket]` →
@@ -234,13 +259,15 @@ Phase B требует одновременного выката зеркала 
 6. Не-участник с валидным тикетом на чужую сессию → 403.
 7. Не-владелец `POST /sessions/:id/participants {userId}` → `403`;
    `POST /sessions/:id/close` чужой сессии → `403`.
-8. `POST /sessions/:id/close` (владелец) → активные WS закрываются
-   `StatusPolicyViolation` (1008).
+8. `POST /sessions/:id/close` (владелец) → WS участников **этой** сессии закрываются
+   `StatusPolicyViolation` (1008); участник другой активной сессии НЕ выброшен (P2).
 9. logout → активные WS закрываются `StatusPolicyViolation`.
 10. Сид-ротация: после активного `POST /auth/refresh` повторное подключение с прежним
     тикетом → `401` (sid ротирован, `auth:session:{oldSid}` удалён); новый тикет на
     актуальный access → успех.
-11. Команды: `cd apps/realtime && go test ./... && go vet ./...`;
+11. Пункты 8–10 автоматизированы (P11): close → 1008 / logout-ревокация → 1008 / повторный
+    тикет после refresh → 401 — см. `revocation_test.go` и `realtime-ticket.e2e-spec.ts`.
+12. Команды: `cd apps/realtime && go test ./... && go vet ./...`;
    `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`;
    `pnpm --filter web lint && pnpm --filter web build`.
 
