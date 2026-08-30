@@ -28,13 +28,19 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
           TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
           MERGED_BY: ${{ github.actor }}
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels) }}
         run: |
           if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
             echo "⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы, пропуск отправки."
             exit 0
           fi
+
+          escape_html() {
+            echo "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+          }
 
           # Определяем иконку по типу PR
           ICON="📝"
@@ -45,26 +51,96 @@ jobs:
             perf*|Perf*) ICON="⚡" ;;
             docs*|Docs*) ICON="📚" ;;
             chore*|Chore*) ICON="🛠️" ;;
+            test*|Test*) ICON="🧪" ;;
+            ci*|CI*|ci:*) ICON="🤖" ;;
           esac
 
-          # Экранируем спецсимволы в заголовке
-          CLEAN_TITLE=$(echo "$PR_TITLE" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+          # Извлекаем метки (Labels) в формате #label1 #label2
+          LABELS_STR=$(node -e '
+            try {
+              const labels = JSON.parse(process.env.LABELS_JSON || "[]");
+              if (Array.isArray(labels) && labels.length > 0) {
+                console.log(labels.map(l => "#" + l.name.replace(/[^a-zA-Z0-9_а-яА-ЯёЁ]/g, "_")).join(" "));
+              }
+            } catch(e) {}
+          ')
 
-          MESSAGE=$(printf "📋 <b>Changelog: мерж в <code>%s</code></b>\n\n%s <b>%s</b> (#%s)\n\n👤 <b>Автор PR:</b> @%s\n🤝 <b>Смержил:</b> @%s\n\n🔗 <a href=\"%s\">Открыть Pull Request #%s</a>" \
-            "$TARGET_BRANCH" \
-            "$ICON" \
-            "$CLEAN_TITLE" \
-            "$PR_NUMBER" \
-            "$PR_AUTHOR" \
-            "$MERGED_BY" \
-            "$PR_URL" \
-            "$PR_NUMBER")
+          # Извлекаем краткое резюме из описания PR
+          SUMMARY=$(node -e '
+            const body = process.env.PR_BODY || "";
+            if (!body.trim()) process.exit(0);
+
+            let clean = body.replace(/<!--[\s\S]*?-->/g, "");
+            const lines = clean.split("\n")
+              .map(l => l.trim())
+              .filter(l => l.length > 0 && !l.startsWith("###") && !l.startsWith("##") && !l.startsWith("#"));
+
+            if (lines.length === 0) process.exit(0);
+
+            let resultLines = [];
+            let totalLen = 0;
+            for (const line of lines) {
+              const simplified = line
+                .replace(/^[-*]\s*\[[ xX]\]\s*/, "• ")
+                .replace(/^[-*]\s*/, "• ")
+                .replace(/[*_`]/g, "");
+              if (totalLen + simplified.length > 350) break;
+              resultLines.push(simplified);
+              totalLen += simplified.length;
+              if (resultLines.length >= 4) break;
+            }
+
+            if (resultLines.length > 0) {
+              const res = resultLines.join("\n")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+              console.log(res);
+            }
+          ')
+
+          CLEAN_TITLE=$(escape_html "$PR_TITLE")
+
+          MESSAGE=$(
+            echo "📋 <b>Changelog: мерж в <code>${TARGET_BRANCH}</code></b>"
+            echo ""
+            echo "${ICON} <b>${CLEAN_TITLE}</b> (<code>#${PR_NUMBER}</code>)"
+            echo "🌿 <code>${SOURCE_BRANCH}</code> ➔ <code>${TARGET_BRANCH}</code>"
+            echo ""
+            echo "👤 <b>Автор PR:</b> <a href=\"https://github.com/${PR_AUTHOR}\">${PR_AUTHOR}</a>"
+            echo "🤝 <b>Смержил:</b> <a href=\"https://github.com/${MERGED_BY}\">${MERGED_BY}</a>"
+            if [ -n "$LABELS_STR" ]; then
+              echo "🏷 <b>Метки:</b> <code>${LABELS_STR}</code>"
+            fi
+            if [ -n "$SUMMARY" ]; then
+              echo ""
+              echo "💡 <b>Что сделано:</b>"
+              echo "<i>${SUMMARY}</i>"
+            fi
+          )
 
           PAYLOAD=$(jq -n \
             --arg chat_id "$CHAT_ID" \
             --arg thread_id "$THREAD_ID" \
             --arg text "$MESSAGE" \
-            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_notification: true} + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+            --arg pr_url "$PR_URL" \
+            --arg pr_number "$PR_NUMBER" \
+            '{
+              chat_id: $chat_id,
+              text: $text,
+              parse_mode: "HTML",
+              disable_notification: true,
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: ("🔀 Открыть Pull Request #" + $pr_number),
+                      url: $pr_url
+                    }
+                  ]
+                ]
+              }
+            } + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
 
           echo "Отправка в топик Changelog (Thread ID: ${THREAD_ID:-основной чат})..."
           RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
