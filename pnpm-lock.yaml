@@ -212,6 +212,9 @@ importers:
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@packages/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       react:
         specifier: ^19.0.0
         version: 19.2.8

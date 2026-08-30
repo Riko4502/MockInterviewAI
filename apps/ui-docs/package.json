@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@packages/icons": "workspace:*",
+    "@packages/utils": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
     "react": "^19.0.0",
