@@ -109,7 +109,23 @@ pnpm run infra:down
 * Веб-консоль MinIO доступна по адресу `http://localhost:9001` (логин: `minioadmin`, пароль: `minioadmin`).
 * S3 API эндпоинт: `http://localhost:9000`.
 
-### 5. Запуск сервисов в режиме разработки
+### 5. Миграции базы данных и Prisma
+После поднятия базы данных примените миграции:
+```bash
+# Применить миграции для разработки (создает новые миграции при изменении схемы)
+pnpm run db:migrate
+# или: pnpm --filter api db:migrate:dev
+
+# Применить уже существующие миграции (без запроса имени миграции)
+pnpm run db:migrate:deploy
+# или: pnpm --filter api db:migrate:deploy
+
+# Генерация Prisma Client
+pnpm run db:generate
+# или: pnpm --filter api db:generate
+```
+
+### 6. Запуск сервисов в режиме разработки
 
 #### Запуск всех сервисов одновременно (Turborepo):
 ```bash
@@ -117,9 +133,18 @@ pnpm dev
 ```
 
 #### Запуск конкретных сервисов по отдельности:
+* **Backend API (Nest.js - порт 3001):**
+  ```bash
+  pnpm dev:api
+  # или: pnpm --filter api dev
+  ```
 * **Frontend (Next.js - порт 3000):**
   ```bash
   pnpm dev:web
+  ```
+* **Landing Page:**
+  ```bash
+  pnpm dev:landing
   ```
 * **Storybook / UI-документация и каталог иконок (порт 6006):**
   ```bash
@@ -143,6 +168,7 @@ pnpm dev
 * 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
+* 🌍 **[i18n Localization](docs/I18N.md)** — архитектура и руководство по интернационализации (`@packages/i18n`).
 
 ---
 
@@ -151,6 +177,10 @@ pnpm dev
 * **Запуск всех тестов:**
   ```bash
   pnpm test
+  ```
+* **Тесты Backend API (Nest.js / Jest):**
+  ```bash
+  pnpm test:api
   ```
 * **Тесты сервиса Realtime (Go):**
   ```bash
@@ -162,6 +192,9 @@ pnpm dev
   ```
 * **Проверка линтерами (Biome & golangci-lint):**
   ```bash
+  pnpm lint
+  # или для конкретных приложений:
+  pnpm lint:api
   pnpm lint:realtime
   ```
 

@@ -3,18 +3,34 @@ name: "CI Telegram Notification"
 on:
   workflow_call:
     inputs:
+      start_time:
+        type: string
+        required: false
+        default: ''
       realtime_result:
         type: string
         required: false
         default: 'skipped'
+      realtime_coverage:
+        type: string
+        required: false
+        default: ''
       web_result:
         type: string
         required: false
         default: 'skipped'
+      web_coverage:
+        type: string
+        required: false
+        default: ''
       api_result:
         type: string
         required: false
         default: 'skipped'
+      api_coverage:
+        type: string
+        required: false
+        default: ''
       security_result:
         type: string
         required: false
@@ -23,10 +39,18 @@ on:
         type: string
         required: false
         default: 'skipped'
+      landing_coverage:
+        type: string
+        required: false
+        default: ''
       storybook_result:
         type: string
         required: false
         default: 'skipped'
+      storybook_coverage:
+        type: string
+        required: false
+        default: ''
     secrets:
       TELEGRAM_BOT_TOKEN:
         required: false
@@ -45,12 +69,22 @@ jobs:
           TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          START_TIME: ${{ inputs.start_time }}
           RT_RES: ${{ inputs.realtime_result }}
+          RT_COV: ${{ inputs.realtime_coverage }}
           WEB_RES: ${{ inputs.web_result }}
+          WEB_COV: ${{ inputs.web_coverage }}
           LANDING_RES: ${{ inputs.landing_result }}
+          LANDING_COV: ${{ inputs.landing_coverage }}
           API_RES: ${{ inputs.api_result }}
+          API_COV: ${{ inputs.api_coverage }}
           SB_RES: ${{ inputs.storybook_result }}
+          SB_COV: ${{ inputs.storybook_coverage }}
           SEC_RES: ${{ inputs.security_result }}
+          RAW_COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_URL: ${{ github.event.pull_request.html_url || '' }}
         run: |
           if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
             echo "⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы в Secrets репозитория, пропуск отправки."
@@ -65,28 +99,57 @@ jobs:
             STATUS_HEADER="✅ <b>CI: Проверки успешно пройдены</b>"
           fi
 
-          format_icon() {
-            case "$1" in
-              success) echo "✅" ;;
-              failure) echo "❌" ;;
-              cancelled) echo "🚫" ;;
-              skipped) echo "⏭️" ;;
-              *) echo "❓" ;;
-            esac
+          escape_html() {
+            echo "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
           }
 
-          ICON_RT=$(format_icon "$RT_RES")
-          ICON_WEB=$(format_icon "$WEB_RES")
-          ICON_LANDING=$(format_icon "$LANDING_RES")
-          ICON_API=$(format_icon "$API_RES")
-          ICON_SB=$(format_icon "$SB_RES")
-          ICON_SEC=$(format_icon "$SEC_RES")
+          format_status() {
+            local res="$1"
+            local cov="$2"
+            local icon
+            case "$res" in
+              success) icon="✅" ;;
+              failure) icon="❌" ;;
+              cancelled) icon="🚫" ;;
+              skipped) icon="⏭️" ;;
+              *) icon="❓" ;;
+            esac
+
+            if [ "$res" = "success" ] && [ -n "$cov" ] && [ "$cov" != "—" ] && [ "$cov" != "null" ]; then
+              echo "${icon} <i>(тесты: ${cov})</i>"
+            else
+              echo "${icon}"
+            fi
+          }
+
+          STATUS_RT=$(format_status "$RT_RES" "$RT_COV")
+          STATUS_WEB=$(format_status "$WEB_RES" "$WEB_COV")
+          STATUS_LANDING=$(format_status "$LANDING_RES" "$LANDING_COV")
+          STATUS_API=$(format_status "$API_RES" "$API_COV")
+          STATUS_SB=$(format_status "$SB_RES" "$SB_COV")
+          STATUS_SEC=$(format_status "$SEC_RES" "")
+
+          DURATION_STR=""
+          if [ -n "$START_TIME" ] && [ "$START_TIME" -gt 0 ] 2>/dev/null; then
+            NOW=$(date +%s)
+            DIFF=$((NOW - START_TIME))
+            MIN=$((DIFF / 60))
+            SEC=$((DIFF % 60))
+            if [ "$MIN" -gt 0 ]; then
+              DURATION_STR="${MIN}м ${SEC}с"
+            else
+              DURATION_STR="${SEC}с"
+            fi
+          fi
 
           IS_NEW_BRANCH="${{ github.event.created }}"
           EVENT_NAME="${{ github.event_name }}"
 
           if [ "$IS_NEW_BRANCH" = "true" ]; then
             BRANCH_INFO="🌱 <b>Создана новая ветка:</b> <code>${{ github.ref_name }}</code>"
+          elif [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            ESCAPED_PR_TITLE=$(escape_html "$PR_TITLE")
+            BRANCH_INFO="🔀 <b>PR <a href=\"${PR_URL}\">#${PR_NUMBER}</a>:</b> <i>${ESCAPED_PR_TITLE}</i>\n    <code>${{ github.head_ref }}</code> ➔ <code>${{ github.base_ref }}</code>"
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             BRANCH_INFO="🔀 <b>Pull Request:</b> <code>${{ github.head_ref }}</code> ➔ <code>${{ github.base_ref }}</code>"
           else
@@ -94,24 +157,89 @@ jobs:
           fi
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          MESSAGE=$(printf "%s\n\n%s\n👤 <b>Автор:</b> %s\n💬 <b>Коммит:</b> <a href=\"https://github.com/%s/commit/%s\">%s</a>\n\n📊 <b>Результаты проверок:</b>\n• Realtime (Go): %s\n• Web (Next.js): %s\n• Landing (Next.js): %s\n• API (Nest.js): %s\n• Storybook (UI): %s\n• Безопасность (TruffleHog): %s\n\n🔗 <a href=\"https://github.com/%s/actions/runs/%s\">Открыть запуск в GitHub Actions</a>" \
-            "$STATUS_HEADER" \
-            "$BRANCH_INFO" \
-            "${{ github.actor }}" \
-            "${{ github.repository }}" "${{ github.sha }}" "$SHORT_SHA" \
-            "$ICON_RT" \
-            "$ICON_WEB" \
-            "$ICON_LANDING" \
-            "$ICON_API" \
-            "$ICON_SEC" \
-            "${{ github.repository }}" "${{ github.run_id }}")
+          COMMIT_TITLE=""
+          if [ -n "$RAW_COMMIT_MSG" ]; then
+            COMMIT_TITLE=$(escape_html "$(echo "$RAW_COMMIT_MSG" | head -n 1)")
+          fi
+
+          if [ -n "$COMMIT_TITLE" ]; then
+            COMMIT_LINE="💬 <b>Коммит:</b> <a href=\"https://github.com/${{ github.repository }}/commit/${{ github.sha }}\">$SHORT_SHA</a> — <i>$COMMIT_TITLE</i>"
+          else
+            COMMIT_LINE="💬 <b>Коммит:</b> <a href=\"https://github.com/${{ github.repository }}/commit/${{ github.sha }}\">$SHORT_SHA</a>"
+          fi
+
+          AVG_COV=$(node -e '
+            const inputs = process.argv.slice(1);
+            let sum = 0;
+            let count = 0;
+            for (const val of inputs) {
+              if (!val || val === "—" || val === "null") continue;
+              const match = val.match(/([0-9]+(?:\.[0-9]+)?)/);
+              if (match) {
+                sum += parseFloat(match[1]);
+                count++;
+              }
+            }
+            if (count > 0) {
+              const avg = (sum / count).toFixed(1);
+              console.log(avg + "%");
+            }
+          ' "$RT_COV" "$WEB_COV" "$LANDING_COV" "$API_COV" "$SB_COV")
+
+          MESSAGE=$(
+            echo "$STATUS_HEADER"
+            echo ""
+            echo -e "$BRANCH_INFO"
+            echo "👤 <b>Автор:</b> ${{ github.actor }}"
+            echo "$COMMIT_LINE"
+            if [ -n "$DURATION_STR" ]; then
+              echo "⏱ <b>Длительность:</b> $DURATION_STR"
+            fi
+            if [ -n "$AVG_COV" ]; then
+              echo "📈 <b>Среднее покрытие тестами:</b> $AVG_COV"
+            fi
+            echo ""
+            echo "📊 <b>Результаты проверок:</b>"
+            echo "• Realtime (Go): $STATUS_RT"
+            echo "• Web (Next.js): $STATUS_WEB"
+            echo "• Landing (Next.js): $STATUS_LANDING"
+            echo "• API (Nest.js): $STATUS_API"
+            echo "• Storybook (UI): $STATUS_SB"
+            echo "• Безопасность (TruffleHog): $STATUS_SEC"
+          )
 
           PAYLOAD=$(jq -n \
             --arg chat_id "$CHAT_ID" \
             --arg thread_id "$THREAD_ID" \
             --arg text "$MESSAGE" \
-            '{chat_id: $chat_id, text: $text, parse_mode: "HTML", disable_notification: true} + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
+            --arg run_url "$RUN_URL" \
+            --arg pr_url "$PR_URL" \
+            --arg pr_number "$PR_NUMBER" \
+            --arg event_name "$EVENT_NAME" \
+            '{
+              chat_id: $chat_id,
+              text: $text,
+              parse_mode: "HTML",
+              disable_notification: true,
+              reply_markup: {
+                inline_keyboard: [
+                  (
+                    if ($event_name == "pull_request" and $pr_url != "" and $pr_url != null) then
+                      [
+                        { text: "🔍 GitHub Actions", url: $run_url },
+                        { text: ("🔀 Открыть PR #" + $pr_number), url: $pr_url }
+                      ]
+                    else
+                      [
+                        { text: "🔍 Открыть запуск в GitHub Actions", url: $run_url }
+                      ]
+                    end
+                  )
+                ]
+              }
+            } + (if ($thread_id != "" and $thread_id != null and ($thread_id | test("^[0-9]+$"))) then {message_thread_id: ($thread_id | tonumber)} else {} end)')
 
           echo "Отправка запроса в Telegram..."
           RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
