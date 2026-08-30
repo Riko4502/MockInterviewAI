@@ -12,6 +12,9 @@
 | **User Active Sessions** | `apps/api` | Хранение активных сессий пользователя для функции "выйти со всех устройств" | `sessions:{userId}` (Set) | 7 дней |
 | **Rate Limiting** | `apps/api` | Защита эндпоинтов от перебора паролей и DoS атак | `throttle:{ip}:{endpoint}` | 60 секунд |
 | **Pub/Sub Room Events** | `apps/realtime` | Ретрансляция событий комнат между разными инстансами WebSocket | канал `room:{sessionId}` | — |
+| **Access Token Blacklist** | `apps/api`, `apps/realtime` | Ревокация access-токенов при logout/смене пароля; проверяется в `AccessTokenGuard` и в realtime при аутентификации WS | `blacklist:token:{jti}` | Остаток срока жизни токена |
+| **Session Mirror** | `apps/api` (записывает), `apps/realtime` (продлевает TTL) | Зеркало активной сессии: `:active` — маркер живости, `:members` — участники; `hset`/`hget`/`hdel`. Используется для live-проверки токенов и при входе по тикету | `session:{id}:active` / `session:{id}:members` | TTL (`SESSION_MIRROR_TTL_SECONDS`), продлевается realtime при аутентификации участника |
+| **Auth Revocations Pub/Sub** | `apps/api` (публикует), `apps/realtime` (слушает) | Мгновенный отзыв авторизации: при logout/revoke realtime вызывает `Hub.EvictUser` и разрывает активные WS | канал `auth:revocations` | — |
 
 ---
 

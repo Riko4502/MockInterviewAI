@@ -30,6 +30,8 @@
                 +------------------------------------+                        +------------------------------------+
 ```
 
+> **Аутентификация подключения:** WS-соединение открывается **только через одноразовый тикет**. Перед каждым upgrade клиент вызывает `POST /realtime/ticket` (Bearer access) и передает полученный тикет в `Sec-WebSocket-Protocol: realtime.ticket`. Без тикета realtime отклоняет handshake (`401`); тикет привязан к комнате (`sessionId` mismatch → `403`); повторное использование тикета → `401`. Детали — в разделе [Получение тикета перед подключением](#51-получение-тикета-перед-подключением).
+
 ### 1.1. Расположение типов в монорепозитории (Import Paths)
 * **Канонические DTO и схемы протоколов:** `@packages/dto/realtime` (пакет `packages/dto`).
 * **UI-состояния, хуки и селекторы:** `apps/web/src/shared/types/realtime` и `widgets/session-workspace/model/`.
@@ -370,27 +372,40 @@ export interface SystemBroadcastPayload {
 Типичный жизненный цикл подключения и работы в комнате интервью:
 
 ```
-[ Frontend (Client) ]                              [ Realtime Server ]                        [ LiveKit SFU ]
-          |                                                 |                                        |
-          |====== 1. HTTP Upgrade GET /ws/sessions/:id =====>|                                        |
-          |<===== 2. 101 Switching Protocols ===============|                                        |
-          |                                                 |                                        |
-          |<----- 3. event: "room.sync" (участники, код) ---|                                        |
-          |       (Монтирование Monaco Editor)              |                                        |
-          |                                                 |                                        |
-          |------ 4. event: "media.token_request" --------->|                                        |
-          |<----- 5. event: "media.token_response" ---------|                                        |
-          |====== 6. Подключение WebRTC медиа ======================================================>|
-          |                                                 |                                        |
-          |------ 7. event: "code.update" (version: 1) ---->|                                        |
-          |                                                 |---- 8. Бродкаст "code.update" -------->|
-          |------ 9. event: "cursor.move" (line: 12) ------>|                                        |
-          |                                                 |---- 10. Бродкаст "cursor.move" ------->|
-          |                                                 |                                        |
-          |------ 11. event: "ai.request_hint" ------------>|                                        |
-          |                                                 |-- (Вызов LLM воркера)                  |
-          |<----- 12. event: "ai.suggestion" ---------------|                                        |
+[ Frontend (Client) ]                             [ API (ticket) ]          [ Realtime Server ]                        [ LiveKit SFU ]
+          |                                                |                          |                                        |
+          |================ 1. POST /realtime/ticket ======>|  (Bearer access)        |                                        |
+          |<=============== 2. { ticket } =================|  (typ:"realtime", exp≈5m)|                                        |
+          |================ 3. WS Upgrade /ws/sessions/:id ===========================>|  (subprotocol: realtime.ticket)      |
+          |<=============== 4. 101 Switching Protocols ================================|                                        |
+          |                                                |                          |                                        |
+          |                                                |  (5. VerifyToken, ConsumeTicket, bound-to-room, session check)  |
+          |<-------------------- 6. event: "room.sync" --------------------------------|  (участники, код)                   |
+          |       (Монтирование Monaco Editor)              |                          |                                        |
+          |                                                |                          |                                        |
+          |---------------- 7. event: "media.token_request" -------------------------->|                                        |
+          |<--------------- 8. event: "media.token_response" ---------------------------|                                        |
+          |================ 9. Подключение WebRTC медиа =======================================================================>|
+          |                                                |                          |                                        |
+          |---------------- 10. event: "code.update" (version: 1) --------------------->|                                        |
+          |                                                |                          |---- 11. Бродкаст "code.update" ------->|
+          |---------------- 12. event: "cursor.move" (line: 12) ---------------------->>|                                        |
+          |                                                |                          |---- 13. Бродкаст "cursor.move" ------->|
+          |                                                |                          |                                        |
+          |---------------- 14. event: "ai.request_hint" ----------------------------->|                                        |
+          |                                                |                          |------ (Вызов LLM воркера)               |
+          |<--------------- 15. event: "ai.suggestion" ---------------------------------|                                        |
 ```
+
+---
+
+## 5.1. Получение тикета перед подключением
+
+1. **Выпуск тикета:** `POST /realtime/ticket` (`Authorization: Bearer <access>`) → `{ ticket }`. Тикет — JWT HS256: `typ: "realtime"`, `sid`, `sessionId`, `exp ≈ 5 мин`.
+2. **Передача:** тикет передается в `Sec-WebSocket-Protocol: realtime.ticket`; при успешном upgrade сервер подтверждает согласованный subprotocol в ответе.
+3. **Одноразовость:** тикет нельзя переиспользовать — новое подключение / переподключение → новый тикет. При `401 token already used` — выпустить новый тикет и повторить.
+4. **Перевыпуск после refresh:** refresh access-токена ротирует `sid`, поэтому тикет выпускается заново после каждого refresh и перед каждым WS-open (флоу `base.ts`: `401` → авто-refresh → повторный `POST /realtime/ticket`).
+5. **Ошибки handshake до upgrade:** `401` — тикет отсутствует/просрочен/использован; `403` — тикет привязан к другой сессии (`sessionId` mismatch). Клиент получает корректный тикет и переподключается (reconnect с экспоненциальным backoff).
 
 ---
 
@@ -413,7 +428,12 @@ export interface SystemBroadcastPayload {
 ```typescript
 import { Server } from 'mock-socket';
 
-export function setupMockRealtimeServer(wsUrl = 'ws://localhost:8080/ws/sessions/mock-session') {
+export function setupMockRealtimeServer(
+  wsUrl = 'ws://localhost:8080/ws/sessions/mock-session',
+  ticket = 'mock-realtime-ticket',
+) {
+  // В реальном флоу клиент передает одноразовый тикет в subprotocol "realtime.ticket";
+  // мок-сервер принимает любое значение и подтверждает его как согласованный subprotocol.
   const mockServer = new Server(wsUrl);
 
   mockServer.on('connection', (socket) => {
@@ -461,8 +481,10 @@ export function setupMockRealtimeServer(wsUrl = 'ws://localhost:8080/ws/sessions
 | :--- | :--- | :--- | :--- |
 | `1000` | `Normal Closure` | Сессия завершена | Плавный выход на экран результатов |
 | `1001` | `Going Away` | `displaced by new connection` | Показать предупреждение «Сессия открыта в другой вкладке» |
-| `1008` | `Policy Violation`| `user authentication revoked` | Принудительный Logout и редирект на `/login` |
+| `1008` | `Policy Violation`| `user authentication revoked` (ревокация тикета/сессии, logout) | Принудительный Logout и редирект на `/login` |
 | `1008` | `Policy Violation`| `origin not allowed` | Ошибка CORS конфигурации |
+| `401` (HTTP, до upgrade) | `Unauthorized` | Тикет отсутствует, просрочен или уже использован | Выпустить новый тикет и переподключиться |
+| `403` (HTTP, до upgrade) | `Forbidden` | Тикет привязан к другой комнате (`sessionId` mismatch) | Выпустить тикет для актуальной сессии |
 | `1011` | `Internal Error` | Ошибка сервера / потеря Redis | Авто-реконнект с экспоненциальным Backoff |
 
 ---

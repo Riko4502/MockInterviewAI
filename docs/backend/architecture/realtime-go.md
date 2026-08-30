@@ -61,3 +61,17 @@ apps/realtime/
 При горизонтальном масштабировании `realtime` инстансов пользователи одной комнаты могут быть подключены к разным серверам:
 * Сообщения комнаты публикуются в канал Redis `rooms:{sessionId}`.
 * Все инстансы, подписанные на этот канал, ретранслируют сообщение своим локальным WebSocket-клиентам.
+
+---
+
+## 5. Аутентификация WebSocket (тикет)
+
+Браузер **не передает** access-токен или cookie на handshake. Перед каждым подключением клиент получает одноразовый тикет и передает его через subprotocol:
+
+1. **`POST /realtime/ticket`** (Bearer access) → `{ ticket }`. Тикет — JWT HS256 на общем секрете `JWT_ACCESS_SECRET`: `typ: "realtime"`, `sid`, `sessionId`, `exp ≈ 5 мин`.
+2. **WS-Upgrade** `ws(s)://…/ws/sessions/{sessionId}` с subprotocol `realtime.ticket`.
+3. Приоритет извлечения кредов: **subprotocol-тикет → `Authorization: Bearer` → HttpOnly cookie**.
+4. Проверка: `VerifyToken` (HS256, `typ ∈ {access, realtime}`, обязателен `sid`); для `typ == "realtime"` — одноразовый `ConsumeTicket(jti)` и привязка к комнате (`claims.SessionID == sessionId`, иначе `403`); для `typ == "access"` — мультиюз `IsTokenRevoked` (обратная совместимость при раскатке). Дополнительно — live-проверка активной сессии `auth:session:{sid}` с продлением TTL зеркала и `blacklist:token:{jti}`.
+5. При logout/revoke `apps/api` публикует в канал `auth:revocations`; realtime вызывает `Hub.EvictUser(userID)` и разрывает активные WS (`StatusPolicyViolation`).
+
+Подробности — `docs/backend/security/auth-jwt.md`, спецификация — `apps/api/docs/spec-realtime-ws-auth.md`.
