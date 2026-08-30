@@ -1,9 +1,5 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { RsbuildPlugin } from "@rsbuild/core";
 import type { StorybookConfig } from "storybook-react-rsbuild";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const provideReactPlugin: RsbuildPlugin = {
   name: "provide-react",
@@ -31,10 +27,6 @@ const config: StorybookConfig = {
     config.plugins = config.plugins || [];
     config.plugins.push(provideReactPlugin);
     config.source = config.source || {};
-    config.source.alias = {
-      ...(config.source.alias as Record<string, string>),
-      "@packages/utils": path.resolve(__dirname, "../../../packages/utils"),
-    };
     return config;
   },
 };
