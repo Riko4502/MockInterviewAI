@@ -25,6 +25,8 @@ Phase B требует одновременного выката зеркала 
 
 ## Phase G — Гуарды API (A8, A9)
 
+> ✅ **Завершено** (2026-08-30).
+
 ### Шаги
 1. `apps/api/src/common/guards/access-token.guard.ts`:
    - внедрить `AuthSessionService`;
@@ -275,7 +277,7 @@ Phase B требует одновременного выката зеркала 
 
 ## Порядок коммитов
 
-0. `fix(api): объединить гуарды — live-проверка сессии в AccessTokenGuard; точный Origin-матч` — Phase G.
+0. `fix(api): объединить гуарды — live-проверка сессии в AccessTokenGuard; точный Origin-матч` — Phase G. ✅
 1. `fix(api): корректный формат ревокации (logout/deactivation) + parser тест` — Phase A.
 2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1.
 3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3.

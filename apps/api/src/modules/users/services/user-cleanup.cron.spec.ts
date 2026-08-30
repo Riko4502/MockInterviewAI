@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import type { PrismaService } from "../../../prisma/prisma.service";
 import type { RedisService } from "../../../redis/redis.service";
 import type { StorageService } from "../../storage/storage.service";
@@ -18,6 +19,16 @@ describe("UserCleanupCron", () => {
     setNx: jest.Mock;
     delete: jest.Mock;
   };
+
+  beforeAll(() => {
+    jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, "debug").mockImplementation(() => undefined);
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
 
   beforeEach(() => {
     prismaMock = {

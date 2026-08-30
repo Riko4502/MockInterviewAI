@@ -103,6 +103,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Проверяет существование ключа (EXISTS).
+   *
+   * @param key - Имя ключа.
+   * @returns `true`, если ключ существует, иначе `false`.
+   * @throws {Error} При ошибке Redis.
+   */
+  async exists(key: string): Promise<boolean> {
+    return (await this.client.exists(key)) === 1;
+  }
+
+  /**
    * Удаляет ключ.
    *
    * @param key - Имя ключа.
