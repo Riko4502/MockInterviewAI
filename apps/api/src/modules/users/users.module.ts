@@ -1,15 +1,18 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
+import { AuthModule } from "../auth/auth.module";
+import { StorageModule } from "../storage/storage.module";
+import { ProfileController } from "./profile.controller";
+import { UserCleanupCron } from "./services/user-cleanup.cron";
+import { UsersController } from "./users.controller";
 import { UsersService } from "./users.service";
 
 /**
- * Модуль управления пользователями (§9, §10 SPEC.md).
- *
- * Экспортирует `UsersService` для использования другими модулями
- * (например, `AuthModule`). `PrismaService` доступен через глобальный
- * `PrismaModule`.
+ * Модуль управления пользователями и профилями.
  */
 @Module({
-  providers: [UsersService],
+  imports: [forwardRef(() => AuthModule), StorageModule],
+  controllers: [ProfileController, UsersController],
+  providers: [UsersService, UserCleanupCron],
   exports: [UsersService],
 })
 export class UsersModule {}

@@ -11,7 +11,12 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { SchemaObject } from "@nestjs/swagger";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import {
   type LoginDto,
   loginSchema,
@@ -19,6 +24,7 @@ import {
   registerSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { Public } from "../../common/decorators/public.decorator";
 import { ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
@@ -103,6 +109,7 @@ export class AuthController {
    * @returns `{ accessToken }` в body.
    */
   @Post("register")
+  @Public()
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(registerSchema)
   @ApiOperation({ summary: "Регистрация нового пользователя (§4)" })
@@ -148,6 +155,7 @@ export class AuthController {
    * @returns `{ accessToken }` в body.
    */
   @Post("login")
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(loginSchema)
@@ -192,7 +200,9 @@ export class AuthController {
    * @param response - HTTP-ответ Express для очистки cookie.
    */
   @Post("logout")
+  @Public()
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Выход пользователя (§60)" })
   @ApiResponse({
     status: 204,
@@ -227,6 +237,65 @@ export class AuthController {
     }
 
     this.clearRefreshTokenCookie(response);
+  }
+
+  /**
+   * Выполняет обновление токенов — refresh token rotation (§65 SPEC.md).
+   *
+   * Refresh token читается из HttpOnly cookie; тело запроса отсутствует.
+   * При успехе — `200 OK`, `{ accessToken }`, Set-Cookie с новым refresh token.
+   * При отказе (401) — cookie очищается; при ошибке Redis (500) — cookie
+   * не сбрасывается (§60).
+   *
+   * @Public() — endpoint не требует access token в заголовке Authorization;
+   * аутентификация выполняется через refresh cookie.
+   *
+   * @param request - HTTP-запрос Express (cookie читаются `cookie-parser`).
+   * @param response - HTTP-ответ Express для установки/очистки cookie.
+   * @returns `{ accessToken }` в body.
+   */
+  @Post("refresh")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({
+    summary: "Обновление токенов — refresh token rotation (§65)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: `Успешное обновление. ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Refresh cookie отсутствует/невалиден/replay. Cookie при этом очищается always (§65).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      "Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию (§60).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ accessToken: string }> {
+    try {
+      const result = await this.authService.refresh(
+        request.cookies?.[this.getRefreshTokenCookieName()],
+      );
+
+      this.setRefreshTokenCookie(response, result.refreshToken);
+
+      return { accessToken: result.accessToken };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        this.clearRefreshTokenCookie(response);
+      }
+      throw error;
+    }
   }
 
   /**

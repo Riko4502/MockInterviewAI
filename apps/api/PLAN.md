@@ -4,6 +4,7 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
+| 1.5.0 | 2026-08-26 | Актуальный |
 | 1.4.0 | 2026-08-23 | Актуальный |
 | 1.3.0 | 2026-08-23 | Актуальный |
 | 1.2.0 | 2026-08-22 | Актуальный |
@@ -14,6 +15,7 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.5.0 | 2026-08-26 | Добавлены Phase 12–15: Access-token guard (global), Auth: Refresh, Auth: Logout All, Auth: Change Password (SPEC.md §64–§67). |
 | 1.4.0 | 2026-08-23 | Добавлен Phase 11 «Password confirmation и унификация dto» (SPEC.md §5–§6, §63): обязательное `passwordConfirmation`, русские сообщения dto; подключение web — позже. |
 | 1.3.0 | 2026-08-23 | Добавлен Phase 10 «OpenAPI/Swagger документация» (SPEC.md §61–§63): Swagger UI (dev-only), скрипт генерации `openapi.yaml`/`openapi.json`, пакет `@packages/api`, миграция dto на zod v4. |
 | 1.2.0 | 2026-08-22 | Добавлены Phase 8 «Auth: Login» и Phase 9 «Auth: Logout» (SPEC.md §58–§60); `/auth/logout` убран из «Вне области». |
@@ -292,10 +294,98 @@ curl http://localhost:3001/api/v1/health
 - [x] `pnpm --filter api lint && pnpm --filter api test`;
 - [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `apps/api/openapi/openapi.yaml/json` `passwordConfirmation` присутствует и required.
 
+## Phase 12 — Access-token guard (global, SPEC.md §64)
+
+**Код:**
+
+- [x] `src/common/guards/access-token.guard.ts` — guard, проверяет `Authorization: Bearer <token>` → `TokenService.verifyAccessToken()` → payload в `request.user`; `401` при ошибке.
+- [x] `src/common/decorators/public.decorator.ts` — декоратор `@Public()` для исключения endpoints из guard'а.
+- [x] Зарегистрировать guard глобально в `app.module.ts` через `APP_GUARD`.
+- [x] Применить `@Public()` на: `HealthController.check()`, `AuthController.register()`, `AuthController.login()`, Swagger routes (`/docs`, `/docs-json`).
+
+**Тесты:**
+
+- [x] Unit `access-token.guard.spec.ts`: валидный token → payload в request.user; отсутствует token → 401; невалидный token → 401; просроченный token → 401; неверный typ (refresh вместо access) → 401.
+- [x] Unit `public.decorator.spec.ts`: decorator метка на методе → guard пропускает.
+- [x] Unit `auth-throttler.guard.spec.ts`: проверка взаимодействия с access-token guard (оба guards на `/auth/register` и `/auth/login`).
+
+**Верификация:**
+
+- [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api build`.
+
+## Phase 13 — Auth: Refresh (`POST /api/v1/auth/refresh`, SPEC.md §65)
+
+**Код:**
+
+- [x] `packages/dto`: DTO для refresh не требуется (тело запроса отсутствует, token в cookie).
+- [x] `AuthService.refresh(refreshToken?)` (§65): verify → getSession → hash comparison → revoke old → create new session → new JWT pair → Set-Cookie.
+- [x] `AuthController.refresh()`: `@Post("refresh")`, чтение cookie, вызов сервиса, `200` + `{ accessToken }` + Set-Cookie / `401` + clear cookie.
+- [x] Применить `@Public()` на `AuthController.refresh()` — guard требует access token, но refresh endpoint его не имеет (читает refresh token из cookie).
+
+**Тесты:**
+
+- [x] Unit `AuthService.refresh`: успех (новая сессия, новый accessToken, Set-Cookie); невалидный JWT → 401; сессия не найдена → 401; hash mismatch (replay) → 401 + revokeSession; Redis недоступен → 500.
+- [x] Unit `AuthController.refresh`: статусы 200/401; Set-Cookie атрибуты §25–28; clear cookie при 401.
+- [x] Integration (`test/integration/refresh-persistence.e2e-spec.ts`): после refresh старая сессия удалена из Redis, новая создана; accessToken отличается от предыдущего.
+- [x] E2E R-01: register → refresh → 200, новый accessToken, новый Set-Cookie.
+- [x] E2E R-02: refresh с невалидной cookie → 401, clear cookie.
+- [x] E2E R-03: refresh с уже использованным токеном (replay) → 401, сессия отозвана.
+
+**Верификация:**
+
+- [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+
+## Phase 14 — Auth: Logout All (`POST /api/v1/auth/logout-all`, SPEC.md §66)
+
+**Код:**
+
+- [ ] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
+- [ ] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
+- [ ] `AuthController.logoutAll()`: `@Post("logout-all")`, `@UseGuards(AccessTokenGuard)` (protected), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
+- [ ] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).
+
+**Тесты:**
+
+- [ ] Unit `AuthSessionService.revokeAllUserSessions`: несколько сессий для userId → все удалены; сессии другого userId → не удалены; нет сессий → no-op.
+- [ ] Unit `AuthService.logoutAll`: вызов `revokeAllUserSessions` с корректным userId.
+- [ ] Unit `AuthController.logoutAll`: статус 204, clear cookie, guard применён.
+- [ ] Integration (`test/integration/logout-all-persistence.e2e-spec.ts`): register + login (2 сессии) → logout-all → обе сессии удалены из Redis; User остаётся в PostgreSQL.
+- [ ] E2E LOA-01: register → login → logout-all → 204, обе сессии удалены.
+- [ ] E2E LOA-02: logout-all без access token → 401 (guard).
+- [ ] E2E LOA-03: logout-all с access token другого пользователя → 0 сессий удалено, 204 (idempotent).
+
+**Верификация:**
+
+- [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+
+## Phase 15 — Auth: Change Password (`POST /api/v1/auth/change-password`, SPEC.md §67)
+
+**Код:**
+
+- [ ] `packages/dto`: `src/auth/change-password.dto.ts` — zod-схема `changePasswordSchema`, тип `ChangePasswordDto` (currentPassword — non-empty; newPassword — password policy §7; newPasswordConfirmation — non-empty, .refine() совпадения с newPassword, .transform() удаляет поле); экспорт из `src/index.ts`.
+- [ ] `AuthService.changePassword(userId, dto)` (§67): find user → verify currentPassword → check difference → hash new password → update PostgreSQL → revoke all sessions except current → clear cookie.
+- [ ] `AuthController.changePassword()`: `@Post("change-password")`, ZodValidationPipe, `@UseGuards(AccessTokenGuard)` (protected), чтение `request.user.sub` + body, `204`.
+- [ ] Исключение `@Public()` не требуется — endpoint защищён guard'ом (требует access token).
+
+**Тесты:**
+
+- [ ] Unit DTO (`change-password.dto.test.ts`): валидные данные; пустой currentPassword → ошибка; newPassword < 12 → ошибка; mismatch confirmation → ошибка; currentPassword === newPassword → ошибка.
+- [ ] Unit `AuthService.changePassword`: успех (пароль обновлён, сессии отозваны кроме текущей, cookie сброшен); неверный currentPassword → 401; пользователь не найден → 404; Redis недоступен → 500, пароль не меняется.
+- [ ] Unit `AuthController.changePassword`: статус 204; guard применён.
+- [ ] Integration (`test/integration/change-password-persistence.e2e-spec.ts`): после change-password пароль обновлён в PostgreSQL, текущая сессия сохранена, остальные удалены.
+- [ ] E2E CP-01: register → change-password → 204, login новым паролем → 200.
+- [ ] E2E CP-02: change-password с неверным currentPassword → 401.
+- [ ] E2E CP-03: change-password без access token → 401 (guard).
+- [ ] E2E CP-04: change-password с `newPassword === currentPassword` → 400.
+
+**Верификация:**
+
+- [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+
 ---
 
 ## Вне области (будущие фазы)
 
-`/auth/refresh`, `/logout-all`, `/change-password`, access-token guard, CSRF-токен для cross-site сценария. Инфраструктура (TokenService, AuthSessionService, replay detection, token family) готова к их добавлению.
+CSRF-токен для cross-site сценария. Инфраструктура (TokenService, AuthSessionService, replay detection, token family) готова к их добавлению.
 
 Подключение `apps/web` к `@packages/dto`: форма регистрации на общем `registerSchema` (поле `confirmPassword` → `passwordConfirmation`), удаление локального дубликата из `features/auth/lib/schemas.ts`; `loginSchema` переносится в dto в Phase 8. i18n-ключи вместо текстовых сообщений dto — будущая опция.

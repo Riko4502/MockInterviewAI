@@ -68,16 +68,19 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "format": "email"
                   },
                   "password": {
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
+                  },
+                  "passwordConfirmation": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
-                "required": ["email", "password"]
+                "required": ["email", "password", "passwordConfirmation"]
               }
             }
           }
@@ -171,8 +174,7 @@
                   "email": {
                     "type": "string",
                     "minLength": 1,
-                    "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "format": "email"
                   },
                   "password": {
                     "type": "string",
@@ -316,7 +318,87 @@
             }
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Выход пользователя (§60)",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Успешное обновление. Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). Refresh token не возвращается в JSON response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string",
+                      "description": "JWT access token"
+                    }
+                  },
+                  "required": ["accessToken"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh cookie отсутствует/невалиден/replay. Cookie при этом очищается always (§65).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "example": 401
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid credentials"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["statusCode", "message"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию (§60).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "example": 401
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid credentials"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["statusCode", "message"]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Обновление токенов — refresh token rotation (§65)",
         "tags": ["auth"]
       }
     }
