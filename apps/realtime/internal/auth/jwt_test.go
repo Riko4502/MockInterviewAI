@@ -18,6 +18,8 @@ func generateTestToken(secret, userID, username, sessionID string, ttl time.Dura
 		Username:  username,
 		SessionID: sessionID,
 		TokenID:   fmt.Sprintf("tok-%d", now.UnixNano()),
+		Type:      "access",
+		SID:       "sid-" + userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        fmt.Sprintf("tok-%d", now.UnixNano()),
@@ -93,5 +95,64 @@ func TestExtractTokenFromRequest(t *testing.T) {
 	reqQuery := httptest.NewRequest(http.MethodGet, "/ws?token=token-query-1", http.NoBody)
 	if tok := ExtractTokenFromRequest(reqQuery, "access_token"); tok != "" {
 		t.Errorf("expected empty string for query param token, got '%s'", tok)
+	}
+}
+
+// signTestToken подписывает токен с заданными claims (для кейсов typ/sid).
+func signTestToken(t *testing.T, secret string, claims UserClaims) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign test token: %v", err)
+	}
+	return signed
+}
+
+func TestTokenVerificationTypSID(t *testing.T) {
+	secret := "test-super-secret-key-12345"
+	verifier := NewTokenVerifier(secret)
+	now := time.Now().UTC()
+	base := func() UserClaims {
+		return UserClaims{
+			UserID:   "user-1",
+			Username: "Alice",
+			SessionID: "session-100",
+			SID:      "sid-1",
+			Type:     "access",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:   "user-1",
+				ID:        "tok-1",
+				IssuedAt:  jwt.NewNumericDate(now),
+				ExpiresAt: jwt.NewNumericDate(now.Add(1 * time.Hour)),
+			},
+		}
+	}
+
+	// 1. Валидный access с typ + sid — проходит.
+	tok := signTestToken(t, secret, base())
+	if _, err := verifier.VerifyToken(tok); err != nil {
+		t.Fatalf("expected valid access token to pass, got error: %v", err)
+	}
+
+	// 2. Неверный typ — ошибка.
+	invalid := base()
+	invalid.Type = "refresh"
+	if _, err := verifier.VerifyToken(signTestToken(t, secret, invalid)); err == nil {
+		t.Error("expected error for token with invalid typ, got nil")
+	}
+
+	// 3. Пустой typ — ошибка.
+	noTyp := base()
+	noTyp.Type = ""
+	if _, err := verifier.VerifyToken(signTestToken(t, secret, noTyp)); err == nil {
+		t.Error("expected error for token with empty typ, got nil")
+	}
+
+	// 4. Пустой sid — ошибка.
+	noSID := base()
+	noSID.SID = ""
+	if _, err := verifier.VerifyToken(signTestToken(t, secret, noSID)); err == nil {
+		t.Error("expected error for token with empty sid, got nil")
 	}
 }

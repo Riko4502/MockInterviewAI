@@ -20,12 +20,14 @@ var (
 	ErrInvalidSigningAlg = errors.New("unexpected token signing algorithm")
 )
 
-// UserClaims содержит данные аутентифицированного пользователя из JWT (Access Token).
+// UserClaims содержит данные аутентифицированного пользователя из JWT (Access Token / Realtime Ticket).
 type UserClaims struct {
 	UserID    string `json:"userId"`
 	Username  string `json:"username"`
 	SessionID string `json:"sessionId,omitempty"`
 	TokenID   string `json:"jti,omitempty"`
+	Type      string `json:"typ,omitempty"`
+	SID       string `json:"sid,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -74,6 +76,16 @@ func (v *TokenVerifier) VerifyToken(tokenString string) (*UserClaims, error) {
 
 	if claims.UserID == "" {
 		return nil, errors.New("token must contain userId or sub")
+	}
+
+	// Строгая валидация типа токена (Phase B): допускаются только access/realtime.
+	if claims.Type != "access" && claims.Type != "realtime" {
+		return nil, errors.New("token must declare valid typ (access|realtime)")
+	}
+
+	// Живой auth-сессии требует непустой sid (связь с auth:session:{sid}).
+	if claims.SID == "" {
+		return nil, errors.New("token must contain sid")
 	}
 
 	return claims, nil

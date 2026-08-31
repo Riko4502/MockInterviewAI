@@ -59,3 +59,44 @@ func TestParseRevocation(t *testing.T) {
 		})
 	}
 }
+
+func TestIsActiveValue(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+		want bool
+	}{
+		{name: "true is active", val: "true", want: true},
+		{name: "false is not active", val: "false", want: false},
+		{name: "closed is not active", val: "closed", want: false},
+		{name: "empty is not active (fail-closed)", val: "", want: false},
+		{name: "whitespace-true is active", val: "  true  ", want: true},
+		{name: "garbage is not active", val: "1", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isActiveValue(tt.val); got != tt.want {
+				t.Errorf("isActiveValue(%q) = %v, want %v", tt.val, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsMemberValue(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+		want bool
+	}{
+		{name: "non-empty role is a member", val: "interviewer", want: true},
+		{name: "empty is not a member", val: "", want: false},
+		{name: "whitespace-only is not a member", val: "   ", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isMemberValue(tt.val); got != tt.want {
+				t.Errorf("isMemberValue(%q) = %v, want %v", tt.val, got, tt.want)
+			}
+		})
+	}
+}

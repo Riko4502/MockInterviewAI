@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 	chi "github.com/go-chi/chi/v5"
@@ -13,6 +14,10 @@ import (
 	"github.com/mockinterviewai/realtime/internal/storage"
 	"github.com/mockinterviewai/realtime/internal/ws"
 )
+
+// mirrorTouchTTL — TTL, на который продлевается Redis-зеркало сессии при каждом
+// успешном подключении (соответствует дефолту SESSION_MIRROR_TTL_SECONDS=2h в API).
+const mirrorTouchTTL = 2 * time.Hour
 
 // WebSocketHandler управляет аутентификацией и апгрейдом соединений до WebSocket.
 type WebSocketHandler struct {
@@ -110,25 +115,40 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// 3. Проверка соответствия sessionId в токене (если указан в claims)
-	if claims.SessionID != "" && claims.SessionID != sessionID {
-		h.logger.Warn("websocket connection rejected: session id mismatch in token",
-			slog.String("urlSessionId", sessionID),
-			slog.String("tokenSessionId", claims.SessionID),
-		)
-		http.Error(w, "Forbidden: access denied for this session", http.StatusForbidden)
-		return
-	}
-
-	// 4. Проверка активности сессии в Redis (не закрыта ли сессия интервью)
+	// 3. Проверка активности интервью-сессии (fail-closed, Phase B2):
+	//    отсутствие ключа / ошибка / disabled ⇒ закрыто → 403.
 	if h.sessionStore != nil {
-		if active, checkErr := h.sessionStore.IsSessionActive(r.Context(), sessionID); checkErr == nil && !active {
+		active, checkErr := h.sessionStore.IsSessionActive(r.Context(), sessionID)
+		if checkErr != nil || !active {
 			h.logger.Warn("websocket connection rejected: session is closed",
 				slog.String("sessionId", sessionID),
+				slog.Bool("active", active),
 			)
 			http.Error(w, "Forbidden: session is closed", http.StatusForbidden)
 			return
 		}
+	}
+
+	// 4. Проверка членства участника в сессии (fail-closed, Phase B2):
+	//    роль берётся строго из хранилища; отсутствие роли ⇒ не участник → 403.
+	role := ""
+	if h.sessionStore != nil {
+		storeRole, roleErr := h.sessionStore.GetSessionUserRole(r.Context(), sessionID, claims.UserID)
+		if roleErr != nil || storeRole == "" {
+			h.logger.Warn("websocket connection rejected: user is not a member of this session",
+				slog.String("sessionId", sessionID),
+				slog.String("userId", claims.UserID),
+			)
+			http.Error(w, "Forbidden: not a member of this session", http.StatusForbidden)
+			return
+		}
+		role = storeRole
+	}
+
+	// Продлеваем TTL зеркала при успешном подключении (молчаливое интервью
+	// дольше TTL не теряет доступ к реконнектам, P).
+	if h.sessionStore != nil {
+		_ = h.sessionStore.TouchMirror(r.Context(), sessionID, mirrorTouchTTL)
 	}
 
 	// 5. Настройка параметров апгрейда
@@ -153,14 +173,6 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 	username := claims.Username
 	if username == "" {
 		username = "User-" + claims.UserID
-	}
-
-	// Роль пользователя берется исключительно из проверенного сессионного хранилища Redis
-	role := "candidate"
-	if h.sessionStore != nil {
-		if redisRole, roleErr := h.sessionStore.GetSessionUserRole(r.Context(), sessionID, claims.UserID); roleErr == nil && redisRole != "" {
-			role = redisRole
-		}
 	}
 
 	client := ws.NewClient(
