@@ -34,8 +34,12 @@ func NewHub(parentCtx context.Context, broadcaster storage.Broadcaster, sessionS
 
 	// Подписка на глобальные сигналы отзыва авторизации пользователей через Redis Pub/Sub
 	if broadcaster != nil {
-		unsubscribe, err := broadcaster.SubscribeRevocations(ctx, func(userID string) {
-			hub.EvictUser(userID, "user authentication revoked")
+		unsubscribe, err := broadcaster.SubscribeRevocations(ctx, func(userID, sessionID string) {
+			if sessionID == "" {
+				hub.EvictUser(userID, "user authentication revoked")
+				return
+			}
+			hub.EvictFromRoom(sessionID, userID, "session closed")
 		})
 		if err == nil && unsubscribe != nil {
 			go func() {
@@ -56,6 +60,16 @@ func (h *Hub) EvictUser(userID string, reason string) {
 	for _, room := range h.rooms {
 		room.EvictUser(userID, reason)
 	}
+}
+
+// EvictFromRoom принудительно отключает пользователя только из указанной комнаты
+// (room-scoped evict при закрытии сессии владельцем).
+func (h *Hub) EvictFromRoom(sessionID string, userID string, reason string) {
+	room, ok := h.GetRoom(sessionID)
+	if !ok {
+		return
+	}
+	room.EvictUser(userID, reason)
 }
 
 // GetOrCreateRoom находит существующую комнату или создает новую и запускает ее воркер.

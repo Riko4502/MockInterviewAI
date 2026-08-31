@@ -10,7 +10,9 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { LoginDto, RegisterDto } from "@packages/dto";
 import argon2 from "argon2";
+import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { UsersService } from "../users/users.service";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
@@ -64,6 +66,7 @@ export class AuthService implements OnModuleInit {
    * @param sessionService - Сервис управления authentication sessions в Redis.
    * @param prisma - Глобальный `PrismaService` для компенсации (§48 SPEC.md).
    * @param configService - Конфигурация приложения (секция `argon2`).
+   * @param redisService - Глобальный `RedisService` для публикации ревокаций.
    */
   constructor(
     private readonly usersService: UsersService,
@@ -71,6 +74,7 @@ export class AuthService implements OnModuleInit {
     private readonly sessionService: AuthSessionService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -275,6 +279,10 @@ export class AuthService implements OnModuleInit {
       }
 
       await this.sessionService.revokeSession(payload.sid);
+
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
+      await publishUserRevocation(this.redisService, session.userId);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -337,6 +345,9 @@ export class AuthService implements OnModuleInit {
       const incomingHash = this.tokenService.hashRefreshToken(refreshToken);
       if (session.refreshTokenHash !== incomingHash) {
         await this.sessionService.revokeSession(payload.sid);
+        // Replay detected → глобальная ревокация пользователя на всех репликах
+        // (Phase A). Best-effort — не влияет на 401-ответ.
+        await publishUserRevocation(this.redisService, session.userId);
         throw new UnauthorizedException("Invalid credentials");
       }
 

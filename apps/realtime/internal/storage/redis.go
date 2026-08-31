@@ -17,7 +17,7 @@ import (
 type Broadcaster interface {
 	Publish(ctx context.Context, sessionID string, data []byte) error
 	Subscribe(ctx context.Context, sessionID string, onMessage func(data []byte)) (func(), error)
-	SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error)
+	SubscribeRevocations(ctx context.Context, onRevoke func(userID, sessionID string)) (func(), error)
 	RevokeUser(ctx context.Context, userID string) error
 	InstanceID() string
 }
@@ -37,6 +37,31 @@ type SessionStore interface {
 type PubSubMessage struct {
 	InstanceID string `json:"instanceId"`
 	Data       []byte `json:"data"`
+}
+
+// RevocationMessage описывает сообщение ревокации из канала "auth:revocations"
+// (формат Phase A, публикует apps/api):
+//
+//	{"instanceId":"api-<hostname>","data":"<userId>","sessionId":"<id>"}
+//
+// sessionId заполняется только при room-scoped evict (close-сессии, P2).
+type RevocationMessage struct {
+	InstanceID string `json:"instanceId"`
+	Data       string `json:"data"`
+	SessionID  string `json:"sessionId"`
+}
+
+// parseRevocation разбирает payload сообщения канала "auth:revocations".
+//
+// Возвращает (userID, sessionID). Для старых сообщений формата
+// {"userId":..,"reason":..} (их API больше не публикует) возвращает ("","") —
+// такие сообщения игнорируются.
+func parseRevocation(payload []byte) (userID, sessionID string) {
+	var msg RevocationMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(msg.Data), strings.TrimSpace(msg.SessionID)
 }
 
 // RedisStore объединяет SessionStore и Broadcaster на базе Redis.
@@ -187,7 +212,7 @@ func (r *RedisStore) RevokeUser(ctx context.Context, userID string) error {
 }
 
 // SubscribeRevocations подписывается на глобальные сигналы отзыва авторизации пользователей.
-func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error) {
+func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(userID, sessionID string)) (func(), error) {
 	if !r.enabled || r.client == nil {
 		return func() {}, nil
 	}
@@ -210,15 +235,11 @@ func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(use
 					return
 				}
 
-				var wrapped PubSubMessage
-				if err := json.Unmarshal([]byte(msg.Payload), &wrapped); err != nil {
+				userID, sessionID := parseRevocation([]byte(msg.Payload))
+				if userID == "" {
 					continue
 				}
-
-				userID := strings.TrimSpace(string(wrapped.Data))
-				if userID != "" {
-					onRevoke(userID)
-				}
+				onRevoke(userID, sessionID)
 			}
 		}
 	}()
