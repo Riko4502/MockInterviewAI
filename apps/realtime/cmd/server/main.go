@@ -92,6 +92,7 @@ func run() error {
 		cfg.AccessTokenCookieName,
 		cfg.MaxConnections,
 		cfg.MaxRoomClients,
+		cfg.AllowAccessFallback,
 	)
 
 	// 4. Настройка HTTP-маршрутизатора chi

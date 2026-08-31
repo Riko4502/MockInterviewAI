@@ -26,6 +26,7 @@ export {
   type UserProfileDto,
   userProfileSchema,
 } from "./profile/user-profile.dto";
+export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
 export {
   type AddParticipantDto,
   addParticipantSchema,

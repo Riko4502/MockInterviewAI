@@ -9,6 +9,7 @@ import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
+import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -50,6 +51,7 @@ import { RedisModule } from "./redis/redis.module";
     AuthModule,
     StorageModule,
     SessionsModule,
+    RealtimeModule,
   ],
   providers: [
     {

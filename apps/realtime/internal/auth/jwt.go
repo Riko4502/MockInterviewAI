@@ -91,24 +91,38 @@ func (v *TokenVerifier) VerifyToken(tokenString string) (*UserClaims, error) {
 	return claims, nil
 }
 
-// ExtractTokenFromRequest извлекает JWT токен строго из:
-// 1. HTTP Cookie по указанному cookieName (или "access_token", если имя не задано)
-// 2. HTTP Заголовка 'Authorization: Bearer <token>'
+// ExtractTokenFromRequest извлекает JWT токен из HTTP-запроса в порядке
+// приоритета (Phase C): 1) `Authorization: Bearer <token>`, 2) HTTP Cookie
+// по указанному cookieName (или "access_token", если имя не задано).
+// Subprotocol-тикет обрабатывается отдельно в WebSocket-хендлере.
 func ExtractTokenFromRequest(r *http.Request, cookieName string) string {
 	if cookieName == "" {
 		cookieName = "access_token"
 	}
 
-	// 1. Извлечение из HTTP Cookie
-	if cookie, err := r.Cookie(cookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
-		return strings.TrimSpace(cookie.Value)
-	}
-
-	// 2. Authorization header (Bearer <token>)
+	// 1. Authorization header (Bearer <token>) — выше cookie (закрывает слабость
+	// «cookie приоритетнее Bearer», §3 SPEC.md).
 	authHeader := r.Header.Get("Authorization")
 	if token, found := strings.CutPrefix(authHeader, "Bearer "); found {
 		return strings.TrimSpace(token)
 	}
 
+	// 2. Извлечение из HTTP Cookie
+	if cookie, err := r.Cookie(cookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
+		return strings.TrimSpace(cookie.Value)
+	}
+
+	return ""
+}
+
+// ExtractTicketFromProtocol извлекает одноразовый тикет из заголовка
+// `Sec-WebSocket-Protocol`, значение которого для браузерного клиента имеет
+// вид `"realtime,<ticket>"`. Возвращает часть после запятой (усечённую),
+// либо пустую строку, если формат не совпадает.
+func ExtractTicketFromProtocol(protocolHeader string) string {
+	parts := strings.Split(protocolHeader, ",")
+	if len(parts) == 2 {
+		return strings.TrimSpace(parts[1])
+	}
 	return ""
 }

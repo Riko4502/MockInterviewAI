@@ -13,12 +13,12 @@ import (
 
 // Config содержит строго типизированные параметры конфигурации сервиса.
 type Config struct {
-	Port            string
-	Host            string
-	Environment     string
-	ShutdownTimeout time.Duration
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
+	Port                   string
+	Host                   string
+	Environment            string
+	ShutdownTimeout        time.Duration
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
 	AllowedOrigins         []string
 	JWTAccessSecret        string
 	JWTRefreshSecret       string
@@ -33,6 +33,10 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 	RedisEnabled  bool
+
+	// AllowAccessFallback разрешает подключение старых клиентов по access-токену
+	// (typ=="access", multi-use). Выключается после перевода всех клиентов на тикеты (P9).
+	AllowAccessFallback bool
 }
 
 // Load загружает настройки из переменных окружения и .env файлов.
@@ -114,13 +118,21 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid MAX_ROOM_CLIENTS: %w", err)
 	}
 
+	allowAccessFallback := true
+	if s := strings.TrimSpace(getEnv("REALTIME_ALLOW_ACCESS_FALLBACK", "true")); s != "" {
+		parsed, parseErr := strconv.ParseBool(s)
+		if parseErr == nil {
+			allowAccessFallback = parsed
+		}
+	}
+
 	return &Config{
-		Port:                  port,
-		Host:                  host,
-		Environment:           env,
-		ShutdownTimeout:       time.Duration(shutdownSec) * time.Second,
-		ReadTimeout:           time.Duration(readSec) * time.Second,
-		WriteTimeout:          time.Duration(writeSec) * time.Second,
+		Port:                   port,
+		Host:                   host,
+		Environment:            env,
+		ShutdownTimeout:        time.Duration(shutdownSec) * time.Second,
+		ReadTimeout:            time.Duration(readSec) * time.Second,
+		WriteTimeout:           time.Duration(writeSec) * time.Second,
 		AllowedOrigins:         allowedOrigins,
 		JWTAccessSecret:        jwtAccessSecret,
 		JWTRefreshSecret:       jwtRefreshSecret,
@@ -133,6 +145,7 @@ func Load() (*Config, error) {
 		RedisPassword:          redisPassword,
 		RedisDB:                redisDB,
 		RedisEnabled:           redisEnabled,
+		AllowAccessFallback:    allowAccessFallback,
 	}, nil
 }
 

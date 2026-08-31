@@ -41,6 +41,29 @@ func generateTestJWT(secret, userID, username, sessionID string) (string, error)
 	return token.SignedString([]byte(secret))
 }
 
+// generateTestTicket создает одноразовый realtime-тикет (typ=="realtime")
+// с привязкой к конкретной комнате через SessionID.
+func generateTestTicket(secret, userID, username, sessionID string) (string, error) {
+	now := time.Now().UTC()
+	claims := auth.UserClaims{
+		UserID:    userID,
+		Username:  username,
+		SessionID: sessionID,
+		TokenID:   fmt.Sprintf("ticket-%d", now.UnixNano()),
+		Type:      "realtime",
+		SID:       "sid-" + userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			ID:        fmt.Sprintf("ticket-%d", now.UnixNano()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
 // mockSessionStore — честная модель SessionStore для тестов (fail-closed).
 type mockSessionStore struct {
 	roles     map[string]string
@@ -136,7 +159,7 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	}
 	hub := ws.NewHub(ctx, nil, sessionStore, logger)
 
-	wsHandler := NewWebSocketHandler(hub, tokenVerifier, sessionStore, logger, []string{"*"}, "access_token", 10000, 20)
+	wsHandler := NewWebSocketHandler(hub, tokenVerifier, sessionStore, logger, []string{"*"}, "access_token", 10000, 20, true)
 
 	r := chi.NewRouter()
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
@@ -345,7 +368,7 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	hub := ws.NewHub(ctx, nil, nil, logger)
 
 	// Ограничиваем комнату максимум 1 участником
-	wsHandler := NewWebSocketHandler(hub, tokenVerifier, nil, logger, []string{"*"}, "access_token", 100, 1)
+	wsHandler := NewWebSocketHandler(hub, tokenVerifier, nil, logger, []string{"*"}, "access_token", 100, 1, true)
 
 	r := chi.NewRouter()
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
@@ -392,7 +415,7 @@ func helperHandler(t *testing.T, secret string, store storage.SessionStore, maxR
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	hub := ws.NewHub(context.Background(), nil, store, logger)
-	wsHandler := NewWebSocketHandler(hub, auth.NewTokenVerifier(secret), store, logger, []string{"*"}, "access_token", 10000, maxRoom)
+	wsHandler := NewWebSocketHandler(hub, auth.NewTokenVerifier(secret), store, logger, []string{"*"}, "access_token", 10000, maxRoom, true)
 
 	r := chi.NewRouter()
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
@@ -452,5 +475,105 @@ func TestWebSocketNonMemberRejected(t *testing.T) {
 	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
 	if err == nil {
 		t.Fatal("expected non-member dial to fail with 403, but succeeded")
+	}
+}
+
+// TestWebSocketTicketSingleUse проверяет одноразовость realtime-тикета (Phase C):
+// первый коннект по тикету успешен, повторное использование того же тикета → 401.
+func TestWebSocketTicketSingleUse(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{"room": true},
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+	sessionID := "room"
+
+	ticket, err := generateTestTicket(secret, "user-1", "User1", sessionID)
+	if err != nil {
+		t.Fatalf("failed to generate ticket: %v", err)
+	}
+
+	// 1-е использование тикета — успешно. Клиент предлагает два подпротокола:
+	// "realtime" (для согласования) и сам тикет; заголовок получается
+	// "realtime,<ticket>", откуда хендлер извлекает тикет.
+	conn1, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if err != nil {
+		t.Fatalf("expected first ticket use to succeed, got: %v", err)
+	}
+	conn1.Close(websocket.StatusNormalClosure, "done")
+
+	// Повторное использование того же тикета — отклоняется (ConsumeTicket=false → 401).
+	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	}); err == nil {
+		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
+	}
+}
+
+// TestWebSocketTicketBoundToAnotherSession проверяет, что тикет, привязанный
+// к другой комнате, не позволяет подключиться к текущей (→ 403).
+func TestWebSocketTicketBoundToAnotherSession(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket-bound"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{"target-room": true},
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+
+	// Тикет выдан для другой сессии, а коннектимся в "target-room".
+	ticket, err := generateTestTicket(secret, "user-1", "User1", "other-room")
+	if err != nil {
+		t.Fatalf("failed to generate ticket: %v", err)
+	}
+
+	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/target-room", &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if err == nil {
+		t.Fatal("expected ticket bound to another session to fail with 403, but succeeded")
+	}
+}
+
+// TestWebSocketAccessFallbackDisabled проверяет ветку C2: при
+// allowAccessFallback=false доступ по access-токену закрыт (→ 403).
+func TestWebSocketAccessFallbackDisabled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	secret := "test-secret-fallback-off"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{"room": true},
+	}
+	hub := ws.NewHub(context.Background(), nil, store, logger)
+	wsHandler := NewWebSocketHandler(hub, auth.NewTokenVerifier(secret), store, logger, []string{"*"}, "access_token", 10000, 20, false)
+
+	r := chi.NewRouter()
+	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// Валидный access-токен, что при включённом fallback прошёл бы — здесь отклонён.
+	tok, err := generateTestJWT(secret, "user-1", "User1", "room")
+	if err != nil {
+		t.Fatalf("failed to generate access token: %v", err)
+	}
+
+	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/room", &websocket.DialOptions{
+		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
+	})
+	if err == nil {
+		t.Fatal("expected access-fallback-disabled dial to fail with 403, but succeeded")
 	}
 }

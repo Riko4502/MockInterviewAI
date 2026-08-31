@@ -175,7 +175,12 @@ Phase B требует одновременного выката зеркала 
 
 ---
 
-## Phase C — Тикет (Sec-WebSocket-Protocol)
+## Phase C — Тикет (Sec-WebSocket-Protocol) ✅
+
+> **Реализовано.** Deviations: priority учётных данных — subprotocol → Bearer → cookie
+> (подтверждено пользователем); `sensitive-logging` — обновлён только doc-comment
+> (интерцептор сейчас не логирует тело, списка redaction нет); e2e прогоняется на живой
+> связке PG+Redis (Docker — `API_DATABASE_URL` в gitignored root `.env`).
 
 ### C1. API
 1. `packages/dto/src/realtime/ticket.dto.ts`:
@@ -197,7 +202,7 @@ Phase B требует одновременного выката зеркала 
 5. `sensitive-logging.interceptor.ts`: добавить `"ticket"`, `"accessToken"`, `"refreshToken"`
    в перечень полей redaction (на будущее, сейчас тело не логируется).
 
-### C2. Realtime
+### C2. Realtime ✅
 1. `internal/storage/redis.go` + интерфейс `SessionStore`:
    - `IsAuthSessionActive(ctx, sid) (bool, error)`: `EXISTS auth:session:{sid}`;
      отсутствие/ошибка/disabled → `false`.
@@ -224,7 +229,7 @@ Phase B требует одновременного выката зеркала 
    выключить (P9). Прокинуть флаг в `WebSocketHandler`.
 4. `jwt.go` ужесточение действует на оба типа токенов (из Phase B).
 
-### C3. Тесты
+### C3. Тесты ✅
 - `apps/api/test/realtime-ticket.e2e-spec.ts`:
   - register/login → `POST /realtime/ticket {sessionId}` → 201,
     decode JWT: `typ == "realtime"`, `sid == sid из access`, `exp - iat ≈ 300s`;
@@ -299,7 +304,7 @@ Phase B требует одновременного выката зеркала 
 1. `fix(api): корректный формат ревокации (logout/deactivation) + parser тест` — Phase A. ✅
 2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1. ✅ (реализовано, коммит не сделан)
 3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3. ✅ (реализовано, коммит не сделан)
-4. `feat(api,realtime): одноразовый тикет через Sec-WebSocket-Protocol` — Phase C.
+4. `feat(api,realtime): одноразовый тикет через Sec-WebSocket-Protocol` — Phase C. ✅ (реализовано, коммит не сделан)
 5. `feat(web): веб-клиент realtime с тикетом и reconnect; убрать socket.io-client` — Phase D.
 
 Коммиты — только после явного запроса.

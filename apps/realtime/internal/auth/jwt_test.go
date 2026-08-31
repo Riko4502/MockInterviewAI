@@ -96,6 +96,36 @@ func TestExtractTokenFromRequest(t *testing.T) {
 	if tok := ExtractTokenFromRequest(reqQuery, "access_token"); tok != "" {
 		t.Errorf("expected empty string for query param token, got '%s'", tok)
 	}
+
+	// 4. Bearer имеет приоритет над cookie (закрывает слабость «cookie первичнее Bearer», Phase C).
+	reqBoth := httptest.NewRequest(http.MethodGet, "/ws", http.NoBody)
+	reqBoth.AddCookie(&http.Cookie{Name: "access_token", Value: "token-from-cookie"})
+	reqBoth.Header.Set("Authorization", "Bearer token-bearer")
+	if tok := ExtractTokenFromRequest(reqBoth, "access_token"); tok != "token-bearer" {
+		t.Errorf("expected bearer token to win over cookie, got '%s'", tok)
+	}
+}
+
+func TestExtractTicketFromProtocol(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{"subprotocol с тикетом", "realtime,abc.def.ghi", "abc.def.ghi"},
+		{"пустой заголовок", "", ""},
+		{"только realtime", "realtime", ""},
+		{"один токен без запятой", "realtime<no-comma>", ""},
+		{"битый формат", "realtime,", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractTicketFromProtocol(tt.header); got != tt.want {
+				t.Errorf("ExtractTicketFromProtocol(%q) = %q, want %q", tt.header, got, tt.want)
+			}
+		})
+	}
 }
 
 // signTestToken подписывает токен с заданными claims (для кейсов typ/sid).
@@ -115,11 +145,11 @@ func TestTokenVerificationTypSID(t *testing.T) {
 	now := time.Now().UTC()
 	base := func() UserClaims {
 		return UserClaims{
-			UserID:   "user-1",
-			Username: "Alice",
+			UserID:    "user-1",
+			Username:  "Alice",
 			SessionID: "session-100",
-			SID:      "sid-1",
-			Type:     "access",
+			SID:       "sid-1",
+			Type:      "access",
 			RegisteredClaims: jwt.RegisteredClaims{
 				Subject:   "user-1",
 				ID:        "tok-1",
