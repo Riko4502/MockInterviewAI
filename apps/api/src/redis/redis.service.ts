@@ -135,6 +135,57 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Устанавливает поле в хеше (HSET) и, если задан TTL, продлевает время жизни
+   * самого ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий
+   * (`session:{id}:members`).
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша (обычно `userId`).
+   * @param value - Значение поля (обычно роль).
+   * @param ttlSeconds - Время жизни ключа в секундах (опционально).
+   * @throws {Error} При ошибке Redis.
+   */
+  async hset(
+    key: string,
+    field: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<void> {
+    await this.client.hset(key, field, value);
+    if (ttlSeconds !== undefined) {
+      await this.client.expire(key, ttlSeconds);
+    }
+  }
+
+  /**
+   * Получает значение поля из хеша (HGET).
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша.
+   * @returns Значение поля или `null`, если поле/ключ не существует.
+   * @throws {Error} При ошибке Redis.
+   */
+  async hget(key: string, field: string): Promise<string | null> {
+    return this.client.hget(key, field);
+  }
+
+  /**
+   * Удаляет поле из хеша (HDEL) и, если задан TTL, продлевает время жизни
+   * ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий.
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша.
+   * @param ttlSeconds - Время жизни ключа в секундах (опционально).
+   * @throws {Error} При ошибке Redis.
+   */
+  async hdel(key: string, field: string, ttlSeconds?: number): Promise<void> {
+    await this.client.hdel(key, field);
+    if (ttlSeconds !== undefined) {
+      await this.client.expire(key, ttlSeconds);
+    }
+  }
+
+  /**
    * Публикует сообщение в Redis-канал Pub/Sub.
    *
    * @param channel - Имя канала.

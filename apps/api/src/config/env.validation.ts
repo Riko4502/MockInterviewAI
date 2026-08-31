@@ -39,6 +39,7 @@ const envSchema = z.object({
     .default("http://localhost:9000/mock-interview-storage"),
   S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("true"),
   MAX_AVATAR_SIZE_BYTES: z.coerce.number().int().positive().default(2_097_152),
+  SESSION_MIRROR_TTL_SECONDS: z.coerce.number().int().positive().default(7200),
 });
 
 /** Тип валидированного окружения приложения. */
