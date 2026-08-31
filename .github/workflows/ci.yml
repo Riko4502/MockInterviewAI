@@ -47,6 +47,7 @@ jobs:
     name: "Определение изменённых сервисов"
     runs-on: ubuntu-latest
     outputs:
+      start_time: ${{ steps.timer.outputs.start_time }}
       realtime: ${{ steps.filter.outputs.realtime }}
       web: ${{ steps.filter.outputs.web }}
       landing: ${{ steps.filter.outputs.landing }}
@@ -57,6 +58,10 @@ jobs:
       docker_landing: ${{ steps.filter.outputs.docker_landing }}
       docker_api: ${{ steps.filter.outputs.docker_api }}
     steps:
+      - name: "Фиксация времени старта"
+        id: timer
+        run: echo "start_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
 
@@ -197,16 +202,22 @@ jobs:
 
   notify:
     name: "Telegram"
-    needs: [realtime, web, api, security, landing, storybook]
+    needs: [changes, realtime, web, api, security, landing, storybook]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
     with:
+      start_time: ${{ needs.changes.outputs.start_time }}
       realtime_result: ${{ needs.realtime.result }}
+      realtime_coverage: ${{ needs.realtime.outputs.coverage || '' }}
       web_result: ${{ needs.web.result }}
+      web_coverage: ${{ needs.web.outputs.coverage || '' }}
       landing_result: ${{ needs.landing.result }}
+      landing_coverage: ${{ needs.landing.outputs.coverage || '' }}
       api_result: ${{ needs.api.result }}
+      api_coverage: ${{ needs.api.outputs.coverage || '' }}
       storybook_result: ${{ needs.storybook.result }}
+      storybook_coverage: ${{ needs.storybook.outputs.coverage || '' }}
       security_result: ${{ needs.security.result }}
 
   pr-status-comment:

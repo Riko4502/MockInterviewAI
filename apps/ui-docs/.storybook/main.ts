@@ -31,10 +31,6 @@ const config: StorybookConfig = {
     config.plugins = config.plugins || [];
     config.plugins.push(provideReactPlugin);
     config.source = config.source || {};
-    config.source.alias = {
-      ...(config.source.alias as Record<string, string>),
-      "@packages/utils": path.resolve(__dirname, "../../../packages/utils"),
-    };
     return config;
   },
 };
