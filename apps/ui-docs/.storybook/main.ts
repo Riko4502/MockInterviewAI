@@ -1,9 +1,5 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { RsbuildPlugin } from "@rsbuild/core";
 import type { StorybookConfig } from "storybook-react-rsbuild";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const provideReactPlugin: RsbuildPlugin = {
   name: "provide-react",
