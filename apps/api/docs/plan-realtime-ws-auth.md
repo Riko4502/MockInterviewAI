@@ -87,6 +87,24 @@ Phase B требует одновременного выката зеркала 
 
 ## Phase B — Источник правды о членстве + fail-closed
 
+> ✅ **Завершено** (2026-08-31).
+>
+> Примечания к реализации:
+> - **Reconcile-интервал** (`SESSION_MIRROR_REFRESH_CRON`): задекларирован, но
+>   реализован как статический `@Cron(CronExpression.EVERY_HOUR)` (шаблон
+>   `user-cleanup.cron.ts`), т.к. `@nestjs/schedule` не позволяет вычислить
+>   интервал декоратора динамически, а `cron` не объявлен прямой зависимостью API.
+> - **Миграция Prisma** (`20260831000000_add_interview_sessions`) написана и
+>   `prisma generate` выполнен; **к БД не применена** (в dev `.env`
+>   `API_DATABASE_URL` пуст, Postgres не запущен). Применить: поднять
+>   `docker compose up -d postgres`, заполнить URL, `pnpm --filter api db:migrate:dev`.
+> - `IsAuthSessionActive`/`ConsumeTicket`/`TouchMirror` добавлены в `SessionStore`
+>   (Redis) в рамках B2, но подключаются в реальтайм-конвейере в Phase C.
+> - Роль участника теперь берётся строго из зеркала (fallback `candidate` убран);
+>   `IsSessionActive` при Nil/ошибке/disabled → `false` (fail-closed).
+> - Проверка «sessionId в токене == URL sessionId» удалена (была сломана — в токене
+>   `sid` (auth-сессия), не `sessionId` (комната)).
+
 ### B1. Prisma и зеркало
 1. `apps/api/prisma/schema.prisma` — добавить модели `InterviewSession` (включает поле
    `userId` — владелец), `InterviewParticipant`, enum'ы (см. спецификацию §6).
@@ -278,9 +296,9 @@ Phase B требует одновременного выката зеркала 
 ## Порядок коммитов
 
 0. `fix(api): объединить гуарды — live-проверка сессии в AccessTokenGuard; точный Origin-матч` — Phase G. ✅
-1. `fix(api): корректный формат ревокации (logout/deactivation) + parser тест` — Phase A.
-2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1.
-3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3.
+1. `fix(api): корректный формат ревокации (logout/deactivation) + parser тест` — Phase A. ✅
+2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1. ✅ (реализовано, коммит не сделан)
+3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3. ✅ (реализовано, коммит не сделан)
 4. `feat(api,realtime): одноразовый тикет через Sec-WebSocket-Protocol` — Phase C.
 5. `feat(web): веб-клиент realtime с тикетом и reconnect; убрать socket.io-client` — Phase D.
 
