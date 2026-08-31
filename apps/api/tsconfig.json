@@ -12,6 +12,6 @@
     "outDir": "./dist",
     "incremental": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest", "multer"]
   }
 }

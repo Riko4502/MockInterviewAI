@@ -273,6 +273,38 @@ describe("AuthService", () => {
       );
     });
 
+    it("автоматически восстанавливает аккаунт если удален <= 30 дней назад", async () => {
+      const recentlyDeletedUser = {
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+        deletedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      };
+      findByEmail.mockResolvedValue(recentlyDeletedUser);
+      (argon2.verify as jest.Mock).mockResolvedValue(true);
+
+      const restoreAccountMock = jest.fn().mockResolvedValue({});
+      (
+        service as unknown as { usersService: { restoreAccount: jest.Mock } }
+      ).usersService.restoreAccount = restoreAccountMock;
+
+      const result = await service.login(DTO);
+
+      expect(restoreAccountMock).toHaveBeenCalledWith(USER.id);
+      expect(result.accessToken).toBe("raw.access.token");
+    });
+
+    it("отклоняет вход с generic 401 если аккаунт удален > 30 дней назад", async () => {
+      const expiredUser = {
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+        deletedAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000),
+      };
+      findByEmail.mockResolvedValue(expiredUser);
+      (argon2.verify as jest.Mock).mockResolvedValue(true);
+
+      await expect(service.login(DTO)).rejects.toThrow(UnauthorizedException);
+    });
+
     it("результат login не содержит forbidden данных (§45)", async () => {
       findByEmail.mockResolvedValue({
         ...USER,

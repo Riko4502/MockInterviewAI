@@ -26,6 +26,7 @@ const config: StorybookConfig = {
   rsbuildFinal(config) {
     config.plugins = config.plugins || [];
     config.plugins.push(provideReactPlugin);
+    config.source = config.source || {};
     return config;
   },
 };

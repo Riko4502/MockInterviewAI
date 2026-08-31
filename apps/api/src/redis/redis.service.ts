@@ -75,6 +75,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Устанавливает ключ только если он не существует (NX) с временем жизни (Distributed Lock).
+   *
+   * @param key - Имя ключа.
+   * @param value - Значение.
+   * @param ttlSeconds - Время жизни в секундах.
+   * @returns `true`, если ключ был успешно установлен (захвачен лок), иначе `false`.
+   */
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return result === "OK";
+  }
+
+  /**
    * Получает значение по ключу.
    *
    * @param key - Имя ключа.
@@ -111,7 +128,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    *
    * Итерация выполняется через `scanStream` (пагинация курсором скрыта),
    * собранные ключи возвращаются массивом. Гарантирует неблокирующий обход
-   * по сравнению с `KEYS` и не требует выделения всех ключей в памяти разом
+   * по сравнению с `KEYS` и не требует выделения всех ключей в память разом
    * (ключи собираются пачками из стрима).
    *
    * @param pattern - Redis-шаблон (например `auth:session:*`).
@@ -132,6 +149,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       stream.on("end", () => resolve(keys));
       stream.on("error", (error: Error) => reject(error));
     });
+  }
+
+  /**
+   * Публикует сообщение в Redis-канал Pub/Sub.
+   *
+   * @param channel - Имя канала.
+   * @param message - Текст сообщения (JSON).
+   */
+  async publish(channel: string, message: string): Promise<void> {
+    await this.client.publish(channel, message);
   }
 
   /**

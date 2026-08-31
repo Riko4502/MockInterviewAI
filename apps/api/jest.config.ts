@@ -5,12 +5,7 @@ const config: Config = {
   rootDir: "src",
   testRegex: ".*\\.spec\\.ts$",
   transform: {
-    "^.+\\.ts$": [
-      "ts-jest",
-      {
-        isolatedModules: true,
-      },
-    ],
+    "^.+\\.ts$": "ts-jest",
   },
   moduleNameMapper: {
     "^@packages/dto$": "<rootDir>/../../../packages/dto/src",
