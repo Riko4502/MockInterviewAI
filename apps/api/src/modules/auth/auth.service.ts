@@ -29,6 +29,8 @@ export interface LoginResult {
   refreshToken: string;
 }
 
+/** 30 дней в миллисекундах (окно восстановления аккаунта) */
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 /** Результат успешного обновления токенов (§65 SPEC.md). */
 export interface RefreshResult {
   accessToken: string;
@@ -180,6 +182,18 @@ export class AuthService implements OnModuleInit {
 
     if (!user || !passwordValid) {
       throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (user.deletedAt) {
+      const elapsedMs = Date.now() - user.deletedAt.getTime();
+      if (elapsedMs > THIRTY_DAYS_MS) {
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
+      await this.usersService.restoreAccount(user.id);
+      this.logger.log(
+        `Account ${user.id} (${user.email}) automatically restored upon login`,
+      );
     }
 
     const sessionId = randomUUID();
