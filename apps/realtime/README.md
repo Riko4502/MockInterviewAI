@@ -228,3 +228,98 @@ export interface SystemErrorPayload {
 1. **Единое соединение на вкладку**: Сервер вытесняет старое соединение, если пользователь открывает сессию в новой вкладке.
 2. **Лимит частоты (Rate Limiter)**: Сервер допускает до **60 событий/сек** (со всплеском до 120). При отправке движений курсора рекомендуется делать `throttle` на клиенте (например, раз в 16-30 мс / ~30-60 FPS).
 3. **Лимит размера текста**: Сообщения чата обрезаются до 4 000 символов, файлы кода ограничены 500 KB.
+
+---
+
+## 5. Глобальный поток уведомлений (Server-Sent Events)
+
+Эндпоинт `GET /sse/notifications` — однонаправленный поток персональных и общесистемных уведомлений, живущий столько же, сколько сессия логина пользователя. Полная архитектура: [SSE_SPEC.md](./SSE_SPEC.md).
+
+### 5.1. Подключение с фронтенда
+
+```typescript
+import { fetchEventSource } from "@microsoft/fetch-event-source";
+
+await fetchEventSource("http://localhost:8080/sse/notifications", {
+  credentials: "include", // cookie access_token уходит автоматически
+  onmessage(event) {
+    // event.id — Redis Stream ID, он же Last-Event-ID при переподключении
+    const envelope = JSON.parse(event.data); // BaseSSEEnvelope<TPayload>
+    handle(envelope.type, envelope.payload);
+  },
+});
+```
+
+* Токен читается только из `HttpOnly` cookie `access_token` или заголовка `Authorization: Bearer <JWT>`.
+* Передача токена в query string (`?token=...`) отклоняется с кодом **400**: это защита от утечки JWT в access-логи прокси, историю браузера и `Referer`.
+* Браузер сам переподключается и присылает `Last-Event-ID`; сервер отдает пропущенные события из Redis Stream (фаза Replay), после чего переходит в живой режим.
+* Каждое событие содержит детерминированный `id`, поэтому клиентскому стейт-менеджеру достаточно дедуплицировать по нему.
+
+### 5.2. Конверт события
+
+```typescript
+export interface BaseSSEEnvelope<TPayload> {
+  id: string;        // Redis Stream ID ("1724500000000-0"); отсутствует у бродкастов
+  type: string;      // "notification.new", "ai.report_ready", ...
+  timestamp: string; // ISO 8601
+  payload: TPayload;
+}
+```
+
+Типы событий и их payload описаны в [SSE_SPEC.md](./SSE_SPEC.md) (раздел 4.2) и в справочнике фронтенда `docs/frontend/data/realtime.md` (раздел 4). Дополнительно сервер отправляет служебное событие `auth.revoked` — последний кадр перед принудительным разрывом потока при смене пароля или выходе со всех устройств.
+
+Каждые 15 секунд в поток пишется heartbeat-комментарий `: ping <unix_ms>`, который игнорируется парсером `EventSource` и удерживает соединение через прокси.
+
+### 5.3. Контракт продюсеров (apps/api, apps/code-runner, AI worker)
+
+Персональное уведомление публикуется в стрим пользователя, общесистемное — в Pub/Sub канал:
+
+```bash
+# Персональное событие (доставляется всем вкладкам пользователя, попадает в Replay)
+XADD user:{userId}:notifications MAXLEN '~' 100 '*' \
+  type notification.new \
+  payload '{"id":"ntf_1","category":"info","title":"...","message":"...","createdAt":"...","read":false}' \
+  timestamp 2026-08-30T10:00:00Z
+
+# Общесистемный алерт (доставляется всем подключенным клиентам кластера, без Replay)
+PUBLISH notifications:broadcast '{"type":"system.broadcast","payload":{"severity":"warning","message":"..."}}'
+
+# Мгновенный отзыв авторизации: все SSE-потоки пользователя разрываются на всех нодах
+PUBLISH auth:revocations '{"instanceId":"api","data":"<userId base64>"}'
+```
+
+Сервису достаточно полей `type` и `payload`; `timestamp` необязателен — при его отсутствии время восстанавливается из Redis Stream ID. Ключ стрима автоматически ограничивается сотней последних событий и получает `EXPIRE` на 7 суток при каждой публикации.
+
+### 5.4. Лимиты и защита ресурсов
+
+| Ограничение | Значение по умолчанию | Переменная окружения |
+| :--- | :--- | :--- |
+| Соединений на пользователя | 5 (по всему кластеру) | `SSE_MAX_CONNECTIONS_PER_USER` |
+| Соединений с одного IP | 20 (на ноду) | `SSE_MAX_CONNECTIONS_PER_IP` |
+| Буфер одного соединения | 128 событий | `SSE_CLIENT_BUFFER_SIZE` |
+| Heartbeat | 15 сек | `SSE_HEARTBEAT_SECONDS` |
+| Retry клиента | 3000 мс | `SSE_RETRY_MS` |
+| Глубина Replay | 20 событий | `SSE_REPLAY_COUNT` |
+
+При превышении лимитов возвращается **429 Too Many Requests** с заголовком `Retry-After`. Медленный клиент, чей буфер остается переполненным дольше `SSE_SLOW_CONSUMER_GRACE_SECONDS`, отключается — он переподключится сам и доберет пропущенное через `Last-Event-ID`.
+
+### 5.5. Наблюдаемость
+
+Метрики SSE-подсистемы (`realtime_sse_connected_clients`, `realtime_sse_messages_dispatched_total`, `realtime_sse_dropped_messages_total`, `realtime_sse_redis_stream_lag_seconds` и др.) отдаются эндпоинтом `GET /metrics` в текстовом формате Prometheus. Эндпоинт предназначен для внутреннего скрейпинга и не должен публиковаться наружу через балансировщик. Сводка по SSE также попадает в `GET /readyz` (`sseClients`, `sseUsers`).
+
+### 5.6. Настройка Nginx
+
+Долгоживущий поток требует отключения буферизации и сжатия на уровне обратного прокси:
+
+```nginx
+location /sse/ {
+    proxy_pass http://realtime;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    gzip off;
+    proxy_read_timeout 3600s;
+}
+```
+
+Сервис дополнительно выставляет заголовок `X-Accel-Buffering: no` на каждый SSE-ответ.

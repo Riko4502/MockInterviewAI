@@ -72,6 +72,12 @@ func NewRedisStore(cfg *config.Config, logger *slog.Logger) *RedisStore {
 		}
 	}
 
+	// Каждый пользователь с открытым SSE-потоком удерживает одно соединение
+	// пула на блокирующем XREAD, поэтому пул расширяется явно.
+	if cfg.RedisPoolSize > 0 {
+		opts.PoolSize = cfg.RedisPoolSize
+	}
+
 	client := redis.NewClient(opts)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

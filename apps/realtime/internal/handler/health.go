@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mockinterviewai/realtime/internal/sse"
 	"github.com/mockinterviewai/realtime/internal/storage"
 	"github.com/mockinterviewai/realtime/internal/ws"
 )
@@ -23,19 +24,23 @@ type ReadyResponse struct {
 	Redis        string    `json:"redis,omitempty"`
 	TotalRooms   int       `json:"totalRooms"`
 	TotalClients int       `json:"totalClients"`
+	SSEClients   int       `json:"sseClients"`
+	SSEUsers     int       `json:"sseUsers"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 
 // HealthHandler обрабатывает проверки жизнеспособности (liveness probe).
 type HealthHandler struct {
 	hub          *ws.Hub
+	sseHub       *sse.Hub
 	sessionStore storage.SessionStore
 }
 
 // NewHealthHandler создает новый экземпляр HealthHandler.
-func NewHealthHandler(hub *ws.Hub, sessionStore storage.SessionStore) *HealthHandler {
+func NewHealthHandler(hub *ws.Hub, sseHub *sse.Hub, sessionStore storage.SessionStore) *HealthHandler {
 	return &HealthHandler{
 		hub:          hub,
+		sseHub:       sseHub,
 		sessionStore: sessionStore,
 	}
 }
@@ -62,12 +67,19 @@ func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var sseClients, sseUsers int
+	if h.sseHub != nil {
+		sseClients, sseUsers = h.sseHub.Stats()
+	}
+
 	resp := ReadyResponse{
 		Status:       "ready",
 		Service:      "realtime",
 		Redis:        redisStatus,
 		TotalRooms:   h.hub.TotalRooms(),
 		TotalClients: h.hub.TotalClients(),
+		SSEClients:   sseClients,
+		SSEUsers:     sseUsers,
 		Timestamp:    time.Now().UTC(),
 	}
 

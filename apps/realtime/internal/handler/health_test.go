@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/mockinterviewai/realtime/internal/sse"
 	"github.com/mockinterviewai/realtime/internal/ws"
 )
 
@@ -18,7 +19,10 @@ func TestHealthEndpoints(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	hub := ws.NewHub(ctx, nil, nil, logger)
-	healthHandler := NewHealthHandler(hub, nil)
+	sseHub := sse.NewHub(ctx, nil, nil, sse.Options{}, "test-node", logger)
+	defer func() { _ = sseHub.Close() }()
+
+	healthHandler := NewHealthHandler(hub, sseHub, nil)
 
 	// 1. Тест /healthz (liveness)
 	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
