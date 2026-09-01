@@ -1,34 +1,63 @@
-import { Button, Card, Separator } from "@packages/ui";
+import { Button, Separator } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Метаданные компонента Separator для Storybook.
  */
 const meta = {
-  title: "UI/Separator",
+  title: "Components/Separator",
   component: Separator,
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Separator** — визуальный разделитель
+
+Компонент для логического разделения секций интерфейса, меню и списков. Поддерживает горизонтальную и вертикальную ориентацию, стилистические варианты (\`default\`, \`muted\`, \`dashed\`, \`dotted\`) и текстовую плашку по центру (\`label\`).
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Separator } from "@packages/ui";
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
     orientation: {
       control: "select",
       options: ["horizontal", "vertical"],
-      description: "Ориентация разделителя",
+      description: "Ориентация разделителя (горизонтальная или вертикальная).",
+      table: {
+        type: { summary: '"horizontal" | "vertical"' },
+        defaultValue: { summary: '"horizontal"' },
+      },
     },
     variant: {
       control: "select",
       options: ["default", "muted", "dashed", "dotted"],
-      description: "Стиль линии разделителя",
+      description: "Стиль линии разделителя.",
+      table: {
+        type: { summary: '"default" | "muted" | "dashed" | "dotted"' },
+        defaultValue: { summary: '"default"' },
+      },
     },
     decorative: {
       control: "boolean",
-      description: "Является ли разделитель чисто декоративным (a11y)",
+      description: "Является ли разделитель чисто декоративным (a11y).",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "true" },
+      },
     },
     label: {
       control: "text",
-      description: "Текстовая подпись по центру горизонтального разделителя",
+      description: "Текстовая подпись по центру горизонтального разделителя.",
+      table: { type: { summary: "ReactNode" } },
     },
   },
   args: {
@@ -64,85 +93,49 @@ export const Horizontal: Story = {
 };
 
 /**
- * Вертикальный разделитель между элементами строки или навигации.
- */
-export const Vertical: Story = {
-  render: () => (
-    <div className="flex h-5 items-center gap-3 text-sm">
-      <span className="font-medium">Главная</span>
-      <Separator orientation="vertical" />
-      <span className="font-medium">Интервью</span>
-      <Separator orientation="vertical" />
-      <span className="text-muted-foreground">Настройки</span>
-    </div>
-  ),
-};
-
-/**
- * Разделитель с текстовой меткой по центру (например, для форм авторизации).
+ * Разделитель с текстом по центру (например, для форм входа).
  */
 export const WithLabel: Story = {
   render: () => (
-    <div className="w-80 space-y-4">
-      <Button className="w-full">Войти через Google</Button>
-      <Separator label="или продолжить с email" />
+    <div className="w-80 space-y-3">
       <Button variant="outline" className="w-full">
-        Войти по паролю
+        Войти через GitHub
       </Button>
+      <Separator label="или продолжить с email" variant="muted" />
+      <Button className="w-full">Войти с паролем</Button>
     </div>
   ),
 };
 
 /**
- * Сравнение всех доступных стилей линий (solid, muted, dashed, dotted).
+ * Вертикальный разделитель в панели инструментов.
  */
-export const Variants: Story = {
+export const Vertical: Story = {
   render: () => (
-    <div className="w-80 space-y-6">
-      <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">Default (Solid):</span>
-        <Separator variant="default" />
-      </div>
+    <div className="flex items-center gap-3 h-8 px-3 border rounded-lg bg-card">
+      <span className="text-xs font-medium">Главная</span>
+      <Separator orientation="vertical" className="h-4" />
+      <span className="text-xs font-medium">Собеседования</span>
+      <Separator orientation="vertical" className="h-4" />
+      <span className="text-xs text-muted-foreground">Настройки</span>
+    </div>
+  ),
+};
 
-      <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">Muted:</span>
-        <Separator variant="muted" />
-      </div>
-
-      <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">Dashed (Пунктир):</span>
+/**
+ * Стили линий (Dashed & Dotted).
+ */
+export const LineStyles: Story = {
+  render: () => (
+    <div className="w-80 space-y-4">
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground">Dashed (пунктир):</span>
         <Separator variant="dashed" />
       </div>
-
-      <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">Dotted (Точки):</span>
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground">Dotted (точки):</span>
         <Separator variant="dotted" />
       </div>
     </div>
-  ),
-};
-
-/**
- * Пример использования разделителя внутри карточки Card.
- */
-export const InCardSection: Story = {
-  render: () => (
-    <Card className="w-80 p-0 overflow-hidden">
-      <div className="p-4">
-        <h4 className="text-sm font-semibold">Настройки приватности</h4>
-        <p className="text-xs text-muted-foreground mt-1">
-          Управляйте видимостью профиля
-        </p>
-      </div>
-      <Separator />
-      <div className="p-4 text-xs text-muted-foreground space-y-2">
-        <p>• Показывать результаты собеседований рекрутерам</p>
-        <p>• Разрешить AI анализировать видеозапись</p>
-      </div>
-      <Separator variant="dashed" />
-      <div className="p-3 bg-muted/20 flex justify-end">
-        <Button size="sm">Сохранить</Button>
-      </div>
-    </Card>
   ),
 };

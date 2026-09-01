@@ -1,5 +1,6 @@
 "use client";
 
+import { Link } from "@packages/ui";
 import { cn } from "@packages/utils";
 import { useLandingTranslations } from "@/shared/lib";
 
@@ -17,18 +18,20 @@ export function NavLinks({ className }: NavLinksProps) {
         className,
       )}
     >
-      <a
+      <Link
         href="#how-it-works"
-        className="hover:text-white transition-colors py-1 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-violet-400 hover:after:w-full after:transition-all"
+        underline="none"
+        className="hover:text-white transition-colors py-1 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-violet-400 hover:after:w-full after:transition-all text-slate-300"
       >
         {landing.nav.howItWorks}
-      </a>
-      <a
+      </Link>
+      <Link
         href="#features"
-        className="hover:text-white transition-colors py-1 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-violet-400 hover:after:w-full after:transition-all"
+        underline="none"
+        className="hover:text-white transition-colors py-1 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-violet-400 hover:after:w-full after:transition-all text-slate-300"
       >
         {landing.nav.features}
-      </a>
+      </Link>
     </nav>
   );
 }

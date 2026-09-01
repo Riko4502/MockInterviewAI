@@ -1,7 +1,7 @@
 "use client";
 
 import { MenuIcon } from "@packages/icons";
-import { Button } from "@packages/ui";
+import { Button, Link } from "@packages/ui";
 import { useState } from "react";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
@@ -36,14 +36,14 @@ export function Navbar() {
             variant="ghost"
             className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
           >
-            <a href={authUrl}>{landing.nav.signIn}</a>
+            <Link href={authUrl}>{landing.nav.signIn}</Link>
           </Button>
 
           <Button
             asChild
             className="rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-5 py-2.5 h-auto text-sm font-semibold"
           >
-            <a href={registerUrl}>{landing.nav.getStarted}</a>
+            <Link href={registerUrl}>{landing.nav.getStarted}</Link>
           </Button>
 
           {/* Mobile Menu Toggle Button */}

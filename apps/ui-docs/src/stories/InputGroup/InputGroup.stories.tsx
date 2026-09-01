@@ -153,7 +153,9 @@ export const WithPrefixAndClear: Story = {
           </InputGroup.Prefix>
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setQuery(e.target.value)
+            }
             placeholder="Введите запрос..."
           />
           {query && (

@@ -10,6 +10,44 @@ const meta = {
   component: Pagination,
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Pagination** — постраничная навигация
+
+Набор компонентов для построения постраничной навигации по спискам, таблицам и каталогам. Состоит из \`Pagination\`, \`Pagination.Content\`, \`Pagination.Item\`, \`Pagination.Link\`, \`Pagination.Previous\`, \`Pagination.Next\`, \`Pagination.Ellipsis\`.
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Pagination } from "@packages/ui";
+\`\`\`
+
+---
+
+### **Базовый пример использования**
+\`\`\`tsx
+<Pagination>
+  <Pagination.Content>
+    <Pagination.Item>
+      <Pagination.Previous onClick={() => setPage(p => p - 1)} />
+    </Pagination.Item>
+    <Pagination.Item>
+      <Pagination.Link isActive={page === 1} onClick={() => setPage(1)}>1</Pagination.Link>
+    </Pagination.Item>
+    <Pagination.Item>
+      <Pagination.Link isActive={page === 2} onClick={() => setPage(2)}>2</Pagination.Link>
+    </Pagination.Item>
+    <Pagination.Item>
+      <Pagination.Next onClick={() => setPage(p => p + 1)} />
+    </Pagination.Item>
+  </Pagination.Content>
+</Pagination>
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
 } satisfies Meta<typeof Pagination>;
@@ -61,19 +99,24 @@ export const InteractiveControlled: Story = {
     const totalPages = 8;
 
     return (
-      <div className="flex flex-col items-center gap-4">
-        <span className="text-xs text-muted-foreground">
-          Текущая страница: <strong>{page}</strong> из {totalPages}
-        </span>
+      <div className="space-y-4 text-center">
+        <div className="text-xs text-muted-foreground">
+          Текущая активная страница:{" "}
+          <strong className="text-foreground">{page}</strong> из {totalPages}
+        </div>
 
         <Pagination>
           <Pagination.Content>
             <Pagination.Item>
               <Pagination.Previous
-                className="cursor-pointer"
-                onClick={(e: { preventDefault: () => void }) => {
+                className={
+                  page === 1
+                    ? "pointer-events-none opacity-40"
+                    : "cursor-pointer"
+                }
+                onClick={(e: React.MouseEvent) => {
                   e.preventDefault();
-                  if (page > 1) setPage((p) => p - 1);
+                  if (page > 1) setPage(page - 1);
                 }}
               />
             </Pagination.Item>
@@ -83,7 +126,7 @@ export const InteractiveControlled: Story = {
                 <Pagination.Link
                   className="cursor-pointer"
                   isActive={p === page}
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                     e.preventDefault();
                     setPage(p);
                   }}
@@ -95,10 +138,14 @@ export const InteractiveControlled: Story = {
 
             <Pagination.Item>
               <Pagination.Next
-                className="cursor-pointer"
-                onClick={(e) => {
+                className={
+                  page === totalPages
+                    ? "pointer-events-none opacity-40"
+                    : "cursor-pointer"
+                }
+                onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                   e.preventDefault();
-                  if (page < totalPages) setPage((p) => p + 1);
+                  if (page < totalPages) setPage(page + 1);
                 }}
               />
             </Pagination.Item>
@@ -107,66 +154,4 @@ export const InteractiveControlled: Story = {
       </div>
     );
   },
-};
-
-/**
- * Компактный режим с иконками без подписей (отлично для мобильных экранов).
- */
-export const Compact: Story = {
-  render: () => (
-    <Pagination>
-      <Pagination.Content>
-        <Pagination.Item>
-          <Pagination.Previous href="#" label={null} size="icon" />
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#">1</Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#" isActive>
-            2
-          </Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#">3</Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Next href="#" label={null} size="icon" />
-        </Pagination.Item>
-      </Pagination.Content>
-    </Pagination>
-  ),
-};
-
-/**
- * Состояние первой страницы с заблокированной кнопкой «Назад».
- */
-export const DisabledEdges: Story = {
-  render: () => (
-    <Pagination>
-      <Pagination.Content>
-        <Pagination.Item>
-          <Pagination.Previous
-            href="#"
-            className="pointer-events-none opacity-50"
-            aria-disabled="true"
-          />
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#" isActive>
-            1
-          </Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#">2</Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Link href="#">3</Pagination.Link>
-        </Pagination.Item>
-        <Pagination.Item>
-          <Pagination.Next href="#" />
-        </Pagination.Item>
-      </Pagination.Content>
-    </Pagination>
-  ),
 };

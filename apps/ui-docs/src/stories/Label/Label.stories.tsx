@@ -1,34 +1,63 @@
-import { Checkbox, Input, Label, Switch } from "@packages/ui";
+import { Input, Label } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Метаданные компонента Label для Storybook.
  */
 const meta = {
-  title: "UI/Label",
+  title: "Components/Label",
   component: Label,
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Label** — текстовая метка поля
+
+Доступная текстовая метка на базе примитива \`@radix-ui/react-label\`. Поддерживает связь с элементами формы по \`htmlFor\`, индикатор обязательного поля (\`required\`), варианты цветов (\`default\`, \`muted\`, \`destructive\`, \`success\`) и размеры (\`sm\`, \`default\`, \`lg\`).
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Label, Input } from "@packages/ui";
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
     variant: {
       control: "select",
       options: ["default", "muted", "destructive", "success"],
-      description: "Цветовой вариант текста метки",
+      description: "Цветовой вариант текста метки.",
+      table: {
+        type: { summary: '"default" | "muted" | "destructive" | "success"' },
+        defaultValue: { summary: '"default"' },
+      },
     },
     size: {
       control: "select",
       options: ["sm", "default", "lg"],
-      description: "Размер шрифта метки",
+      description: "Размер шрифта метки.",
+      table: {
+        type: { summary: '"sm" | "default" | "lg"' },
+        defaultValue: { summary: '"default"' },
+      },
     },
     required: {
       control: "boolean",
-      description: "Обязательное ли поле (отображение звездочки *)",
+      description: "Обязательное ли поле (отображение звездочки *).",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
     },
     children: {
       control: "text",
-      description: "Текст метки",
+      description: "Текст метки.",
+      table: { type: { summary: "ReactNode" } },
     },
   },
   args: {
@@ -62,97 +91,31 @@ export const Required: Story = {
 };
 
 /**
- * Использование Label в связке с текстовым полем Input через htmlFor/id.
+ * Варианты цветов (Default, Muted, Destructive, Success).
+ */
+export const Variants: Story = {
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <Label variant="default">Стандартная метка (Default)</Label>
+      <Label variant="muted">Приглушенная метка (Muted)</Label>
+      <Label variant="destructive" required>
+        Метка с ошибкой (Destructive)
+      </Label>
+      <Label variant="success">Успешно заполнено (Success)</Label>
+    </div>
+  ),
+};
+
+/**
+ * Использование с полем ввода Input.
  */
 export const WithInput: Story = {
   render: () => (
-    <div className="flex flex-col gap-2 w-80">
-      <Label htmlFor="email-input" required>
-        Рабочий email
+    <div className="space-y-1.5 w-72">
+      <Label htmlFor="fullname" required>
+        ФИО Кандидата
       </Label>
-      <Input id="email-input" type="email" placeholder="name@company.com" />
-    </div>
-  ),
-};
-
-/**
- * Использование Label в связке с Checkbox.
- */
-export const WithCheckbox: Story = {
-  render: () => (
-    <div className="flex items-center gap-2">
-      <Checkbox id="terms-checkbox" />
-      <Label htmlFor="terms-checkbox" className="cursor-pointer">
-        Я согласен с условиями сервиса
-      </Label>
-    </div>
-  ),
-};
-
-/**
- * Использование Label в связке с переключателем Switch.
- */
-export const WithSwitch: Story = {
-  render: () => (
-    <div className="flex items-center gap-3">
-      <Switch id="airplane-mode" />
-      <Label htmlFor="airplane-mode" className="cursor-pointer">
-        Режим полета
-      </Label>
-    </div>
-  ),
-};
-
-/**
- * Все доступные размеры компонента Label.
- */
-export const AllSizes: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4">
-        <span className="w-24 text-xs text-muted-foreground">sm (12px):</span>
-        <Label size="sm">Маленькая метка (Small)</Label>
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="w-24 text-xs text-muted-foreground">
-          default (14px):
-        </span>
-        <Label size="default">Стандартная метка (Default)</Label>
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="w-24 text-xs text-muted-foreground">lg (16px):</span>
-        <Label size="lg">Крупная метка (Large)</Label>
-      </div>
-    </div>
-  ),
-};
-
-/**
- * Все цветовые варианты компонента Label.
- */
-export const AllVariants: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <Label variant="default">Default — стандартный цвет текста</Label>
-      <Label variant="muted">Muted — приглушенный цвет текста</Label>
-      <Label variant="destructive">Destructive — ошибка / критичное поле</Label>
-      <Label variant="success">Success — успешное подтверждение</Label>
-    </div>
-  ),
-};
-
-/**
- * Поведение метки при отключенном связанном поле (peer-disabled).
- */
-export const DisabledState: Story = {
-  render: () => (
-    <div className="flex flex-col gap-2 w-80">
-      <Label htmlFor="disabled-input">Заблокированное поле</Label>
-      <Input
-        id="disabled-input"
-        disabled
-        placeholder="Поле недоступно для ввода"
-      />
+      <Input id="fullname" placeholder="Иван Иванов" />
     </div>
   ),
 };

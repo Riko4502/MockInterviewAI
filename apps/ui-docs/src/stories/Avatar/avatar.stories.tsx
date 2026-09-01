@@ -1,11 +1,40 @@
-﻿import { Avatar } from "@packages/ui";
+import { Avatar } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
+/**
+ * Метаданные компонента Avatar для Storybook.
+ */
 const meta = {
-  title: "UI/Avatar",
+  title: "Components/Avatar",
   component: Avatar,
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Avatar** — компонент аватара пользователя
+
+Элемент отображения фотографии профиля кандидата или интервьюера с автоматическим показом фолбэка (текстовых инициалов) при загрузке или отсутствии изображения.
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Avatar } from "@packages/ui";
+\`\`\`
+
+---
+
+### **Базовый пример использования**
+\`\`\`tsx
+<Avatar size="md">
+  <Avatar.Image src="https://github.com/shadcn.png" alt="Алексей Смирнов" />
+  <Avatar.Fallback>АС</Avatar.Fallback>
+</Avatar>
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
@@ -24,146 +53,79 @@ const meta = {
       description: "Дополнительные CSS-классы для корневого элемента аватара.",
       table: { type: { summary: "string" } },
     },
-    children: {
-      control: false,
-      description:
-        "Дочерние элементы. Используйте sub-компоненты: " +
-        "`Avatar.Image` — изображение пользователя; " +
-        "`Avatar.Fallback` — запасной контент (инициалы), " +
-        "отображаемый пока Avatar.Image загружается или недоступно.",
-      table: { type: { summary: "ReactNode" } },
-    },
   },
 } satisfies Meta<typeof Avatar>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// ─── Avatar (root) stories ───
-
+/**
+ * Аватар с загруженным изображением и фолбэком.
+ */
 export const WithImage: Story = {
-  name: "Avatar / With Image",
   args: { size: "md" },
   render: (args) => (
     <Avatar {...args}>
-      <Avatar.Image src="https://github.com/shadcn.png" alt="User avatar" />
-      <Avatar.Fallback>CN</Avatar.Fallback>
+      <Avatar.Image
+        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+        alt="Елена Васильева"
+      />
+      <Avatar.Fallback>ЕВ</Avatar.Fallback>
     </Avatar>
   ),
 };
 
+/**
+ * Аватар только с текстовыми инициалами (Fallback).
+ */
 export const FallbackOnly: Story = {
-  name: "Avatar / Fallback Only",
   args: { size: "md" },
   render: (args) => (
     <Avatar {...args}>
-      <Avatar.Fallback>AB</Avatar.Fallback>
+      <Avatar.Fallback>АС</Avatar.Fallback>
     </Avatar>
   ),
 };
 
-export const Small: Story = {
-  name: "Avatar / Small",
-  args: { size: "sm" },
-  render: (args) => (
-    <Avatar {...args}>
-      <Avatar.Fallback>SM</Avatar.Fallback>
-    </Avatar>
-  ),
-};
-
-export const Large: Story = {
-  name: "Avatar / Large",
-  args: { size: "lg" },
-  render: (args) => (
-    <Avatar {...args}>
-      <Avatar.Fallback>LG</Avatar.Fallback>
-    </Avatar>
-  ),
-};
-
-export const AllSizes: Story = {
-  name: "Avatar / All Sizes",
+/**
+ * Сравнение размеров аватаров (sm, md, lg).
+ */
+export const Sizes: Story = {
   render: () => (
-    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+    <div className="flex items-center gap-4">
       <Avatar size="sm">
-        <Avatar.Image src="https://github.com/shadcn.png" alt="SM" />
         <Avatar.Fallback>SM</Avatar.Fallback>
       </Avatar>
       <Avatar size="md">
-        <Avatar.Image src="https://github.com/shadcn.png" alt="MD" />
         <Avatar.Fallback>MD</Avatar.Fallback>
       </Avatar>
       <Avatar size="lg">
-        <Avatar.Image src="https://github.com/shadcn.png" alt="LG" />
         <Avatar.Fallback>LG</Avatar.Fallback>
       </Avatar>
     </div>
   ),
 };
 
-// ─────────────────────────────────────────────
-// Avatar.Image — отдельная история
-// ─────────────────────────────────────────────
-
-export const AvatarImageStory: Story = {
-  name: "Avatar.Image",
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "`Avatar.Image` — изображение аватара (`aspect-square size-full object-cover`). " +
-          "Принимает все стандартные пропсы `<img>`: `src`, `alt`, `className`, `onLoad`, `onError`.\n\n" +
-          "Пока изображение загружается или если URL недоступен — автоматически показывается `Avatar.Fallback`.",
-      },
-    },
-  },
+/**
+ * Группа аватаров команды интервьюеров.
+ */
+export const AvatarGroup: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 12 }}>
-      <Avatar size="lg">
-        <Avatar.Image src="https://github.com/shadcn.png" alt="Shadcn" />
-        <Avatar.Fallback>SC</Avatar.Fallback>
+    <div className="flex -space-x-2 overflow-hidden">
+      <Avatar size="md" className="ring-2 ring-background">
+        <Avatar.Fallback>АС</Avatar.Fallback>
       </Avatar>
-      <Avatar size="lg">
-        <Avatar.Image src="https://invalid-url.xyz/nope.jpg" alt="Broken" />
-        <Avatar.Fallback>?</Avatar.Fallback>
+      <Avatar size="md" className="ring-2 ring-background">
+        <Avatar.Fallback>ЕВ</Avatar.Fallback>
       </Avatar>
-    </div>
-  ),
-};
-
-// ─────────────────────────────────────────────
-// Avatar.Fallback — отдельная история
-// ─────────────────────────────────────────────
-
-export const AvatarFallbackStory: Story = {
-  name: "Avatar.Fallback",
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "`Avatar.Fallback` — запасной контент, отображаемый когда `Avatar.Image` " +
-          "не загрузилось или отсутствует. Обычно содержит инициалы (1–2 буквы).\n\n" +
-          "Принимает все стандартные пропсы `<span>`: `children`, `className`, `style`. " +
-          "Базовый стиль: `bg-muted`, `font-medium`, `rounded-full`.",
-      },
-    },
-  },
-  render: () => (
-    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <Avatar size="sm">
-        <Avatar.Fallback>А</Avatar.Fallback>
+      <Avatar size="md" className="ring-2 ring-background">
+        <Avatar.Fallback>ДК</Avatar.Fallback>
       </Avatar>
-      <Avatar size="md">
-        <Avatar.Fallback>ИИ</Avatar.Fallback>
-      </Avatar>
-      <Avatar size="lg">
-        <Avatar.Fallback>МК</Avatar.Fallback>
-      </Avatar>
-      <Avatar size="md">
-        <Avatar.Fallback className="bg-blue-100 text-blue-700">
-          AI
-        </Avatar.Fallback>
+      <Avatar
+        size="md"
+        className="ring-2 ring-background bg-muted text-muted-foreground font-semibold"
+      >
+        <Avatar.Fallback>+3</Avatar.Fallback>
       </Avatar>
     </div>
   ),
