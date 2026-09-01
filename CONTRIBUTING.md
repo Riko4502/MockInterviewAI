@@ -47,8 +47,8 @@ pnpm dev
 | **API** (NestJS) | [http://localhost:3001](http://localhost:3001) | REST API бэкенда ([Healthcheck](http://localhost:3001/api/v1/health)) |
 | **Swagger UI** | [http://localhost:3001/docs](http://localhost:3001/docs) | Интерактивная документация API (OpenAPI 3.0) |
 | **Realtime** (Go) | `ws://localhost:8080` | Высоконагруженный WebSocket-сервис |
-| **Landing** (Astro) | [http://localhost:4321](http://localhost:4321) | Публичный маркетинговый сайт и SEO |
-| **Storybook** | [http://localhost:6006](http://localhost:6006) | Изолированная витрина компонентов (`pnpm --filter ui-docs storybook`) |
+| **Landing** (Next.js) | [http://localhost:4321](http://localhost:4321) | Публичный маркетинговый сайт и SEO |
+| **Storybook** | [http://localhost:6006](http://localhost:6006) | Изолированная витрина компонентов (`pnpm --filter @packages/ui storybook`) |
 
 ---
 
@@ -101,7 +101,7 @@ pnpm lint && pnpm test
 * [**Обзор архитектуры**](./docs/frontend/architecture/overview.md) — структура монорепозитория, границы приложений и пакетов.
 * [**Feature-Sliced Design (FSD)**](./docs/frontend/architecture/fsd.md) — правила слоев, слайсов и импортов.
 * [**Next.js App Router**](./docs/frontend/architecture/nextjs.md) — интеграция FSD с Next.js, Server vs Client Components.
-* [**Astro Landing**](./docs/frontend/architecture/astro.md) — архитектура маркетингового лендинга.
+* [**Landing Architecture**](./docs/frontend/architecture/landing.md) — архитектура маркетингового лендинга (Next.js).
 
 ### 🎨 UI и стили
 * [**UI Kit & shadcn/ui**](./docs/frontend/ui/ui-kit.md) — работа с `@packages/ui`, добавление shadcn компонентов, Decision Tree.

@@ -128,7 +128,12 @@ const meta = {
     size: {
       control: "select",
       options: ["xs", "sm", "md", "lg", "xl"],
-      description: "Размер иконки (size variant)",
+      description:
+        "Размер иконки. `xs` — 12px; `sm` — 16px; `md` — 20px (по умолчанию); `lg` — 24px; `xl` — 32px.",
+      table: {
+        type: { summary: '"xs" | "sm" | "md" | "lg" | "xl"' },
+        defaultValue: { summary: '"md"' },
+      },
     },
   },
 } satisfies Meta<typeof IconGallery>;

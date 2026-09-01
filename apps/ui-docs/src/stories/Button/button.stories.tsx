@@ -26,6 +26,15 @@ const meta = {
         "destructive",
         "link",
       ],
+      description:
+        "Визуальный стиль кнопки. `default` — основная; `outline` — контурная; `secondary` — вторичная; `success` — успех; `ghost` — прозрачная; `destructive` — опасное действие; `link` — ссылка.",
+      table: {
+        type: {
+          summary:
+            '"default" | "outline" | "secondary" | "success" | "ghost" | "destructive" | "link"',
+        },
+        defaultValue: { summary: '"default"' },
+      },
     },
     size: {
       control: "select",
@@ -39,10 +48,67 @@ const meta = {
         "icon-sm",
         "icon-lg",
       ],
+      description:
+        "Размер кнопки. `default` — 32px; `xs` — 24px; `sm` — 28px; `lg` — 36px. Варианты `icon*` — квадратные кнопки-иконки.",
+      table: {
+        type: {
+          summary:
+            '"default" | "xs" | "sm" | "lg" | "icon" | "icon-xs" | "icon-sm" | "icon-lg"',
+        },
+        defaultValue: { summary: '"default"' },
+      },
     },
     rounded: {
       control: "select",
       options: ["default", "square", "small"],
+      description:
+        "Скругление углов. `default` — rounded-md; `square` — без скругления; `small` — минимальное скругление.",
+      table: {
+        type: { summary: '"default" | "square" | "small"' },
+        defaultValue: { summary: '"default"' },
+      },
+    },
+    asChild: {
+      control: "boolean",
+      description:
+        "Заменяет `<button>` дочерним элементом (паттерн Radix `asChild`). Полезно для обёртки ссылок `<a>` или компонентов роутера.",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
+    },
+    children: {
+      control: "text",
+      description: "Содержимое кнопки — текст, иконка или любой JSX.",
+      table: { type: { summary: "ReactNode" } },
+    },
+    disabled: {
+      control: "boolean",
+      description:
+        "Блокирует кнопку. Снижает прозрачность и отключает события указателя.",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
+    },
+    type: {
+      control: "select",
+      options: ["button", "submit", "reset"],
+      description: "HTML-атрибут `type` тега `<button>`.",
+      table: {
+        type: { summary: '"button" | "submit" | "reset"' },
+        defaultValue: { summary: '"button"' },
+      },
+    },
+    onClick: {
+      action: "clicked",
+      description: "Обработчик клика.",
+      table: { type: { summary: "MouseEventHandler<HTMLButtonElement>" } },
+    },
+    className: {
+      control: "text",
+      description: "Дополнительные CSS-классы.",
+      table: { type: { summary: "string" } },
     },
   },
 } satisfies Meta<typeof Button>;

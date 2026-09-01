@@ -2,16 +2,16 @@
 
 Промо-лендинг платформы проведения технических и мок-интервью **MockInterviewAI** (**DEVSYNC**).
 
-Построен на базе **Astro** в режиме генерации статического контента (SSG/SSR) с нулевым JavaScript-оверхедом для достижения максимальной производительности (100/100 в Google Lighthouse), 100% покрытием интернационализацией (RU / EN), централизованной маршрутизацией на веб-приложение/поддомен и переиспользованием дизайн-токенов из `@packages/ui`.
+Построен на базе **Next.js** (App Router, React 19, TypeScript) в режиме статического экспорта (`output: "export"`) для максимальной производительности, 100% покрытия интернационализацией (RU / EN), централизованной маршрутизации на веб-приложение/поддомен и переиспользования дизайн-токенов из `@packages/ui` и `@packages/tailwind-config`.
 
 ---
 
 ## 🛠 Стек технологий
 
-- **Фреймворк:** [Astro](https://astro.build/) (v5+)
-- **Стилизация:** [Tailwind CSS](https://tailwindcss.com/) (v4 via `@tailwindcss/vite`)
-- **Дизайн-система:** `@packages/ui` (единые CSS-токены, переменные цветов OKLCH и радиусы)
-- **Интернационализация (i18n):** Нативная поддержка роутинга Astro (`/` — RU, `/en` — EN)
+- **Фреймворк:** [Next.js](https://nextjs.org/) 16+ (App Router, React 19)
+- **Стилизация:** [Tailwind CSS](https://tailwindcss.com/) v4 (`@tailwindcss/postcss`)
+- **Дизайн-система:** `@packages/ui`, `@packages/tailwind-config` (единые CSS-токены, переменные цветов OKLCH и радиусы)
+- **Интернационализация (i18n):** Роутинг App Router (`/` — RU, `/en` — EN)
 - **Тестирование:** [Vitest](https://vitest.dev/) (тесты целостности словарей переводов и роутинга ссылок)
 - **Веб-сервер и контейнеризация:** Nginx Alpine, Docker multi-stage build
 
@@ -22,32 +22,34 @@
 ```text
 apps/landing/
 ├── src/
+│   ├── app/
+│   │   ├── layout.tsx                # Корневой layout, шрифты, метаданные
+│   │   ├── page.tsx                  # Русскоязычная версия (/)
+│   │   └── en/
+│   │       └── page.tsx              # Англоязычная версия (/en)
 │   ├── components/
 │   │   ├── how-it-works/             # Декомпозированные этапы секции «Как это работает»
-│   │   │   ├── StepTrackSelect.astro # Шаг 01: Выбор трека и специализации
-│   │   │   ├── StepAiInterview.astro # Шаг 02: Видео-комната с эквалайзером ИИ
-│   │   │   ├── StepLiveCoding.astro  # Шаг 03: Live coding sandbox и автотесты
-│   │   │   └── StepScorecard.astro   # Шаг 04: Аналитический скоркард сессии
-│   │   ├── CTA.astro                 # Секция призыва к действию (Call-to-Action)
-│   │   ├── Features.astro            # Bento Grid с возможностями платформы
-│   │   ├── Footer.astro              # Футер со статусом платформы и навигацией
-│   │   ├── Hero.astro                # Первый экран с интерактивным макетом IDE
-│   │   ├── HowItWorks.astro          # Главный оркестратор секции шагов
-│   │   ├── LandingPage.astro         # Базовый HTML-шаблон и сборка страницы
-│   │   └── Navbar.astro              # Шапка со сменой языка и мобильным меню
+│   │   │   ├── StepTrackSelect.tsx   # Шаг 01: Выбор трека и специализации
+│   │   │   ├── StepAiInterview.tsx   # Шаг 02: Видео-комната с эквалайзером ИИ
+│   │   │   ├── StepLiveCoding.tsx    # Шаг 03: Live coding sandbox и автотесты
+│   │   │   └── StepScorecard.tsx     # Шаг 04: Аналитический скоркард сессии
+│   │   ├── CTA.tsx                   # Секция призыва к действию (Call-to-Action)
+│   │   ├── Features.tsx              # Bento Grid с возможностями платформы
+│   │   ├── Footer.tsx                # Футер со статусом платформы и навигацией
+│   │   ├── Hero.tsx                  # Первый экран с интерактивным макетом IDE
+│   │   ├── HowItWorks.tsx            # Главный оркестратор секции шагов
+│   │   ├── LandingPage.tsx           # Базовая сборка страницы
+│   │   └── Navbar.tsx                # Шапка со сменой языка и мобильным меню
 │   ├── config/
 │   │   ├── navigation.ts             # Централизованные ссылки входа/регистрации (getAuthUrl)
 │   │   └── navigation.test.ts        # Unit-тесты генерации ссылок и работы с поддоменами
 │   ├── i18n/
 │   │   ├── ui.ts                     # Словари локализации (RU / EN) и утилиты
 │   │   └── ui.test.ts                # Тесты 100% паритета ключей RU/EN
-│   ├── pages/
-│   │   ├── en/
-│   │   │   └── index.astro           # Англоязычная версия (/en)
-│   │   └── index.astro               # Русскоязычная версия (/)
 │   └── styles/
 │       └── globals.css               # Импорт @packages/ui и эффекты (Glassmorphism, Glow)
-├── astro.config.mjs                  # Конфигурация Astro, i18n и Tailwind Vite plugin
+├── next.config.ts                    # Конфигурация Next.js (output: 'export', distDir: 'dist')
+├── postcss.config.mjs                # Конфигурация PostCSS и Tailwind v4
 ├── vitest.config.ts                  # Конфигурация Vitest для тестов
 ├── Dockerfile                        # Multi-stage сборка (Node builder + Nginx runtime)
 ├── nginx.conf                        # Конфигурация Nginx для отдачи статики
@@ -129,7 +131,7 @@ pnpm dev:landing
 # Сборка статического сайта в dist/
 pnpm build:landing
 
-# Проверка типов TypeScript и Astro
+# Проверка типов TypeScript
 pnpm --filter landing check
 
 # Запуск тестов
