@@ -1,8 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "astro",
+  "framework": "nextjs",
   "buildCommand": "pnpm turbo build --filter=landing",
-  "outputDirectory": "dist",
   "installCommand": "pnpm install",
   "ignoreCommand": "bash ../../scripts/vercel-ignore-landing.sh"
 }

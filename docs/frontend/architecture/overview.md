@@ -8,7 +8,7 @@ Frontend монорепозитория разделен на приложени
 monorepo/
 ├── apps/
 │   ├── web/           # Основное продуктовое веб-приложение (Next.js App Router)
-│   └── landing/       # Публичный маркетинговый сайт и SEO (Astro)
+│   └── landing/       # Публичный маркетинговый сайт и SEO (Next.js)
 │
 └── packages/
     ├── ui/            # UI Kit на базе shadcn/ui + Tailwind CSS (@packages/ui)
