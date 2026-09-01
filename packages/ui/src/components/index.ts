@@ -12,6 +12,7 @@ export * from "./InputGroup";
 export * from "./Label";
 export * from "./Pagination";
 export * from "./Select";
+export * from "./Separator";
 export * from "./Spin";
 export * from "./Switch";
 export * from "./Table";
