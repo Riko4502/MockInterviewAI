@@ -68,7 +68,7 @@
 Перед началом работы убедитесь, что у вас установлены:
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Go:** >= 1.26.6 (для сервиса Realtime)
+* **Go (Golang):** >= 1.26+ (необходим для полной сборки всех сервисов `pnpm build`, запуска всех тестов `pnpm test` и работы сервиса `apps/realtime`)
 * **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis и MinIO
 
 ---
