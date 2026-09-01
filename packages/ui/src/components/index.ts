@@ -17,3 +17,4 @@ export * from "./Spin";
 export * from "./Switch";
 export * from "./Table";
 export * from "./Textarea";
+export * from "./Typography";
