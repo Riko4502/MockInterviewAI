@@ -462,6 +462,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@packages/icons':
+        specifier: workspace:*
+        version: link:../icons
       '@packages/tailwind-config':
         specifier: workspace:*
         version: link:../tailwind-config
