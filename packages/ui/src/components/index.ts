@@ -5,6 +5,7 @@ export * from "./Button";
 export * from "./ButtonGroup";
 export * from "./Card";
 export * from "./Checkbox";
+export * from "./DatePicker";
 export * from "./Empty";
 export * from "./Form";
 export * from "./Input";
