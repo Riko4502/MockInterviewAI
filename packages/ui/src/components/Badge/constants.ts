@@ -1,4 +1,4 @@
-import { cva } from "class-variance-authority";
+import { cva } from "@packages/utils";
 
 export const badgeVariants = cva("inline-flex items-center justify-center", {
   variants: {

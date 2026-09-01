@@ -25,7 +25,7 @@ export type PaginationLinkProps = {
    * @default false
    */
   isActive?: boolean;
-} & Pick<ButtonProps, "size" | "variant" | "rounded"> &
+} & Partial<Pick<ButtonProps, "size" | "variant" | "rounded">> &
   React.ComponentProps<"a">;
 
 /**

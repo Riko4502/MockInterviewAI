@@ -1,4 +1,4 @@
-import { cva } from "class-variance-authority";
+import { cva } from "@packages/utils";
 
 /**
  * Варианты стилей анимации и размеров индикатора загрузки.

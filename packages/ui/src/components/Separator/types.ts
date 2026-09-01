@@ -1,4 +1,4 @@
-import type { VariantProps } from "class-variance-authority";
+import type { VariantProps } from "@packages/utils";
 import type { Separator as SeparatorPrimitive } from "radix-ui";
 import type * as React from "react";
 import type { separatorVariants } from "./constants";
