@@ -8,6 +8,7 @@ export * from "./Checkbox";
 export * from "./Form";
 export * from "./Input";
 export * from "./Input";
+export * from "./Progress";
 export * from "./Select";
 export * from "./Switch";
 export * from "./Table";
