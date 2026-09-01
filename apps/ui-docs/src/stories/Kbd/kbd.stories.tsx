@@ -28,19 +28,19 @@ import { Kbd } from "@packages/ui";
   },
   tags: ["autodocs"],
   argTypes: {
+    variant: {
+      control: "select",
+      options: ["default", "outline"],
+      description: "Визуальный стиль клавиши.",
+    },
     size: {
       control: "select",
       options: ["default", "sm"],
       description: "Размер компонента.",
-      table: {
-        type: { summary: '"default" | "sm"' },
-        defaultValue: { summary: '"default"' },
-      },
     },
     children: {
       control: "text",
       description: "Содержимое — название клавиши.",
-      table: { type: { summary: "ReactNode" } },
     },
   },
   args: {
@@ -77,5 +77,15 @@ export const Small: Story = {
   args: {
     size: "sm",
     children: "Esc",
+  },
+};
+
+/**
+ * Вариант без заливки — только рамка.
+ */
+export const Outline: Story = {
+  args: {
+    variant: "outline",
+    children: "Alt",
   },
 };

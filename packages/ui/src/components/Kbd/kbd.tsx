@@ -5,11 +5,11 @@ import type { KbdProps } from "./types";
 /**
  * Компонент для отображения клавиш клавиатуры (например, в подсказках горячих клавиш: Ctrl + K).
  */
-function Kbd({ className, size, ...props }: KbdProps) {
+function Kbd({ className, variant, size, ...props }: KbdProps) {
   return (
     <kbd
       data-slot="kbd"
-      className={cn(kbdVariants({ size }), className)}
+      className={cn(kbdVariants({ variant, size }), className)}
       {...props}
     />
   );
