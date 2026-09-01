@@ -761,6 +761,11 @@ describe("AuthService", () => {
 
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
       expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(publish.mock.calls[0][1]).not.toContain("sessionId");
     });
 
     it("Redis unavailable → 500 без внутренних деталей", async () => {
@@ -813,6 +818,11 @@ describe("AuthService", () => {
       );
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
       expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(publish.mock.calls[0][1]).not.toContain("sessionId");
     });
 
     it("неверный currentPassword → generic 401, пароль не обновляется, сессии не отзываются", async () => {

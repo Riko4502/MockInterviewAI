@@ -311,6 +311,9 @@ export class AuthService implements OnModuleInit {
   async logoutAll(userId: string): Promise<void> {
     try {
       await this.sessionService.revokeAllUserSessions(userId);
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
+      await publishUserRevocation(this.redisService, userId);
     } catch (error) {
       this.logger.error(
         "Redis unavailable during logoutAll",
@@ -371,6 +374,9 @@ export class AuthService implements OnModuleInit {
 
     try {
       await this.sessionService.revokeAllUserSessions(userId);
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на пароль.
+      await publishUserRevocation(this.redisService, userId);
     } catch (error) {
       this.logger.error(
         "Redis unavailable during changePassword — sessions not revoked",
