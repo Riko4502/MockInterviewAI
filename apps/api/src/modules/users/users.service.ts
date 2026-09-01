@@ -48,7 +48,12 @@ const PUBLIC_PROFILE_SELECT = {
 } as const;
 
 /**
- * Сервис управления пользователями и профилями.
+ * Сервис управления пользователями и профилями (§9, §10 SPEC.md).
+ *
+ * Предоставляет поиск по email, id и username, создание пользователя,
+ * обновление хеша пароля и управление профилями (§9, §10 SPEC.md).
+ * Работает уже с захешированным паролем — хеширование
+ * является ответственностью вызывающего модуля (AuthService).
  */
 @Injectable()
 export class UsersService {
@@ -96,6 +101,21 @@ export class UsersService {
    */
   async create(data: { email: string; passwordHash: string }): Promise<User> {
     return this.prisma.user.create({ data });
+  }
+
+  /**
+   * Обновляет хеш пароля пользователя (§67 SPEC.md).
+   *
+   * @param id - UUID пользователя.
+   * @param passwordHash - Новый Argon2id хеш пароля.
+   * @returns Обновлённый объект пользователя.
+   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
   }
 
   /**

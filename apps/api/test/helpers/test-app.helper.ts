@@ -36,11 +36,21 @@ export async function startTestApp(): Promise<StartedApp> {
   };
 }
 
+/** Мок Redis-методов для имитации недоступного Redis. */
+export interface RedisMock {
+  set: jest.Mock;
+  get: jest.Mock;
+  delete: jest.Mock;
+  expire: jest.Mock;
+  ping: jest.Mock;
+  scanKeys: jest.Mock;
+}
+
 /** Мок `RedisService`, эмулирующий недоступный Redis (§48 SPEC.md). */
 export interface RedisDownHandles {
   app: INestApplication;
   prisma: PrismaService;
-  redisMock: Record<"set" | "get" | "delete" | "expire" | "ping", jest.Mock>;
+  redisMock: RedisMock;
 }
 
 /**
@@ -57,6 +67,7 @@ export async function startTestAppWithRedisDown(): Promise<RedisDownHandles> {
     delete: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
     expire: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
     ping: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
+    scanKeys: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
   };
 
   const moduleRef = await Test.createTestingModule({

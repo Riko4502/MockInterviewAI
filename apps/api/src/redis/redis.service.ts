@@ -186,6 +186,34 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Возвращает ключи, соответствующие шаблону, через SCAN-итерацию.
+   *
+   * Итерация выполняется через `scanStream` (пагинация курсором скрыта),
+   * собранные ключи возвращаются массивом. Гарантирует неблокирующий обход
+   * по сравнению с `KEYS` и не требует выделения всех ключей в память разом
+   * (ключи собираются пачками из стрима).
+   *
+   * @param pattern - Redis-шаблон (например `auth:session:*`).
+   * @param count - Размер пачки SCAN (`COUNT`), опционально (дефолт 100).
+   * @returns Массив ключей, соответствовавших шаблону.
+   * @throws {Error} При ошибке Redis (в т.ч. ошибке эмиссии стрима).
+   */
+  scanKeys(pattern: string, count = 100): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      const stream = this.client.scanStream({ match: pattern, count });
+      const keys: string[] = [];
+
+      stream.on("data", (chunk: string[]) => {
+        if (Array.isArray(chunk)) {
+          keys.push(...chunk);
+        }
+      });
+      stream.on("end", () => resolve(keys));
+      stream.on("error", (error: Error) => reject(error));
+    });
+  }
+
+  /**
    * Публикует сообщение в Redis-канал Pub/Sub.
    *
    * @param channel - Имя канала.
