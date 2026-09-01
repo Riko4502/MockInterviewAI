@@ -8,6 +8,57 @@ const meta = {
     layout: "centered",
   },
   tags: ["autodocs"],
+  argTypes: {
+    placeholder: {
+      control: "text",
+      description: "Текст подсказки, отображаемый при пустом значении.",
+      table: { type: { summary: "string" } },
+    },
+    value: {
+      control: "text",
+      description: "Управляемое значение поля (требует `onChange`).",
+      table: { type: { summary: "string" } },
+    },
+    defaultValue: {
+      control: "text",
+      description: "Неуправляемое начальное значение поля.",
+      table: { type: { summary: "string" } },
+    },
+    rows: {
+      control: "number",
+      description:
+        "Количество видимых строк. По умолчанию минимальная высота задана через CSS (120px).",
+      table: { type: { summary: "number" } },
+    },
+    disabled: {
+      control: "boolean",
+      description:
+        "Блокирует поле. Снижает прозрачность и отключает взаимодействие.",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
+    },
+    "aria-invalid": {
+      control: "boolean",
+      description:
+        "Обозначает поле как невалидное. Меняет цвет рамки на красный.",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
+    },
+    onChange: {
+      action: "changed",
+      description: "Обработчик изменения значения поля.",
+      table: { type: { summary: "ChangeEventHandler<HTMLTextAreaElement>" } },
+    },
+    className: {
+      control: "text",
+      description: "Дополнительные CSS-классы.",
+      table: { type: { summary: "string" } },
+    },
+  },
   decorators: [
     (Story) => (
       <div style={{ width: 320 }}>

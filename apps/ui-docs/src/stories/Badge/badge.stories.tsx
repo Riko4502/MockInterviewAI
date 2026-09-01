@@ -20,6 +20,25 @@ const meta = {
         "ready",
         "waiting",
       ],
+      description:
+        "Вариант бейджа. `tag` — обычный тег; `statusSuccess` — успех; `statusInfo` — инфо; `statusDanger` — ошибка; `confirmed` — подтверждено; `ready` — готово; `waiting` — ожидание.",
+      table: {
+        type: {
+          summary:
+            '"tag" | "statusSuccess" | "statusInfo" | "statusDanger" | "confirmed" | "ready" | "waiting"',
+        },
+        defaultValue: { summary: "undefined" },
+      },
+    },
+    children: {
+      control: "text",
+      description: "Текст или JSX-содержимое внутри бейджа.",
+      table: { type: { summary: "ReactNode" } },
+    },
+    className: {
+      control: "text",
+      description: "Дополнительные CSS-классы.",
+      table: { type: { summary: "string" } },
     },
   },
   args: {
