@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    name: "Сборка и публикация образа Landing (Astro / Nginx)"
+    name: "Сборка и публикация образа Landing (Next.js / Nginx)"
     runs-on: ubuntu-latest
     steps:
       - name: "Клонирование репозитория"
