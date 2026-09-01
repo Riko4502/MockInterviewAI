@@ -1,4 +1,4 @@
-export { Avatar, AvatarFallback, AvatarImage } from "./avatar";
+export { Avatar } from "./avatar";
 export { avatarVariants } from "./constants";
 export type {
   AvatarFallbackProps,

@@ -11,9 +11,18 @@ import type {
   TableRowProps,
 } from "./types";
 
-function TableRoot({ className, ...props }: TableProps) {
+function TableRoot({
+  className,
+  containerClassName,
+  containerStyle,
+  ...props
+}: TableProps) {
   return (
-    <div data-slot="table-container" className={TABLE_STYLES.container}>
+    <div
+      data-slot="table-container"
+      style={containerStyle}
+      className={cn(TABLE_STYLES.container, containerClassName)}
+    >
       <table
         data-slot="table"
         className={cn(TABLE_STYLES.root, className)}

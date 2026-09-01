@@ -5,8 +5,8 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import type { Request } from "express";
-import type { AuthSessionService } from "../../modules/auth/services/auth-session.service";
-import type { TokenService } from "../../modules/auth/services/token.service";
+import { AuthSessionService } from "../../modules/auth/services/auth-session.service";
+import { TokenService } from "../../modules/auth/services/token.service";
 
 /**
  * Гард JWT-аутентификации.

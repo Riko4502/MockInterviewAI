@@ -1,29 +1,42 @@
 import { Accordion } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
+/**
+ * Метаданные компонента Accordion для Storybook.
+ */
 const meta = {
-  title: "UI/Accordion",
+  title: "Components/Accordion",
   component: Accordion,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component: `
-Составной компонент: **Accordion** (корень) + **Accordion.Item** + **Accordion.Trigger** + **Accordion.Content**.
+### **Accordion** — раскрывающийся аккордеон
 
-**Как собирать:**
+Компонент для компактного отображения большого объема информации в виде сворачиваемых секций (FAQ, критерии оценки, этапы собеседования). Построен на базе доступного примитива \`radix-ui\` с плавной анимацией высоты.
+
+---
+
+### **Установка и импорт**
 \`\`\`tsx
-<Accordion type="single" collapsible>
+import { Accordion } from "@packages/ui";
+\`\`\`
+
+---
+
+### **Базовый пример использования**
+\`\`\`tsx
+<Accordion type="single" collapsible className="w-full">
   <Accordion.Item value="item-1">
-    <Accordion.Trigger>Заголовок</Accordion.Trigger>
-    <Accordion.Content>Содержимое</Accordion.Content>
+    <Accordion.Trigger>Что оценивает AI-ассистент?</Accordion.Trigger>
+    <Accordion.Content>
+      AI анализирует глубину понимания архитектуры, чистоту кода и алгоритмическую сложность.
+    </Accordion.Content>
   </Accordion.Item>
 </Accordion>
 \`\`\`
-
-Каждый \`Accordion.Item\` обязательно должен иметь уникальный проп \`value\` — по нему компонент
-понимает, какой именно пункт сейчас открыт.
-        `,
+`,
       },
     },
   },
@@ -39,104 +52,107 @@ const meta = {
     collapsible: {
       control: "boolean",
       description:
-        'Только для type="single": разрешает закрыть уже открытый пункт повторным кликом. По умолчанию false — тогда всегда должен оставаться открытым ровно один пункт.',
+        'Только для type="single": разрешает закрыть уже открытый пункт повторным кликом.',
       table: { category: "Accordion (Root)" },
     },
     disabled: {
       control: "boolean",
-      description:
-        "Блокирует весь аккордеон целиком — все пункты сразу перестают реагировать на клики.",
+      description: "Блокирует весь аккордеон целиком.",
       table: { category: "Accordion (Root)" },
     },
-    defaultValue: {
-      control: false,
-      description:
-        'Значение(-я) открытого(-ых) пункта(-ов) по умолчанию, неконтролируемый режим. Строка для type="single", массив строк для type="multiple".',
-      table: { category: "Accordion (Root)" },
-    },
-    value: {
-      control: false,
-      description:
-        "Контролируемое значение открытого(-ых) пункта(-ов) — используется вместе с onValueChange.",
-      table: { category: "Accordion (Root)" },
-    },
-    onValueChange: {
-      control: false,
-      description:
-        "Коллбэк, вызывается при изменении открытого(-ых) пункта(-ов) (контролируемый режим).",
-      table: { category: "Accordion (Root)" },
-    },
+  },
+  args: {
+    type: "single",
+    collapsible: true,
   },
 } satisfies Meta<typeof Accordion>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * Стандартный аккордеон с единственным открываемым пунктом (Single collapsible).
+ */
 export const Default: Story = {
-  args: { type: "single" },
+  args: {
+    type: "single",
+    collapsible: true,
+  },
   render: () => (
-    <Accordion type="single" collapsible className="w-96">
-      <Accordion.Item value="item-1">
-        <Accordion.Trigger>Что такое MockInterviewAI?</Accordion.Trigger>
-        <Accordion.Content>
-          Сервис для проведения технических и мок-интервью в реальном времени.
-        </Accordion.Content>
-      </Accordion.Item>
-      <Accordion.Item value="item-2">
-        <Accordion.Trigger>Как создать сессию?</Accordion.Trigger>
-        <Accordion.Content>
-          Нажмите кнопку «Создать сессию» и пригласите участников по ссылке.
-        </Accordion.Content>
-      </Accordion.Item>
-      <Accordion.Item value="item-3">
-        <Accordion.Trigger>
-          Можно ли получить подсказку от ИИ?
-        </Accordion.Trigger>
-        <Accordion.Content>
-          Да, доступно до 3 подсказок за одно собеседование.
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion>
+    <div className="w-[500px] max-w-full">
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue="faq-1"
+        className="w-full"
+      >
+        <Accordion.Item value="faq-1">
+          <Accordion.Trigger>Как проходит AI-интервью?</Accordion.Trigger>
+          <Accordion.Content>
+            Интервью включает текстовые или голосовые вопросы от AI,
+            практическую секцию кодинга в реальном времени и моментальный разбор
+            ответов.
+          </Accordion.Content>
+        </Accordion.Item>
+
+        <Accordion.Item value="faq-2">
+          <Accordion.Trigger>
+            Какие языки программирования поддерживаются?
+          </Accordion.Trigger>
+          <Accordion.Content>
+            В песочнице поддерживаются TypeScript, JavaScript, Python, Go, Java,
+            C++, Rust и C#.
+          </Accordion.Content>
+        </Accordion.Item>
+
+        <Accordion.Item value="faq-3">
+          <Accordion.Trigger>
+            Как формируется итоговая оценка кандидата?
+          </Accordion.Trigger>
+          <Accordion.Content>
+            Оценка рассчитывается на основе точности решения тестов,
+            асимптотической сложности (Big O), читаемости кода и времени
+            решения.
+          </Accordion.Content>
+        </Accordion.Item>
+      </Accordion>
+    </div>
   ),
 };
 
-export const Multiple: Story = {
-  args: { type: "multiple" },
+/**
+ * Режим с возможностью открытия нескольких пунктов одновременно (Multiple).
+ */
+export const MultipleOpen: Story = {
+  args: {
+    type: "multiple",
+  },
   render: () => (
-    <Accordion type="multiple" className="w-96">
-      <Accordion.Item value="item-1">
-        <Accordion.Trigger>Пункт 1</Accordion.Trigger>
-        <Accordion.Content>
-          В режиме «multiple» можно раскрыть сразу несколько пунктов
-          одновременно.
-        </Accordion.Content>
-      </Accordion.Item>
-      <Accordion.Item value="item-2">
-        <Accordion.Trigger>Пункт 2</Accordion.Trigger>
-        <Accordion.Content>
-          Второй раскрывающийся блок — попробуй открыть оба сразу.
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion>
-  ),
-};
+    <div className="w-[500px] max-w-full">
+      <Accordion
+        type="multiple"
+        defaultValue={["sec-1", "sec-2"]}
+        className="w-full"
+      >
+        <Accordion.Item value="sec-1">
+          <Accordion.Trigger>
+            Секция 1: Алгоритмические задачи
+          </Accordion.Trigger>
+          <Accordion.Content>
+            3 задачи среднего уровня сложности (LeetCode Medium).
+          </Accordion.Content>
+        </Accordion.Item>
 
-export const WithDisabledItem: Story = {
-  args: { type: "single" },
-  render: () => (
-    <Accordion type="single" collapsible className="w-96">
-      <Accordion.Item value="item-1">
-        <Accordion.Trigger>Доступный пункт</Accordion.Trigger>
-        <Accordion.Content>
-          Этот пункт можно раскрыть как обычно.
-        </Accordion.Content>
-      </Accordion.Item>
-      <Accordion.Item value="item-2" disabled>
-        <Accordion.Trigger>Отключённый пункт</Accordion.Trigger>
-        <Accordion.Content>
-          Этот текст не должен быть виден — пункт заблокирован.
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion>
+        <Accordion.Item value="sec-2">
+          <Accordion.Trigger>
+            Секция 2: Проектирование систем (System Design)
+          </Accordion.Trigger>
+          <Accordion.Content>
+            Архитектурный кейс проектирования распределенного хранилища с
+            репликацией.
+          </Accordion.Content>
+        </Accordion.Item>
+      </Accordion>
+    </div>
   ),
 };

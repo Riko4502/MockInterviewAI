@@ -1,4 +1,4 @@
-import { cva } from "class-variance-authority";
+import { cva } from "@packages/utils";
 
 export const ICON_SIZE_MAP = {
   xs: "size-3",
