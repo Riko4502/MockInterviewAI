@@ -150,7 +150,9 @@ export class SessionsService {
 
   /**
    * Восстанавливает зеркало ACTIVE-сессий из Postgres после потери/flush Redis
-   * (P3). Выполняется периодически (ежечасно) — см. `SESSION_MIRROR_REFRESH_CRON`.
+   * (P3). Интервал захардкожен (`EVERY_HOUR`): `@nestjs/schedule` не позволяет
+   * вычислить выражение декоратора динамически из `ConfigService`.
+   * Если нужен другой интервал — замените `CronExpression` ниже.
    */
   @Cron(CronExpression.EVERY_HOUR, { name: "session-mirror-reconcile" })
   async reconcileMirrors(): Promise<void> {
