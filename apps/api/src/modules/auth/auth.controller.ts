@@ -18,6 +18,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import {
+  type ChangePasswordDto,
+  changePasswordSchema,
   type LoginDto,
   loginSchema,
   type RegisterDto,
@@ -282,6 +284,59 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     await this.authService.logoutAll(request.user.sub);
+    this.clearRefreshTokenCookie(response);
+  }
+
+  /**
+   * Сменяет пароль авторизованного пользователя (§67 SPEC.md).
+   *
+   * Endpoint защищён глобальным `AccessTokenGuard` (не `@Public()`):
+   * доступен только с валидным access token в `Authorization`. `userId`
+   * берётся из `request.user.sub`. Тело валидируется `ZodValidationPipe`.
+   * При успехе все Redis-сессии пользователя отзываются и refresh cookie
+   * сбрасывается; ответ `204 No Content` (SPEC §67).
+   *
+   * @param request - HTTP-запрос с `request.user` (payload access token).
+   * @param dto - Валидированный DTO смены пароля.
+   * @param response - HTTP-ответ Express для очистки refresh cookie.
+   */
+  @Post("change-password")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ZodBody(changePasswordSchema)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Смена пароля (§67)" })
+  @ApiResponse({
+    status: 204,
+    description:
+      "Пароль обновлён, все сессии отозваны. Set-Cookie: refresh_token=; Expires=в прошлом — cookie сброшена (§67).",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO или новый пароль совпадает с текущим.",
+    schema: VALIDATION_ERROR_SCHEMA,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Неверный текущий пароль (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Пользователь не найден (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  async changePassword(
+    @Req() request: AuthRequest,
+    @Body(new ZodValidationPipe(changePasswordSchema)) dto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.changePassword(request.user.sub, dto);
     this.clearRefreshTokenCookie(response);
   }
 

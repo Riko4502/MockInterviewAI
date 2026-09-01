@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
@@ -59,7 +61,9 @@ function createConfigService(): ConfigService {
 describe("AuthService", () => {
   let service: AuthService;
   let findByEmail: jest.Mock;
+  let findById: jest.Mock;
   let createUser: jest.Mock;
+  let updatePassword: jest.Mock;
   let generateAccessToken: jest.Mock;
   let generateRefreshToken: jest.Mock;
   let hashRefreshToken: jest.Mock;
@@ -77,7 +81,15 @@ describe("AuthService", () => {
     jest.clearAllMocks();
 
     findByEmail = jest.fn().mockResolvedValue(null);
+    findById = jest.fn().mockResolvedValue({
+      ...USER,
+      passwordHash: USER_PASSWORD_HASH,
+    });
     createUser = jest.fn().mockResolvedValue(USER);
+    updatePassword = jest.fn().mockResolvedValue({
+      ...USER,
+      passwordHash: "$argon2id$new-test-hash",
+    });
     generateAccessToken = jest.fn().mockReturnValue("raw.access.token");
     generateRefreshToken = jest.fn().mockReturnValue("raw.refresh.token");
     hashRefreshToken = jest.fn().mockReturnValue("stored.hmac.hash");
@@ -106,7 +118,12 @@ describe("AuthService", () => {
       .mockReturnValueOnce(TOKEN_FAMILY_ID);
 
     service = new AuthService(
-      { findByEmail, create: createUser } as unknown as UsersService,
+      {
+        findByEmail,
+        findById,
+        create: createUser,
+        updatePassword,
+      } as unknown as UsersService,
       {
         generateAccessToken,
         generateRefreshToken,
@@ -740,6 +757,119 @@ describe("AuthService", () => {
       expect(error).toBeInstanceOf(InternalServerErrorException);
       expect(error.getStatus()).toBe(500);
       expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+    });
+  });
+
+  describe("changePassword (§67 SPEC.md)", () => {
+    const CURRENT_PASSWORD = "OldPassword123!";
+    const NEW_PASSWORD = "NewPassword123!";
+    const DTO = {
+      currentPassword: CURRENT_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    };
+
+    beforeEach(() => {
+      (argon2.verify as jest.Mock).mockResolvedValue(true);
+      findById.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+      hashRefreshToken.mockReturnValue("stored.hmac.hash");
+    });
+
+    it("успех: хеширует новый пароль, обновляет PasswordHash и отзывает все сессии", async () => {
+      await service.changePassword(USER.id, DTO);
+
+      expect(findById).toHaveBeenCalledWith(USER.id);
+      expect(argon2.verify).toHaveBeenCalledWith(
+        USER_PASSWORD_HASH,
+        CURRENT_PASSWORD,
+      );
+      expect(argon2.hash).toHaveBeenCalledWith(NEW_PASSWORD, {
+        type: argon2.argon2id,
+        memoryCost: 19456,
+        timeCost: 2,
+        parallelism: 1,
+      });
+      expect(updatePassword).toHaveBeenCalledWith(
+        USER.id,
+        "$argon2id$test-hash",
+      );
+      expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+    });
+
+    it("неверный currentPassword → generic 401, пароль не обновляется, сессии не отзываются", async () => {
+      (argon2.verify as jest.Mock).mockResolvedValue(false);
+
+      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Неверные учётные данные",
+      });
+      expect(updatePassword).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
+    it("пользователь не найден → 404, verify/update/revoke не вызываются", async () => {
+      findById.mockResolvedValue(null);
+
+      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(error.getStatus()).toBe(404);
+      expect(error.getResponse()).toMatchObject({
+        message: "Пользователь не найден",
+      });
+      expect(argon2.verify).not.toHaveBeenCalled();
+      expect(updatePassword).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
+    it("currentPassword === newPassword → 400, пароль не обновляется", async () => {
+      const error = await service
+        .changePassword(USER.id, {
+          currentPassword: NEW_PASSWORD,
+          newPassword: NEW_PASSWORD,
+        })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.getStatus()).toBe(400);
+      expect(error.getResponse()).toMatchObject({
+        message: "Новый пароль должен отличаться от текущего",
+      });
+      expect(updatePassword).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
+    it("Redis недоступен при revoke → 500 без внутренних деталей", async () => {
+      revokeAllUserSessions.mockRejectedValue(
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect(error.getStatus()).toBe(500);
+      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+    });
+
+    it("password и токены не попадают в логи (§46)", async () => {
+      revokeAllUserSessions.mockRejectedValue(new Error("redis down"));
+      await service.changePassword(USER.id, DTO).catch(() => undefined);
+
+      const logged = JSON.stringify([
+        loggerErrorSpy.mock.calls,
+        loggerWarnSpy.mock.calls,
+        loggerDebugSpy.mock.calls,
+      ]);
+      expect(logged).not.toContain(CURRENT_PASSWORD);
+      expect(logged).not.toContain(NEW_PASSWORD);
+      expect(logged).not.toContain(USER_PASSWORD_HASH);
+      expect(logged).not.toContain("$argon2id$test-hash");
     });
   });
 });

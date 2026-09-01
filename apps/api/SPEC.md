@@ -4,6 +4,7 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
+| 1.6.0 | 2026-08-28 | Актуальный |
 | 1.5.0 | 2026-08-26 | Актуальный |
 | 1.4.0 | 2026-08-23 | Актуальный |
 | 1.3.0 | 2026-08-23 | Актуальный |
@@ -15,6 +16,7 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.6.0 | 2026-08-28 | Phase 15 «Auth: Change Password» (§67): реализован `/auth/change-password`; сообщения 4xx переведены на русский; уточнён шаг 6 §67 — отзываются ВСЕ сессии (включая текущую). |
 | 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
 | 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
 | 1.3.0 | 2026-08-23 | Добавлены разделы §61–§63: OpenAPI/Swagger документация, генерация спецификации и артефакты `apps/api/openapi`, zod v4 в `packages/dto`. |
@@ -753,10 +755,10 @@ Production secrets хранятся вне исходного кода (Secret M
 - Алгоритм:
   1. Извлечь `userId` из payload access token (`request.user.sub`).
   2. Найти пользователя по `userId` → не найден → `404 Not Found` (защита от удалённого пользователя).
-  3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Invalid credentials"`.
-  4. Если `currentPassword === newPassword` → `400 "New password must differ from current"`.
+  3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Неверные учётные данные"`.
+  4. Если `currentPassword === newPassword` → `400 "Новый пароль должен отличаться от текущего"`.
   5. `hashPassword(newPassword)` → обновить `passwordHash` в PostgreSQL.
-  6. Отозвать все сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (кроме текущей, определённой по `jti` access token).
+  6. Отозвать ВСЕ сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (включая текущую) — refresh cookie в любом случае сбрасывается, а access token (stateless) остаётся валидным до TTL; клиент вынужден пройти аутентификацию заново.
   7. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`, пароль не меняется (транзакция PostgreSQL + best-effort Redis).
