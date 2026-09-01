@@ -17,14 +17,17 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
+    "@packages/i18n": "workspace:^",
     "@packages/icons": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
+    "i18next": "^24.0.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.85.0",
+    "react-i18next": "^15.0.0",
     "socket.io-client": "^4.8.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
