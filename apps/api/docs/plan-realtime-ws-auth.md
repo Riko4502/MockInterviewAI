@@ -54,6 +54,18 @@ Phase B требует одновременного выката зеркала 
 
 ## Phase A — Ревокация
 
+> ✅ **Завершено** (2026-09-01).
+>
+> Примечания к реализации:
+> - `publishUserRevocation` (best-effort, `common/pubsub/revocation.ts`) добавлен в
+>   `logout`, `logoutAll`, `changePassword` и ветку replay-detection `refresh`;
+>   `sessionId` в сообщении — только при `closeSession` (room-scoped evict, P2).
+> - Go-часть: `parseRevocation` (разбор `{instanceId, data, sessionId?}`) +
+>   `EvictFromRoom` в `ws/hub.go`; колбэк подписки: пустой `sessionId` → `EvictUser`,
+>   иначе → `EvictFromRoom`.
+> - Покрыто тестами: `parser_test.go`, `revocation_test.go` (room-scoped / user-level /
+>   изоляция / unknown-session, P11).
+
 ### Шаги
 1. Создать `apps/api/src/common/pubsub/revocation.ts`:
    - `publishUserRevocation(redis: RedisService, userId: string, sessionId?: string): Promise<void>`
@@ -244,7 +256,13 @@ Phase B требует одновременного выката зеркала 
 
 ---
 
-## Phase D — Веб-клиент
+## Phase D — Веб-клиент ✅
+
+> **Завершено** (2026-09-01). Реализовано в `feat(web)` (коммит `60abb45`):
+> `features/realtime/lib/ticket.ts` (`getTicket` + `connectWebSocket` с reconnect/backoff,
+> правило «reconnect на `close`/`403`, кроме `1008`/`1001»), `endpoints.ts`
+> (`realtime.ticket`, `realtimeWsUrl`), удалён `socket.io-client` (из `package.json`
+> и `pnpm-lock.yaml`).
 
 ### Шаги
 1. `apps/web/src/shared/api/endpoints.ts`:
@@ -302,9 +320,9 @@ Phase B требует одновременного выката зеркала 
 
 0. `fix(api): объединить гуарды — live-проверка сессии в AccessTokenGuard; точный Origin-матч` — Phase G. ✅
 1. `fix(api): корректный формат ревокации (logout/deactivation) + parser тест` — Phase A. ✅
-2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1. ✅ (реализовано, коммит не сделан)
-3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3. ✅ (реализовано, коммит не сделан)
-4. `feat(api,realtime): одноразовый тикет через Sec-WebSocket-Protocol` — Phase C. ✅ (реализовано, коммит не сделан)
-5. `feat(web): веб-клиент realtime с тикетом и reconnect; убрать socket.io-client` — Phase D.
+2. `feat(api,sessions): модели InterviewSession/Participant и Redis-зеркало` — Phase B1. ✅ (`68f2859`)
+3. `feat(realtime): fail-closed авторизация комнат и typ/sid в claims` — Phase B2/B3. ✅ (`b38f456`)
+4. `feat(api,realtime): одноразовый тикет через Sec-WebSocket-Protocol` — Phase C. ✅ (`a95dd10`)
+5. `feat(web): веб-клиент realtime с тикетом и reconnect; убрать socket.io-client` — Phase D. ✅ (`60abb45`)
 
 Коммиты — только после явного запроса.
