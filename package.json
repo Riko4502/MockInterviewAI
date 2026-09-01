@@ -27,7 +27,7 @@
     "test:storybook": "pnpm --filter=ui-docs test",
     "test:realtime": "pnpm --filter=@apps/realtime test",
     "test:api": "pnpm --filter api test",
-    "infra:up": "docker compose --env-file .env up -d --wait",
+    "infra:up": "docker compose --env-file .env up -d",
     "infra:down": "docker compose --env-file .env down",
     "db:migrate": "pnpm --filter api db:migrate:dev",
     "db:migrate:deploy": "pnpm --filter api db:migrate:deploy",
