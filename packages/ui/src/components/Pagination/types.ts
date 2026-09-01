@@ -1,5 +1,5 @@
+import type { ButtonProps } from "@components/Button";
 import type * as React from "react";
-import type { ButtonProps } from "../Button/button";
 
 /**
  * Свойства корневого контейнера навигации по страницам (Pagination).

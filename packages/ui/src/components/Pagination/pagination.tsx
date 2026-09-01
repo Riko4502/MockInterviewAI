@@ -1,6 +1,6 @@
+import { buttonVariants } from "@components/Button";
 import { ArrowDownIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
-import { buttonVariants } from "../Button/button";
 import { PAGINATION_STYLES } from "./constants";
 import type {
   PaginationContentProps,
