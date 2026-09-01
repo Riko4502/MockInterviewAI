@@ -1,7 +1,7 @@
 "use client";
 
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import * as React from "react";
 import {
@@ -73,7 +73,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="pointer-events-none size-4 opacity-70" />
+        <ArrowDownIcon className="pointer-events-none size-4 opacity-70" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -184,7 +184,7 @@ function SelectScrollUpButton({
       )}
       {...props}
     >
-      <ChevronUpIcon />
+      <ArrowUpIcon />
     </SelectPrimitive.ScrollUpButton>
   );
 }
@@ -202,7 +202,7 @@ function SelectScrollDownButton({
       )}
       {...props}
     >
-      <ChevronDownIcon />
+      <ArrowDownIcon />
     </SelectPrimitive.ScrollDownButton>
   );
 }

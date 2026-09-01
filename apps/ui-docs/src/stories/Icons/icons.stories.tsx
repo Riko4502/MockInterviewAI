@@ -237,7 +237,9 @@ function IconGallery({ size = "md" }: IconGalleryProps) {
             type="text"
             placeholder="Поиск по названию..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setSearch(e.target.value)
+            }
           />
         </div>
       </div>

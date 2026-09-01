@@ -1,16 +1,16 @@
 "use client";
 
+import { Checkbox } from "@components/Checkbox";
+import { Empty } from "@components/Empty";
+import { Input } from "@components/Input";
+import { InputGroup } from "@components/InputGroup";
+import { Pagination } from "@components/Pagination";
+import { Select } from "@components/Select";
+import { Spin } from "@components/Spin";
+import { Table } from "@components/Table";
 import { ArrowDownIcon, ArrowUpIcon, SearchIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import * as React from "react";
-import { Checkbox } from "../Checkbox";
-import { Empty } from "../Empty";
-import { Input } from "../Input";
-import { InputGroup } from "../InputGroup";
-import { Pagination } from "../Pagination";
-import { Select } from "../Select";
-import { Spin } from "../Spin";
-import { Table } from "../Table";
 import { DATA_TABLE_STYLES, DEFAULT_PAGE_SIZE_OPTIONS } from "./constants";
 import type {
   DataTablePaginationConfig,

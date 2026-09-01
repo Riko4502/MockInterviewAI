@@ -1,11 +1,37 @@
 import { Badge } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
+/**
+ * Метаданные компонента Badge для Storybook.
+ */
 const meta = {
-  title: "UI/Badge",
+  title: "Components/Badge",
   component: Badge,
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Badge** — информационный бейдж / статус
+
+Компактный элемент для отображения статусов сессий (Пройдено, В процессе, Ошибка), тегов технологий и счетчиков.
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Badge } from "@packages/ui";
+\`\`\`
+
+---
+
+### **Базовый пример использования**
+\`\`\`tsx
+<Badge variant="statusSuccess">Пройдено (92%)</Badge>
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
@@ -21,13 +47,13 @@ const meta = {
         "waiting",
       ],
       description:
-        "Вариант бейджа. `tag` — обычный тег; `statusSuccess` — успех; `statusInfo` — инфо; `statusDanger` — ошибка; `confirmed` — подтверждено; `ready` — готово; `waiting` — ожидание.",
+        "Вариант бейджа. `tag` — нейтральный тег; `statusSuccess` — успех; `statusInfo` — инфо; `statusDanger` — ошибка; `confirmed` — подтверждено; `ready` — готово; `waiting` — ожидание.",
       table: {
         type: {
           summary:
             '"tag" | "statusSuccess" | "statusInfo" | "statusDanger" | "confirmed" | "ready" | "waiting"',
         },
-        defaultValue: { summary: "undefined" },
+        defaultValue: { summary: '"tag"' },
       },
     },
     children: {
@@ -49,44 +75,46 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Tag: Story = {
-  args: { variant: "tag", children: "Тег" },
+/**
+ * Интерактивный бейдж по умолчанию.
+ */
+export const Default: Story = {
+  args: {
+    variant: "statusSuccess",
+    children: "Собеседование пройдено",
+  },
+  render: (args) => <Badge {...args} />,
 };
 
-export const StatusSuccess: Story = {
-  args: { variant: "statusSuccess", children: "Успешно" },
-};
-
-export const StatusInfo: Story = {
-  args: { variant: "statusInfo", children: "Информация" },
-};
-
-export const StatusDanger: Story = {
-  args: { variant: "statusDanger", children: "Ошибка" },
-};
-
-export const Confirmed: Story = {
-  args: { variant: "confirmed", children: "Подтверждено" },
-};
-
-export const Ready: Story = {
-  args: { variant: "ready", children: "Готово" },
-};
-
-export const Waiting: Story = {
-  args: { variant: "waiting", children: "Ожидание" },
-};
-
-export const AllVariants: Story = {
+/**
+ * Все статусные варианты оформления (Status Badges).
+ */
+export const AllStatuses: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      <Badge variant="tag">Тег</Badge>
-      <Badge variant="statusSuccess">Успешно</Badge>
-      <Badge variant="statusInfo">Информация</Badge>
-      <Badge variant="statusDanger">Ошибка</Badge>
+    <div className="flex flex-wrap items-center gap-3">
+      <Badge variant="statusSuccess">Пройдено</Badge>
+      <Badge variant="statusInfo">В процессе</Badge>
+      <Badge variant="statusDanger">Не пройдено</Badge>
       <Badge variant="confirmed">Подтверждено</Badge>
-      <Badge variant="ready">Готово</Badge>
-      <Badge variant="waiting">Ожидание</Badge>
+      <Badge variant="ready">Готов к интервью</Badge>
+      <Badge variant="waiting">Ожидает проверки</Badge>
+      <Badge variant="tag">TypeScript</Badge>
+    </div>
+  ),
+};
+
+/**
+ * Теги стека технологий (Tags).
+ */
+export const TechTags: Story = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant="tag">React 19</Badge>
+      <Badge variant="tag">Next.js</Badge>
+      <Badge variant="tag">TypeScript</Badge>
+      <Badge variant="tag">Node.js</Badge>
+      <Badge variant="tag">PostgreSQL</Badge>
+      <Badge variant="tag">Docker</Badge>
     </div>
   ),
 };

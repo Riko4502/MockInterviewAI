@@ -23,8 +23,7 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "@packages/utils": "workspace:*",
-    "class-variance-authority": "^0.7.1"
+    "@packages/utils": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",

@@ -1,5 +1,5 @@
+import type { ButtonProps } from "@components/Button";
 import type * as React from "react";
-import type { ButtonProps } from "../Button/button";
 
 /**
  * Свойства корневого контейнера навигации по страницам (Pagination).
@@ -25,7 +25,7 @@ export type PaginationLinkProps = {
    * @default false
    */
   isActive?: boolean;
-} & Pick<ButtonProps, "size" | "variant" | "rounded"> &
+} & Partial<Pick<ButtonProps, "size" | "variant" | "rounded">> &
   React.ComponentProps<"a">;
 
 /**
