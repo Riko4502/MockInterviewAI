@@ -1,7 +1,5 @@
-"use client";
-
+import { SpinnerIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
-import { Loader2Icon } from "lucide-react";
 import * as React from "react";
 import { SPIN_STYLES, spinVariants } from "./constants";
 import type { SpinProps } from "./types";
@@ -51,7 +49,7 @@ function Spin({
 
   // Стандартная иконка спиннера
   const defaultSpinner = (
-    <Loader2Icon
+    <SpinnerIcon
       aria-hidden="true"
       data-slot="spin-indicator"
       className={cn(spinVariants({ variant, size }), className)}
