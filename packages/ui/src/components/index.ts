@@ -9,6 +9,7 @@ export * from "./Empty";
 export * from "./Form";
 export * from "./Input";
 export * from "./Label";
+export * from "./Pagination";
 export * from "./Select";
 export * from "./Spin";
 export * from "./Switch";
