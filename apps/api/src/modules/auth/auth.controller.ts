@@ -18,6 +18,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import {
+  type ChangePasswordDto,
+  changePasswordSchema,
   type LoginDto,
   loginSchema,
   type RegisterDto,
@@ -30,6 +32,17 @@ import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
+import type { TokenPayload } from "./services/token.service";
+
+/**
+ * HTTP-запрос с установленным `request.user` (payload access token).
+ *
+ * `AccessTokenGuard` (глобальный `APP_GUARD`) декодирует access token
+ * и кладёт payload в `request.user` для защищённых эндпоинтов (§66 SPEC.md).
+ */
+interface AuthRequest extends Request {
+  user: TokenPayload;
+}
 
 /**
  * Схемы ответов для OpenAPI (§61 SPEC.md).
@@ -240,6 +253,94 @@ export class AuthController {
   }
 
   /**
+   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   *
+   * Endpoint защищён глобальным `AccessTokenGuard` (не `@Public()`):
+   * доступен только с валидным access token в `Authorization`. `userId`
+   * берётся из `request.user.sub`. При успехе отзываются все Redis-сессии
+   * пользователя и сбрасывается refresh cookie; ответ `204 No Content`
+   * (SPEC §66). Access token остаётся валидным до истечения (stateless).
+   *
+   * @param request - HTTP-запрос с `request.user` (payload access token).
+   * @param response - HTTP-ответ Express для очистки refresh cookie.
+   */
+  @Post("logout-all")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Отзыв всех сессий пользователя (§66)" })
+  @ApiResponse({
+    status: 204,
+    description:
+      "Все сессии пользователя отозваны. Set-Cookie: refresh_token=; Expires=в прошлом — cookie сброшена (§66).",
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      "Redis недоступен — отзыв сессий не выполнен. Cookie НЕ сбрасывается (§66).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  async logoutAll(
+    @Req() request: AuthRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.logoutAll(request.user.sub);
+    this.clearRefreshTokenCookie(response);
+  }
+
+  /**
+   * Сменяет пароль авторизованного пользователя (§67 SPEC.md).
+   *
+   * Endpoint защищён глобальным `AccessTokenGuard` (не `@Public()`):
+   * доступен только с валидным access token в `Authorization`. `userId`
+   * берётся из `request.user.sub`. Тело валидируется `ZodValidationPipe`.
+   * При успехе все Redis-сессии пользователя отзываются и refresh cookie
+   * сбрасывается; ответ `204 No Content` (SPEC §67).
+   *
+   * @param request - HTTP-запрос с `request.user` (payload access token).
+   * @param dto - Валидированный DTO смены пароля.
+   * @param response - HTTP-ответ Express для очистки refresh cookie.
+   */
+  @Post("change-password")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ZodBody(changePasswordSchema)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Смена пароля (§67)" })
+  @ApiResponse({
+    status: 204,
+    description:
+      "Пароль обновлён, все сессии отозваны. Set-Cookie: refresh_token=; Expires=в прошлом — cookie сброшена (§67).",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO или новый пароль совпадает с текущим.",
+    schema: VALIDATION_ERROR_SCHEMA,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Неверный текущий пароль (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Пользователь не найден (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
+    schema: ERROR_RESPONSE_SCHEMA,
+  })
+  async changePassword(
+    @Req() request: AuthRequest,
+    @Body(new ZodValidationPipe(changePasswordSchema)) dto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.changePassword(request.user.sub, dto);
+    this.clearRefreshTokenCookie(response);
+  }
+
+  /**
    * Выполняет обновление токенов — refresh token rotation (§65 SPEC.md).
    *
    * Refresh token читается из HttpOnly cookie; тело запроса отсутствует.
@@ -341,7 +442,7 @@ export class AuthController {
   ): void {
     response.cookie(this.getRefreshTokenCookieName(), refreshToken, {
       ...this.getRefreshCookieAttributes(),
-      maxAge: getRefreshTokenTtlSeconds(this.configService),
+      maxAge: getRefreshTokenTtlSeconds(this.configService) * 1000,
     });
   }
 

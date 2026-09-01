@@ -172,6 +172,37 @@ export class AuthSessionService {
   }
 
   /**
+   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   *
+   * Проходит по ключам `auth:session:*` через `SCAN`-итерацию, читает каждый
+   * session и удаляет те, чей `userId` совпадает с переданным. Сессии других
+   * пользователей не затрагиваются. Отсутствие сессий — no-op.
+   *
+   * @param userId - UUID пользователя, чьи сессии отзываются.
+   * @throws {Error} При ошибке Redis.
+   */
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
+
+    for (const key of keys) {
+      const raw = await this.redisService.get(key);
+      if (!raw) {
+        continue;
+      }
+      try {
+        const session = JSON.parse(raw) as AuthSession;
+        if (session.userId === userId) {
+          await this.redisService.delete(key);
+          this.logger.debug(`Session revoked for user ${userId}: ${key}`);
+        }
+      } catch {
+        // Некорректный JSON в несессионном ключе — пропускаем, не удаляем.
+        this.logger.warn(`Skipped invalid session payload at ${key}`);
+      }
+    }
+  }
+
+  /**
    * Формирует Redis-ключ сессии (§15 SPEC.md).
    *
    * @param sessionId - UUID сессии.
