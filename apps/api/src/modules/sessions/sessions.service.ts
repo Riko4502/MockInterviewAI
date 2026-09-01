@@ -135,17 +135,21 @@ export class SessionsService {
       data: { status: "CLOSED", endedAt: new Date() },
     });
 
+    // Room-scoped evict: публикуем ревокацию по каждому участнику с sessionId.
+    // Используем список участников из Postgres (считан до записи зеркала).
+    // Публикуем ДО обновления зеркала `active="closed"` (P2), чтобы
+    // переподключившийся в окне закрытия получил 1008 по ревокации, а не
+    // 403 по зеркалу. `prisma.update` (CLOSED) уже подтверждён выше — это
+    // исключает «выкидывание при формально открытой сессии».
+    for (const participant of participants) {
+      await publishUserRevocation(this.redis, participant.userId, sessionId);
+    }
+
     await this.redis.set(
       sessionActiveKey(sessionId),
       CLOSED_VALUE,
       this.mirrorTtlSeconds,
     );
-
-    // Room-scoped evict: публикуем ревокацию по каждому участнику с sessionId.
-    // Используем список участников из Postgres (считан до очистки зеркала).
-    for (const participant of participants) {
-      await publishUserRevocation(this.redis, participant.userId, sessionId);
-    }
   }
 
   /**
