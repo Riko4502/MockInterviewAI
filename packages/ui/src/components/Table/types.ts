@@ -1,6 +1,16 @@
 import type * as React from "react";
 
-export type TableProps = React.ComponentProps<"table">;
+export interface TableProps extends React.ComponentProps<"table"> {
+  /**
+   * Дополнительные CSS-классы для внешнего контейнера таблицы.
+   */
+  containerClassName?: string;
+  /**
+   * Стили для внешнего контейнера таблицы (например, maxHeight для sticky header).
+   */
+  containerStyle?: React.CSSProperties;
+}
+
 export type TableHeaderProps = React.ComponentProps<"thead">;
 export type TableBodyProps = React.ComponentProps<"tbody">;
 export type TableFooterProps = React.ComponentProps<"tfoot">;

@@ -99,7 +99,7 @@ function PaginationPrevious({
       className={cn("gap-1.5 pl-2.5", className)}
       {...props}
     >
-      <ArrowDownIcon className="rotate-90" />
+      <ArrowDownIcon size="xs" className="rotate-90 size-3 shrink-0" />
       {label && <span>{label}</span>}
     </PaginationLink>
   );
@@ -122,7 +122,7 @@ function PaginationNext({
       {...props}
     >
       {label && <span>{label}</span>}
-      <ArrowDownIcon className="-rotate-90" />
+      <ArrowDownIcon size="xs" className="-rotate-90 size-3 shrink-0" />
     </PaginationLink>
   );
 }
