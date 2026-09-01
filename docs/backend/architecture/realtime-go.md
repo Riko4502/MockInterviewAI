@@ -1,12 +1,12 @@
 # Realtime Service (`apps/realtime`)
 
-Высоконагруженный сервис реального времени, написанный на **Go 1.27**, отвечающий за поддержание постоянных WebSocket-соединений, синхронизацию сессий интервью, совместное редактирование кода и интеграцию с WebRTC (LiveKit).
+Высоконагруженный сервис реального времени, написанный на **Go 1.26**, отвечающий за поддержание постоянных WebSocket-соединений, синхронизацию сессий интервью, совместное редактирование кода и интеграцию с WebRTC (LiveKit).
 
 ---
 
 ## 1. Назначение и стек
 
-* **Язык:** Go 1.27
+* **Язык:** Go 1.26 (go.mod: `go 1.26.6`)
 * **WebSocket:** `github.com/coder/websocket` (быстрый, идиоматичный, без аллокаций)
 * **HTTP Router:** `github.com/go-chi/chi/v5`
 * **Кэш и шина событий:** Redis (Pub/Sub)
@@ -23,9 +23,10 @@ apps/realtime/
 │       └── main.go           # Точка входа, конфигурация, запуск HTTP/WS сервера
 ├── internal/
 │   ├── config/               # Загрузка и валидация переменных окружения
-│   ├── hub/                  # WebSocket Hub, управление комнатами (Room) и клиентами (Client)
-│   ├── redis/                # Интеграция с Redis Pub/Sub для межсерверной синхронизации
-│   └── webrtc/               # LiveKit token generator & WebRTC комнаты
+│   ├── handler/              # HTTP + WebSocket handler: /ws/sessions/{id}, /healthz
+│   ├── ws/                   # WebSocket Hub, комнаты (Room), клиенты (Client), Envelope
+│   ├── storage/              # Redis: Pub/Sub, зеркало сессий, code-state, тикеты, ревокации
+│   └── auth/                 # Верификация JWT (typ: access / realtime), ConsumeTicket
 ├── go.mod
 └── Dockerfile
 ```
@@ -59,7 +60,7 @@ apps/realtime/
 ## 4. Синхронизация между инстансами (Redis Pub/Sub)
 
 При горизонтальном масштабировании `realtime` инстансов пользователи одной комнаты могут быть подключены к разным серверам:
-* Сообщения комнаты публикуются в канал Redis `rooms:{sessionId}`.
+* Сообщения комнаты публикуются в канал Redis `session:{sessionId}:events`.
 * Все инстансы, подписанные на этот канал, ретранслируют сообщение своим локальным WebSocket-клиентам.
 
 ---
@@ -69,9 +70,9 @@ apps/realtime/
 Браузер **не передает** access-токен или cookie на handshake. Перед каждым подключением клиент получает одноразовый тикет и передает его через subprotocol:
 
 1. **`POST /realtime/ticket`** (Bearer access) → `{ ticket }`. Тикет — JWT HS256 на общем секрете `JWT_ACCESS_SECRET`: `typ: "realtime"`, `sid`, `sessionId`, `exp ≈ 5 мин`.
-2. **WS-Upgrade** `ws(s)://…/ws/sessions/{sessionId}` с subprotocol `realtime.ticket`.
+2. **WS-Upgrade** `ws(s)://…/ws/sessions/{sessionId}` с `Sec-WebSocket-Protocol: realtime, <ticket>` (согласованный subprotocol — `realtime`).
 3. Приоритет извлечения кредов: **subprotocol-тикет → `Authorization: Bearer` → HttpOnly cookie**.
-4. Проверка: `VerifyToken` (HS256, `typ ∈ {access, realtime}`, обязателен `sid`); для `typ == "realtime"` — одноразовый `ConsumeTicket(jti)` и привязка к комнате (`claims.SessionID == sessionId`, иначе `403`); для `typ == "access"` — мультиюз `IsTokenRevoked` (обратная совместимость при раскатке). Дополнительно — live-проверка активной сессии `auth:session:{sid}` с продлением TTL зеркала и `blacklist:token:{jti}`.
-5. При logout/revoke `apps/api` публикует в канал `auth:revocations`; realtime вызывает `Hub.EvictUser(userID)` и разрывает активные WS (`StatusPolicyViolation`).
+4. Проверка: `VerifyToken` (HS256, `typ ∈ {access, realtime}`, обязателен `sid`); для `typ == "realtime"` — одноразовый `ConsumeTicket(jti)` и привязка к комнате (`claims.SessionID == sessionId`, иначе `403`); для `typ == "access"` — мультиюз `IsTokenRevoked` (обратная совместимость при раскатке, только при `REALTIME_ALLOW_ACCESS_FALLBACK=true`). После верификации — fail-closed live-проверки: активная auth-сессия `auth:session:{sid}` (`IsAuthSessionActive`), активность интервью-сессии `session:{id}:active` (`IsSessionActive`), роль участника `session:{id}:members` (`GetSessionUserRole`); при успехе TTL зеркала продлевается (`TouchMirror`). `IsTokenRevoked` (по `blacklist:token:{jti}`) вызывается только для access-фолбэка.
+5. При logout/revoke `apps/api` публикует в канал `auth:revocations` сообщение `{instanceId, data: userId, sessionId?}`; realtime без `sessionId` вызывает `Hub.EvictUser(userID)` (все комнаты), с `sessionId` — `Hub.EvictFromRoom(sessionID, userID)` (только комната сессии) и разрывает активные WS (`StatusPolicyViolation`).
 
 Подробности — `docs/backend/security/auth-jwt.md`, спецификация — `apps/api/docs/spec-realtime-ws-auth.md`.

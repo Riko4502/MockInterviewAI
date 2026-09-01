@@ -87,4 +87,4 @@ export class UsersService {
 * **`HttpExceptionFilter`**: перехватывает все исключения и нормализует формат ошибки. В продакшене маскирует внутренние детали БД и стектрейсы.
 * **`ZodValidationPipe`**: преобразует ошибки валидации Zod в `400 Bad Request` с понятным описанием проблемных полей.
 * **`OriginCheckGuard`**: точный матч `Origin`/`Referer` против `ALLOWED_ORIGINS` (защита от CSRF); допускает self-origin; применяется глобально и на `POST /realtime/ticket`.
-* **`AccessTokenGuard`**: глобальный async-гард авторизации — верифицирует JWT access и выполняет live-проверку в Redis (токен не в `blacklist:token:{jti}`, сессия `auth:session:{sid}` активна).
+* **`AccessTokenGuard`**: глобальный async-гард авторизации — верифицирует JWT access и выполняет live-проверку в Redis (сессия `auth:session:{sid}` активна, `EXISTS`).

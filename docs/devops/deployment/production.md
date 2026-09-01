@@ -22,7 +22,7 @@ docker-compose.prod.yml
 
 ## 1.1. Общие секреты и переменные окружения
 
-API и Realtime аутентифицируют WebSocket через тикеты (`POST /realtime/ticket` → subprotocol `realtime.ticket`), поэтому критичен общий ключ подписи JWT:
+API и Realtime аутентифицируют WebSocket через тикеты (`POST /realtime/ticket` → `Sec-WebSocket-Protocol: realtime, <ticket>`), поэтому критичен общий ключ подписи JWT:
 
 | Переменная | Сервисы | Назначение | Требования в prod |
 | :--- | :--- | :--- | :--- |
