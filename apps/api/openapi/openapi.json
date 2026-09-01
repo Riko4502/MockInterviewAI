@@ -53,6 +53,93 @@
         "tags": ["health"]
       }
     },
+    "/api/v1/profile/me": {
+      "get": {
+        "operationId": "ProfileController_getMyProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      },
+      "patch": {
+        "operationId": "ProfileController_updateMyProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      },
+      "delete": {
+        "operationId": "ProfileController_deleteMyProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      }
+    },
+    "/api/v1/profile/avatar": {
+      "post": {
+        "operationId": "ProfileController_uploadAvatar",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      },
+      "delete": {
+        "operationId": "ProfileController_deleteAvatar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      }
+    },
+    "/api/v1/profile/restore": {
+      "post": {
+        "operationId": "ProfileController_restoreMyProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Profile"]
+      }
+    },
+    "/api/v1/users/{idOrUsername}": {
+      "get": {
+        "operationId": "UsersController_getPublicProfile",
+        "parameters": [
+          {
+            "name": "idOrUsername",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Users"]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "operationId": "AuthController_register",

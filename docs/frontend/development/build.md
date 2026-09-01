@@ -15,6 +15,8 @@
 | **Сборка UI Kit** | `pnpm --filter @packages/ui build` |
 | **Сборка только Web** | `pnpm --filter web build` |
 | **Проверка типов (Typecheck)** | `pnpm typecheck` |
+| **Генерация OpenAPI / Swagger (бэкенд, без Docker)** | `pnpm run generate:api` |
+| **Генерация TypeScript-типов API (@packages/api)** | `pnpm --filter @packages/api generate` |
 | **Проверка линтером (Biome)** | `pnpm --filter web lint` |
 | **Автоформатирование кода** | `pnpm --filter web format` |
 

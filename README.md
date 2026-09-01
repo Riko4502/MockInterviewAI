@@ -125,7 +125,19 @@ pnpm run db:generate
 # или: pnpm --filter api db:generate
 ```
 
-### 6. Запуск сервисов в режиме разработки
+### 6. Генерация Swagger / OpenAPI и типизированного API-клиента
+
+Для синхронизации контрактов между бэкендом и фронтендом:
+```bash
+# 1. Сгенерировать спецификацию OpenAPI/Swagger из бэкенда (Docker не требуется):
+pnpm run generate:api
+# или: pnpm --filter api generate:openapi
+
+# 2. Сгенерировать TypeScript-типы для фронтенда (@packages/api):
+pnpm --filter @packages/api generate
+```
+
+### 7. Запуск сервисов в режиме разработки
 
 #### Запуск всех сервисов одновременно (Turborepo):
 ```bash
@@ -138,6 +150,7 @@ pnpm dev
   pnpm dev:api
   # или: pnpm --filter api dev
   ```
+  *Интерактивная Swagger UI документация доступна по адресу `http://localhost:3001/docs`.*
 * **Frontend (Next.js - порт 3000):**
   ```bash
   pnpm dev:web
@@ -163,6 +176,7 @@ pnpm dev
 
 * 🎨 **[Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)** — дизайн-макеты интерфейса и UI-кита.
 * 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
+* 🔌 **[API Contracts & OpenAPI / Swagger](docs/frontend/data/api-contracts.md)** — workflow обновления OpenAPI-схемы и генерации типов.
 * 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
 * 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.
 * 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
