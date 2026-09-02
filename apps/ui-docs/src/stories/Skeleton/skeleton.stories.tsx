@@ -4,7 +4,6 @@ import {
   type DataTableColumn,
   type DataTableRow,
   Skeleton,
-  Table,
 } from "@packages/ui";
 
 import type { Meta, StoryObj } from "@storybook/react";
