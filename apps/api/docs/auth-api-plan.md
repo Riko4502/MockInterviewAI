@@ -16,20 +16,20 @@
 
 | Версия | Дата | Изменения |
 |---|---|---|
-| 1.6.0 | 2026-08-28 | Выполнен Phase 15 «Auth: Change Password» (SPEC.md §67): endpoint `/auth/change-password`, DTO, единицы/интеграция/e2e, OpenAPI; сообщения 4xx на русском. |
-| 1.5.0 | 2026-08-26 | Добавлены Phase 12–15: Access-token guard (global), Auth: Refresh, Auth: Logout All, Auth: Change Password (SPEC.md §64–§67). |
-| 1.4.0 | 2026-08-23 | Добавлен Phase 11 «Password confirmation и унификация dto» (SPEC.md §5–§6, §63): обязательное `passwordConfirmation`, русские сообщения dto; подключение web — позже. |
-| 1.3.0 | 2026-08-23 | Добавлен Phase 10 «OpenAPI/Swagger документация» (SPEC.md §61–§63): Swagger UI (dev-only), скрипт генерации `openapi.yaml`/`openapi.json`, артефакты `apps/api/openapi`, миграция dto на zod v4. |
-| 1.2.0 | 2026-08-22 | Добавлены Phase 8 «Auth: Login» и Phase 9 «Auth: Logout» (SPEC.md §58–§60); `/auth/logout` убран из «Вне области». |
-| 1.1.0 | 2026-08-14 | Добавлены требования к документированию кода (SPEC.md §57): Phase 0 + чек-пункт Phase 6. |
+| 1.6.0 | 2026-08-28 | Выполнен Phase 15 «Auth: Change Password» (auth-api-spec.md §67): endpoint `/auth/change-password`, DTO, единицы/интеграция/e2e, OpenAPI; сообщения 4xx на русском. |
+| 1.5.0 | 2026-08-26 | Добавлены Phase 12–15: Access-token guard (global), Auth: Refresh, Auth: Logout All, Auth: Change Password (auth-api-spec.md §64–§67). |
+| 1.4.0 | 2026-08-23 | Добавлен Phase 11 «Password confirmation и унификация dto» (auth-api-spec.md §5–§6, §63): обязательное `passwordConfirmation`, русские сообщения dto; подключение web — позже. |
+| 1.3.0 | 2026-08-23 | Добавлен Phase 10 «OpenAPI/Swagger документация» (auth-api-spec.md §61–§63): Swagger UI (dev-only), скрипт генерации `openapi.yaml`/`openapi.json`, артефакты `apps/api/openapi`, миграция dto на zod v4. |
+| 1.2.0 | 2026-08-22 | Добавлены Phase 8 «Auth: Login» и Phase 9 «Auth: Logout» (auth-api-spec.md §58–§60); `/auth/logout` убран из «Вне области». |
+| 1.1.0 | 2026-08-14 | Добавлены требования к документированию кода (auth-api-spec.md §57): Phase 0 + чек-пункт Phase 6. |
 | 1.0.0 | 2026-08-14 | Первоначальная версия плана. |
 
 ---
 
 ## Phase 0 — Документация
 
-- [x] Заполнить `apps/api/SPEC.md`.
-- [x] Определить требования к документированию кода (SPEC.md §57).
+- [x] Заполнить `apps/api/docs/auth-api-spec.md`.
+- [x] Определить требования к документированию кода (auth-api-spec.md §57).
 
 ## Phase 1 — Scaffolding `apps/api`
 
@@ -51,10 +51,10 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] `apps/api/docker-compose.yml`: postgres:16-alpine + redis:7-alpine, healthcheck, volume, `REDIS_PASSWORD` с дефолтом `${REDIS_PASSWORD:-mock-interview-redis}`.
 - [x] `prisma/schema.prisma` (модель `User`, `@unique` email), `prisma.config.ts` (Prisma 7: url в config, fallback URL для `prisma generate` без `.env`), миграция: `pnpm --filter api db:migrate:dev -- --name init`.
 - [x] `src/config/`:
-  - `env.validation.ts` — zod-схема полного набора env (§49 SPEC.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
+  - `env.validation.ts` — zod-схема полного набора env (§49 auth-api-spec.md): `API_DATABASE_URL`, `API_PORT`, `API_PREFIX`, `NODE_ENV`, `ALLOWED_ORIGINS`, `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`/`REFRESH_TOKEN_HASH_SECRET` (≥ 32 символа), `JWT_ACCESS_EXPIRATION`/`JWT_REFRESH_EXPIRATION`, `JWT_ISSUER`/`JWT_AUDIENCE`, `ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`, `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `COOKIE_SECURE`, `THROTTLE_TTL`/`THROTTLE_LIMIT`; переменные Server/JWT/Refresh hashing/Redis лежат в корневом `.env` монорепы, остальные — в `apps/api/.env` (ConfigModule: `envFilePath: ["../../.env", ".env"]`, compose: `--env-file ../../.env`);
   - `configuration.ts` — типизированная конфигурация.
 - [x] `src/prisma/` — `PrismaModule`, `PrismaService` (@Global; Prisma 7 adapter `@prisma/adapter-pg` + `pg`).
-- [x] `src/common/filters/http-exception.filter.ts` — `HttpExceptionFilter` (маскировка деталей, §56 SPEC.md).
+- [x] `src/common/filters/http-exception.filter.ts` — `HttpExceptionFilter` (маскировка деталей, §56 auth-api-spec.md).
 - [x] `src/modules/health/` — `HealthModule`, `HealthController`; `GET /api/v1/health` — ping PostgreSQL (`SELECT 1` через `PrismaService.$queryRaw`); ответ: `200 { "status": "ok", "db": "up" }` / `503 { "status": "error", "db": "down" }`, без внутренних деталей; без auth.
 - [x] `src/app.module.ts`, `src/main.ts` — минимальный bootstrap: глобальный prefix `/api/v1`, helmet, CORS (credentials, explicit origin), глобальный `HttpExceptionFilter`, регистрация `PrismaModule` + `HealthModule`.
 - [x] Верификация запуска: `pnpm --filter api dev` (поднимает контейнеры и применяет миграции через `predev`) → `lint` → `build` → `curl http://localhost:3001/api/v1/health` → `200 { "status": "ok", "db": "up" }`.
@@ -91,45 +91,45 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] `src/modules/users/` — `UsersModule`, `UsersService` (`findByEmail`, `create`).
 - [x] `src/modules/auth/auth.constants.ts` — константы: имя cookie, префикс Redis-ключа (`auth:session:`), `typ`-константы токенов.
 - [x] `src/modules/auth/services/token.service.ts` — `generateAccessToken`, `generateRefreshToken`, `verifyAccessToken`, `verifyRefreshToken`, `hashRefreshToken` (HMAC-SHA-256), `jti` через `randomUUID`, verify с `algorithms: ['HS256']` + issuer + audience + typ.
-- [x] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 SPEC.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
-- [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 SPEC.md, компенсация при недоступном Redis.
+- [x] `src/modules/auth/services/auth-session.service.ts` — create/get/update/delete/rotate/revoke, replay detection в `rotateSession`, TTL из конфига. Session payload (§16 auth-api-spec.md): `userId`, `refreshTokenHash`, `tokenFamilyId`, `createdAt`, `lastUsedAt`.
+- [x] `src/modules/auth/auth.service.ts` — `register()` по алгоритму §37 auth-api-spec.md, компенсация при недоступном Redis.
 - [x] `src/modules/auth/auth.controller.ts` — `POST /auth/register`, ZodValidationPipe, cookie, `{ accessToken }`.
 - [x] `src/modules/auth/guards/auth-throttler.guard.ts` — tracker `ip + body.email`.
-- [x] Применить `@UseGuards(AuthThrottlerGuard)` на маршруте `/auth/register` (§41 SPEC.md; упущено в Phase 5, добавлено при выполнении Phase 8).
+- [x] Применить `@UseGuards(AuthThrottlerGuard)` на маршруте `/auth/register` (§41 auth-api-spec.md; упущено в Phase 5, добавлено при выполнении Phase 8).
 - [x] Зарегистрировать `UsersModule`, `AuthModule` в `app.module.ts`.
 
 ## Phase 6 — Тестирование
 
-**Unit (Health Check, §56 SPEC.md):**
+**Unit (Health Check, §56 auth-api-spec.md):**
 
 - [x] БД доступна → `200 { "status": "ok", "db": "up" }`;
 - [x] Ошибка БД → `503 { "status": "error", "db": "down" }`, без внутренних деталей.
 
-**Unit (AuthService, §37, §48 SPEC.md):**
+**Unit (AuthService, §37, §48 auth-api-spec.md):**
 
 - [x] successful registration: email нормализуется, user не существует, пароль хешируется, User создаётся, session создаётся, Access JWT, Refresh JWT, refresh token hash, Redis session;
 - [x] existing email → 409;
 - [x] Redis unavailable → 500, session не создаётся, access token не возвращается, детали ошибки не раскрываются, user удаляется (компенсация).
 
-**Unit (TokenService, §33, §38 SPEC.md):**
+**Unit (TokenService, §33, §38 auth-api-spec.md):**
 
 - [x] генерация access/refresh JWT; claims `sub`, `sid`, `typ`, `iss`, `aud`, `iat`, `exp`, `jti`;
 - [x] разные JWT secrets;
 - [x] корректный алгоритм (reject wrong algorithm);
 - [x] `hashRefreshToken`.
 
-**Unit (AuthSessionService, §16, §39 SPEC.md):**
+**Unit (AuthSessionService, §16, §39 auth-api-spec.md):**
 
 - [x] создание/получение/обновление/удаление session;
 - [x] rotation; revocation; replay detection;
 - [x] Redis key (`auth:session:{sessionId}`), TTL;
 - [x] поля userId, refreshTokenHash, tokenFamilyId, createdAt, lastUsedAt.
 
-**Unit (DTO, §5–8 SPEC.md):**
+**Unit (DTO, §5–8 auth-api-spec.md):**
 
 - [x] валидация email, password policy.
 
-**Security (§26–34, §45–46 SPEC.md):**
+**Security (§26–34, §45–46 auth-api-spec.md):**
 
 - [x] password не хранится plaintext и не попадает в logs;
 - [x] refresh token в Redis только как hash;
@@ -142,11 +142,11 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] replay detection работает;
 - [x] token family может быть отозвана.
 
-**Integration (§13, §48 SPEC.md):**
+**Integration (§13, §48 auth-api-spec.md):**
 
 - [x] после успешной регистрации User существует в PostgreSQL, `auth:session:{sessionId}` существует в Redis.
 
-**E2E (§4, §47 SPEC.md, supertest на реальные PG+Redis в Docker):**
+**E2E (§4, §47 auth-api-spec.md, supertest на реальные PG+Redis в Docker):**
 
 - [x] E2E-01: успешная регистрация → 201, `{ accessToken }`, `Set-Cookie` c refresh token;
 - [x] E2E-02: повторная регистрация → 409, новый user не создаётся;
@@ -154,7 +154,7 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
 - [x] E2E-04: Redis недоступен → 500, session не создаётся, access token не возвращается;
 - [x] E2E-05: невалидный password (min < 12) → 400, user не создаётся.
 
-**Документирование кода (§57 SPEC.md):**
+**Документирование кода (§57 auth-api-spec.md):**
 
 - [x] Публичные методы/типы сервисов, DTO, guards, pipes, filters имеют JSDoc (назначение, `@param`, `@returns`, `@throws`);
 - [x] Сгенерированный клиент (`src/generated/prisma`) и зависимости не документированы/не изменены.
@@ -179,7 +179,7 @@ curl http://localhost:3001/api/v1/health
 1. Команда compose в плане дописана `--env-file ../../.env`: запуск без него пересоздаёт Redis с дефолтным паролем из compose вместо пароля из корневого `.env` → `WRONGPASS` у приложения.
 2. `packages/dto`: рантайм-резолв `@packages/dto` падал (`ERR_MODULE_NOT_FOUND`) — `exports: "." → ./src/index.ts` при `"type": "module"` заставлял Node исполнять TS-source с extensionless ESM-импортами (jest/tsc это прощают, `node dist/main.js` — нет). Фикс: emit CommonJS (`module: commonjs`), условный `exports` (`types → src`, `default → dist/index.js`), убран `"type": "module"`. Тестовые мапперы jest указывают на `src` и не затронуты.
 
-## Phase 8 — Auth: Login (`POST /api/v1/auth/login`, SPEC.md §58–§59)
+## Phase 8 — Auth: Login (`POST /api/v1/auth/login`, auth-api-spec.md §58–§59)
 
 **Код:**
 
@@ -206,7 +206,7 @@ curl http://localhost:3001/api/v1/health
 **Исправления по ходу Phase 8:**
 1. `AuthThrottlerGuard.getTracker` переписан под API `@nestjs/throttler` v6: базовый `handleRequest` вызывает `getTracker(req, context)` — первым аргументом передаётся **request**, а не ExecutionContext; прежняя реализация падала (`context.switchToHttp is not a function`) на любом запросе к маршруту с guard'ом. Баг не был виден в Phase 7: per-route guard появился только при выполнении Phase 8. Unit-тесты guard'а обновлены (передаётся request напрямую).
 
-## Phase 9 — Auth: Logout (`POST /api/v1/auth/logout`, SPEC.md §60)
+## Phase 9 — Auth: Logout (`POST /api/v1/auth/logout`, auth-api-spec.md §60)
 
 **Код:**
 
@@ -232,7 +232,7 @@ curl http://localhost:3001/api/v1/health
 3. `clearCookie` передаёт атрибуты §25–28 **без** `Max-Age`: express добавляет заголовок удаления (`Expires=Thu, 01 Jan 1970`), а переданный `Max-Age` восстановил бы пустую cookie на 7 дней. При ошибке Redis (`500`) cookie не сбрасывается (таблица §60).
 4. CSRF для `/auth/logout` обеспечивается глобальным `OriginCheckGuard` (APP_GUARD) — отдельное подключение не требуется.
 
-## Phase 10 — OpenAPI/Swagger документация (SPEC.md §61–§63)
+## Phase 10 — OpenAPI/Swagger документация (auth-api-spec.md §61–§63)
 
 **Миграция dto:**
 
@@ -272,7 +272,7 @@ curl http://localhost:3001/api/v1/health
 
 **Результат Phase 10:** dto тесты 29 ✓ (vitest), api unit 128 ✓ (jest), e2e 20 ✓ (jest-e2e), lint ✓, build ✓; артефакты `apps/api/openapi/openapi.{yaml,json}` сгенерированы без Docker.
 
-## Phase 11 — Password confirmation и унификация dto (SPEC.md §5–§6, §63)
+## Phase 11 — Password confirmation и унификация dto (auth-api-spec.md §5–§6, §63)
 
 **Пакет `@packages/dto`:**
 
@@ -296,7 +296,7 @@ curl http://localhost:3001/api/v1/health
 - [x] `pnpm --filter api lint && pnpm --filter api test`;
 - [x] При выполненной Phase 10: регенерация `pnpm generate:api` → в `apps/api/openapi/openapi.yaml/json` `passwordConfirmation` присутствует и required.
 
-## Phase 12 — Access-token guard (global, SPEC.md §64)
+## Phase 12 — Access-token guard (global, auth-api-spec.md §64)
 
 **Код:**
 
@@ -315,7 +315,7 @@ curl http://localhost:3001/api/v1/health
 
 - [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api build`.
 
-## Phase 13 — Auth: Refresh (`POST /api/v1/auth/refresh`, SPEC.md §65)
+## Phase 13 — Auth: Refresh (`POST /api/v1/auth/refresh`, auth-api-spec.md §65)
 
 **Код:**
 
@@ -337,14 +337,14 @@ curl http://localhost:3001/api/v1/health
 
 - [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
-## Phase 14 — Auth: Logout All (`POST /api/v1/auth/logout-all`, SPEC.md §66)
+## Phase 14 — Auth: Logout All (`POST /api/v1/auth/logout-all`, auth-api-spec.md §66)
 
 **Код:**
 
 - [x] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
 - [x] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
 - [x] `AuthController.logoutAll()`: `@Post("logout-all")`, защищён глобальным `AccessTokenGuard` (без `@Public()`; явный `@UseGuards` избыточен), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
-- [x] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).
+- [x] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 auth-api-spec.md — расширение методов).
 
 **Тесты:**
 
@@ -360,7 +360,7 @@ curl http://localhost:3001/api/v1/health
 
 - [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
-## Phase 15 — Auth: Change Password (`POST /api/v1/auth/change-password`, SPEC.md §67)
+## Phase 15 — Auth: Change Password (`POST /api/v1/auth/change-password`, auth-api-spec.md §67)
 
 **Код:**
 
