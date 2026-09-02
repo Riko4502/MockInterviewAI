@@ -41,20 +41,39 @@ export const Default: Story = {
   render: (args) => <Progress {...args} className="w-64" />,
 };
 
+/**
+ * Прогресс-бар в завершённом состоянии (100%).
+ */
+
 export const Complete: Story = {
   args: { value: 100, "aria-label": "Прогресс" },
   render: (args) => <Progress {...args} className="w-64" />,
 };
+
+/**
+ * Неопределённое состояние — когда прогресс ещё не известен
+ * (например, до получения первых данных о ходе загрузки).
+ */
 
 export const Indeterminate: Story = {
   args: { value: undefined, "aria-label": "Прогресс" },
   render: (args) => <Progress {...args} className="w-64" />,
 };
 
+/**
+ * Пример с нестандартной шкалой (max=300) — показывает, что проценты
+ * считаются относительно max, а не всегда из 100.
+ */
+
 export const CustomMax: Story = {
   args: { value: 150, max: 300, "aria-label": "Прогресс" },
   render: (args) => <Progress {...args} className="w-64" />,
 };
+
+/**
+ * Анимированный пример — значение увеличивается автоматически,
+ * имитируя реальный процесс загрузки.
+ */
 
 export const Animated: Story = {
   render: () => {
@@ -66,5 +85,45 @@ export const Animated: Story = {
     }, []);
 
     return <Progress value={value} aria-label="Прогресс" className="w-64" />;
+  },
+};
+
+/**
+ * Составной вариант с подписью и процентами.
+ */
+
+export const WithLabel: Story = {
+  render: () => (
+    <div className="w-80">
+      <Progress value={23} className="w-full max-w-sm">
+        <Progress.Label>Upload progress</Progress.Label>
+        <Progress.Value />
+      </Progress>
+    </div>
+  ),
+};
+
+/**
+ * Управляемый прогресс — значение меняется слайдером.
+ */
+export const Controlled: Story = {
+  render: () => {
+    const [value, setValue] = React.useState(50);
+    return (
+      <div className="w-80 space-y-3">
+        <Progress value={value}>
+          <Progress.Label>Progress</Progress.Label>
+          <Progress.Value />
+        </Progress>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+          className="w-full"
+        />
+      </div>
+    );
   },
 };
