@@ -9,8 +9,8 @@
 ### 1. Системные требования
 * **Node.js:** `>= 20.x`
 * **pnpm:** `>= 9.x` (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Docker & Docker Compose** (для PostgreSQL и Redis)
-* **Go:** `>= 1.27` (опционально, только для работы с сервисом `apps/realtime`)
+* **Docker & Docker Compose** (для PostgreSQL, Redis и MinIO)
+* **Go (Golang):** `>= 1.26+` — **обязателен для полной сборки всех сервисов (`pnpm build`), запуска всех тестов (`pnpm test`) и WebSocket-сервиса `apps/realtime`**. *(Если Go не установлен, используйте точечную сборку фронтенда: `pnpm --filter web build`)*.
 
 ### 2. Клонирование и установка зависимостей
 ```bash
@@ -45,6 +45,7 @@ pnpm dev
 |---|---|---|
 | **Web** (Next.js) | [http://localhost:3000](http://localhost:3000) | Основное веб-приложение платформы |
 | **API** (NestJS) | [http://localhost:3001](http://localhost:3001) | REST API бэкенда ([Healthcheck](http://localhost:3001/api/v1/health)) |
+| **Swagger UI** | [http://localhost:3001/docs](http://localhost:3001/docs) | Интерактивная документация API (OpenAPI 3.0) |
 | **Realtime** (Go) | `ws://localhost:8080` | Высоконагруженный WebSocket-сервис |
 | **Landing** (Next.js) | [http://localhost:4321](http://localhost:4321) | Публичный маркетинговый сайт и SEO |
 | **Storybook** | [http://localhost:6006](http://localhost:6006) | Изолированная витрина компонентов (`pnpm --filter @packages/ui storybook`) |

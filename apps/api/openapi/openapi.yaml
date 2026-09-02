@@ -48,6 +48,66 @@ paths:
       summary: Проверка состояния приложения (§56)
       tags:
         - health
+  /api/v1/profile/me:
+    get:
+      operationId: ProfileController_getMyProfile
+      parameters: []
+      responses:
+        "200":
+          description: ""
+      tags: &a1
+        - Profile
+    patch:
+      operationId: ProfileController_updateMyProfile
+      parameters: []
+      responses:
+        "200":
+          description: ""
+      tags: *a1
+    delete:
+      operationId: ProfileController_deleteMyProfile
+      parameters: []
+      responses:
+        "200":
+          description: ""
+      tags: *a1
+  /api/v1/profile/avatar:
+    post:
+      operationId: ProfileController_uploadAvatar
+      parameters: []
+      responses:
+        "201":
+          description: ""
+      tags: *a1
+    delete:
+      operationId: ProfileController_deleteAvatar
+      parameters: []
+      responses:
+        "200":
+          description: ""
+      tags: *a1
+  /api/v1/profile/restore:
+    post:
+      operationId: ProfileController_restoreMyProfile
+      parameters: []
+      responses:
+        "201":
+          description: ""
+      tags: *a1
+  /api/v1/users/{idOrUsername}:
+    get:
+      operationId: UsersController_getPublicProfile
+      parameters:
+        - name: idOrUsername
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ""
+      tags:
+        - Users
   /api/v1/auth/register:
     post:
       operationId: AuthController_register
@@ -129,7 +189,7 @@ paths:
                   - statusCode
                   - message
       summary: Регистрация нового пользователя (§4)
-      tags: &a1
+      tags: &a2
         - auth
   /api/v1/auth/login:
     post:
@@ -208,7 +268,7 @@ paths:
                   - statusCode
                   - message
       summary: Вход пользователя (§58)
-      tags: *a1
+      tags: *a2
   /api/v1/auth/logout:
     post:
       operationId: AuthController_logout
@@ -258,7 +318,7 @@ paths:
       security:
         - bearer: []
       summary: Выход пользователя (§60)
-      tags: *a1
+      tags: *a2
   /api/v1/auth/logout-all:
     post:
       operationId: AuthController_logoutAll
@@ -289,7 +349,7 @@ paths:
       security:
         - bearer: []
       summary: Отзыв всех сессий пользователя (§66)
-      tags: *a1
+      tags: *a2
   /api/v1/auth/change-password:
     post:
       operationId: AuthController_changePassword
@@ -398,7 +458,7 @@ paths:
       security:
         - bearer: []
       summary: Смена пароля (§67)
-      tags: *a1
+      tags: *a2
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh
@@ -457,7 +517,7 @@ paths:
                   - statusCode
                   - message
       summary: Обновление токенов — refresh token rotation (§65)
-      tags: *a1
+      tags: *a2
 info:
   title: Mock Interview AI API
   description: |-
