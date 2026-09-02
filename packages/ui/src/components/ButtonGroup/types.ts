@@ -1,5 +1,5 @@
 import type { ButtonProps } from "@components/Button";
-import type { VariantProps } from "class-variance-authority";
+import type { VariantProps } from "@packages/utils";
 import type * as React from "react";
 import type { buttonGroupVariants } from "./constants";
 

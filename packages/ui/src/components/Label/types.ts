@@ -1,5 +1,5 @@
+import type { VariantProps } from "@packages/utils";
 import type * as LabelPrimitive from "@radix-ui/react-label";
-import type { VariantProps } from "class-variance-authority";
 import type * as React from "react";
 import type { labelVariants } from "./constants";
 

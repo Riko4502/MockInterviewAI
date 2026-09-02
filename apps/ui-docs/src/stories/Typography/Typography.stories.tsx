@@ -1,11 +1,11 @@
-import { Typography } from "@packages/ui";
+import { Link, Typography } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Метаданные компонента Typography для Storybook.
  */
 const meta = {
-  title: "UI/Typography",
+  title: "Components/Typography",
   component: Typography,
   subcomponents: {
     "Typography.H1": Typography.H1,
@@ -22,6 +22,30 @@ const meta = {
   },
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Typography** — система типографики
+
+Набор стандартизированных текстовых элементов (\`H1\`, \`H2\`, \`H3\`, \`H4\`, \`P\`, \`Lead\`, \`Large\`, \`Small\`, \`Muted\`, \`Code\`, \`Blockquote\`) для создания гармоничной и читаемой иерархии текста в интерфейсе.
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Typography } from "@packages/ui";
+\`\`\`
+
+---
+
+### **Базовый пример использования**
+\`\`\`tsx
+<Typography.H1>Платформа AI-собеседований</Typography.H1>
+<Typography.Lead>Подготовьтесь к техническим секциям с персональным AI-интервьюером.</Typography.Lead>
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
@@ -40,16 +64,34 @@ const meta = {
         "code",
         "blockquote",
       ],
-      description: "Вариант типографического оформления",
+      description: "Вариант типографического оформления.",
+      table: {
+        type: {
+          summary:
+            '"h1" | "h2" | "h3" | "h4" | "p" | "lead" | "large" | "small" | "muted" | "code" | "blockquote"',
+        },
+        defaultValue: { summary: '"p"' },
+      },
     },
     asChild: {
       control: "boolean",
-      description: "Использовать дочерний элемент как слот (Slot)",
+      description: "Использовать дочерний элемент как слот (Slot).",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
+    },
+    children: {
+      control: "text",
+      description: "Текстовое содержимое или дочерний элемент.",
+      table: { type: { summary: "ReactNode" } },
     },
   },
   args: {
     variant: "p",
     asChild: false,
+    children:
+      "Платформа подготовки к техническим собеседованиям нового поколения.",
   },
 } satisfies Meta<typeof Typography>;
 
@@ -57,162 +99,118 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Обзор всех вариантов типографики.
+ * Интерактивный типографический элемент.
  */
-export const Overview: Story = {
+export const Default: Story = {
+  render: (args) => (
+    <div className="w-[500px]">
+      <Typography {...args} />
+    </div>
+  ),
+};
+
+/**
+ * Использование с паттерном asChild (например, для стилизации ссылок).
+ */
+export const AsChildLink: Story = {
   render: () => (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          H1 (Главный заголовок):
+    <div className="space-y-2">
+      <Typography asChild variant="lead">
+        <Link
+          href="/tasks"
+          variant="default"
+          onClick={(e: { preventDefault: () => void }) => e.preventDefault()}
+        >
+          Перейти к каталогу задач по алгоритмам ➔
+        </Link>
+      </Typography>
+    </div>
+  ),
+};
+
+/**
+ * Полная иерархия всех элементов типографики.
+ */
+export const AllElements: Story = {
+  render: () => (
+    <div className="space-y-6 w-[560px] max-w-full text-left">
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          H1 — Главный заголовок страницы
         </span>
-        <Typography.H1>Подготовка к техническим собеседованиям</Typography.H1>
+        <Typography.H1>Собеседование по System Design</Typography.H1>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          H2 (Заголовок секции):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          H2 — Заголовок секции
         </span>
-        <Typography.H2>Система оценки навыков</Typography.H2>
+        <Typography.H2>Архитектура распределенных очередей</Typography.H2>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          H3 (Подзаголовок):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          H3 — Подзаголовок блока
         </span>
-        <Typography.H3>Архитектура и алгоритмы</Typography.H3>
+        <Typography.H3>
+          Гарантии доставки сообщений (At-least-once)
+        </Typography.H3>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          H4 (Заголовок карточки):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          H4 — Малый заголовок
         </span>
-        <Typography.H4>Быстрый старт с MockInterview AI</Typography.H4>
+        <Typography.H4>Конфигурация репликации брокера</Typography.H4>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Lead (Лид-параграф):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          Lead — Вводный абзац
         </span>
         <Typography.Lead>
-          Интеллектуальная платформа с искусственным интеллектом для практики и
-          анализа ответов в реальном времени.
+          В этом сценарии вы проектируете систему обмена сообщениями с
+          пропускной способностью более 1 миллиона RPS.
         </Typography.Lead>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          P (Основной текст):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          P — Обычный текст
         </span>
         <Typography.P>
-          Пройдите реалистичную симуляцию интервью, получите подробный отчет с
-          разбором ошибок и персональные рекомендации по улучшению.
+          Используйте партиционирование топиков для горизонтального
+          масштабирования консьюмеров.
         </Typography.P>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Large (Крупный текст):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          Code — Инлайн-код
         </span>
-        <Typography.Large>
-          Более 1,500 вопросов по Frontend, Backend и System Design.
-        </Typography.Large>
+        <div>
+          Запустите команду <Typography.Code>pnpm test:e2e</Typography.Code> для
+          валидации решения.
+        </div>
       </div>
 
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Small (Мелкий текст):
-        </span>
-        <Typography.Small>
-          Обновлено сегодня в 14:00 • Версия 2.4.0
-        </Typography.Small>
-      </div>
-
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Muted (Приглушенный текст):
-        </span>
-        <Typography.Muted>
-          Результаты интервью доступны только вам и вашему ментору.
-        </Typography.Muted>
-      </div>
-
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Code (Инлайн-код):
-        </span>
-        <Typography.P>
-          Используйте хук <Typography.Code>useInterview()</Typography.Code> для
-          управления состоянием сессии.
-        </Typography.P>
-      </div>
-
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Blockquote (Цитата):
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          Blockquote — Цитата
         </span>
         <Typography.Blockquote>
-          «Практика и обратная связь — ключевые факторы успешного прохождения
-          любого технического скрининга.»
+          «Преждевременная оптимизация — корень всех зол в программировании.» —
+          Дональд Кнут
         </Typography.Blockquote>
       </div>
-    </div>
-  ),
-};
 
-/**
- * Пример связной статьи или документации.
- */
-export const ArticleExample: Story = {
-  render: () => (
-    <div className="max-w-xl space-y-4">
-      <Typography.H1>Как устроен AI-интервьюер</Typography.H1>
-      <Typography.Lead>
-        Анализ ответов происходит на базе языковой модели с динамической
-        адаптацией сложности вопросов.
-      </Typography.Lead>
-      <Typography.P>
-        В процессе диалога система отслеживает структуру аргументации кандидата,
-        глубину владения технологиями и способность решать нестандартные кейсы.
-      </Typography.P>
-      <Typography.H2>Пошаговый процесс</Typography.H2>
-      <Typography.P>
-        После генерации вопроса кандидат записывает ответ голосом или текстом.
-        Затем функция <Typography.Code>evaluateAnswer()</Typography.Code>{" "}
-        формирует детальный скоринг.
-      </Typography.P>
-      <Typography.Blockquote>
-        «Точность оценки кандидатов повысилась на 42% по сравнению с базовыми
-        тестами.»
-      </Typography.Blockquote>
-      <Typography.Muted>
-        Статистика собрана на основе 5,000 проведённых сессий.
-      </Typography.Muted>
-    </div>
-  ),
-};
-
-/**
- * Пример полиморфизма (переопределение HTML-тега через пропс as).
- */
-export const CustomTagPolymorphic: Story = {
-  render: () => (
-    <div className="space-y-4">
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Визуальный стиль H2, но тег &lt;span&gt; в DOM:
+      <div className="space-y-1">
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          Muted / Small — Вспомогательный текст
         </span>
-        <Typography as="span" variant="h2">
-          Стилизованный span
-        </Typography>
-      </div>
-      <div>
-        <span className="text-xs text-muted-foreground block mb-1">
-          Визуальный стиль Lead, но тег &lt;div&gt;:
-        </span>
-        <Typography as="div" variant="lead">
-          Полиморфный блок
-        </Typography>
+        <Typography.Muted>
+          Результаты сессии автоматически сохранены в базе знаний платформы.
+        </Typography.Muted>
       </div>
     </div>
   ),

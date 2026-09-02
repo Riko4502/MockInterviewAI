@@ -1,6 +1,6 @@
 import { cn } from "@packages/utils";
 import { Slot } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 import { typographyVariants, VARIANT_TAG_MAP } from "./constants";
 import type { TypographyProps, TypographySubComponentProps } from "./types";
 
@@ -20,7 +20,8 @@ function TypographyRoot<T extends React.ElementType = "p">({
   className,
   ...props
 }: TypographyProps<T>) {
-  const Component = asChild ? Slot.Slot : as || VARIANT_TAG_MAP[variant] || "p";
+  const isSlot = asChild && React.isValidElement(props.children);
+  const Component = isSlot ? Slot.Root : as || VARIANT_TAG_MAP[variant] || "p";
 
   return (
     <Component

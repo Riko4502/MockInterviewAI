@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react";
  * Метаданные компонента Tooltip для Storybook.
  */
 const meta = {
-  title: "UI/Tooltip",
+  title: "Components/Tooltip",
   component: Tooltip,
   subcomponents: {
     "Tooltip.Provider": Tooltip.Provider,
@@ -17,30 +17,67 @@ const meta = {
   },
   parameters: {
     layout: "centered",
+    docs: {
+      description: {
+        component: `
+### **Tooltip** — всплывающая контекстная подсказка
+
+Компонент для отображения краткой поясняющей информации при наведении курсора мыши или получении элементом фокуса с клавиатуры. Построен на базе доступного примитива \`radix-ui\`.
+
+Поддерживает два удобных способа вызова:
+1. **Shorthand-режим:** \`<Tooltip content="Текст подсказки"><Button>Наведи</Button></Tooltip>\`
+2. **Compound-режим:** \`<Tooltip.Root><Tooltip.Trigger>...</Tooltip.Trigger><Tooltip.Content>...</Tooltip.Content></Tooltip.Root>\`
+
+---
+
+### **Установка и импорт**
+\`\`\`tsx
+import { Tooltip, Button } from "@packages/ui";
+\`\`\`
+`,
+      },
+    },
   },
   tags: ["autodocs"],
   argTypes: {
     content: {
       control: "text",
-      description: "Текст подсказки",
+      description: "Текст подсказки (shorthand-режим).",
+      table: { type: { summary: "ReactNode" } },
     },
     side: {
       control: "select",
       options: ["top", "right", "bottom", "left"],
-      description: "Сторона появления подсказки",
+      description: "Сторона появления подсказки.",
+      table: {
+        type: { summary: '"top" | "right" | "bottom" | "left"' },
+        defaultValue: { summary: '"top"' },
+      },
     },
     align: {
       control: "select",
       options: ["start", "center", "end"],
-      description: "Выравнивание подсказки по оси",
+      description: "Выравнивание подсказки по оси.",
+      table: {
+        type: { summary: '"start" | "center" | "end"' },
+        defaultValue: { summary: '"center"' },
+      },
     },
     delayDuration: {
       control: "number",
-      description: "Задержка появления (мс)",
+      description: "Задержка появления подсказки в миллисекундах.",
+      table: {
+        type: { summary: "number" },
+        defaultValue: { summary: "200" },
+      },
     },
     withArrow: {
       control: "boolean",
-      description: "Отображать ли стрелку-указатель",
+      description: "Отображать ли стрелку-указатель.",
+      table: {
+        type: { summary: "boolean" },
+        defaultValue: { summary: "false" },
+      },
     },
   },
   args: {
@@ -61,100 +98,79 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: (args) => (
     <Tooltip {...args}>
-      <Button variant="outline">Наведите курсор</Button>
+      <Button variant="outline">Наведите курсор на кнопку</Button>
     </Tooltip>
   ),
 };
 
 /**
- * Варианты расположения подсказки по 4 сторонам (Top, Right, Bottom, Left).
- */
-export const Positions: Story = {
-  render: () => (
-    <div className="grid grid-cols-2 gap-8 p-12">
-      <Tooltip content="Подсказка сверху" side="top">
-        <Button variant="outline">Сверху (Top)</Button>
-      </Tooltip>
-
-      <Tooltip content="Подсказка справа" side="right">
-        <Button variant="outline">Справа (Right)</Button>
-      </Tooltip>
-
-      <Tooltip content="Подсказка снизу" side="bottom">
-        <Button variant="outline">Снизу (Bottom)</Button>
-      </Tooltip>
-
-      <Tooltip content="Подсказка слева" side="left">
-        <Button variant="outline">Слева (Left)</Button>
-      </Tooltip>
-    </div>
-  ),
-};
-
-/**
- * Подсказки для кнопок-иконок в тулбаре действий.
- */
-export const WithIconButtons: Story = {
-  render: () => (
-    <div className="flex items-center gap-2">
-      <Tooltip content="Создать новое интервью" side="top">
-        <Button size="icon" variant="outline" aria-label="Создать">
-          <PlusIcon size="sm" />
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Настройки профиля" side="top">
-        <Button size="icon" variant="outline" aria-label="Настройки">
-          <SettingsIcon size="sm" />
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Справочный центр" side="top">
-        <Button size="icon" variant="ghost" aria-label="Помощь">
-          <HelpIcon size="sm" />
-        </Button>
-      </Tooltip>
-
-      <Tooltip content="Удалить вопрос" side="top">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="text-destructive hover:text-destructive"
-          aria-label="Удалить"
-        >
-          <TrashIcon size="sm" />
-        </Button>
-      </Tooltip>
-    </div>
-  ),
-};
-
-/**
- * Подсказка со стрелкой-указателем (withArrow).
+ * Подсказка со стрелочкой (With arrow).
  */
 export const WithArrow: Story = {
   render: () => (
-    <Tooltip content="Подсказка с треугольной стрелкой" withArrow side="top">
-      <Button>Со стрелкой</Button>
+    <Tooltip
+      content="Нажмите для настройки критериев оценки"
+      withArrow
+      side="top"
+    >
+      <Button size="icon" variant="outline">
+        <SettingsIcon size="xs" />
+      </Button>
     </Tooltip>
   ),
 };
 
 /**
- * Использование через составной синтаксис (Compound API).
+ * Позиционирование подсказок со всех 4 сторон.
  */
-export const CompoundApi: Story = {
+export const AllSides: Story = {
   render: () => (
-    <Tooltip.Provider delayDuration={100}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button variant="secondary">Составной API</Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side="bottom">
-          Кастомный контент подсказки
-          <Tooltip.Arrow />
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <div className="grid grid-cols-2 gap-4 p-4">
+      <Tooltip content="Подсказка сверху" side="top">
+        <Button variant="outline" size="sm">
+          Top
+        </Button>
+      </Tooltip>
+      <Tooltip content="Подсказка справа" side="right">
+        <Button variant="outline" size="sm">
+          Right
+        </Button>
+      </Tooltip>
+      <Tooltip content="Подсказка снизу" side="bottom">
+        <Button variant="outline" size="sm">
+          Bottom
+        </Button>
+      </Tooltip>
+      <Tooltip content="Подсказка слева" side="left">
+        <Button variant="outline" size="sm">
+          Left
+        </Button>
+      </Tooltip>
+    </div>
+  ),
+};
+
+/**
+ * Подсказки к иконкам действий в интерфейсе.
+ */
+export const ActionIcons: Story = {
+  render: () => (
+    <div className="flex items-center gap-2">
+      <Tooltip content="Добавить новый вопрос в базу">
+        <Button size="icon-sm" variant="secondary">
+          <PlusIcon size="xs" />
+        </Button>
+      </Tooltip>
+      <Tooltip content="Справочный центр и документация">
+        <Button size="icon-sm" variant="ghost">
+          <HelpIcon size="xs" />
+        </Button>
+      </Tooltip>
+      <Tooltip content="Удалить сессию безвозвратно">
+        <Button size="icon-sm" variant="destructive">
+          <TrashIcon size="xs" />
+        </Button>
+      </Tooltip>
+    </div>
   ),
 };
