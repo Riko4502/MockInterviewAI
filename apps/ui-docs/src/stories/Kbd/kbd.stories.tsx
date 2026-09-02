@@ -1,4 +1,4 @@
-import { Kbd } from "@packages/ui";
+import { Input, Kbd } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**
@@ -88,4 +88,53 @@ export const Outline: Story = {
     variant: "outline",
     children: "Alt",
   },
+};
+
+/**
+ * Подсказка горячей клавиши поиска прямо в поле ввода — частый паттерн
+ * в реальных интерфейсах (например, поиск по вопросам собеседования).
+ */
+export const SearchShortcut: Story = {
+  render: () => (
+    <div className="relative w-64">
+      <Input placeholder="Поиск по вопросам..." className="pr-14" />
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        <Kbd size="sm">Ctrl</Kbd>
+        <Kbd size="sm">K</Kbd>
+      </div>
+    </div>
+  ),
+};
+
+/**
+ * Панель горячих клавиш — например, в разделе помощи во время прохождения
+ * мок-собеседования.
+ */
+export const ShortcutsList: Story = {
+  render: () => (
+    <div className="w-72 space-y-3 rounded-lg border border-border p-4">
+      <h4 className="text-sm font-semibold">Горячие клавиши</h4>
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Следующий вопрос</span>
+          <Kbd>→</Kbd>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Предыдущий вопрос</span>
+          <Kbd>←</Kbd>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Завершить собеседование</span>
+          <Kbd>Esc</Kbd>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Открыть поиск</span>
+          <div className="flex items-center gap-1">
+            <Kbd>Ctrl</Kbd>
+            <Kbd>K</Kbd>
+          </div>
+        </div>
+      </div>
+    </div>
+  ),
 };
