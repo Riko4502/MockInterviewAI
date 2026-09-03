@@ -1,15 +1,32 @@
 import { Breadcrumb } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
+import type { ComponentProps } from "react";
 
-const meta = {
+type BreadcrumbStoryArgs = ComponentProps<typeof Breadcrumb> & {
+  asChild?: boolean;
+  href?: string;
+  separator?: "chevron" | "slash";
+};
+
+const meta: Meta<BreadcrumbStoryArgs> = {
   title: "UI/Breadcrumb",
   component: Breadcrumb,
+  subcomponents: {
+    List: Breadcrumb.List,
+    Item: Breadcrumb.Item,
+    Link: Breadcrumb.Link,
+    Page: Breadcrumb.Page,
+    Separator: Breadcrumb.Separator,
+    Ellipsis: Breadcrumb.Ellipsis,
+  },
   parameters: {
     layout: "padded",
     docs: {
       description: {
         component: `
 Составной компонент: **Breadcrumb** (корень) + **Breadcrumb.List** + **Breadcrumb.Item** + **Breadcrumb.Link** + **Breadcrumb.Page** + **Breadcrumb.Separator** + **Breadcrumb.Ellipsis**.
+
+Пропсы живут у частей, не у корня. Корень — это \`nav\` с \`aria-label="breadcrumb"\`.
 
 **Как собирать:**
 \`\`\`tsx
@@ -32,29 +49,74 @@ const meta = {
     },
   },
   tags: ["autodocs"],
-} satisfies Meta<typeof Breadcrumb>;
+  args: {
+    separator: "chevron",
+  },
+  argTypes: {
+    className: {
+      control: "text",
+      description: "Дополнительные Tailwind-классы на корневой nav.",
+      table: { category: "Breadcrumb (Root)" },
+    },
+    "aria-label": {
+      control: "text",
+      description:
+        'Подпись навигации для скринридера. По умолчанию "breadcrumb". Можно переопределить.',
+      table: { category: "Breadcrumb (Root)" },
+    },
+    href: {
+      control: false,
+      description:
+        "Адрес ссылки. Передаётся в Breadcrumb.Link, как у обычного <a>. В приложении для next/link используй asChild.",
+      table: { category: "Breadcrumb.Link" },
+    },
+    asChild: {
+      control: false,
+      description:
+        "Если true, Breadcrumb.Link не рендерит свой <a>, а навешивает стили на ребёнка через Slot (как Button).",
+      table: { category: "Breadcrumb.Link" },
+    },
+    separator: {
+      control: "radio",
+      options: ["chevron", "slash"],
+      description:
+        "Разделитель между сегментами. По умолчанию иконка ChevronRight. Любые children у Breadcrumb.Separator заменяют её — например «/».",
+      table: { category: "Breadcrumb.Separator" },
+    },
+    children: {
+      control: false,
+      description:
+        'Текст текущей страницы внутри Breadcrumb.Page. Не ссылка — aria-current="page" ставится сам.',
+      table: { category: "Breadcrumb.Page" },
+    },
+  },
+};
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  render: () => (
-    <Breadcrumb>
-      <Breadcrumb.List>
-        <Breadcrumb.Item>
-          <Breadcrumb.Link href="/dashboard">Dashboard</Breadcrumb.Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Separator />
-        <Breadcrumb.Item>
-          <Breadcrumb.Link href="/interviews">Interviews</Breadcrumb.Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Separator />
-        <Breadcrumb.Item>
-          <Breadcrumb.Page>Session</Breadcrumb.Page>
-        </Breadcrumb.Item>
-      </Breadcrumb.List>
-    </Breadcrumb>
-  ),
+  render: ({ separator = "chevron", className, "aria-label": ariaLabel }) => {
+    const separatorContent = separator === "slash" ? "/" : undefined;
+
+    return (
+      <Breadcrumb className={className} aria-label={ariaLabel}>
+        <Breadcrumb.List>
+          <Breadcrumb.Item>
+            <Breadcrumb.Link href="/dashboard">Dashboard</Breadcrumb.Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Separator>{separatorContent}</Breadcrumb.Separator>
+          <Breadcrumb.Item>
+            <Breadcrumb.Link href="/interviews">Interviews</Breadcrumb.Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Separator>{separatorContent}</Breadcrumb.Separator>
+          <Breadcrumb.Item>
+            <Breadcrumb.Page>Session</Breadcrumb.Page>
+          </Breadcrumb.Item>
+        </Breadcrumb.List>
+      </Breadcrumb>
+    );
+  },
 };
 
 export const CurrentPageOnly: Story = {
