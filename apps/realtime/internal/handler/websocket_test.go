@@ -396,6 +396,8 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	}
 	defer conn1.Close(websocket.StatusNormalClosure, "done")
 
+	waitParticipants(t, hub, 1)
+
 	// 2-й клиент должен получить отказ (403 Forbidden: room is full)
 	dialOpts2 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok2}},

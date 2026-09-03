@@ -27,7 +27,10 @@ import {
 } from "@packages/dto";
 import type { Request, Response } from "express";
 import { Public } from "../../common/decorators/public.decorator";
-import { ZodBody } from "../../common/openapi/zod-openapi";
+import {
+  registerSchema as registerOpenApiSchema,
+  ZodBody,
+} from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
@@ -82,6 +85,19 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
   required: ["statusCode", "message"],
 };
 
+const accessTokenResponseRef = registerOpenApiSchema(
+  "AccessTokenResponseDto",
+  ACCESS_TOKEN_RESPONSE_SCHEMA,
+);
+const validationErrorResponseRef = registerOpenApiSchema(
+  "ValidationErrorResponseDto",
+  VALIDATION_ERROR_SCHEMA,
+);
+const errorResponseRef = registerOpenApiSchema(
+  "ErrorResponseDto",
+  ERROR_RESPONSE_SCHEMA,
+);
+
 const REFRESH_COOKIE_DESCRIPTION =
   "Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; " +
   "Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). " +
@@ -124,22 +140,22 @@ export class AuthController {
   @Post("register")
   @Public()
   @UseGuards(AuthThrottlerGuard)
-  @ZodBody(registerSchema)
+  @ZodBody(registerSchema, "RegisterDto")
   @ApiOperation({ summary: "Регистрация нового пользователя (§4)" })
   @ApiResponse({
     status: 201,
     description: `Успешная регистрация. ${REFRESH_COOKIE_DESCRIPTION}`,
-    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+    schema: accessTokenResponseRef,
   })
   @ApiResponse({
     status: 400,
     description: "Ошибка валидации DTO.",
-    schema: VALIDATION_ERROR_SCHEMA,
+    schema: validationErrorResponseRef,
   })
   @ApiResponse({
     status: 409,
     description: "Email уже зарегистрирован.",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async register(
     @Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto,
@@ -171,22 +187,22 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthThrottlerGuard)
-  @ZodBody(loginSchema)
+  @ZodBody(loginSchema, "LoginDto")
   @ApiOperation({ summary: "Вход пользователя (§58)" })
   @ApiResponse({
     status: 200,
     description: `Успешный вход. ${REFRESH_COOKIE_DESCRIPTION}`,
-    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+    schema: accessTokenResponseRef,
   })
   @ApiResponse({
     status: 400,
     description: "Ошибка валидации DTO.",
-    schema: VALIDATION_ERROR_SCHEMA,
+    schema: validationErrorResponseRef,
   })
   @ApiResponse({
     status: 401,
     description: "Неверные учётные данные (единый ответ без деталей, §59).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async login(
     @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
@@ -226,13 +242,13 @@ export class AuthController {
     status: 401,
     description:
       "Refresh cookie отсутствует/невалиден. Cookie при этом очищается всегда (§60).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   @ApiResponse({
     status: 500,
     description:
       "Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию (§60).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async logout(
     @Req() request: Request,
@@ -277,7 +293,7 @@ export class AuthController {
     status: 500,
     description:
       "Redis недоступен — отзыв сессий не выполнен. Cookie НЕ сбрасывается (§66).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async logoutAll(
     @Req() request: AuthRequest,
@@ -302,7 +318,7 @@ export class AuthController {
    */
   @Post("change-password")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ZodBody(changePasswordSchema)
+  @ZodBody(changePasswordSchema, "ChangePasswordDto")
   @ApiBearerAuth()
   @ApiOperation({ summary: "Смена пароля (§67)" })
   @ApiResponse({
@@ -313,23 +329,23 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: "Ошибка валидации DTO или новый пароль совпадает с текущим.",
-    schema: VALIDATION_ERROR_SCHEMA,
+    schema: validationErrorResponseRef,
   })
   @ApiResponse({
     status: 401,
     description: "Неверный текущий пароль (§67).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   @ApiResponse({
     status: 404,
     description: "Пользователь не найден (§67).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   @ApiResponse({
     status: 500,
     description:
       "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async changePassword(
     @Req() request: AuthRequest,
@@ -365,19 +381,19 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: `Успешное обновление. ${REFRESH_COOKIE_DESCRIPTION}`,
-    schema: ACCESS_TOKEN_RESPONSE_SCHEMA,
+    schema: accessTokenResponseRef,
   })
   @ApiResponse({
     status: 401,
     description:
       "Refresh cookie отсутствует/невалиден/replay. Cookie при этом очищается always (§65).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   @ApiResponse({
     status: 500,
     description:
       "Redis недоступен. Cookie НЕ сбрасывается, чтобы не потерять сессию (§60).",
-    schema: ERROR_RESPONSE_SCHEMA,
+    schema: errorResponseRef,
   })
   async refresh(
     @Req() request: Request,

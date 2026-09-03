@@ -9,6 +9,9 @@
     "dev:realtime": "turbo dev --filter=@apps/realtime",
     "dev:api": "turbo dev --filter=api",
     "generate:api": "pnpm --filter api generate:openapi",
+    "generate:client": "orval --config ./orval.config.ts",
+    "codegen": "pnpm run generate:api && pnpm run generate:client",
+    "codegen:check": "pnpm run generate:client && git diff --exit-code -- packages/api/src/generated",
     "storybook": "pnpm --filter=ui-docs storybook",
     "dev:storybook": "pnpm --filter=ui-docs storybook",
     "build:web": "turbo build --filter=web",
@@ -38,11 +41,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^21.2.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "turbo": "^2.4.0",
-    "@commitlint/cli": "^19.6.1",
-    "@commitlint/config-conventional": "^21.2.2"
+    "orval": "^8.27.0",
+    "turbo": "^2.4.0"
   },
   "packageManager": "pnpm@9.15.9"
 }

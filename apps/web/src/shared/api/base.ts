@@ -5,7 +5,7 @@
  *
  * - `baseFetch()` — универсальная обёртка над fetch. Автоматически добавляет
  *   `Authorization: Bearer <token>` из sessionStorage ко всем запросам.
- * - При ответе 401 пытается обновить токен через `/auth/refresh` (куки).
+ * - При ответе 401 пытается обновить токен через `/api/v1/auth/refresh` (куки).
  * - Если рефреш успешен — повторяет исходный запрос с новым токеном.
  * - Если рефреш не удался — очищает токен и редиректит на `/login`.
  *
@@ -28,11 +28,8 @@
  * - При рефреше новый accessToken приходит в теле ответа.
  */
 
-import { apiUrl, endpoints } from "./endpoints";
-
-interface RefreshResponse {
-  accessToken: string;
-}
+import type { AccessTokenResponseDto } from "@packages/api";
+import { apiUrl } from "./endpoints";
 
 export class AuthError extends Error {
   constructor(
@@ -103,7 +100,7 @@ export async function baseFetch<T>(
 
 async function tryRefreshToken(): Promise<boolean> {
   try {
-    const response = await fetch(`${apiUrl}${endpoints.auth.refresh}`, {
+    const response = await fetch(`${apiUrl}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
     });
@@ -112,7 +109,7 @@ async function tryRefreshToken(): Promise<boolean> {
       return false;
     }
 
-    const data = (await response.json()) as RefreshResponse;
+    const data = (await response.json()) as AccessTokenResponseDto;
     sessionStorage.setItem("accessToken", data.accessToken);
     return true;
   } catch {

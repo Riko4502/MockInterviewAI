@@ -15,7 +15,13 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ["@tanstack/react-query", "react", "react-dom"],
     alias: {
+      // TODO временное решение
+      "@packages/api": path.resolve(
+        import.meta.dirname,
+        "../../packages/api/src",
+      ),
       "@": path.resolve(import.meta.dirname, "./src"),
       "@app": path.resolve(import.meta.dirname, "./src/app"),
       "@pages": path.resolve(import.meta.dirname, "./src/pages"),
