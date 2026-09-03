@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import type { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
 import { RedisService } from "./redis.service";
@@ -11,6 +12,7 @@ const mockRedisInstance = {
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
+  scanStream: jest.fn(),
 };
 
 jest.mock("ioredis", () => {
@@ -147,6 +149,55 @@ describe("RedisService", () => {
       const result = await service.ping();
       expect(result).toBe("PONG");
       expect(mockRedisInstance.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("scanKeys", () => {
+    function mockStream() {
+      const stream = new EventEmitter();
+      mockRedisInstance.scanStream.mockReturnValue(stream);
+      return stream;
+    }
+
+    it("собирает ключи из пачек стрима", async () => {
+      const stream = mockStream();
+      await service.onModuleInit();
+
+      const promise = service.scanKeys("auth:session:*", 100);
+      stream.emit("data", ["auth:session:a", "auth:session:b"]);
+      stream.emit("data", ["auth:session:c"]);
+      stream.emit("end");
+
+      const result = await promise;
+      expect(result).toEqual([
+        "auth:session:a",
+        "auth:session:b",
+        "auth:session:c",
+      ]);
+      expect(mockRedisInstance.scanStream).toHaveBeenCalledWith({
+        match: "auth:session:*",
+        count: 100,
+      });
+    });
+
+    it("без ключей возвращает пустой массив", async () => {
+      const stream = mockStream();
+      await service.onModuleInit();
+
+      const promise = service.scanKeys("missing:*");
+      stream.emit("end");
+
+      await expect(promise).resolves.toEqual([]);
+    });
+
+    it("реектит promise при ошибке стрима (§66)", async () => {
+      const stream = mockStream();
+      await service.onModuleInit();
+
+      const promise = service.scanKeys("auth:session:*");
+      stream.emit("error", new Error("redis down"));
+
+      await expect(promise).rejects.toThrow("redis down");
     });
   });
 });

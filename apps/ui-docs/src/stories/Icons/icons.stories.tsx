@@ -128,7 +128,12 @@ const meta = {
     size: {
       control: "select",
       options: ["xs", "sm", "md", "lg", "xl"],
-      description: "Размер иконки (size variant)",
+      description:
+        "Размер иконки. `xs` — 12px; `sm` — 16px; `md` — 20px (по умолчанию); `lg` — 24px; `xl` — 32px.",
+      table: {
+        type: { summary: '"xs" | "sm" | "md" | "lg" | "xl"' },
+        defaultValue: { summary: '"md"' },
+      },
     },
   },
 } satisfies Meta<typeof IconGallery>;
@@ -232,7 +237,9 @@ function IconGallery({ size = "md" }: IconGalleryProps) {
             type="text"
             placeholder="Поиск по названию..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setSearch(e.target.value)
+            }
           />
         </div>
       </div>

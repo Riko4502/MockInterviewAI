@@ -112,6 +112,7 @@ func run() error {
 		cfg.AccessTokenCookieName,
 		cfg.MaxConnections,
 		cfg.MaxRoomClients,
+		cfg.AllowAccessFallback,
 	)
 
 	sseHandler := handler.NewSSEHandler(

@@ -55,6 +55,10 @@ type Config struct {
 	RedisDB       int
 	RedisPoolSize int
 	RedisEnabled  bool
+
+	// AllowAccessFallback разрешает подключение старых клиентов по access-токену
+	// (typ=="access", multi-use). Выключается после перевода всех клиентов на тикеты (P9).
+	AllowAccessFallback bool
 }
 
 // Load загружает настройки из переменных окружения и .env файлов.
@@ -136,6 +140,14 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid MAX_ROOM_CLIENTS: %w", err)
 	}
 
+	allowAccessFallback := true
+	if s := strings.TrimSpace(getEnv("REALTIME_ALLOW_ACCESS_FALLBACK", "true")); s != "" {
+		parsed, parseErr := strconv.ParseBool(s)
+		if parseErr == nil {
+			allowAccessFallback = parsed
+		}
+	}
+
 	// Блокирующий XREAD удерживает соединение из пула на каждого пользователя
 	// с открытым SSE-потоком, поэтому пул задается явно и с запасом.
 	redisPoolSize, err := getEnvInt("REDIS_POOL_SIZE", 100)
@@ -175,11 +187,12 @@ func Load() (*Config, error) {
 		SSEReplayCount:           sseCfg.ReplayCount,
 		SSERetryMs:               sseCfg.RetryMs,
 
-		RedisAddr:     redisAddr,
-		RedisPassword: redisPassword,
-		RedisDB:       redisDB,
-		RedisPoolSize: redisPoolSize,
-		RedisEnabled:  redisEnabled,
+		RedisAddr:           redisAddr,
+		RedisPassword:       redisPassword,
+		RedisDB:             redisDB,
+		RedisPoolSize:       redisPoolSize,
+		RedisEnabled:        redisEnabled,
+		AllowAccessFallback: allowAccessFallback,
 	}, nil
 }
 

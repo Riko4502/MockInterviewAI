@@ -107,8 +107,11 @@ func (o Options) withDefaults() Options {
 }
 
 // RevocationSubscriber описывает источник сигналов мгновенного отзыва авторизации.
+//
+// Колбэк получает sessionID закрытой комнаты интервью или пустую строку, если
+// отзывается авторизация пользователя целиком (смена пароля, выход со всех устройств).
 type RevocationSubscriber interface {
-	SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error)
+	SubscribeRevocations(ctx context.Context, onRevoke func(userID, sessionID string)) (func(), error)
 }
 
 // userSession объединяет все активные вкладки одного пользователя на данной ноде.
@@ -224,7 +227,15 @@ func (h *Hub) subscribeRevocations(ctx context.Context, revocations RevocationSu
 		return
 	}
 
-	unsubscribe, err := revocations.SubscribeRevocations(ctx, func(userID string) {
+	unsubscribe, err := revocations.SubscribeRevocations(ctx, func(userID, sessionID string) {
+		// Непустой sessionID означает закрытие конкретной комнаты интервью:
+		// WebSocket-хаб отключает участника из этой комнаты, но глобальный поток
+		// уведомлений к комнате не привязан и должен продолжать работать.
+		// Рвем его только при отзыве авторизации пользователя целиком.
+		if sessionID != "" {
+			return
+		}
+
 		h.EvictUser(userID, "user authentication revoked")
 	})
 	if err != nil {

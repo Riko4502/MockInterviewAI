@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # ==============================================================================
-# Vercel Ignored Build Step: Landing (Astro)
+# Vercel Ignored Build Step: Landing (Next.js)
 #
 # Exit code 1: VERCEL PROCEEDS with the build (Changes detected)
 # Exit code 0: VERCEL CANCELS / SKIPS the build (No changes detected)
 # ==============================================================================
 
-echo "🔍 [Vercel Ignore Check] Checking changes for Landing (Astro)..."
+echo "🔍 [Vercel Ignore Check] Checking changes for Landing (Next.js)..."
 
 # 1. Если это первый коммит или переменные SHA отсутствуют, разрешаем сборку
 if [ -z "$VERCEL_GIT_PREVIOUS_SHA" ] || [ -z "$VERCEL_GIT_COMMIT_SHA" ]; then

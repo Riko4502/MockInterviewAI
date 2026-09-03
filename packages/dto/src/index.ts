@@ -5,6 +5,10 @@
  * схема регистрации, схема входа, password policy, нормализация email.
  */
 
+export {
+  type ChangePasswordDto,
+  changePasswordSchema,
+} from "./auth/change-password.dto";
 export { normalizeEmail } from "./auth/email";
 export { type LoginDto, loginSchema } from "./auth/login.dto";
 export {
@@ -26,3 +30,10 @@ export {
   type UserProfileDto,
   userProfileSchema,
 } from "./profile/user-profile.dto";
+export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
+export {
+  type AddParticipantDto,
+  addParticipantSchema,
+  type InterviewParticipantRole,
+  interviewParticipantRoleSchema,
+} from "./sessions/participant.dto";

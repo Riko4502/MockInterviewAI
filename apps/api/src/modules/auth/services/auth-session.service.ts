@@ -74,6 +74,21 @@ export class AuthSessionService {
   }
 
   /**
+   * Проверяет, активна ли session (live-проверка для гуардов, §16, A8/P5).
+   *
+   * Использует `EXISTS auth:session:{sid}` — без чтения и парсинга JSON
+   * для снижения roundtrip. Исключение Redis пробрасывается наверх
+   * (Nest отдаёт `500`).
+   *
+   * @param sessionId - UUID сессии.
+   * @returns `true`, если session существует (активна), иначе `false`.
+   * @throws {Error} При ошибке Redis.
+   */
+  async isSessionActive(sessionId: string): Promise<boolean> {
+    return this.redisService.exists(this.key(sessionId));
+  }
+
+  /**
    * Получает session по ID (§16 SPEC.md).
    *
    * @param sessionId - UUID сессии.
@@ -169,6 +184,37 @@ export class AuthSessionService {
    */
   async revokeSession(sessionId: string): Promise<void> {
     await this.deleteSession(sessionId);
+  }
+
+  /**
+   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   *
+   * Проходит по ключам `auth:session:*` через `SCAN`-итерацию, читает каждый
+   * session и удаляет те, чей `userId` совпадает с переданным. Сессии других
+   * пользователей не затрагиваются. Отсутствие сессий — no-op.
+   *
+   * @param userId - UUID пользователя, чьи сессии отзываются.
+   * @throws {Error} При ошибке Redis.
+   */
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
+
+    for (const key of keys) {
+      const raw = await this.redisService.get(key);
+      if (!raw) {
+        continue;
+      }
+      try {
+        const session = JSON.parse(raw) as AuthSession;
+        if (session.userId === userId) {
+          await this.redisService.delete(key);
+          this.logger.debug(`Session revoked for user ${userId}: ${key}`);
+        }
+      } catch {
+        // Некорректный JSON в несессионном ключе — пропускаем, не удаляем.
+        this.logger.warn(`Skipped invalid session payload at ${key}`);
+      }
+    }
   }
 
   /**

@@ -17,7 +17,16 @@
 
 // TODO: заменить на реальные эндпоинты бэкенда
 export const apiUrl =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+/**
+ * Базовый URL realtime-сервера (WebSocket).
+ *
+ * - `NEXT_PUBLIC_REALTIME_URL` задаётся в `.env` или `.env.local`.
+ * - Для комнаты сессии путь дополняется: `${realtimeWsUrl}/ws/sessions/{sessionId}`.
+ */
+export const realtimeWsUrl =
+  process.env.NEXT_PUBLIC_REALTIME_URL ?? "ws://localhost:8080";
 
 export const endpoints = {
   auth: {
@@ -25,5 +34,8 @@ export const endpoints = {
     register: "/auth/register",
     refresh: "/auth/refresh",
     logout: "/auth/logout",
+  },
+  realtime: {
+    ticket: "/realtime/ticket",
   },
 } as const;

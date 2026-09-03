@@ -1,5 +1,7 @@
-import { cn } from "@packages/utils";
-import { cva, type VariantProps } from "class-variance-authority";
+"use client";
+
+import { useButtonGroupContext } from "@components/ButtonGroup";
+import { cn, cva, type VariantProps } from "@packages/utils";
 import { Slot } from "radix-ui";
 import type * as React from "react";
 
@@ -54,22 +56,39 @@ export type ButtonProps = React.ComponentProps<"button"> &
     asChild?: boolean;
   };
 
+/**
+ * Компонент кнопки (Button).
+ */
 function Button({
   className,
-  variant = "default",
-  size = "default",
+  variant,
+  size,
   rounded = "default",
+  disabled,
   asChild = false,
   ...props
 }: ButtonProps) {
+  const group = useButtonGroupContext();
+  const resolvedVariant = variant ?? group?.variant ?? "default";
+  const resolvedSize = size ?? group?.size ?? "default";
+  const resolvedDisabled = disabled ?? group?.disabled;
+
   const Comp = asChild ? Slot.Root : "button";
 
   return (
     <Comp
       data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, rounded, className }))}
+      data-variant={resolvedVariant}
+      data-size={resolvedSize}
+      disabled={resolvedDisabled}
+      className={cn(
+        buttonVariants({
+          variant: resolvedVariant,
+          size: resolvedSize,
+          rounded,
+          className,
+        }),
+      )}
       {...props}
     />
   );

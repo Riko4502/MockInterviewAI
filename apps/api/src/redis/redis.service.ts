@@ -103,6 +103,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Проверяет существование ключа (EXISTS).
+   *
+   * @param key - Имя ключа.
+   * @returns `true`, если ключ существует, иначе `false`.
+   * @throws {Error} При ошибке Redis.
+   */
+  async exists(key: string): Promise<boolean> {
+    return (await this.client.exists(key)) === 1;
+  }
+
+  /**
    * Удаляет ключ.
    *
    * @param key - Имя ключа.
@@ -121,6 +132,85 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async expire(key: string, ttlSeconds: number): Promise<void> {
     await this.client.expire(key, ttlSeconds);
+  }
+
+  /**
+   * Устанавливает поле в хеше (HSET) и, если задан TTL, продлевает время жизни
+   * самого ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий
+   * (`session:{id}:members`).
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша (обычно `userId`).
+   * @param value - Значение поля (обычно роль).
+   * @param ttlSeconds - Время жизни ключа в секундах (опционально).
+   * @throws {Error} При ошибке Redis.
+   */
+  async hset(
+    key: string,
+    field: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<void> {
+    await this.client.hset(key, field, value);
+    if (ttlSeconds !== undefined) {
+      await this.client.expire(key, ttlSeconds);
+    }
+  }
+
+  /**
+   * Получает значение поля из хеша (HGET).
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша.
+   * @returns Значение поля или `null`, если поле/ключ не существует.
+   * @throws {Error} При ошибке Redis.
+   */
+  async hget(key: string, field: string): Promise<string | null> {
+    return this.client.hget(key, field);
+  }
+
+  /**
+   * Удаляет поле из хеша (HDEL) и, если задан TTL, продлевает время жизни
+   * ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий.
+   *
+   * @param key - Имя ключа-хеша.
+   * @param field - Поле хеша.
+   * @param ttlSeconds - Время жизни ключа в секундах (опционально).
+   * @throws {Error} При ошибке Redis.
+   */
+  async hdel(key: string, field: string, ttlSeconds?: number): Promise<void> {
+    await this.client.hdel(key, field);
+    if (ttlSeconds !== undefined) {
+      await this.client.expire(key, ttlSeconds);
+    }
+  }
+
+  /**
+   * Возвращает ключи, соответствующие шаблону, через SCAN-итерацию.
+   *
+   * Итерация выполняется через `scanStream` (пагинация курсором скрыта),
+   * собранные ключи возвращаются массивом. Гарантирует неблокирующий обход
+   * по сравнению с `KEYS` и не требует выделения всех ключей в память разом
+   * (ключи собираются пачками из стрима).
+   *
+   * @param pattern - Redis-шаблон (например `auth:session:*`).
+   * @param count - Размер пачки SCAN (`COUNT`), опционально (дефолт 100).
+   * @returns Массив ключей, соответствовавших шаблону.
+   * @throws {Error} При ошибке Redis (в т.ч. ошибке эмиссии стрима).
+   */
+  scanKeys(pattern: string, count = 100): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      const stream = this.client.scanStream({ match: pattern, count });
+      const keys: string[] = [];
+
+      stream.on("data", (chunk: string[]) => {
+        if (Array.isArray(chunk)) {
+          keys.push(...chunk);
+        }
+      });
+      stream.on("end", () => resolve(keys));
+      stream.on("error", (error: Error) => reject(error));
+    });
   }
 
   /**

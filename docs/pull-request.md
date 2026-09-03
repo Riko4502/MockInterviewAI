@@ -40,7 +40,7 @@
 
 * **Приложения (`apps`):**
   * `web` — клиентское веб-приложение (Next.js)
-  * `landing` — маркетинговый лендинг (Astro / Next.js)
+  * `landing` — маркетинговый лендинг (Next.js)
   * `api` — основной бэкенд REST API (NestJS)
   * `realtime` — WebSocket сервис (Go)
   * `code-runner` — сервис запуска кода в песочнице

@@ -1,4 +1,5 @@
 export { ArrowDownIcon } from "./arrow-down-icon";
+export { ArrowRightIcon } from "./arrow-right-icon";
 export { ArrowUpIcon } from "./arrow-up-icon";
 export { BellIcon } from "./bell-icon";
 export { BookIcon } from "./book-icon";
@@ -13,10 +14,12 @@ export { FileCodeIcon } from "./file-code-icon";
 export { FileIcon } from "./file-icon";
 export { FolderIcon } from "./folder-icon";
 export { FolderOpenIcon } from "./folder-open-icon";
+export { GlobeIcon } from "./globe-icon";
 export { HelpIcon } from "./help-icon";
 export { HubConnectionIcon } from "./hub-connection-icon";
 export { LoginIcon } from "./login-icon";
 export { MaximizeIcon } from "./maximize-icon";
+export { MenuIcon } from "./menu-icon";
 export { MinimizeIcon } from "./minimize-icon";
 export { PackageIcon } from "./package-icon";
 export { PlayIcon } from "./play-icon";

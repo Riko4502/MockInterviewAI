@@ -48,6 +48,11 @@ export const configuration = () => ({
     ttl: Number(process.env.THROTTLE_TTL ?? 60000),
     limit: Number(process.env.THROTTLE_LIMIT ?? 100),
   },
+  sessions: {
+    mirrorTtlSeconds: Number(
+      process.env.SESSION_MIRROR_TTL_SECONDS ?? 2 * 60 * 60,
+    ),
+  },
   storage: {
     endpoint: process.env.S3_ENDPOINT ?? "http://localhost:9000",
     region: process.env.S3_REGION ?? "us-east-1",

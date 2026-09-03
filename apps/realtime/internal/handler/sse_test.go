@@ -55,6 +55,12 @@ func (f *fakeStore) IsTokenRevoked(_ context.Context, tokenID string) (bool, err
 
 func (f *fakeStore) IsSessionActive(context.Context, string) (bool, error) { return true, nil }
 
+func (f *fakeStore) IsAuthSessionActive(context.Context, string) (bool, error) { return true, nil }
+
+func (f *fakeStore) ConsumeTicket(context.Context, string) (bool, error) { return true, nil }
+
+func (f *fakeStore) TouchMirror(context.Context, string, time.Duration) error { return nil }
+
 func (f *fakeStore) GetSessionUserRole(context.Context, string, string) (string, error) {
 	return "candidate", nil
 }
@@ -141,6 +147,9 @@ func newTestToken(t *testing.T, userID string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &auth.UserClaims{
 		UserID:   userID,
 		Username: "tester",
+		// Верификатор требует typ из набора access|realtime и непустой sid.
+		Type: "access",
+		SID:  "sid-" + userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),

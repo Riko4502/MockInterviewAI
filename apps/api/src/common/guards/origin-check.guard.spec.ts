@@ -42,12 +42,12 @@ describe("OriginCheckGuard", () => {
       expect(guard.canActivate(context)).toBe(true);
     });
 
-    it("пропускает если Origin — подпуть разрешённого", () => {
+    it("бросает ForbiddenException если Origin — подпуть разрешённого (точный матч, A9)", () => {
       const guard = createGuard();
       const context = createExecutionContext({
         origin: "http://localhost:3000/app/dashboard",
       });
-      expect(guard.canActivate(context)).toBe(true);
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
     });
 
     it("бросает ForbiddenException если Origin не совпадает", () => {
@@ -75,7 +75,7 @@ describe("OriginCheckGuard", () => {
     it("пропускает если Referer совпадает", () => {
       const guard = createGuard();
       const context = createExecutionContext({
-        referer: "http://localhost:3000/page",
+        referer: "http://localhost:3000",
       });
       expect(guard.canActivate(context)).toBe(true);
     });
@@ -103,7 +103,7 @@ describe("OriginCheckGuard", () => {
       const guard = createGuard();
       const context = createExecutionContext({
         origin: "http://evil.com",
-        referer: "http://localhost:3000/page",
+        referer: "http://localhost:3000",
       });
       expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
     });
@@ -121,7 +121,7 @@ describe("OriginCheckGuard", () => {
     it("пропускает Referer собственного origin", () => {
       const guard = createGuard([], 3001);
       const context = createExecutionContext({
-        referer: "http://localhost:3001/docs",
+        referer: "http://localhost:3001",
       });
       expect(guard.canActivate(context)).toBe(true);
     });
@@ -145,19 +145,27 @@ describe("OriginCheckGuard", () => {
     });
   });
 
-  describe("startsWith matching", () => {
-    it("совпадает с префиксом URL", () => {
+  describe("точное равенство (A9)", () => {
+    it("бросает ForbiddenException если Origin — подпуть разрешённого URL", () => {
       const guard = createGuard(["https://app.example.com"]);
       const context = createExecutionContext({
         origin: "https://app.example.com/deep/path",
       });
-      expect(guard.canActivate(context)).toBe(true);
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
     });
 
-    it("не совпадает с другим доменом相同的前缀", () => {
+    it("бросает ForbiddenException при префикс-спуфе https://app.example.com.evil.com", () => {
       const guard = createGuard(["https://app.example.com"]);
       const context = createExecutionContext({
         origin: "https://app.example.com.evil.com",
+      });
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    });
+
+    it("пропускает точное совпадение origin", () => {
+      const guard = createGuard(["https://app.example.com"]);
+      const context = createExecutionContext({
+        origin: "https://app.example.com",
       });
       expect(guard.canActivate(context)).toBe(true);
     });

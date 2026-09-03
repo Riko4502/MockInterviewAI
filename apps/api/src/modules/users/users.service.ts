@@ -10,6 +10,7 @@ import type {
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
+import { publishUserRevocation } from "../../common/pubsub/revocation";
 import type { User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
@@ -47,7 +48,12 @@ const PUBLIC_PROFILE_SELECT = {
 } as const;
 
 /**
- * Сервис управления пользователями и профилями.
+ * Сервис управления пользователями и профилями (§9, §10 SPEC.md).
+ *
+ * Предоставляет поиск по email, id и username, создание пользователя,
+ * обновление хеша пароля и управление профилями (§9, §10 SPEC.md).
+ * Работает уже с захешированным паролем — хеширование
+ * является ответственностью вызывающего модуля (AuthService).
  */
 @Injectable()
 export class UsersService {
@@ -95,6 +101,21 @@ export class UsersService {
    */
   async create(data: { email: string; passwordHash: string }): Promise<User> {
     return this.prisma.user.create({ data });
+  }
+
+  /**
+   * Обновляет хеш пароля пользователя (§67 SPEC.md).
+   *
+   * @param id - UUID пользователя.
+   * @param passwordHash - Новый Argon2id хеш пароля.
+   * @returns Обновлённый объект пользователя.
+   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
   }
 
   /**
@@ -236,14 +257,7 @@ export class UsersService {
     }
 
     // Оповещаем Realtime WebSocket сервис через Pub/Sub о блокировке/деактивации
-    try {
-      await this.redisService.publish(
-        "auth:revocations",
-        JSON.stringify({ userId, reason: "account_deactivated" }),
-      );
-    } catch {
-      // Игнорируем ошибку публикации, если realtime сервис не слушает
-    }
+    await publishUserRevocation(this.redisService, userId);
   }
 
   /**

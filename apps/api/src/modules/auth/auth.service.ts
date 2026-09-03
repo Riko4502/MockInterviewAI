@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
   OnModuleInit,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { LoginDto, RegisterDto } from "@packages/dto";
+import type { ChangePasswordDto, LoginDto, RegisterDto } from "@packages/dto";
 import argon2 from "argon2";
+import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { UsersService } from "../users/users.service";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
@@ -64,6 +68,7 @@ export class AuthService implements OnModuleInit {
    * @param sessionService - Сервис управления authentication sessions в Redis.
    * @param prisma - Глобальный `PrismaService` для компенсации (§48 SPEC.md).
    * @param configService - Конфигурация приложения (секция `argon2`).
+   * @param redisService - Глобальный `RedisService` для публикации ревокаций.
    */
   constructor(
     private readonly usersService: UsersService,
@@ -71,6 +76,7 @@ export class AuthService implements OnModuleInit {
     private readonly sessionService: AuthSessionService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -275,12 +281,105 @@ export class AuthService implements OnModuleInit {
       }
 
       await this.sessionService.revokeSession(payload.sid);
+
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
+      await publishUserRevocation(this.redisService, session.userId);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
       this.logger.error(
         "Redis unavailable during logout",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+  }
+
+  /**
+   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   *
+   * Вызывается для авторизованного пользователя (access token валиден,
+   * `request.user.sub` — его UUID). Проходит по всем сессионным ключам
+   * в Redis через `scanKeys` и удаляет те, что принадлежат пользователю.
+   * Access token остаётся валидным до истечения (stateless, §66).
+   *
+   * @param userId - UUID пользователя, чьи сессии отзываются.
+   * @throws {InternalServerErrorException} При ошибке Redis (§66).
+   */
+  async logoutAll(userId: string): Promise<void> {
+    try {
+      await this.sessionService.revokeAllUserSessions(userId);
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
+      await publishUserRevocation(this.redisService, userId);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during logoutAll",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+  }
+
+  /**
+   * Сменяет пароль авторизованного пользователя (§67 SPEC.md).
+   *
+   * ИНФОРМАЦИЯ: вызывается для авторизованного пользователя (access token
+   * валиден, `request.user.sub` — его UUID). Алгоритм:
+   * 1. Поиск пользователя по `userId` → не найден → `404 Not Found`.
+   * 2. `argon2.verify(user.passwordHash, currentPassword)` → не совпал →
+   *    generic `401` «Неверные учётные данные».
+   * 3. `currentPassword === newPassword` → `400 Bad Request`.
+   * 4. Хеширование нового пароля → обновление `passwordHash` в PostgreSQL.
+   * 5. Отзыв ВСЕХ session пользователя в Redis (включая текущую) через
+   *    `revokeAllUserSessions` (доступ token остаётся валидным до TTL,
+   *    stateless; refresh cookie в любом случае сбрасывается контроллером).
+   *
+   * Ошибки Redis на шаге 5 → `500` без внутренних деталей; пароль уже
+   * обновлён в PostgreSQL (транзакция PostgreSQL + best-effort Redis, §67).
+   *
+   * @param userId - UUID пользователя из payload access token.
+   * @param dto - Валидированный DTO (currentPassword, newPassword).
+   * @throws {NotFoundException} Если пользователь не найден (404).
+   * @throws {UnauthorizedException} Если текущий пароль неверен (401).
+   * @throws {BadRequestException} Если новый пароль совпадает с текущим (400).
+   * @throws {InternalServerErrorException} При ошибке Redis (500).
+   */
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    const { currentPassword, newPassword } = dto;
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException("Пользователь не найден");
+    }
+
+    const passwordValid = await argon2.verify(
+      user.passwordHash,
+      currentPassword,
+    );
+    if (!passwordValid) {
+      throw new UnauthorizedException("Неверные учётные данные");
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        "Новый пароль должен отличаться от текущего",
+      );
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+    await this.usersService.updatePassword(userId, newPasswordHash);
+
+    try {
+      await this.sessionService.revokeAllUserSessions(userId);
+      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
+      // репликах (Phase A). Best-effort — сбой публикации не влияет на пароль.
+      await publishUserRevocation(this.redisService, userId);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during changePassword — sessions not revoked",
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();
@@ -337,6 +436,9 @@ export class AuthService implements OnModuleInit {
       const incomingHash = this.tokenService.hashRefreshToken(refreshToken);
       if (session.refreshTokenHash !== incomingHash) {
         await this.sessionService.revokeSession(payload.sid);
+        // Replay detected → глобальная ревокация пользователя на всех репликах
+        // (Phase A). Best-effort — не влияет на 401-ответ.
+        await publishUserRevocation(this.redisService, session.userId);
         throw new UnauthorizedException("Invalid credentials");
       }
 
