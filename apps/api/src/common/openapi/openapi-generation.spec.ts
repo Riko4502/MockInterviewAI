@@ -7,7 +7,7 @@ import type {
   SchemaObject,
 } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { configureApp } from "../../main";
+import { configureApp } from "../../configure-app";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { buildOpenApiDocument } from "./openapi-document";

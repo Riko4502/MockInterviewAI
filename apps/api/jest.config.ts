@@ -19,6 +19,7 @@ const config: Config = {
   coverageDirectory: "../coverage",
   coverageReporters: ["text", "text-summary", "json-summary"],
   testEnvironment: "node",
+  setupFiles: ["<rootDir>/../test/setup-env.ts"],
 };
 
 export default config;
