@@ -5,6 +5,7 @@ export { BellIcon } from "./bell-icon";
 export { BookIcon } from "./book-icon";
 export { BugIcon } from "./bug-icon";
 export { CheckIcon } from "./check-icon";
+export { ChevronRightIcon } from "./chevron-right-icon";
 export { ClockIcon } from "./clock-icon";
 export { CloseIcon } from "./close-icon";
 export { CodeIcon } from "./code-icon";
