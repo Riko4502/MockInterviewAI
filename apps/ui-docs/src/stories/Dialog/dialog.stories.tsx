@@ -1,5 +1,6 @@
 import { Button, Dialog, Input, Label } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
+import React from "react";
 
 /**
  * Метаданные компонента Dialog для Storybook.
@@ -43,6 +44,11 @@ const meta = {
 \`\`\`tsx
 import { Dialog } from "@packages/ui";
 \`\`\`
+### **Состояние (controlled vs uncontrolled)**
+
+По умолчанию Dialog сам управляет своим открытием/закрытием — стейт заводить не нужно (см. историю \`Default\`).
+
+Если нужно закрыть или открыть диалог "снаружи" — например, автоматически закрыть после успешной отправки формы — передайте \`open\` и \`onOpenChange\` (см. историю \`WithForm\`). В этом случае вы сами управляете состоянием через \`useState\` в месте использования диалога.
 `,
       },
     },
@@ -109,39 +115,63 @@ export const Default: Story = {
 };
 
 /**
- * Окно с формой внутри (например, редактирование профиля).
+ * Форма внутри диалога с управляемым (controlled) состоянием.
+ *
+ * Здесь стейт обязателен: диалог должен закрыться САМ, но только
+ * после того как форма успешно отправится. Radix не умеет закрывать
+ * диалог по такому "невидимому" для него событию — это нужно сделать
+ * вручную через open/onOpenChange.
  */
 export const WithForm: Story = {
-  render: () => (
-    <Dialog>
-      <Dialog.Trigger asChild>
-        <Button variant="outline">Редактировать профиль</Button>
-      </Dialog.Trigger>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Редактировать профиль</Dialog.Title>
-          <Dialog.Description>
-            Измените данные профиля и сохраните изменения.
-          </Dialog.Description>
-        </Dialog.Header>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">Имя</Label>
-            <Input id="name" defaultValue="Антон" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" defaultValue="anton@example.com" />
-          </div>
-        </div>
-        <Dialog.Footer>
-          <Button type="submit">Сохранить</Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
-  ),
-};
+  render: () => {
+    const [open, setOpen] = React.useState(false);
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+      e.preventDefault();
+      setIsSubmitting(true);
+
+      // имитация запроса на сервер
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      setIsSubmitting(false);
+      setOpen(false); // закрываем диалог только после успешной отправки
+    }
+
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog.Trigger asChild>
+          <Button>Редактировать профиль</Button>
+        </Dialog.Trigger>
+        <Dialog.Content>
+          <form onSubmit={handleSubmit}>
+            <Dialog.Header>
+              <Dialog.Title>Редактировать профиль</Dialog.Title>
+              <Dialog.Description>
+                Внесите изменения в профиль и сохраните их.
+              </Dialog.Description>
+            </Dialog.Header>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Имя</Label>
+                <Input id="name" defaultValue="Иван Иванов" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="username">Логин</Label>
+                <Input id="username" defaultValue="@ivanov" />
+              </div>
+            </div>
+            <Dialog.Footer>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Сохранение..." : "Сохранить изменения"}
+              </Button>
+            </Dialog.Footer>
+          </form>
+        </Dialog.Content>
+      </Dialog>
+    );
+  },
+};
 /**
  * Окно без крестика закрытия — закрыть можно только кнопкой в футере.
  */
