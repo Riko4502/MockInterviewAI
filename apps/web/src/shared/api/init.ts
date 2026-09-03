@@ -13,6 +13,7 @@
 import {
   type HttpTransport,
   type RequestConfig,
+  resetHttpTransport,
   setHttpTransport,
 } from "@packages/api";
 import { baseFetch } from "./base";
@@ -83,4 +84,5 @@ export function isApiTransportInitialized(): boolean {
  */
 export function resetApiTransportState(): void {
   initialized = false;
+  resetHttpTransport();
 }

@@ -30,9 +30,12 @@ export * from "./generated/model";
 export {
   customInstance,
   defaultFetchTransport,
+  type GetHttpTransportOptions,
   getHttpTransport,
   type HttpTransport,
+  isHttpTransportSet,
   type RequestConfig,
   resetHttpTransport,
   setHttpTransport,
+  TransportNotInitializedError,
 } from "./transport";

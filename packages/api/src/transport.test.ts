@@ -4,9 +4,11 @@ import {
   defaultFetchTransport,
   getHttpTransport,
   type HttpTransport,
+  isHttpTransportSet,
   type RequestConfig,
   resetHttpTransport,
   setHttpTransport,
+  TransportNotInitializedError,
 } from "./transport";
 
 describe("Unified @packages/api Transport Layer (T031)", () => {
@@ -315,6 +317,319 @@ describe("Unified @packages/api Transport Layer (T031)", () => {
       // Подтверждает, что если предыдущие тесты устанавливали мок-транспорт,
       // в новом тесте activeTransport гарантированно сброшен на defaultFetchTransport
       expect(getHttpTransport()).toBe(defaultFetchTransport);
+    });
+  });
+
+  describe("H. Transport Fail-Fast & Initialization Guard (FEAT-007)", () => {
+    describe("H1. TransportNotInitializedError контракт и начальное состояние", () => {
+      it("isHttpTransportSet() возвращает false по умолчанию при старте и после resetHttpTransport()", () => {
+        expect(isHttpTransportSet()).toBe(false);
+      });
+
+      it("TransportNotInitializedError имеет корректный тип, имя и стандартное сообщение", () => {
+        const error = new TransportNotInitializedError();
+
+        expect(error).toBeInstanceOf(TransportNotInitializedError);
+        expect(error).toBeInstanceOf(Error);
+        expect(error.name).toBe("TransportNotInitializedError");
+        expect(error.message).toBe(
+          "[@packages/api] HTTP transport has not been initialized. " +
+            "You must call setHttpTransport() (or initApiTransport() in apps/web) " +
+            "before making API requests.",
+        );
+        expect(error.message).toContain("setHttpTransport()");
+        expect(error.message).toContain("initApiTransport()");
+      });
+
+      it("TransportNotInitializedError поддерживает передачу кастомного сообщения", () => {
+        const customMsg = "Custom transport error message";
+        const error = new TransportNotInitializedError(customMsg);
+
+        expect(error.message).toBe(customMsg);
+        expect(error.name).toBe("TransportNotInitializedError");
+        expect(error).toBeInstanceOf(TransportNotInitializedError);
+      });
+    });
+
+    describe("H2. Fail-fast в production-окружении (NODE_ENV === 'production')", () => {
+      beforeEach(() => {
+        resetHttpTransport();
+        vi.stubEnv("NODE_ENV", "production");
+      });
+
+      afterEach(() => {
+        vi.unstubAllEnvs();
+        resetHttpTransport();
+      });
+
+      it("getHttpTransport() без зарегистрированного custom transport в production выбрасывает TransportNotInitializedError", () => {
+        expect(() => getHttpTransport()).toThrow(TransportNotInitializedError);
+
+        try {
+          getHttpTransport();
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(TransportNotInitializedError);
+          expect(err).toBeInstanceOf(Error);
+          expect((err as Error).name).toBe("TransportNotInitializedError");
+        }
+      });
+
+      it("customInstance() без зарегистрированного custom transport в production отклоняет Promise с TransportNotInitializedError", async () => {
+        await expect(
+          customInstance({ url: "/api/v1/profile", method: "GET" }),
+        ).rejects.toThrow(TransportNotInitializedError);
+
+        try {
+          await customInstance({ url: "/api/v1/profile", method: "GET" });
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(TransportNotInitializedError);
+          expect(err).toBeInstanceOf(Error);
+          expect((err as Error).name).toBe("TransportNotInitializedError");
+        }
+      });
+    });
+
+    describe("H3. Принудительный strict: true fail-fast и очистка параметров fetch", () => {
+      beforeEach(() => {
+        resetHttpTransport();
+      });
+
+      afterEach(() => {
+        resetHttpTransport();
+      });
+
+      it("customInstance({ strict: true }) без зарегистрированного транспорта отклоняет запрос с TransportNotInitializedError в development/test", async () => {
+        await expect(
+          customInstance({
+            url: "/api/v1/sessions",
+            method: "GET",
+            strict: true,
+          }),
+        ).rejects.toThrow(TransportNotInitializedError);
+      });
+
+      it("customInstance(url, { strict: true }) в двухпараметрической форме отклоняет запрос с TransportNotInitializedError", async () => {
+        await expect(
+          customInstance("/api/v1/sessions", {
+            method: "GET",
+            strict: true,
+          }),
+        ).rejects.toThrow(TransportNotInitializedError);
+      });
+
+      it("параметр strict не просачивается в RequestConfig переданный в кастомный transport (объектная форма)", async () => {
+        const mockTransport = vi.fn().mockResolvedValue({ success: true });
+        setHttpTransport(mockTransport);
+
+        await customInstance({
+          url: "/api/v1/users",
+          method: "POST",
+          data: { name: "John" },
+          strict: true,
+        });
+
+        expect(mockTransport).toHaveBeenCalledTimes(1);
+        const passedConfig = mockTransport.mock.calls[0][0];
+
+        expect("strict" in passedConfig).toBe(false);
+        expect(passedConfig.url).toBe("/api/v1/users");
+        expect(passedConfig.method).toBe("POST");
+        expect(passedConfig.data).toEqual({ name: "John" });
+      });
+
+      it("параметр strict не просачивается в RequestConfig переданный в кастомный transport (двухпараметрическая форма)", async () => {
+        const mockTransport = vi.fn().mockResolvedValue({ success: true });
+        setHttpTransport(mockTransport);
+
+        await customInstance("/api/v1/users", {
+          method: "POST",
+          strict: true,
+        });
+
+        expect(mockTransport).toHaveBeenCalledTimes(1);
+        const passedConfig = mockTransport.mock.calls[0][0];
+
+        expect("strict" in passedConfig).toBe(false);
+        expect(passedConfig.url).toBe("/api/v1/users");
+        expect(passedConfig.method).toBe("POST");
+      });
+    });
+
+    describe("H4. Предупреждение в development-окружении (console.warn latch)", () => {
+      let warnSpy: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        resetHttpTransport();
+        vi.stubEnv("NODE_ENV", "development");
+        warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        warnSpy.mockRestore();
+        vi.unstubAllEnvs();
+        resetHttpTransport();
+      });
+
+      it("выводит console.warn при первом вызове без кастомного транспорта и продолжает выполнение через defaultFetchTransport", async () => {
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: {
+            get: () => "application/json",
+          },
+          json: async () => ({ fallback: true }),
+        });
+        vi.stubGlobal("fetch", mockFetch);
+
+        const result = await customInstance<{ fallback: boolean }>({
+          url: "/api/v1/test-dev",
+          method: "GET",
+        });
+
+        expect(result).toEqual({ fallback: true });
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+
+        const warnMessage = String(warnSpy.mock.calls[0][0]);
+        expect(warnMessage).toContain("[@packages/api]");
+        expect(warnMessage).toContain(
+          "HTTP transport has not been initialized",
+        );
+        expect(warnMessage).toContain("setHttpTransport()");
+        expect(warnMessage).toContain("initApiTransport()");
+      });
+
+      it("предотвращает повторный спам в консоль при последующих вызовах (latch)", async () => {
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: {
+            get: () => "application/json",
+          },
+          json: async () => ({ count: 1 }),
+        });
+        vi.stubGlobal("fetch", mockFetch);
+
+        // Первый вызов
+        await customInstance({ url: "/api/v1/call-1", method: "GET" });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+
+        // Второй вызов
+        await customInstance({ url: "/api/v1/call-2", method: "GET" });
+        // Третий вызов
+        await customInstance({ url: "/api/v1/call-3", method: "GET" });
+
+        // Предупреждение всё ещё вызвано ровно 1 раз
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    describe("H5. Жизненный цикл транспорта: setHttpTransport(), повторная инициализация и resetHttpTransport()", () => {
+      beforeEach(() => {
+        resetHttpTransport();
+      });
+
+      afterEach(() => {
+        resetHttpTransport();
+        vi.unstubAllEnvs();
+        vi.restoreAllMocks();
+      });
+
+      it("setHttpTransport() переводит статус в инициализированный и направляет запросы в кастомный транспорт", async () => {
+        const mockFetch = vi.fn();
+        vi.stubGlobal("fetch", mockFetch);
+
+        const mockTransport = vi.fn().mockResolvedValue({ user: "Alice" });
+        expect(isHttpTransportSet()).toBe(false);
+
+        setHttpTransport(mockTransport);
+        expect(isHttpTransportSet()).toBe(true);
+
+        const result = await customInstance({
+          url: "/api/v1/user",
+          method: "GET",
+        });
+
+        expect(result).toEqual({ user: "Alice" });
+        expect(mockTransport).toHaveBeenCalledTimes(1);
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      it("повторный setHttpTransport() замещает активный транспорт, сохраняя статус инициализированности", async () => {
+        const mockTransport1 = vi.fn().mockResolvedValue({ version: 1 });
+        const mockTransport2 = vi.fn().mockResolvedValue({ version: 2 });
+
+        // Первая инициализация
+        setHttpTransport(mockTransport1);
+        expect(isHttpTransportSet()).toBe(true);
+        const res1 = await customInstance({
+          url: "/api/v1/version",
+          method: "GET",
+        });
+        expect(res1).toEqual({ version: 1 });
+        expect(mockTransport1).toHaveBeenCalledTimes(1);
+        expect(mockTransport2).not.toHaveBeenCalled();
+
+        // Повторная инициализация
+        setHttpTransport(mockTransport2);
+        expect(isHttpTransportSet()).toBe(true);
+        const res2 = await customInstance({
+          url: "/api/v1/version",
+          method: "GET",
+        });
+        expect(res2).toEqual({ version: 2 });
+        expect(mockTransport1).toHaveBeenCalledTimes(1);
+        expect(mockTransport2).toHaveBeenCalledTimes(1);
+      });
+
+      it("resetHttpTransport() сбрасывает статус, возвращает defaultFetchTransport и приводит к ошибке при следующем strict-запросе", async () => {
+        const mockTransport = vi.fn().mockResolvedValue({ data: "ok" });
+
+        setHttpTransport(mockTransport);
+        expect(isHttpTransportSet()).toBe(true);
+
+        // Сброс
+        resetHttpTransport();
+        expect(isHttpTransportSet()).toBe(false);
+        expect(getHttpTransport()).toBe(defaultFetchTransport);
+
+        // Последующий strict-запрос падает с ошибкой
+        await expect(
+          customInstance("/api/v1/data", { method: "GET", strict: true }),
+        ).rejects.toThrow(TransportNotInitializedError);
+        expect(mockTransport).not.toHaveBeenCalled();
+      });
+
+      it("resetHttpTransport() сбрасывает development warning latch, позволяя предупреждению сработать снова", async () => {
+        vi.stubEnv("NODE_ENV", "development");
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: { get: () => "application/json" },
+          json: async () => ({ ok: true }),
+        });
+        vi.stubGlobal("fetch", mockFetch);
+
+        // Первый неинициализированный запрос -> предупреждение вызвано 1 раз
+        await customInstance({ url: "/test-1", method: "GET" });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+
+        // Второй неинициализированный запрос -> предупреждение НЕ повторяется (latch активен)
+        await customInstance({ url: "/test-2", method: "GET" });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+
+        // Выполняем сброс транспорта
+        resetHttpTransport();
+
+        // Запрос после reset -> предупреждение срабатывает снова (счётчик становится 2)
+        await customInstance({ url: "/test-3", method: "GET" });
+        expect(warnSpy).toHaveBeenCalledTimes(2);
+
+        warnSpy.mockRestore();
+      });
     });
   });
 });

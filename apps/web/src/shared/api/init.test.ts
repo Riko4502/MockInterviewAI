@@ -1,4 +1,8 @@
-import { getHttpTransport, resetHttpTransport } from "@packages/api";
+import {
+  getHttpTransport,
+  isHttpTransportSet,
+  resetHttpTransport,
+} from "@packages/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { baseFetch } from "./base";
 import {
@@ -105,5 +109,24 @@ describe("initApiTransport", () => {
 
     await import("./client");
     expect(checkInitialized()).toBe(true);
+  });
+
+  it("resetApiTransportState() синхронно сбрасывает локальный флаг и состояние в @packages/api", () => {
+    // 1. Инициализируем транспорт
+    initApiTransport();
+    expect(isApiTransportInitialized()).toBe(true);
+    expect(isHttpTransportSet()).toBe(true);
+
+    // 2. Вызываем resetApiTransportState()
+    resetApiTransportState();
+
+    // 3. Синхронно (без промисов/таймеров) проверяем сброс обоих флагов
+    expect(isApiTransportInitialized()).toBe(false);
+    expect(isHttpTransportSet()).toBe(false);
+
+    // 4. Повторная инициализация должна снова перевести оба флага в true
+    initApiTransport();
+    expect(isApiTransportInitialized()).toBe(true);
+    expect(isHttpTransportSet()).toBe(true);
   });
 });
