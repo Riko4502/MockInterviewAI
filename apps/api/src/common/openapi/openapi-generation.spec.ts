@@ -7,17 +7,35 @@ import type {
   SchemaObject,
 } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { AppModule } from "../../app.module";
 import { configureApp } from "../../main";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { buildOpenApiDocument } from "./openapi-document";
 
+const REQUIRED_MOCK_ENV: Record<string, string> = {
+  API_DATABASE_URL: "postgresql://mock:mock@localhost:5432/mock_test",
+  JWT_ACCESS_SECRET: "mock-test-access-secret-at-least-32-characters-length",
+  JWT_REFRESH_SECRET: "mock-test-refresh-secret-at-least-32-characters-length",
+  REFRESH_TOKEN_HASH_SECRET: "mock-test-refresh-hash-secret-at-least-32-chars",
+};
+
 describe("OpenAPI Generation & Contract Verification (T030)", () => {
   let app: INestApplication;
   let document: OpenAPIObject;
+  const envRestorations = new Map<string, string | undefined>();
 
   beforeAll(async () => {
+    for (const [key, value] of Object.entries(REQUIRED_MOCK_ENV)) {
+      if (process.env[key] === undefined) {
+        envRestorations.set(key, undefined);
+        process.env[key] = value;
+      } else {
+        envRestorations.set(key, process.env[key]);
+      }
+    }
+
+    const { AppModule } = await import("../../app.module");
+
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -37,6 +55,13 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
   afterAll(async () => {
     if (app) {
       await app.close();
+    }
+    for (const [key, originalValue] of envRestorations.entries()) {
+      if (originalValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = originalValue;
+      }
     }
   });
 
