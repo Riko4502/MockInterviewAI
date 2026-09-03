@@ -11,6 +11,10 @@ function readPackage(pkg) {
     pkg.dependencies.mysql2 = "^3.22.0";
   }
 
+  if (pkg.dependencies?.["fast-uri"]) {
+    pkg.dependencies["fast-uri"] = "^3.1.6";
+  }
+
   return pkg;
 }
 
