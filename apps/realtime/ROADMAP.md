@@ -14,8 +14,9 @@
 * **Политика «1 пользователь = 1 соединение в сессии»:** При открытии сессии в новой вкладке старое соединение пользователя корректно вытесняется (`StatusGoingAway: displaced by new connection`).
 
 ### 1.2. Безопасность и Валидация
-* **Аутентификация по Cookie / Bearer:**
-  * Токены считываются из защищенных HTTP-only Cookie (`access_token` / `JWT_ACCESS_COOKIE_NAME`) или заголовка `Authorization: Bearer`.
+* **Аутентификация по тикету / Bearer / Cookie:**
+  * Приоритет извлечения кредов: одноразовый тикет в `Sec-WebSocket-Protocol: ["realtime", <ticket>]` → `Authorization: Bearer` → HTTP-only Cookie (`access_token` / `JWT_ACCESS_COOKIE_NAME`).
+  * Access-фолбэк (Bearer/Cookie) работает только при `REALTIME_ALLOW_ACCESS_FALLBACK=true`.
   * Защита от спуфинга: `userId` и `role` в событиях подставляются строго сервером из проверенного JWT и Redis.
 * **Защита от CSWSH (Cross-Site WebSocket Hijacking):**
   * Обязательная проверка `ALLOWED_ORIGINS`. В продакшене wildcard `*` строго запрещён.

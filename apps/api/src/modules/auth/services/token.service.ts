@@ -3,7 +3,11 @@ import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import jwt from "jsonwebtoken";
 import type { StringValue } from "ms";
-import { TOKEN_TYP_ACCESS, TOKEN_TYP_REFRESH } from "../auth.constants";
+import {
+  TOKEN_TYP_ACCESS,
+  TOKEN_TYP_REALTIME,
+  TOKEN_TYP_REFRESH,
+} from "../auth.constants";
 
 /** Payload JWT токена (§20, §24 SPEC.md). */
 export interface TokenPayload {
@@ -15,10 +19,15 @@ export interface TokenPayload {
   iat: number;
   exp: number;
   jti: string;
+  /** UUID интервью-сессии — только для `typ === "realtime"` (тикет). */
+  sessionId?: string;
 }
 
 /** Алгоритм JWT — явный allowlist (§33 SPEC.md). */
 const JWT_ALGORITHM = "HS256";
+
+/** Время жизни одноразового WS-тикета (Phase C). */
+const REALTIME_TICKET_TTL: StringValue = "5m";
 
 /**
  * Сервис генерации и верификации JWT токенов (§33, §34, §38 SPEC.md).
@@ -117,6 +126,56 @@ export class TokenService {
    */
   verifyRefreshToken(token: string): TokenPayload {
     return this.verifyToken(token, TOKEN_TYP_REFRESH, "jwt.refreshSecret");
+  }
+
+  /**
+   * Генерирует одноразовый WS-тикет (Phase C).
+   *
+   * Payload: `{sub, sid, sessionId, typ: "realtime", iss, aud, iat, exp(5m), jti}`.
+   * Подписывается тем же access-секретом (HS256), что и access token — realtime
+   * верифицирует тикеты тем же key.
+   *
+   * @param userId - UUID пользователя (`sub`, владелец/участник сессии).
+   * @param sessionId - UUID auth-сессии (`sid`, для live-проверки `auth:session:{sid}`).
+   * @param interviewSessionId - UUID интервью-сессии (bound-to-room, defense-in-depth).
+   * @returns Подписанный JWT-тикет.
+   */
+  generateRealtimeTicket(
+    userId: string,
+    sessionId: string,
+    interviewSessionId: string,
+  ): string {
+    const payload: Omit<TokenPayload, "iat" | "exp"> = {
+      sub: userId,
+      sid: sessionId,
+      sessionId: interviewSessionId,
+      typ: TOKEN_TYP_REALTIME,
+      iss: this.configService.getOrThrow<string>("jwt.issuer"),
+      aud: this.configService.getOrThrow<string>("jwt.audience"),
+      jti: randomUUID(),
+    };
+
+    return jwt.sign(
+      payload,
+      this.configService.getOrThrow<string>("jwt.accessSecret"),
+      {
+        algorithm: JWT_ALGORITHM,
+        expiresIn: REALTIME_TICKET_TTL,
+      },
+    );
+  }
+
+  /**
+   * Верифицирует одноразовый WS-тикет (Phase C).
+   *
+   * Проверяет: алгоритм (`HS256`), подпись, issuer, audience, expiration, typ (`realtime`).
+   *
+   * @param token - JWT тикет.
+   * @returns Декодированный payload (содержит `sessionId`).
+   * @throws {UnauthorizedException} При невалидном тикете или несовпадении typ.
+   */
+  verifyRealtimeTicket(token: string): TokenPayload {
+    return this.verifyToken(token, TOKEN_TYP_REALTIME, "jwt.accessSecret");
   }
 
   /**

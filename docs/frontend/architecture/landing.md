@@ -1,6 +1,6 @@
 # Next.js Landing (`apps/landing`)
 
-Приложение `apps/landing` предназначено для публичного маркетингового лендинга и оптимизации SEO.  
+Приложение `apps/landing` предназначено для публичного маркетингового лендинга и оптимизации SEO.
 Построено на **Next.js 16** (App Router, React 19, TypeScript) в режиме статического экспорта (`output: "export"`) и следует методологии **Feature-Sliced Design (FSD)**.
 
 ---

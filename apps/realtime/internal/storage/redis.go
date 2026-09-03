@@ -17,7 +17,7 @@ import (
 type Broadcaster interface {
 	Publish(ctx context.Context, sessionID string, data []byte) error
 	Subscribe(ctx context.Context, sessionID string, onMessage func(data []byte)) (func(), error)
-	SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error)
+	SubscribeRevocations(ctx context.Context, onRevoke func(userID, sessionID string)) (func(), error)
 	RevokeUser(ctx context.Context, userID string) error
 	InstanceID() string
 }
@@ -27,6 +27,9 @@ type SessionStore interface {
 	IsTokenRevoked(ctx context.Context, tokenID string) (bool, error)
 	IsSessionActive(ctx context.Context, sessionID string) (bool, error)
 	GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error)
+	IsAuthSessionActive(ctx context.Context, sid string) (bool, error)
+	ConsumeTicket(ctx context.Context, tokenID string) (bool, error)
+	TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error
 	SaveCodeState(ctx context.Context, sessionID string, data []byte) error
 	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
@@ -37,6 +40,43 @@ type SessionStore interface {
 type PubSubMessage struct {
 	InstanceID string `json:"instanceId"`
 	Data       []byte `json:"data"`
+}
+
+// RevocationMessage описывает сообщение ревокации из канала "auth:revocations"
+// (формат Phase A, публикует apps/api):
+//
+//	{"instanceId":"api-<hostname>","data":"<userId>","sessionId":"<id>"}
+//
+// sessionId заполняется только при room-scoped evict (close-сессии, P2).
+type RevocationMessage struct {
+	InstanceID string `json:"instanceId"`
+	Data       string `json:"data"`
+	SessionID  string `json:"sessionId"`
+}
+
+// parseRevocation разбирает payload сообщения канала "auth:revocations".
+//
+// Возвращает (userID, sessionID). Для старых сообщений формата
+// {"userId":..,"reason":..} (их API больше не публикует) возвращает ("","") —
+// такие сообщения игнорируются.
+func parseRevocation(payload []byte) (userID, sessionID string) {
+	var msg RevocationMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(msg.Data), strings.TrimSpace(msg.SessionID)
+}
+
+// isActiveValue интерпретирует значение ключа "session:<id>:active".
+// Сессия активна только при значении "true" (fail-closed: всё прочее — нет).
+func isActiveValue(val string) bool {
+	return strings.TrimSpace(val) == "true"
+}
+
+// isMemberValue интерпретирует значение поля участника в "session:<id>:members".
+// Пустое/пробельное значение означает отсутствие членства (нет роли).
+func isMemberValue(val string) bool {
+	return strings.TrimSpace(val) != ""
 }
 
 // RedisStore объединяет SessionStore и Broadcaster на базе Redis.
@@ -187,7 +227,7 @@ func (r *RedisStore) RevokeUser(ctx context.Context, userID string) error {
 }
 
 // SubscribeRevocations подписывается на глобальные сигналы отзыва авторизации пользователей.
-func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(userID string)) (func(), error) {
+func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(userID, sessionID string)) (func(), error) {
 	if !r.enabled || r.client == nil {
 		return func() {}, nil
 	}
@@ -210,15 +250,11 @@ func (r *RedisStore) SubscribeRevocations(ctx context.Context, onRevoke func(use
 					return
 				}
 
-				var wrapped PubSubMessage
-				if err := json.Unmarshal([]byte(msg.Payload), &wrapped); err != nil {
+				userID, sessionID := parseRevocation([]byte(msg.Payload))
+				if userID == "" {
 					continue
 				}
-
-				userID := strings.TrimSpace(string(wrapped.Data))
-				if userID != "" {
-					onRevoke(userID)
-				}
+				onRevoke(userID, sessionID)
 			}
 		}
 	}()
@@ -248,25 +284,31 @@ func (r *RedisStore) IsTokenRevoked(ctx context.Context, tokenID string) (bool, 
 }
 
 // IsSessionActive проверяет активность сессии в Redis: key "session:<id>:active".
+//
+// Fail-closed (Phase B2): отсутствие ключа (redis.Nil), ошибка Redis или
+// disabled-режим возвращают `false` — подключение отклоняется, а не допускается.
 func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (bool, error) {
 	if !r.enabled || r.client == nil || sessionID == "" {
-		return true, nil
+		return false, nil
 	}
 
 	key := fmt.Sprintf("session:%s:active", sessionID)
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return true, nil
+			return false, nil
 		}
 		r.logger.Warn("failed to check session active in redis", slog.String("error", err.Error()))
-		return true, nil
+		return false, nil
 	}
 
-	return val != "false" && val != "closed", nil
+	return isActiveValue(val), nil
 }
 
 // GetSessionUserRole получает проверенную роль пользователя в сессии из Redis (Hash: key "session:<id>:members").
+//
+// Отсутствие поля/ключа или disabled-режим возвращают ("", nil) — сигнал
+// "нет членства". Ошибка Redis пробрасывается наверх.
 func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error) {
 	if !r.enabled || r.client == nil || sessionID == "" || userID == "" {
 		return "", nil
@@ -283,10 +325,68 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 			slog.String("userId", userID),
 			slog.String("error", err.Error()),
 		)
-		return "", nil
+		return "", err
 	}
 
 	return role, nil
+}
+
+// IsAuthSessionActive проверяет живую auth-сессию API: EXISTS "auth:session:{sid}".
+//
+// Fail-closed (A6/P12): отсутствие/ошибка/disabled → false. Симметрично
+// live-проверке AccessTokenGuard в API.
+func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool, error) {
+	if !r.enabled || r.client == nil || sid == "" {
+		return false, nil
+	}
+
+	key := fmt.Sprintf("auth:session:%s", sid)
+	exists, err := r.client.Exists(ctx, key).Result()
+	if err != nil {
+		r.logger.Warn("failed to check auth session active in redis", slog.String("error", err.Error()))
+		return false, nil
+	}
+
+	return exists > 0, nil
+}
+
+// ConsumeTicket атомарно помечает одноразовый тикет использованным:
+// SET "ticket:consumed:<jti>" EX <ttl> NX. Возвращает true, если тикет
+// использован впервые (ключ установлен), false — повторное использование.
+//
+// Отдельный namespace ticket:consumed:* (не смешивается с blacklist:token:*).
+// В disabled-режиме возвращает true (перимиссивно — не влияет, т.к.
+// fail-closed проверки активности/роли всё равно отклоняют подключение, P12).
+func (r *RedisStore) ConsumeTicket(ctx context.Context, tokenID string) (bool, error) {
+	if !r.enabled || r.client == nil || tokenID == "" {
+		return true, nil
+	}
+
+	key := fmt.Sprintf("ticket:consumed:%s", tokenID)
+	const ttl = 5 * time.Minute
+	set, err := r.client.SetNX(ctx, key, "1", ttl).Result()
+	if err != nil {
+		r.logger.Warn("failed to consume ticket in redis", slog.String("error", err.Error()))
+		return false, nil
+	}
+
+	return set, nil
+}
+
+// TouchMirror продлевает TTL зеркала сессии (active + members) при успешном
+// подключении — молчаливое интервью дольше TTL не теряет доступ к реконнектам.
+func (r *RedisStore) TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return nil
+	}
+
+	activeKey := fmt.Sprintf("session:%s:active", sessionID)
+	membersKey := fmt.Sprintf("session:%s:members", sessionID)
+
+	if err := r.client.Expire(ctx, activeKey, ttl).Err(); err != nil {
+		return err
+	}
+	return r.client.Expire(ctx, membersKey, ttl).Err()
 }
 
 // SaveCodeState сохраняет последний снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа).

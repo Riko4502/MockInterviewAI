@@ -13,8 +13,11 @@ import { type Observable, tap } from "rxjs";
  *
  * Логирует URL, HTTP-метод, status code и latency (мс).
  * Не логирует тело запроса и чувствительные данные (§46, §56 SPEC.md):
- * `password`, `passwordHash`, `accessToken`, `refreshToken`,
+ * `password`, `passwordHash`, `accessToken`, `refreshToken`, `ticket` (WS-тикет),
  * `refreshTokenHash`, JWT secrets, Redis credentials, полный `Authorization` header.
+ *
+ * Боди/заголовки в настоящее время не логируются вовсе (см. `intercept`), поэтому
+ * отдельного списка полей для redaction нет — перечень выше носит справочный характер.
  */
 @Injectable()
 export class SensitiveLoggingInterceptor implements NestInterceptor {

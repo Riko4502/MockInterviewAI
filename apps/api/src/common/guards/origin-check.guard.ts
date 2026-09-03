@@ -14,7 +14,8 @@ import type { Request } from "express";
  * Если ни один заголовок не присутствует — запрос пропускается (не все клиенты
  * отправляют заголовки). Собственный origin API (`http://localhost:{port}`)
  * пропускается всегда — Swagger UI (§61 SPEC.md). Если заголовок есть, но не
- * совпадает с разрешёнными起源ами — бросает `ForbiddenException` (403).
+ * совпадает (точное равенство, A9) с разрешёнными origins — бросается
+ * `ForbiddenException` (403).
  *
  * Регистрируется глобально через `APP_GUARD` провайдер.
  * Защищает state-changing endpoints: `/auth/refresh`, `/logout`,
@@ -53,13 +54,11 @@ export class OriginCheckGuard implements CanActivate {
     const selfOrigin = `http://localhost:${
       this.configService.get<number>("port") ?? 3001
     }`;
-    if (value.startsWith(selfOrigin)) {
+    if (value === selfOrigin) {
       return true;
     }
 
-    const isAllowed = allowedOrigins.some((allowed) =>
-      value.startsWith(allowed),
-    );
+    const isAllowed = allowedOrigins.some((allowed) => value === allowed);
 
     if (!isAllowed) {
       throw new ForbiddenException("Origin not allowed");

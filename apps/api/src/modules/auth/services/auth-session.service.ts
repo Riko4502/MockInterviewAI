@@ -74,6 +74,21 @@ export class AuthSessionService {
   }
 
   /**
+   * Проверяет, активна ли session (live-проверка для гуардов, §16, A8/P5).
+   *
+   * Использует `EXISTS auth:session:{sid}` — без чтения и парсинга JSON
+   * для снижения roundtrip. Исключение Redis пробрасывается наверх
+   * (Nest отдаёт `500`).
+   *
+   * @param sessionId - UUID сессии.
+   * @returns `true`, если session существует (активна), иначе `false`.
+   * @throws {Error} При ошибке Redis.
+   */
+  async isSessionActive(sessionId: string): Promise<boolean> {
+    return this.redisService.exists(this.key(sessionId));
+  }
+
+  /**
    * Получает session по ID (§16 SPEC.md).
    *
    * @param sessionId - UUID сессии.

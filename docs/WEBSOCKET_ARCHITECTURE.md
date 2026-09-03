@@ -56,11 +56,11 @@ flowchart TB
         direction TB
         
         subgraph EntryPoint["1. Точка входа & Аутентификация"]
-            Handler["WebSocketHandler (Chi Router)\n- Проверка Origin (CSWSH)\n- Валидация JWT (Cookie / Bearer)\n- Проверка лимитов (Max Connections)"]
+            Handler["WebSocketHandler (Chi Router)\n- Проверка Origin (CSWSH)\n- Верификация тикета (subprotocol: realtime, <ticket>)\n- Приоритет: тикет → Bearer → Cookie\n- Проверка лимитов (Max Connections)"]
         end
 
         subgraph HubLayer["2. Hub (Синглтон реестра комнат)"]
-            Hub["Hub\n- rooms: map[string]*Room\n- mu: sync.RWMutex\n- EvictUser(userID)"]
+            Hub["Hub\n- rooms: map[string]*Room\n- mu: sync.RWMutex\n- EvictUser(userID) / EvictFromRoom(sessionID, userID)"]
         end
 
         subgraph RoomLayer["3. Room (Сессия собеседования: 123)"]
@@ -87,8 +87,8 @@ flowchart TB
     end
 
     %% Сетевой Handshake
-    C1 <-->|"WSS Handshake (Cookie/JWT)"| Handler
-    C2 <-->|"WSS Handshake (Cookie/JWT)"| Handler
+    C1 <-->|"WSS Handshake (subprotocol: realtime, <ticket>)"| Handler
+    C2 <-->|"WSS Handshake (subprotocol: realtime, <ticket>)"| Handler
 
     %% Регистрация в Hub и Room
     Handler -->|"GetOrCreateRoom(id)"| Hub
@@ -126,10 +126,13 @@ sequenceDiagram
     participant Room as Room Goroutine
     participant Redis as Redis (KV & Pub/Sub)
 
-    Note over Candidate,Handler: 1. ЭТАП: HTTP Upgrade & Авторизация
-    Candidate->>Handler: GET /ws/sessions/{id} (Cookie: access_token)
+    Note over Candidate,Handler: 1. ЭТАП: Получение тикета & HTTP Upgrade
+    Candidate->>Handler: POST /realtime/ticket (Bearer access)
+    Handler->>Handler: Верификация access, живая сессия (auth:session:{sid}), выпуск тикета (typ:"realtime", exp≈5м, bound to sessionId)
+    Handler-->>Candidate: { ticket }
+    Candidate->>Handler: GET /ws/sessions/{id} (subprotocol: realtime, <ticket>)
     Handler->>Handler: Проверка Origin (Защита от CSWSH)
-    Handler->>Handler: Проверка JWT (userId, sessionStore check)
+    Handler->>Handler: Проверка тикета (VerifyToken, ConsumeTicket(jti), привязка к комнате)
     Handler->>Handler: websocket.Accept(w, r) -> Апгрейд до WebSocket
     
     Note over Handler,Room: 2. ЭТАП: Регистрация и получение состояния
@@ -180,7 +183,7 @@ sequenceDiagram
 - **Что делает:** Является синглтоном в памяти сервиса и держит карту всех комнат `rooms map[string]*Room`.
 - **Зачем нужен:**
   1. Централизует доступ к комнатам — когда приходит новый HTTP-запрос, `Hub` определяет, существует ли уже комната или ее нужно создать (`GetOrCreateRoom`).
-  2. Слушает глобальный канал Redis `auth:revocations`. Если служба безопасности заблокировала пользователя или отозван Refresh-токен, `Hub.EvictUser(userID)` мгновенно находит все комнаты, где сидит этот пользователь, и принудительно разрывает сокет с кодом `StatusPolicyViolation`.
+  2. Слушает глобальный канал Redis `auth:revocations`. При ревокации (logout/bane) `Hub.EvictUser(userID)` мгновенно находит все комнаты, где сидит этот пользователь, и принудительно разрывает сокет с кодом `StatusPolicyViolation` (`user authentication revoked`). Если сообщение содержит `sessionId` (close-сессии), вызывается `Hub.EvictFromRoom(sessionID, userID)` — только в комнате данной сессии, с кодом `StatusPolicyViolation` (`session closed`).
   3. Предоставляет метрики для Prometheus: `TotalRooms()`, `TotalClients()`.
 
 ### 4.2. Room — Изолированная комната сессии
@@ -342,8 +345,9 @@ func (c *Client) Send(msg []byte) bool {
 - Если сервер упадет или перезагрузится, при старте новой комнаты код будет автоматически восстановлен из Redis (`r.sessionStore.GetCodeState(ctx, r.ID)`).
 
 ### 3. Мгновенный отзыв токенов (Token Revocation):
-- При выходе из системы или бане пользователя Auth-сервис публикует событие в канал `auth:revocations` с `userID`.
-- Все запущенные инстансы Realtime-сервиса ловят это событие и вызывают `Hub.EvictUser(userID)`, мгновенно закрывая все активные сокеты этого пользователя.
+- При logout/bane или закрытии сессии Auth-сервис удаляет ключ `auth:session:{sid}` и публикует в канал `auth:revocations` сообщение `{instanceId, data: <userId>, sessionId?}`. Поле `sessionId` заполняется при close-сессии (room-scoped evict).
+- Все запущенные инстансы Realtime-сервиса ловят это событие: без `sessionId` вызывается `Hub.EvictUser(userID)` — закрываются все сокеты пользователя (`user authentication revoked`); с `sessionId` — `Hub.EvictFromRoom(sessionID, userID)`, закрывается только комната данной сессии (`session closed`). Код закрытия в обоих случаях — `StatusPolicyViolation`.
+- При аутентификации рукопожатия realtime выполняет fail-closed проверки: `IsAuthSessionActive(auth:session:{sid})`, `IsSessionActive(session:{id}:active)`, `GetSessionUserRole(session:{id}:members)`; `IsTokenRevoked(blacklist:token:{jti})` — только для access-фолбэка. При успешном входе TTL зеркала (`session:{id}:active` / `session:{id}:members`) продлевается (`TouchMirror`).
 
 ---
 
@@ -352,7 +356,8 @@ func (c *Client) Send(msg []byte) bool {
 | Механизм защиты | Описание реализации |
 |---|---|
 | **CSWSH Protection** | Проверка заголовка `Origin` при Handshake через список `ALLOWED_ORIGINS`. Запрещает сторонним сайтам открывать сокет от лица авторизованного пользователя. |
-| **Аутентификация** | Извлечение JWT из `HttpOnly Cookie` (или `Authorization: Bearer`). Защита от XSS-атак (JavaScript не имеет доступа к Cookie). |
+| **Аутентификация** | Одноразовый тикет (`POST /realtime/ticket`) передается в `Sec-WebSocket-Protocol: realtime, <ticket>` (согласованный subprotocol — `realtime`); приоритет кредов: тикет → `Authorization: Bearer` → `HttpOnly Cookie`. Защита от XSS-атак (JavaScript не имеет доступа к Cookie). |
+| **Одноразовый тикет** | `typ: "realtime"`, `exp ≈ 5 мин`, привязан к `sessionId` (иначе `403`), одноразовый `ConsumeTicket` по `jti` (повторное использование → `401`). Для совместимости при раскатке допускается `typ: "access"` (multi-use, без `ConsumeTicket`). |
 | **Защита от спуфинга UserID** | Поля `senderId`, `userId`, `username` и `role` в событиях перезаписываются сервером (`sanitizeIncomingPayload`) на основании данных из JWT. Клиент не может выдать себя за другого человека или сменить роль на `interviewer`. |
 | **Token Bucket Rate Limiting** | Ограничение частоты: 60 сообщений/сек (всплеск до 120). Защищает бэкенд от флуда и DoS атак. |
 | **Read Limit (Размер сообщений)** | Ограничение `conn.SetReadLimit(1024 * 1024)` (1 MB). Предотвращает отправку огромных пакетов данных. |

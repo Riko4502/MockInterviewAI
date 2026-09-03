@@ -9,6 +9,7 @@ import {
 import type { ConfigService } from "@nestjs/config";
 import argon2 from "argon2";
 import type { PrismaService } from "../../prisma/prisma.service";
+import type { RedisService } from "../../redis/redis.service";
 import type { UsersService } from "../users/users.service";
 import { AuthService } from "./auth.service";
 import type { AuthSessionService } from "./services/auth-session.service";
@@ -73,6 +74,7 @@ describe("AuthService", () => {
   let revokeSession: jest.Mock;
   let revokeAllUserSessions: jest.Mock;
   let deleteUser: jest.Mock;
+  let publish: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
@@ -111,6 +113,7 @@ describe("AuthService", () => {
       lastUsedAt: "2026-08-24T00:00:00.000Z",
     });
     revokeSession = jest.fn().mockResolvedValue(undefined);
+    publish = jest.fn().mockResolvedValue(undefined);
     revokeAllUserSessions = jest.fn().mockResolvedValue(undefined);
 
     (randomUUID as unknown as jest.Mock)
@@ -138,6 +141,7 @@ describe("AuthService", () => {
       } as unknown as AuthSessionService,
       { user: { delete: deleteUser } } as unknown as PrismaService,
       createConfigService(),
+      { publish } as unknown as RedisService,
     );
 
     await service.onModuleInit();
@@ -436,6 +440,11 @@ describe("AuthService", () => {
       expect(getSession).toHaveBeenCalledWith(SESSION_ID);
       expect(revokeSession).toHaveBeenCalledTimes(1);
       expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(publish.mock.calls[0][1]).not.toContain("sessionId");
     });
 
     it("отсутствие cookie → generic 401 без обращений к Redis", async () => {
@@ -449,6 +458,7 @@ describe("AuthService", () => {
       expect(verifyRefreshToken).not.toHaveBeenCalled();
       expect(getSession).not.toHaveBeenCalled();
       expect(revokeSession).not.toHaveBeenCalled();
+      expect(publish).not.toHaveBeenCalled();
     });
   });
 
@@ -627,6 +637,8 @@ describe("AuthService", () => {
         USER.id,
         NEW_SESSION_ID,
       );
+      // Успешная ротация НЕ является ревокацией: все WS остаются активными
+      expect(publish).not.toHaveBeenCalled();
       expect(result).toEqual({
         accessToken: "raw.access.token",
         refreshToken: "raw.refresh.token",
@@ -693,6 +705,10 @@ describe("AuthService", () => {
       expect(error.getStatus()).toBe(401);
       expect(revokeSession).toHaveBeenCalledTimes(1);
       expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
       expect(createSession).not.toHaveBeenCalled();
     });
   });
@@ -745,6 +761,11 @@ describe("AuthService", () => {
 
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
       expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(publish.mock.calls[0][1]).not.toContain("sessionId");
     });
 
     it("Redis unavailable → 500 без внутренних деталей", async () => {
@@ -797,6 +818,11 @@ describe("AuthService", () => {
       );
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
       expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(publish.mock.calls[0][1]).not.toContain("sessionId");
     });
 
     it("неверный currentPassword → generic 401, пароль не обновляется, сессии не отзываются", async () => {

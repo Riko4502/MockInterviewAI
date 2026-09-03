@@ -12,3 +12,6 @@ export const TOKEN_TYP_ACCESS = "access";
 
 /** Тип refresh token (§24 SPEC.md). */
 export const TOKEN_TYP_REFRESH = "refresh";
+
+/** Тип одноразового WS-тикета (Phase C). Подписывается access-секретом. */
+export const TOKEN_TYP_REALTIME = "realtime";
