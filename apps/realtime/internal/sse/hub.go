@@ -295,6 +295,12 @@ func (h *Hub) Register(ctx context.Context, client *Client) error {
 	activeUsers := len(h.sessions)
 	h.mu.Unlock()
 
+	// Счетчик активных клиентов увеличивается ровно в тот момент, когда клиент
+	// попал в реестр, — иначе откат по кластерному лимиту ниже сделал бы
+	// декремент без парного инкремента и увел бы gauge в минус.
+	h.metrics.IncConnectedClients()
+	h.metrics.SetActiveUsers(activeUsers)
+
 	// Кластерный лимит: локального счетчика недостаточно, когда вкладки одного
 	// пользователя распределены балансировщиком по разным нодам.
 	if h.store != nil {
@@ -308,15 +314,15 @@ func (h *Hub) Register(ctx context.Context, client *Client) error {
 			)
 		case count > int64(h.opts.MaxConnectionsPerUser):
 			client.redisReserved = true
-			h.Unregister(client)
+			// Соединение так и не начало стримить, поэтому откат делается без
+			// записи в гистограмму длительности сессий.
+			h.removeClient(client)
 			return ErrUserConnectionLimit
 		default:
 			client.redisReserved = true
 		}
 	}
 
-	h.metrics.IncConnectedClients()
-	h.metrics.SetActiveUsers(activeUsers)
 	h.metrics.IncConnections(ConnStatusSuccess)
 
 	h.logger.Info("sse client registered",
@@ -331,19 +337,32 @@ func (h *Hub) Register(ctx context.Context, client *Client) error {
 // Unregister удаляет соединение из реестра и, если это была последняя вкладка
 // пользователя, останавливает горутину вычитки его стрима.
 func (h *Hub) Unregister(client *Client) {
+	if !h.removeClient(client) {
+		return
+	}
+
+	h.metrics.ObserveSessionDuration(time.Since(client.ConnectedAt).Seconds())
+}
+
+// removeClient снимает соединение с учета: чистит реестр, счетчики IP, кластерный
+// счетчик и gauge активных клиентов. Возвращает false, если клиент уже был снят.
+//
+// Отделен от Unregister, чтобы откат неудавшейся регистрации не попадал в
+// гистограмму длительности сессий нулевыми значениями.
+func (h *Hub) removeClient(client *Client) bool {
 	h.mu.Lock()
 
 	session, exists := h.sessions[client.UserID]
 	if !exists {
 		h.mu.Unlock()
-		return
+		return false
 	}
 
 	session.mu.Lock()
 	if _, registered := session.clients[client.ID]; !registered {
 		session.mu.Unlock()
 		h.mu.Unlock()
-		return
+		return false
 	}
 	delete(session.clients, client.ID)
 	remaining := len(session.clients)
@@ -378,7 +397,6 @@ func (h *Hub) Unregister(client *Client) {
 
 	h.metrics.DecConnectedClients()
 	h.metrics.SetActiveUsers(activeUsers)
-	h.metrics.ObserveSessionDuration(time.Since(client.ConnectedAt).Seconds())
 
 	h.logger.Info("sse client unregistered",
 		slog.String("sseClientId", client.ID),
@@ -386,6 +404,8 @@ func (h *Hub) Unregister(client *Client) {
 		slog.Int64("droppedMessages", client.Dropped()),
 		slog.Int("remainingTabs", remaining),
 	)
+
+	return true
 }
 
 // runUserReader — единственная на пользователя горутина вычитки Redis Stream.

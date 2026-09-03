@@ -299,13 +299,19 @@ PUBLISH auth:revocations '{"instanceId":"api","data":"<userId base64>"}'
 | Буфер одного соединения | 128 событий | `SSE_CLIENT_BUFFER_SIZE` |
 | Heartbeat | 15 сек | `SSE_HEARTBEAT_SECONDS` |
 | Retry клиента | 3000 мс | `SSE_RETRY_MS` |
-| Глубина Replay | 20 событий | `SSE_REPLAY_COUNT` |
+| Размер страницы Replay | 20 событий | `SSE_REPLAY_COUNT` |
 
 При превышении лимитов возвращается **429 Too Many Requests** с заголовком `Retry-After`. Медленный клиент, чей буфер остается переполненным дольше `SSE_SLOW_CONSUMER_GRACE_SECONDS`, отключается — он переподключится сам и доберет пропущенное через `Last-Event-ID`.
 
+`SSE_REPLAY_COUNT` задает размер одной страницы `XRANGE`, а не общую глубину восстановления: фаза Replay листает историю до полного исчерпания стрима, поэтому клиент получает все пропущенное (стрим ограничен сотней последних событий) за одно переподключение. Предохранитель на 1000 событий за фазу защищает от аномального продюсера, и его срабатывание пишется в лог предупреждением — обрыв истории не остается незамеченным.
+
 ### 5.5. Наблюдаемость
 
-Метрики SSE-подсистемы (`realtime_sse_connected_clients`, `realtime_sse_messages_dispatched_total`, `realtime_sse_dropped_messages_total`, `realtime_sse_redis_stream_lag_seconds` и др.) отдаются эндпоинтом `GET /metrics` в текстовом формате Prometheus. Эндпоинт предназначен для внутреннего скрейпинга и не должен публиковаться наружу через балансировщик. Сводка по SSE также попадает в `GET /readyz` (`sseClients`, `sseUsers`).
+Метрики SSE-подсистемы (`realtime_sse_connected_clients`, `realtime_sse_messages_dispatched_total`, `realtime_sse_dropped_messages_total`, `realtime_sse_redis_stream_lag_seconds` и др.) отдаются эндпоинтом `GET /metrics` в текстовом формате Prometheus.
+
+Эндпоинт предназначен для внутреннего скрейпинга: запросы принимаются только с петлевых и частных адресов (localhost, сеть Docker, подсеть Kubernetes), остальным отдается **404**. Адрес берется из реального TCP-пира, заголовки прокси не учитываются. Снять ограничение можно переменной `METRICS_ALLOW_PUBLIC=true` — только если эндпоинт закрыт аутентификацией на уровне обратного прокси.
+
+Сводка по SSE также попадает в `GET /readyz` (`sseClients`, `sseUsers`). При недоступном Redis `/readyz` отвечает **503** со `"status":"degraded"`, чтобы readiness-проба вывела инстанс из ротации; осознанно выключенный Redis (`REDIS_ENABLED=false`) готовность не отменяет.
 
 ### 5.6. Настройка Nginx
 

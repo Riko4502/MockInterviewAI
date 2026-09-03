@@ -124,7 +124,7 @@ func run() error {
 		cfg.TrustProxyHeaders,
 	)
 
-	metricsHandler := handler.NewMetricsHandler(sseHub)
+	metricsHandler := handler.NewMetricsHandler(sseHub, logger, cfg.MetricsAllowPublic)
 
 	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()

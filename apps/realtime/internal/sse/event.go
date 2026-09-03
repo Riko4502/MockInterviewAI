@@ -92,9 +92,12 @@ func NewEnvelope(id string, eventType EventType, payload any) (*Envelope, error)
 //
 //	event: <EventType>\n
 //	id: <RedisStreamID>\n
-//	retry: <retryMs>\n
 //	data: <JSON Payload>\n\n
-func (e *Envelope) Frame(retryMs int) []byte {
+//
+// Поле retry в кадры событий не пишется: клиент запоминает значение из
+// отдельного кадра, отправляемого один раз при открытии потока (RetryFrame),
+// и повтор в каждом событии только увеличивает объем трафика.
+func (e *Envelope) Frame() []byte {
 	body, err := json.Marshal(e)
 	if err != nil {
 		// Конверт состоит из примитивов и json.RawMessage, полученного из
@@ -112,12 +115,6 @@ func (e *Envelope) Frame(retryMs int) []byte {
 	if e.ID != "" {
 		buf.WriteString("id: ")
 		buf.WriteString(e.ID)
-		buf.WriteByte('\n')
-	}
-
-	if retryMs > 0 {
-		buf.WriteString("retry: ")
-		buf.WriteString(strconv.Itoa(retryMs))
 		buf.WriteByte('\n')
 	}
 

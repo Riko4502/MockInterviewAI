@@ -18,7 +18,7 @@ func TestEnvelopeFrameFormat(t *testing.T) {
 		t.Fatalf("failed to build envelope: %v", err)
 	}
 
-	frame := string(env.Frame(3000))
+	frame := string(env.Frame())
 
 	if !strings.HasPrefix(frame, "event: notification.new\n") {
 		t.Errorf("frame must start with the event line, got: %q", frame)
@@ -28,8 +28,10 @@ func TestEnvelopeFrameFormat(t *testing.T) {
 		t.Errorf("frame must carry the redis stream id, got: %q", frame)
 	}
 
-	if !strings.Contains(frame, "retry: 3000\n") {
-		t.Errorf("frame must carry the retry hint, got: %q", frame)
+	// Интервал переподключения отправляется один раз отдельным кадром при
+	// открытии потока, поэтому в кадрах событий поля retry быть не должно.
+	if strings.Contains(frame, "retry:") {
+		t.Errorf("event frame must not repeat the retry hint, got: %q", frame)
 	}
 
 	if !strings.HasSuffix(frame, "\n\n") {
@@ -78,7 +80,7 @@ func TestEnvelopeFrameOmitsEmptyID(t *testing.T) {
 		t.Fatalf("failed to build envelope: %v", err)
 	}
 
-	frame := string(env.Frame(3000))
+	frame := string(env.Frame())
 
 	if strings.Contains(frame, "\nid: ") || strings.HasPrefix(frame, "id: ") {
 		t.Errorf("frame must not contain an id field, got: %q", frame)
@@ -140,5 +142,14 @@ func TestNormalizePayloadRejectsBrokenJSON(t *testing.T) {
 
 	if got := string(normalizePayload([]byte(`{"a":1}`))); got != `{"a":1}` {
 		t.Errorf("valid payload must be passed through, got %q", got)
+	}
+}
+
+// TestRetryFrameCarriesInterval фиксирует, что интервал переподключения
+// по-прежнему доезжает до клиента: он отправляется единственный раз отдельным
+// кадром при открытии потока, а не повторяется в каждом событии.
+func TestRetryFrameCarriesInterval(t *testing.T) {
+	if got := string(RetryFrame(3000)); got != "retry: 3000\n\n" {
+		t.Errorf("unexpected retry frame: %q", got)
 	}
 }

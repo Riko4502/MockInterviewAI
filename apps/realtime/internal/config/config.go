@@ -28,6 +28,11 @@ type Config struct {
 	MaxConnections         int
 	MaxRoomClients         int
 
+	// MetricsAllowPublic снимает ограничение на источник запросов к /metrics.
+	// По умолчанию эндпоинт отвечает только петлевым и частным адресам, так как
+	// раскрывает число активных пользователей ноды.
+	MetricsAllowPublic bool
+
 	// TrustProxyHeaders разрешает определять IP клиента по заголовкам
 	// X-Forwarded-For / X-Real-IP. Включается только когда сервис действительно
 	// стоит за доверенным обратным прокси: иначе клиент подделает заголовок
@@ -159,6 +164,7 @@ func Load() (*Config, error) {
 		MaxConnections:         maxConn,
 		MaxRoomClients:         maxRoomClients,
 		TrustProxyHeaders:      getEnvBool("TRUST_PROXY_HEADERS", false),
+		MetricsAllowPublic:     getEnvBool("METRICS_ALLOW_PUBLIC", false),
 
 		SSEHeartbeatInterval:     sseCfg.HeartbeatInterval,
 		SSEStreamBlockInterval:   sseCfg.StreamBlockInterval,

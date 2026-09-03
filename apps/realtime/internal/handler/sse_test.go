@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -73,14 +74,27 @@ func (f *fakeStore) PublishNotification(_ context.Context, _, eventType string, 
 	return event.ID, nil
 }
 
-func (f *fakeStore) ReadHistory(_ context.Context, _, afterID string, _ int64) ([]storage.StreamEvent, error) {
+// ReadHistory повторяет семантику XRANGE: возвращает не больше count событий,
+// строго новее afterID. Ограничение по count здесь принципиально — без него
+// тест постраничного добора истории проходил бы даже с одностраничным Replay.
+func (f *fakeStore) ReadHistory(_ context.Context, _, afterID string, count int64) ([]storage.StreamEvent, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	missed := make([]storage.StreamEvent, 0, len(f.history))
+	if count <= 0 {
+		count = 20
+	}
+
+	missed := make([]storage.StreamEvent, 0, count)
 	for _, event := range f.history {
-		if sse.CompareStreamIDs(event.ID, afterID) > 0 {
-			missed = append(missed, event)
+		if sse.CompareStreamIDs(event.ID, afterID) <= 0 {
+			continue
+		}
+
+		missed = append(missed, event)
+
+		if int64(len(missed)) == count {
+			break
 		}
 	}
 
@@ -403,5 +417,61 @@ func awaitComment(t *testing.T, body io.Reader) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for the sse stream to open")
+	}
+}
+
+// TestSSEReplayDrainsHistoryBeyondOnePage закрывает регрессию: живая подписка
+// стартует с "$" (только события после подписки), поэтому Replay обязан
+// вычитать историю до конца. Ранее отдавалась ровно одна страница XRANGE, и
+// все пропущенное сверх SSE_REPLAY_COUNT терялось молча до следующего
+// переподключения клиента.
+func TestSSEReplayDrainsHistoryBeyondOnePage(t *testing.T) {
+	const (
+		pageSize = 5
+		missed   = 23
+	)
+
+	store := newFakeStore()
+	for i := 1; i <= missed; i++ {
+		store.seed(storage.StreamEvent{
+			ID:      strconv.Itoa(i+1) + "-0",
+			Type:    "notification.new",
+			Payload: []byte(`{"n":` + strconv.Itoa(i) + `}`),
+		})
+	}
+
+	server := newSSETestServer(t, store, sse.Options{ReplayCount: pageSize})
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+newTestToken(t, "user-replay"))
+	req.Header.Set("Last-Event-ID", "1-0")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	frames := readFrames(resp.Body)
+
+	for i := 1; i <= missed; i++ {
+		frame := awaitFrame(t, frames)
+
+		wantID := strconv.Itoa(i+1) + "-0"
+		if frame.ID != wantID {
+			t.Fatalf("event %d: expected id %q, got %q", i, wantID, frame.ID)
+		}
+
+		if !strings.Contains(frame.Data, `"n":`+strconv.Itoa(i)) {
+			t.Fatalf("event %d: unexpected payload %q", i, frame.Data)
+		}
 	}
 }

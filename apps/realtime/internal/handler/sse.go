@@ -21,6 +21,12 @@ const (
 
 	// sseRetryAfterSeconds — подсказка клиенту в заголовке Retry-After при 429.
 	sseRetryAfterSeconds = 30
+
+	// maxReplayedEvents — верхняя граница числа событий, отдаваемых за одну фазу
+	// Replay. Персональный стрим ограничен MAXLEN ~ 100, поэтому предохранитель
+	// срабатывает только при аномальном поведении продюсера; достижение границы
+	// логируется, чтобы обрыв истории никогда не оставался незамеченным.
+	maxReplayedEvents = 1000
 )
 
 // SSEHandler обслуживает глобальный поток персональных уведомлений пользователя.
@@ -133,7 +139,7 @@ func (h *SSEHandler) HandleNotifications(w http.ResponseWriter, r *http.Request)
 	}
 	defer h.hub.Unregister(client)
 
-	stream := newSSEStream(w, options.RetryMs)
+	stream := newSSEStream(w)
 
 	// 6. Заголовки долгоживущего потока. X-Accel-Buffering отключает буферизацию
 	// в Nginx для конкретного ответа, если директива proxy_buffering не выключена глобально.
@@ -192,6 +198,12 @@ func (h *SSEHandler) rejectRegistration(w http.ResponseWriter, userID string, er
 
 // replayMissedEvents отдает клиенту события, появившиеся после Last-Event-ID,
 // и возвращает ID последнего доставленного события.
+//
+// История вычитывается страницами по replayCount записей до полного исчерпания
+// стрима: одной страницы недостаточно, потому что живая подписка стартует с "$"
+// (только события, появившиеся после подписки). Если остановиться на первой
+// странице, все пропущенное сверх ее размера не попадет ни в Replay, ни в живой
+// поток и будет молча потеряно до следующего переподключения клиента.
 func (h *SSEHandler) replayMissedEvents(
 	r *http.Request,
 	client *sse.Client,
@@ -212,34 +224,52 @@ func (h *SSEHandler) replayMissedEvents(
 		return ""
 	}
 
-	events, err := h.notifications.ReadHistory(r.Context(), client.UserID, lastEventID, replayCount)
-	if err != nil {
-		h.logger.Warn("failed to replay missed notifications",
-			slog.String("userId", client.UserID),
-			slog.String("lastEventId", lastEventID),
-			slog.String("error", err.Error()),
-		)
-		return lastEventID
-	}
-
-	replayedID := lastEventID
 	metrics := h.hub.Metrics()
+	replayedID := lastEventID
+	total := 0
 
-	for i := range events {
-		env := sse.EnvelopeFromStreamEvent(events[i])
-		if writeErr := stream.writeEnvelope(env); writeErr != nil {
+	for {
+		events, err := h.notifications.ReadHistory(r.Context(), client.UserID, replayedID, replayCount)
+		if err != nil {
+			h.logger.Warn("failed to replay missed notifications",
+				slog.String("userId", client.UserID),
+				slog.String("lastEventId", replayedID),
+				slog.String("error", err.Error()),
+			)
 			return replayedID
 		}
 
-		replayedID = events[i].ID
-		metrics.IncDispatched(env.Type.String())
+		if len(events) == 0 {
+			break
+		}
+
+		for i := range events {
+			env := sse.EnvelopeFromStreamEvent(events[i])
+			if writeErr := stream.writeEnvelope(env); writeErr != nil {
+				return replayedID
+			}
+
+			replayedID = events[i].ID
+			total++
+			metrics.IncDispatched(env.Type.String())
+		}
+
+		if total >= maxReplayedEvents {
+			h.logger.Warn("replay truncated at the safety limit, client will resume from the last delivered id",
+				slog.String("userId", client.UserID),
+				slog.String("lastEventId", replayedID),
+				slog.Int("limit", maxReplayedEvents),
+			)
+			break
+		}
 	}
 
-	if len(events) > 0 {
+	if total > 0 {
 		h.logger.Info("replayed missed notifications",
 			slog.String("userId", client.UserID),
 			slog.String("lastEventId", lastEventID),
-			slog.Int("count", len(events)),
+			slog.String("resumedAt", replayedID),
+			slog.Int("count", total),
 		)
 	}
 
@@ -357,14 +387,12 @@ func (h *SSEHandler) clientIP(r *http.Request) string {
 type sseStream struct {
 	writer  http.ResponseWriter
 	control *http.ResponseController
-	retryMs int
 }
 
-func newSSEStream(w http.ResponseWriter, retryMs int) *sseStream {
+func newSSEStream(w http.ResponseWriter) *sseStream {
 	return &sseStream{
 		writer:  w,
 		control: http.NewResponseController(w),
-		retryMs: retryMs,
 	}
 }
 
@@ -397,5 +425,5 @@ func (s *sseStream) writeFrame(frame []byte) error {
 
 // writeEnvelope сериализует конверт в wire-кадр SSE и отправляет его клиенту.
 func (s *sseStream) writeEnvelope(env *sse.Envelope) error {
-	return s.writeFrame(env.Frame(s.retryMs))
+	return s.writeFrame(env.Frame())
 }

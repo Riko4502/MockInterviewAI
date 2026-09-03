@@ -59,11 +59,20 @@ func (h *HealthHandler) Healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Readyz обрабатывает запрос readiness /readyz с проверкой Redis.
+//
+// При недоступном Redis нода не может ни доставлять уведомления, ни вычитывать
+// персональные стримы, поэтому ответ отдается кодом 503: иначе readiness-проба
+// оркестратора засчитывает такой инстанс исправным и оставляет его в ротации.
+// Осознанно выключенный Redis (REDIS_ENABLED=false) готовности не отменяет —
+// Ping в этом режиме не выполняется и ошибки не возвращает.
 func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	redisStatus := "ok"
+	ready := true
+
 	if h.sessionStore != nil {
 		if err := h.sessionStore.Ping(r.Context()); err != nil {
 			redisStatus = "degraded: " + err.Error()
+			ready = false
 		}
 	}
 
@@ -72,8 +81,16 @@ func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 		sseClients, sseUsers = h.sseHub.Stats()
 	}
 
+	status := "ready"
+	httpStatus := http.StatusOK
+
+	if !ready {
+		status = "degraded"
+		httpStatus = http.StatusServiceUnavailable
+	}
+
 	resp := ReadyResponse{
-		Status:       "ready",
+		Status:       status,
 		Service:      "realtime",
 		Redis:        redisStatus,
 		TotalRooms:   h.hub.TotalRooms(),
@@ -84,6 +101,6 @@ func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(httpStatus)
 	_ = json.NewEncoder(w).Encode(resp)
 }

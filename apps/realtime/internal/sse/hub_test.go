@@ -330,3 +330,65 @@ func TestSlowConsumerCounterResetsAfterDrain(t *testing.T) {
 	default:
 	}
 }
+
+// TestHubKeepsGaugeConsistentOnClusterLimitReject закрывает регрессию учета
+// метрик: при отказе по кластерному счетчику (лимит выбран вкладками на других
+// нодах, локально свободно) откат регистрации делал DecConnectedClients без
+// парного инкремента и уводил gauge realtime_sse_connected_clients в минус.
+func TestHubKeepsGaugeConsistentOnClusterLimitReject(t *testing.T) {
+	store := newFakeStore()
+
+	// Лимит уже выбран вкладками пользователя на других нодах кластера.
+	store.mu.Lock()
+	store.counts["user-cluster"] = 10
+	store.mu.Unlock()
+
+	hub := newTestHub(t, store, Options{MaxConnectionsPerUser: 5})
+
+	if got := hub.Metrics().ConnectedClients(); got != 0 {
+		t.Fatalf("expected a clean gauge before the test, got %d", got)
+	}
+
+	client := newTestClient(hub, "c1", "user-cluster", "10.0.0.1")
+
+	if err := hub.Register(context.Background(), client); !errors.Is(err, ErrUserConnectionLimit) {
+		t.Fatalf("expected ErrUserConnectionLimit, got %v", err)
+	}
+
+	if got := hub.Metrics().ConnectedClients(); got != 0 {
+		t.Errorf("connected clients gauge must return to zero after a rejected registration, got %d", got)
+	}
+
+	if got := hub.Metrics().ActiveUsers(); got != 0 {
+		t.Errorf("active users gauge must return to zero after a rejected registration, got %d", got)
+	}
+
+	// Слот в кластерном счетчике обязан быть освобожден.
+	store.mu.Lock()
+	remaining := store.counts["user-cluster"]
+	store.mu.Unlock()
+
+	if remaining != 10 {
+		t.Errorf("cluster counter must be released back to 10, got %d", remaining)
+	}
+
+	// После освобождения места регистрация проходит и gauge растет ровно на единицу.
+	store.mu.Lock()
+	store.counts["user-cluster"] = 0
+	store.mu.Unlock()
+
+	accepted := newTestClient(hub, "c2", "user-cluster", "10.0.0.1")
+	if err := hub.Register(context.Background(), accepted); err != nil {
+		t.Fatalf("expected the next registration to succeed, got %v", err)
+	}
+
+	if got := hub.Metrics().ConnectedClients(); got != 1 {
+		t.Errorf("expected gauge to be 1 after a successful registration, got %d", got)
+	}
+
+	hub.Unregister(accepted)
+
+	if got := hub.Metrics().ConnectedClients(); got != 0 {
+		t.Errorf("expected gauge to be 0 after unregister, got %d", got)
+	}
+}
