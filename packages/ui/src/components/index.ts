@@ -18,6 +18,7 @@ export * from "./Pagination";
 export * from "./Progress";
 export * from "./Select";
 export * from "./Separator";
+export * from "./Skeleton";
 export * from "./Spin";
 export * from "./Switch";
 export * from "./Table";
