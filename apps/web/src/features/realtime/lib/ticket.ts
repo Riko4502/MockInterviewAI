@@ -1,5 +1,6 @@
-import { AuthError, baseFetch } from "@/shared/api/base";
-import { endpoints, realtimeWsUrl } from "@/shared/api/endpoints";
+import { realtimeControllerGetTicket } from "@packages/api";
+import { AuthError } from "@/shared/api/base";
+import { realtimeWsUrl } from "@/shared/api/endpoints";
 
 /** Максимум последовательных failed handshake (403 при апгрейде) до остановки reconnect. */
 export const MAX_HANDSHAKE_FAILURES = 5;
@@ -36,11 +37,8 @@ export interface RealtimeConnection {
  * одноразовая учётная запись для `Sec-WebSocket-Protocol`.
  */
 export async function getTicket(sessionId: string): Promise<string> {
-  const { ticket } = await baseFetch<{ ticket: string }>(
-    endpoints.realtime.ticket,
-    { method: "POST", body: JSON.stringify({ sessionId }) },
-  );
-  return ticket;
+  const response = await realtimeControllerGetTicket({ sessionId });
+  return response.ticket;
 }
 
 /**

@@ -22,6 +22,9 @@
     "generate": {
       "cache": false
     },
+    "codegen": {
+      "cache": false
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$"]
     },
