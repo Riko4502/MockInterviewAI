@@ -79,6 +79,7 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   BugIcon: ICON_CATEGORIES.UI,
   CheckIcon: ICON_CATEGORIES.UI,
   ChevronRightIcon: ICON_CATEGORIES.UI,
+  MoreHorizontalIcon: ICON_CATEGORIES.UI,
   ClockIcon: ICON_CATEGORIES.UI,
   CloseIcon: ICON_CATEGORIES.UI,
   CodeIcon: ICON_CATEGORIES.UI,
