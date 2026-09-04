@@ -14,6 +14,7 @@ export * from "./InputGroup";
 export * from "./Label";
 export * from "./Link";
 export * from "./Pagination";
+export * from "./Progress";
 export * from "./Select";
 export * from "./Separator";
 export * from "./Spin";
