@@ -110,6 +110,24 @@ func (h *SSEHandler) HandleNotifications(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// 3b. Проверка живой auth-сессии (fail-closed, симметрично WebSocket-хендлеру).
+	// Access-токен остается валидным до истечения exp, поэтому logout, выход со
+	// всех устройств и смена пароля видны сервису только по отсутствию ключа
+	// auth:session:{sid}: без этой проверки отозванный клиент переоткрыл бы
+	// поток со старым токеном сразу после разрыва по auth:revocations.
+	if h.sessionStore != nil && claims.SID != "" {
+		authActive, authErr := h.sessionStore.IsAuthSessionActive(r.Context(), claims.SID)
+		if authErr != nil || !authActive {
+			metrics.IncConnections(sse.ConnStatusRejected)
+			h.logger.Warn("sse connection rejected: auth session is not active",
+				slog.String("userId", claims.UserID),
+				slog.String("sid", claims.SID),
+			)
+			http.Error(w, "Unauthorized: auth session is not active", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// 4. Стриминг невозможен без поддержки сброса буфера ответа.
 	if _, ok := w.(http.Flusher); !ok {
 		metrics.IncConnections(sse.ConnStatusRejected)

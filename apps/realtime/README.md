@@ -242,7 +242,10 @@ export interface SystemErrorPayload {
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 
 await fetchEventSource("http://localhost:8080/sse/notifications", {
-  credentials: "include", // cookie access_token уходит автоматически
+  // apps/api отдает access-токен в теле ответа и держит в cookie только
+  // refresh_token, поэтому поток открывается с заголовком Authorization.
+  // Нативный EventSource здесь не подходит: заголовки он выставлять не умеет.
+  headers: { Authorization: `Bearer ${accessToken}` },
   onmessage(event) {
     // event.id — Redis Stream ID, он же Last-Event-ID при переподключении
     const envelope = JSON.parse(event.data); // BaseSSEEnvelope<TPayload>
@@ -251,7 +254,8 @@ await fetchEventSource("http://localhost:8080/sse/notifications", {
 });
 ```
 
-* Токен читается только из `HttpOnly` cookie `access_token` или заголовка `Authorization: Bearer <JWT>`.
+* Токен читается только из заголовка `Authorization: Bearer <JWT>` или из `HttpOnly` cookie с именем `JWT_ACCESS_COOKIE_NAME` (по умолчанию `access_token`). Сейчас `apps/api` такую cookie не выставляет — рабочий способ для браузера один: `Authorization` через `@microsoft/fetch-event-source`.
+* Токен обязан нести `typ` (`access`/`realtime`) и `sid`, а auth-сессия `auth:session:{sid}` — существовать в Redis. Проверка fail-closed и симметрична WebSocket-хендлеру: после logout, выхода со всех устройств или смены пароля access-токен остается подписанным еще до 15 минут, и без нее отозванный клиент переоткрыл бы поток сразу после разрыва. Побочный эффект: при `REDIS_ENABLED=false` поток отвечает **401**.
 * Передача токена в query string (`?token=...`) отклоняется с кодом **400**: это защита от утечки JWT в access-логи прокси, историю браузера и `Referer`.
 * Браузер сам переподключается и присылает `Last-Event-ID`; сервер отдает пропущенные события из Redis Stream (фаза Replay), после чего переходит в живой режим.
 * Каждое событие содержит детерминированный `id`, поэтому клиентскому стейт-менеджеру достаточно дедуплицировать по нему.
@@ -286,7 +290,11 @@ XADD user:{userId}:notifications MAXLEN '~' 100 '*' \
 PUBLISH notifications:broadcast '{"type":"system.broadcast","payload":{"severity":"warning","message":"..."}}'
 
 # Мгновенный отзыв авторизации: все SSE-потоки пользователя разрываются на всех нодах
-PUBLISH auth:revocations '{"instanceId":"api","data":"<userId base64>"}'
+PUBLISH auth:revocations '{"instanceId":"api-<hostname>","data":"<userId>"}'
+
+# Room-scoped ревокация (закрытие комнаты интервью) адресована WebSocket-хабу:
+# он выкидывает участников комнаты, а глобальный поток уведомлений не рвется
+PUBLISH auth:revocations '{"instanceId":"api-<hostname>","data":"<userId>","sessionId":"<interviewSessionId>"}'
 ```
 
 Сервису достаточно полей `type` и `payload`; `timestamp` необязателен — при его отсутствии время восстанавливается из Redis Stream ID. Ключ стрима автоматически ограничивается сотней последних событий и получает `EXPIRE` на 7 суток при каждой публикации.

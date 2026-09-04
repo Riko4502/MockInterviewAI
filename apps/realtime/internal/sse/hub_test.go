@@ -127,6 +127,72 @@ func newTestHub(t *testing.T, store storage.NotificationStore, opts Options) *Hu
 	return hub
 }
 
+// fakeRevocations — управляемый источник сигналов канала "auth:revocations".
+// Хаб подписывается в конструкторе, поэтому колбэк сохраняется и вызывается
+// тестом напрямую: это тот же путь, которым его дергает Redis Pub/Sub.
+type fakeRevocations struct {
+	mu           sync.Mutex
+	onRevoke     func(userID, sessionID string)
+	unsubscribed bool
+}
+
+func (f *fakeRevocations) SubscribeRevocations(
+	_ context.Context,
+	onRevoke func(userID, sessionID string),
+) (func(), error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.onRevoke = onRevoke
+
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		f.unsubscribed = true
+	}, nil
+}
+
+// emit имитирует сообщение из канала: userID всегда заполнен, sessionID —
+// только для room-scoped ревокации (закрытие комнаты интервью).
+func (f *fakeRevocations) emit(t *testing.T, userID, sessionID string) {
+	t.Helper()
+
+	f.mu.Lock()
+	handler := f.onRevoke
+	f.mu.Unlock()
+
+	if handler == nil {
+		t.Fatal("hub did not subscribe to the revocations channel")
+	}
+
+	handler(userID, sessionID)
+}
+
+func (f *fakeRevocations) isUnsubscribed() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.unsubscribed
+}
+
+// newTestHubWithRevocations поднимает хаб с подключенным источником ревокаций.
+func newTestHubWithRevocations(
+	t *testing.T,
+	store storage.NotificationStore,
+	revocations RevocationSubscriber,
+	opts Options,
+) *Hub {
+	t.Helper()
+
+	hub := NewHub(context.Background(), store, revocations, opts, "test-node", testLogger())
+	t.Cleanup(func() {
+		_ = hub.Close()
+	})
+
+	return hub
+}
+
 func newTestClient(hub *Hub, id, userID, ip string) *Client {
 	opts := hub.Options()
 	return NewClient(id, userID, ip, opts.ClientBufferSize, opts.SlowConsumerGrace, hub.Metrics(), testLogger())
@@ -391,4 +457,94 @@ func TestHubKeepsGaugeConsistentOnClusterLimitReject(t *testing.T) {
 	if got := hub.Metrics().ConnectedClients(); got != 0 {
 		t.Errorf("expected gauge to be 0 after unregister, got %d", got)
 	}
+}
+
+// TestHubEvictsUserOnUserLevelRevocation проверяет, что сообщение канала
+// "auth:revocations" без sessionId (logout, выход со всех устройств, смена
+// пароля, деактивация) рвет все потоки уведомлений пользователя.
+func TestHubEvictsUserOnUserLevelRevocation(t *testing.T) {
+	revocations := &fakeRevocations{}
+	hub := newTestHubWithRevocations(t, newFakeStore(), revocations, Options{
+		StreamBlockInterval: 50 * time.Millisecond,
+	})
+
+	client := newTestClient(hub, "tab-a", "user-1", "10.0.0.1")
+	if err := hub.Register(context.Background(), client); err != nil {
+		t.Fatalf("failed to register client: %v", err)
+	}
+
+	revocations.emit(t, "user-1", "")
+
+	select {
+	case env := <-client.Events():
+		if env.Type != EventAuthRevoked {
+			t.Errorf("expected auth.revoked, got %q", env.Type)
+		}
+	default:
+		t.Fatal("client did not receive the final auth.revoked event")
+	}
+
+	select {
+	case <-client.Done():
+	default:
+		t.Fatal("client connection must be closed after a user-level revocation")
+	}
+}
+
+// TestHubKeepsStreamOnRoomScopedRevocation проверяет обратное: сообщение с
+// sessionId адресовано WebSocket-хабу (закрытие комнаты интервью). Глобальный
+// поток уведомлений к комнате не привязан и рваться не должен — иначе выход из
+// одного интервью гасил бы пользователю все уведомления.
+func TestHubKeepsStreamOnRoomScopedRevocation(t *testing.T) {
+	revocations := &fakeRevocations{}
+	hub := newTestHubWithRevocations(t, newFakeStore(), revocations, Options{
+		StreamBlockInterval: 50 * time.Millisecond,
+	})
+
+	client := newTestClient(hub, "tab-a", "user-1", "10.0.0.1")
+	if err := hub.Register(context.Background(), client); err != nil {
+		t.Fatalf("failed to register client: %v", err)
+	}
+
+	revocations.emit(t, "user-1", "session-a")
+
+	select {
+	case <-client.Done():
+		t.Fatal("room-scoped revocation must not close the global notifications stream")
+	default:
+	}
+
+	select {
+	case env := <-client.Events():
+		t.Fatalf("unexpected event on a room-scoped revocation: %q", env.Type)
+	default:
+	}
+
+	if clients, users := hub.Stats(); clients != 1 || users != 1 {
+		t.Errorf("expected the client to stay registered, got %d clients / %d users", clients, users)
+	}
+}
+
+// TestHubUnsubscribesRevocationsOnClose проверяет, что при остановке хаба
+// подписка на канал закрывается и не удерживает соединение из пула Redis.
+func TestHubUnsubscribesRevocationsOnClose(t *testing.T) {
+	revocations := &fakeRevocations{}
+	hub := newTestHubWithRevocations(t, newFakeStore(), revocations, Options{
+		StreamBlockInterval: 50 * time.Millisecond,
+	})
+
+	if err := hub.Close(); err != nil {
+		t.Fatalf("failed to close hub: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if revocations.isUnsubscribed() {
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatal("hub did not unsubscribe from the revocations channel on shutdown")
 }

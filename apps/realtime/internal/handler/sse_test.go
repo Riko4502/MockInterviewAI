@@ -27,15 +27,17 @@ const testJWTSecret = "sse-handler-test-secret"
 type fakeStore struct {
 	live chan storage.StreamEvent
 
-	mu      sync.Mutex
-	history []storage.StreamEvent
-	revoked map[string]bool
+	mu              sync.Mutex
+	history         []storage.StreamEvent
+	revoked         map[string]bool
+	revokedSessions map[string]bool
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		live:    make(chan storage.StreamEvent, 16),
-		revoked: make(map[string]bool),
+		live:            make(chan storage.StreamEvent, 16),
+		revoked:         make(map[string]bool),
+		revokedSessions: make(map[string]bool),
 	}
 }
 
@@ -55,7 +57,23 @@ func (f *fakeStore) IsTokenRevoked(_ context.Context, tokenID string) (bool, err
 
 func (f *fakeStore) IsSessionActive(context.Context, string) (bool, error) { return true, nil }
 
-func (f *fakeStore) IsAuthSessionActive(context.Context, string) (bool, error) { return true, nil }
+// revokeAuthSession удаляет auth-сессию, как это делает API при logout,
+// выходе со всех устройств и смене пароля.
+func (f *fakeStore) revokeAuthSession(sid string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.revokedSessions[sid] = true
+}
+
+// IsAuthSessionActive повторяет семантику ключа auth:session:{sid}: сессия
+// активна, пока API ее не отозвал.
+func (f *fakeStore) IsAuthSessionActive(_ context.Context, sid string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return !f.revokedSessions[sid], nil
+}
 
 func (f *fakeStore) ConsumeTicket(context.Context, string) (bool, error) { return true, nil }
 
@@ -274,6 +292,35 @@ func TestSSERequiresAuthentication(t *testing.T) {
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 without a token, got %d", resp.StatusCode)
+	}
+}
+
+// TestSSERejectsRevokedAuthSession проверяет fail-closed проверку живой
+// auth-сессии. Access-токен остается подписанным и не истекшим после logout,
+// выхода со всех устройств и смены пароля — единственный признак отзыва —
+// пропавший ключ auth:session:{sid}. Без этой проверки клиент, разорванный
+// по auth:revocations, сразу переоткрыл бы поток тем же токеном.
+func TestSSERejectsRevokedAuthSession(t *testing.T) {
+	store := newFakeStore()
+	server := newSSETestServer(t, store, sse.Options{})
+
+	token := newTestToken(t, "user-revoked")
+	store.revokeAuthSession("sid-user-revoked")
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", http.NoBody)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 for a revoked auth session, got %d", resp.StatusCode)
 	}
 }
 
