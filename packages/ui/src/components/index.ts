@@ -7,6 +7,7 @@ export * from "./Card";
 export * from "./Checkbox";
 export * from "./DataTable";
 export * from "./DatePicker";
+export * from "./Dialog";
 export * from "./Empty";
 export * from "./Form";
 export * from "./Input";
