@@ -22,6 +22,7 @@ export { LoginIcon } from "./login-icon";
 export { MaximizeIcon } from "./maximize-icon";
 export { MenuIcon } from "./menu-icon";
 export { MinimizeIcon } from "./minimize-icon";
+export { MoreHorizontalIcon } from "./move-horizontal-icon";
 export { PackageIcon } from "./package-icon";
 export { PlayIcon } from "./play-icon";
 export { PlusIcon } from "./plus-icon";
