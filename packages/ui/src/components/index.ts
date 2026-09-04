@@ -11,6 +11,7 @@ export * from "./Empty";
 export * from "./Form";
 export * from "./Input";
 export * from "./InputGroup";
+export * from "./Kbd";
 export * from "./Label";
 export * from "./Link";
 export * from "./Pagination";
