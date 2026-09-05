@@ -28,10 +28,32 @@ type Config struct {
 	MaxConnections         int
 	MaxRoomClients         int
 
+	// MetricsAllowPublic снимает ограничение на источник запросов к /metrics.
+	// По умолчанию эндпоинт отвечает только петлевым и частным адресам, так как
+	// раскрывает число активных пользователей ноды.
+	MetricsAllowPublic bool
+
+	// TrustProxyHeaders разрешает определять IP клиента по заголовкам
+	// X-Forwarded-For / X-Real-IP. Включается только когда сервис действительно
+	// стоит за доверенным обратным прокси: иначе клиент подделает заголовок
+	// и обойдет лимит соединений на один IP.
+	TrustProxyHeaders bool
+
+	// SSE конфигурация (глобальный поток уведомлений /sse/notifications)
+	SSEHeartbeatInterval     time.Duration
+	SSEStreamBlockInterval   time.Duration
+	SSESlowConsumerGrace     time.Duration
+	SSEClientBufferSize      int
+	SSEMaxConnectionsPerUser int
+	SSEMaxConnectionsPerIP   int
+	SSEReplayCount           int
+	SSERetryMs               int
+
 	// Redis конфигурация (из корневого .env)
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
+	RedisPoolSize int
 	RedisEnabled  bool
 
 	// AllowAccessFallback разрешает подключение старых клиентов по access-токену
@@ -126,6 +148,18 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Блокирующий XREAD удерживает соединение из пула на каждого пользователя
+	// с открытым SSE-потоком, поэтому пул задается явно и с запасом.
+	redisPoolSize, err := getEnvInt("REDIS_POOL_SIZE", 100)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_POOL_SIZE: %w", err)
+	}
+
+	sseCfg, err := loadSSEConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Port:                   port,
 		Host:                   host,
@@ -141,11 +175,92 @@ func Load() (*Config, error) {
 		RefreshTokenCookieName: getEnv("JWT_REFRESH_COOKIE_NAME", getEnv("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")),
 		MaxConnections:         maxConn,
 		MaxRoomClients:         maxRoomClients,
-		RedisAddr:              redisAddr,
-		RedisPassword:          redisPassword,
-		RedisDB:                redisDB,
-		RedisEnabled:           redisEnabled,
-		AllowAccessFallback:    allowAccessFallback,
+		TrustProxyHeaders:      getEnvBool("TRUST_PROXY_HEADERS", false),
+		MetricsAllowPublic:     getEnvBool("METRICS_ALLOW_PUBLIC", false),
+
+		SSEHeartbeatInterval:     sseCfg.HeartbeatInterval,
+		SSEStreamBlockInterval:   sseCfg.StreamBlockInterval,
+		SSESlowConsumerGrace:     sseCfg.SlowConsumerGrace,
+		SSEClientBufferSize:      sseCfg.ClientBufferSize,
+		SSEMaxConnectionsPerUser: sseCfg.MaxConnectionsPerUser,
+		SSEMaxConnectionsPerIP:   sseCfg.MaxConnectionsPerIP,
+		SSEReplayCount:           sseCfg.ReplayCount,
+		SSERetryMs:               sseCfg.RetryMs,
+
+		RedisAddr:           redisAddr,
+		RedisPassword:       redisPassword,
+		RedisDB:             redisDB,
+		RedisPoolSize:       redisPoolSize,
+		RedisEnabled:        redisEnabled,
+		AllowAccessFallback: allowAccessFallback,
+	}, nil
+}
+
+// sseSettings содержит параметры подсистемы Server-Sent Events.
+type sseSettings struct {
+	HeartbeatInterval     time.Duration
+	StreamBlockInterval   time.Duration
+	SlowConsumerGrace     time.Duration
+	ClientBufferSize      int
+	MaxConnectionsPerUser int
+	MaxConnectionsPerIP   int
+	ReplayCount           int
+	RetryMs               int
+}
+
+// loadSSEConfig читает настройки потока уведомлений /sse/notifications.
+// Значения по умолчанию соответствуют SSE_SPEC.md (heartbeat 15 сек,
+// retry 3000 мс, буфер 128 событий, 5 соединений на пользователя, 20 на IP).
+func loadSSEConfig() (*sseSettings, error) {
+	heartbeatSec, err := getEnvInt("SSE_HEARTBEAT_SECONDS", 15)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_HEARTBEAT_SECONDS: %w", err)
+	}
+
+	blockSec, err := getEnvInt("SSE_STREAM_BLOCK_SECONDS", 15)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_STREAM_BLOCK_SECONDS: %w", err)
+	}
+
+	graceSec, err := getEnvInt("SSE_SLOW_CONSUMER_GRACE_SECONDS", 30)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_SLOW_CONSUMER_GRACE_SECONDS: %w", err)
+	}
+
+	bufferSize, err := getEnvInt("SSE_CLIENT_BUFFER_SIZE", 128)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_CLIENT_BUFFER_SIZE: %w", err)
+	}
+
+	maxPerUser, err := getEnvInt("SSE_MAX_CONNECTIONS_PER_USER", 5)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_MAX_CONNECTIONS_PER_USER: %w", err)
+	}
+
+	maxPerIP, err := getEnvInt("SSE_MAX_CONNECTIONS_PER_IP", 20)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_MAX_CONNECTIONS_PER_IP: %w", err)
+	}
+
+	replayCount, err := getEnvInt("SSE_REPLAY_COUNT", 20)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_REPLAY_COUNT: %w", err)
+	}
+
+	retryMs, err := getEnvInt("SSE_RETRY_MS", 3000)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSE_RETRY_MS: %w", err)
+	}
+
+	return &sseSettings{
+		HeartbeatInterval:     time.Duration(heartbeatSec) * time.Second,
+		StreamBlockInterval:   time.Duration(blockSec) * time.Second,
+		SlowConsumerGrace:     time.Duration(graceSec) * time.Second,
+		ClientBufferSize:      bufferSize,
+		MaxConnectionsPerUser: maxPerUser,
+		MaxConnectionsPerIP:   maxPerIP,
+		ReplayCount:           replayCount,
+		RetryMs:               retryMs,
 	}, nil
 }
 
@@ -202,6 +317,16 @@ func getEnv(key, fallback string) string {
 		return strings.TrimSpace(val)
 	}
 	return fallback
+}
+
+// getEnvBool читает булеву переменную окружения ("true"/"1"/"yes" — истина).
+func getEnvBool(key string, fallback bool) bool {
+	raw := strings.ToLower(getEnv(key, ""))
+	if raw == "" {
+		return fallback
+	}
+
+	return raw == "true" || raw == "1" || raw == "yes"
 }
 
 func getEnvInt(key string, fallback int) (int, error) {

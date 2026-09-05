@@ -112,19 +112,34 @@ func NewRedisStore(cfg *config.Config, logger *slog.Logger) *RedisStore {
 		}
 	}
 
+	// REDIS_URL без учетных данных (redis://host:port/db) парсится успешно и
+	// возвращает пустой пароль, поэтому REDIS_PASSWORD нужно применить явно:
+	// иначе он молча игнорируется и сервис уходит в soft-fail с NOAUTH.
+	if opts.Password == "" && cfg.RedisPassword != "" {
+		opts.Password = cfg.RedisPassword
+	}
+
+	// Каждый пользователь с открытым SSE-потоком удерживает одно соединение
+	// пула на блокирующем XREAD, поэтому пул расширяется явно.
+	if cfg.RedisPoolSize > 0 {
+		opts.PoolSize = cfg.RedisPoolSize
+	}
+
 	client := redis.NewClient(opts)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
+	safeAddr := redactRedisAddr(cfg.RedisAddr)
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		logger.Warn("failed to ping redis on startup, proceeding in soft-fail mode",
-			slog.String("addr", cfg.RedisAddr),
+			slog.String("addr", safeAddr),
 			slog.String("error", err.Error()),
 		)
 	} else {
 		logger.Info("connected to redis successfully",
-			slog.String("addr", cfg.RedisAddr),
+			slog.String("addr", safeAddr),
 			slog.String("instanceId", instanceID),
 		)
 	}
@@ -135,6 +150,26 @@ func NewRedisStore(cfg *config.Config, logger *slog.Logger) *RedisStore {
 		logger:     logger.With(slog.String("component", "redis")),
 		enabled:    true,
 	}
+}
+
+// redactRedisAddr убирает учетные данные из строки подключения перед записью
+// в лог: REDIS_URL вида "redis://:password@host:6379/0" иначе утек бы паролем
+// в агрегатор логов на уровне INFO.
+func redactRedisAddr(addr string) string {
+	scheme, rest, hasScheme := strings.Cut(addr, "://")
+	if !hasScheme {
+		// Формат "host:port" учетных данных не содержит.
+		return addr
+	}
+
+	credentials, hostPart, hasCredentials := strings.Cut(rest, "@")
+	if !hasCredentials {
+		return addr
+	}
+
+	user, _, _ := strings.Cut(credentials, ":")
+
+	return scheme + "://" + user + ":***@" + hostPart
 }
 
 // InstanceID возвращает уникальный ID текущего инстанса сервиса.
