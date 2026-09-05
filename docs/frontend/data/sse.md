@@ -151,16 +151,25 @@ Payload'ы всех событий описаны в [realtime.md](./realtime.md
 
 ---
 
-## 7. Референсная реализация
+## 7. Клиентский слой в `apps/web`
 
-Слой FSD: `apps/web/src/shared/api/sse/`. Всё — client-only (`"use client"`), при SSR не выполняется.
+Реализация живёт в `apps/web/src/shared/api/sse/` — весь код client-only (`"use client"`), при SSR не выполняется:
+
+| Модуль | Ответственность |
+|---|---|
+| `types.ts` | конверт и дискриминированное объединение событий |
+| `parser.ts` | разбор `text/event-stream` в кадры |
+| `client.ts` | `fetch`-подключение, реконнект, `Last-Event-ID`, обработка статусов |
+| `provider.tsx` | один поток на вкладку, рассылка событий подписчикам |
+| `use-sse-event.ts` | типобезопасная подписка из компонентов |
+
+Ниже — контракт: что этот слой обязан обеспечивать и как им пользоваться. Детали реализации смотрите в самом коде.
 
 ### 7.1. Типы
 
-Канонические типы SSE должны жить в `@packages/dto` (`packages/dto/src/realtime/`) — там же, где `ticket.dto.ts`. Пока их там нет, объявите локально и перенесите в пакет при первой же необходимости переиспользования.
+Канонические типы SSE должны жить в `@packages/dto` (`packages/dto/src/realtime/`) — там же, где `ticket.dto.ts`. Пока их там нет, они объявлены локально в `shared/api/sse/types.ts`; перенесите в пакет при первой необходимости переиспользования.
 
 ```ts
-// apps/web/src/shared/api/sse/types.ts
 export interface BaseSSEEnvelope<TType extends string, TPayload> {
   /** Redis Stream ID. Отсутствует у system.broadcast и auth.revoked. */
   id?: string;
@@ -181,361 +190,85 @@ export type AnySSEEnvelope =
   | BaseSSEEnvelope<"auth.revoked", { reason: string }>;
 
 export type SSEEventType = AnySSEEnvelope["type"];
-
 export type SSEStatus = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 ```
 
 Дискриминированное объединение даёт автоматический вывод типа payload по `envelope.type` — приведения типов не нужны.
 
-### 7.2. Парсер кадров
+### 7.2. Что обязан делать клиент
+
+Требования вытекают из протокола (§3), гарантий доставки (§5) и кодов ответов (§6). При правках `client.ts`/`parser.ts` сверяйтесь с этим списком.
+
+**Парсер**
+
+* Режет буфер по пустой строке (`\n\n`), нормализует `\r\n`; кадр может прийти разрезанным между чанками — накапливайте остаток.
+* Пропускает строки-комментарии (`: ping …`), но фиксирует факт активности — по нему работает watchdog.
+* Отбрасывает один пробел после двоеточия (спецификация W3C), склеивает несколько строк `data:` через `\n`.
+* Битый JSON в `data` не должен ронять поток — такой кадр пропускается.
+
+**Соединение**
+
+* `fetch` c `Accept: text/event-stream`, `Authorization: Bearer …`, `credentials: "include"`, `cache: "no-store"` и `AbortSignal`.
+* `Last-Event-ID` проставляется при переподключении и обновляется **только при непустом `id`**.
+* Реконнект — экспоненциальный backoff с джиттером, база берётся из кадра `retry:` (по умолчанию 3000 мс), потолок ~30 с.
+* Watchdog: если байтов нет дольше ~45 с (сервер шлёт heartbeat раз в 15 с) — рвём соединение сами и переподключаемся.
+* `401` → **один** рефреш токена (переиспользуйте логику из [base.ts](../../../apps/web/src/shared/api/base.ts)) и повторная попытка; неудача → логаут.
+* `429` и `503` → ждать `Retry-After` (по умолчанию 30 с), не считать это ошибкой соединения.
+* `auth.revoked` → остановиться насовсем: реконнекта быть не должно.
+* После каждого успешного открытия потока — колбэк `onOpen` для добора данных через REST.
+
+**Публичный API**
 
 ```ts
-// apps/web/src/shared/api/sse/parser.ts
-export interface ParsedFrame {
-  /** Значение поля event: (по умолчанию "message") */
-  event: string;
-  /** Склеенные строки data: */
-  data: string;
-  /** Значение поля id:, если было */
-  id?: string;
-  /** Значение поля retry:, если было */
-  retry?: number;
-}
-
-/**
- * Разбирает поток text/event-stream в кадры.
- * Комментарии (": ping ...") пропускаются, но обновляют время последнего байта —
- * вызывающий код использует это для детекта зависшего соединения.
- */
-export async function* parseSSEStream(
-  body: ReadableStream<Uint8Array>,
-  onActivity?: () => void,
-): AsyncGenerator<ParsedFrame> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) return;
-
-      onActivity?.();
-      buffer += decoder.decode(value, { stream: true });
-
-      // Кадры разделены пустой строкой; \r\n нормализуем.
-      buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-      let separator = buffer.indexOf("\n\n");
-      while (separator !== -1) {
-        const chunk = buffer.slice(0, separator);
-        buffer = buffer.slice(separator + 2);
-
-        const frame = parseFrame(chunk);
-        if (frame) yield frame;
-
-        separator = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-function parseFrame(chunk: string): ParsedFrame | null {
-  let event = "message";
-  let id: string | undefined;
-  let retry: number | undefined;
-  const dataLines: string[] = [];
-
-  for (const line of chunk.split("\n")) {
-    if (line === "" || line.startsWith(":")) continue; // комментарий/heartbeat
-
-    const colon = line.indexOf(":");
-    const field = colon === -1 ? line : line.slice(0, colon);
-    // По спецификации W3C один пробел после двоеточия отбрасывается.
-    const rawValue = colon === -1 ? "" : line.slice(colon + 1);
-    const value = rawValue.startsWith(" ") ? rawValue.slice(1) : rawValue;
-
-    switch (field) {
-      case "event":
-        event = value;
-        break;
-      case "data":
-        dataLines.push(value);
-        break;
-      case "id":
-        id = value;
-        break;
-      case "retry": {
-        const parsed = Number.parseInt(value, 10);
-        if (Number.isFinite(parsed)) retry = parsed;
-        break;
-      }
-    }
-  }
-
-  if (dataLines.length === 0) return null; // кадр retry: без данных
-  return { event, data: dataLines.join("\n"), id, retry };
-}
-```
-
-### 7.3. Клиент с реконнектом
-
-```ts
-// apps/web/src/shared/api/sse/client.ts
-import { sseNotificationsUrl } from "@/shared/api/endpoints";
-import { parseSSEStream } from "./parser";
-import type { AnySSEEnvelope, SSEStatus } from "./types";
-
-const DEFAULT_RETRY_MS = 3000;
-const MAX_RETRY_MS = 30_000;
-/** Сервер шлёт heartbeat раз в 15 с: молчание дольше 45 с считаем обрывом. */
-const STALL_TIMEOUT_MS = 45_000;
-
 export interface SSEClientOptions {
   getAccessToken: () => string | null;
   refreshAccessToken: () => Promise<boolean>;
   onEvent: (envelope: AnySSEEnvelope) => void;
   onStatus?: (status: SSEStatus) => void;
-  /** Вызывается после каждого успешного открытия потока: добор данных через REST. */
+  /** Поток успешно открыт: добор пропущенного через REST. */
   onOpen?: () => void;
   /** Авторизация отозвана — переподключаться нельзя. */
   onRevoked?: (reason: string) => void;
 }
 
-export function createSSEClient(options: SSEClientOptions) {
-  let controller: AbortController | null = null;
-  let lastEventId: string | null = null;
-  let retryMs = DEFAULT_RETRY_MS;
-  let attempt = 0;
-  let stopped = false;
-  let refreshed = false;
-
-  const setStatus = (status: SSEStatus) => options.onStatus?.(status);
-
-  async function connect(): Promise<void> {
-    while (!stopped) {
-      controller = new AbortController();
-      setStatus(attempt === 0 ? "connecting" : "reconnecting");
-
-      try {
-        const headers: Record<string, string> = {
-          Accept: "text/event-stream",
-          "Cache-Control": "no-cache",
-        };
-
-        const token = options.getAccessToken();
-        if (token) headers.Authorization = `Bearer ${token}`;
-        if (lastEventId) headers["Last-Event-ID"] = lastEventId;
-
-        const response = await fetch(sseNotificationsUrl, {
-          headers,
-          credentials: "include",
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (response.status === 401) {
-          // Access-токен протух: один шанс обновиться, иначе логаут.
-          if (refreshed || !(await options.refreshAccessToken())) {
-            stopped = true;
-            setStatus("closed");
-            options.onRevoked?.("unauthorized");
-            return;
-          }
-          refreshed = true;
-          continue;
-        }
-
-        if (response.status === 429 || response.status === 503) {
-          const retryAfter =
-            Number.parseInt(response.headers.get("Retry-After") ?? "", 10) || 30;
-          await sleep(retryAfter * 1000);
-          continue;
-        }
-
-        if (!response.ok || !response.body) {
-          throw new Error(`SSE failed: HTTP ${response.status}`);
-        }
-
-        // Поток открыт: сбрасываем счётчики и добираем пропущенное через REST.
-        attempt = 0;
-        refreshed = false;
-        retryMs = DEFAULT_RETRY_MS;
-        setStatus("open");
-        options.onOpen?.();
-
-        await readStream(response.body, controller);
-      } catch (error) {
-        if (stopped || (error as Error).name === "AbortError") return;
-      }
-
-      if (stopped) return;
-
-      attempt += 1;
-      setStatus("reconnecting");
-      await sleep(backoffDelay(retryMs, attempt));
-    }
-  }
-
-  async function readStream(
-    body: ReadableStream<Uint8Array>,
-    ctrl: AbortController,
-  ): Promise<void> {
-    // Watchdog: если сервер замолчал (умер прокси, «уснула» вкладка) — рвём сами.
-    let lastActivity = Date.now();
-    const watchdog = setInterval(() => {
-      if (Date.now() - lastActivity > STALL_TIMEOUT_MS) ctrl.abort();
-    }, STALL_TIMEOUT_MS / 3);
-
-    try {
-      for await (const frame of parseSSEStream(body, () => {
-        lastActivity = Date.now();
-      })) {
-        if (frame.retry) retryMs = frame.retry;
-
-        let envelope: AnySSEEnvelope;
-        try {
-          envelope = JSON.parse(frame.data) as AnySSEEnvelope;
-        } catch {
-          continue; // битый кадр не должен ронять поток
-        }
-
-        // id есть не у всех событий — пустым значением курсор не затираем.
-        if (frame.id) lastEventId = frame.id;
-
-        if (envelope.type === "auth.revoked") {
-          stopped = true;
-          ctrl.abort();
-          setStatus("closed");
-          options.onRevoked?.(envelope.payload.reason);
-          return;
-        }
-
-        options.onEvent(envelope);
-      }
-    } finally {
-      clearInterval(watchdog);
-    }
-  }
-
-  return {
-    start() {
-      if (controller) return;
-      stopped = false;
-      void connect();
-    },
-    stop() {
-      stopped = true;
-      controller?.abort();
-      controller = null;
-      setStatus("closed");
-    },
-  };
-}
-
-/** Экспоненциальный backoff с потолком и джиттером — чтобы вкладки не били залпом. */
-function backoffDelay(base: number, attempt: number): number {
-  const exponential = Math.min(base * 2 ** (attempt - 1), MAX_RETRY_MS);
-  return exponential / 2 + Math.random() * (exponential / 2);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export function createSSEClient(options: SSEClientOptions): {
+  start(): void;
+  stop(): void;
+};
 ```
 
-### 7.4. Провайдер
+### 7.3. Подключение в приложении
 
-Поток должен быть **один на вкладку**. Поднимайте его рядом с `QueryProvider` в корневом layout.
+Поток должен быть **один на вкладку** — `SSEProvider` поднимается рядом с `QueryProvider` в корневом layout и больше нигде:
 
 ```tsx
-// apps/web/src/shared/api/sse/provider.tsx
-"use client";
-
-import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { createSSEClient } from "./client";
-import type { AnySSEEnvelope, SSEStatus } from "./types";
-
-type Listener = (envelope: AnySSEEnvelope) => void;
-
-export function SSEProvider({ children }: { children: ReactNode }) {
-  const queryClient = useQueryClient();
-  const [status, setStatus] = useState<SSEStatus>("idle");
-  const listeners = useRef(new Set<Listener>());
-
-  useEffect(() => {
-    const client = createSSEClient({
-      getAccessToken: () => sessionStorage.getItem("accessToken"),
-      // переиспользуйте логику рефреша из shared/api/base.ts
-      refreshAccessToken: tryRefreshToken,
-      onStatus: setStatus,
-      onOpen: () => {
-        // Пропущенное за офлайн глубже ~100 событий Replay не вернёт —
-        // добираем актуальное состояние из REST.
-        void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        void queryClient.invalidateQueries({ queryKey: ["account"] });
-      },
-      onEvent: (envelope) => {
-        for (const listener of listeners.current) listener(envelope);
-      },
-      onRevoked: () => {
-        sessionStorage.removeItem("accessToken");
-        window.location.href = "/login";
-      },
-    });
-
-    client.start();
-    return () => client.stop();
-  }, [queryClient]);
-
-  return (
-    <SSEContext.Provider value={{ status, listeners: listeners.current }}>
-      {children}
-    </SSEContext.Provider>
-  );
-}
+// apps/web/src/app/layout.tsx
+<QueryProvider>
+  <SSEProvider>{children}</SSEProvider>
+</QueryProvider>
 ```
 
-> **StrictMode:** в dev-режиме React монтирует эффекты дважды. `client.stop()` в cleanup обязателен — иначе на вкладку откроется два потока и лимит в 5 соединений израсходуется втрое быстрее.
-
-### 7.5. Хук подписки
+Провайдер держит `Set` подписчиков, отдаёт наружу `status` и на `onOpen` инвалидирует ключевые запросы — Replay хранит только ~100 последних событий, всё, что глубже, добирается через REST:
 
 ```ts
-// apps/web/src/shared/api/sse/use-sse-event.ts
-"use client";
-
-import { useContext, useEffect, useRef } from "react";
-import { SSEContext } from "./provider";
-import type { AnySSEEnvelope, SSEEventType } from "./types";
-
-type EnvelopeOf<T extends SSEEventType> = Extract<AnySSEEnvelope, { type: T }>;
-
-/** Подписка на один тип SSE-события. Тип payload выводится автоматически. */
-export function useSSEEvent<T extends SSEEventType>(
-  type: T,
-  handler: (envelope: EnvelopeOf<T>) => void,
-): void {
-  const { listeners } = useContext(SSEContext);
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
-
-  useEffect(() => {
-    const listener = (envelope: AnySSEEnvelope) => {
-      if (envelope.type === type) handlerRef.current(envelope as EnvelopeOf<T>);
-    };
-
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, [type, listeners]);
-}
+onOpen: () => {
+  void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  void queryClient.invalidateQueries({ queryKey: ["account"] });
+},
 ```
 
-`handlerRef` нужен, чтобы подписка не пересоздавалась на каждый рендер из-за нестабильной ссылки на колбэк.
+> **StrictMode:** в dev-режиме React монтирует эффекты дважды, поэтому `client.stop()` в cleanup обязателен — иначе на вкладку откроется два потока и лимит в 5 соединений израсходуется втрое быстрее.
+
+### 7.4. Подписка из компонентов
+
+```ts
+function useSSEEvent<T extends SSEEventType>(
+  type: T,
+  handler: (envelope: Extract<AnySSEEnvelope, { type: T }>) => void,
+): void;
+```
+
+Хук держит колбэк в `ref`, поэтому подписку можно передавать инлайновой стрелкой — она не пересоздаётся на каждый рендер. Пример использования — в следующем разделе.
 
 ---
 
