@@ -13,10 +13,12 @@
     "lint-staged": "lint-staged",
     "test": "vitest run --passWithNoTests",
     "test:cov": "vitest run --coverage --passWithNoTests",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
+    "@packages/api": "workspace:*",
     "@packages/i18n": "workspace:^",
     "@packages/icons": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
@@ -28,7 +30,6 @@
     "react-dom": "19.2.8",
     "react-hook-form": "^7.85.0",
     "react-i18next": "^15.0.0",
-    "socket.io-client": "^4.8.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
   },

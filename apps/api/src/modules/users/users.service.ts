@@ -10,6 +10,7 @@ import type {
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
+import { publishUserRevocation } from "../../common/pubsub/revocation";
 import type { User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
@@ -256,14 +257,7 @@ export class UsersService {
     }
 
     // Оповещаем Realtime WebSocket сервис через Pub/Sub о блокировке/деактивации
-    try {
-      await this.redisService.publish(
-        "auth:revocations",
-        JSON.stringify({ userId, reason: "account_deactivated" }),
-      );
-    } catch {
-      // Игнорируем ошибку публикации, если realtime сервис не слушает
-    }
+    await publishUserRevocation(this.redisService, userId);
   }
 
   /**

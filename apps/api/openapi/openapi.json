@@ -11,18 +11,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok", "error"]
-                    },
-                    "db": {
-                      "type": "string",
-                      "enum": ["up", "down"]
-                    }
-                  },
-                  "required": ["status", "db"]
+                  "$ref": "#/components/schemas/HealthResponseDto"
                 }
               }
             }
@@ -32,18 +21,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok", "error"]
-                    },
-                    "db": {
-                      "type": "string",
-                      "enum": ["up", "down"]
-                    }
-                  },
-                  "required": ["status", "db"]
+                  "$ref": "#/components/schemas/HealthResponseDto"
                 }
               }
             }
@@ -59,19 +37,65 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Профиль текущего пользователя",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить профиль текущего авторизованного пользователя",
         "tags": ["Profile"]
       },
       "patch": {
         "operationId": "ProfileController_updateMyProfile",
         "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Обновленный профиль пользователя",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Обновить профиль текущего пользователя",
         "tags": ["Profile"]
       },
       "delete": {
@@ -79,9 +103,25 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Аккаунт успешно деактивирован",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Деактивировать аккаунт текущего пользователя",
         "tags": ["Profile"]
       }
     },
@@ -89,11 +129,47 @@
       "post": {
         "operationId": "ProfileController_uploadAvatar",
         "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
           }
         },
+        "responses": {
+          "201": {
+            "description": "Аватар успешно загружен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarUploadResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный файл аватара"
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Загрузить аватар профиля",
         "tags": ["Profile"]
       },
       "delete": {
@@ -101,9 +177,25 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Аватар успешно удален",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarDeleteResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удалить аватар профиля",
         "tags": ["Profile"]
       }
     },
@@ -113,9 +205,25 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "Аккаунт успешно восстановлен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreProfileResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Восстановить деактивированный аккаунт",
         "tags": ["Profile"]
       }
     },
@@ -127,6 +235,7 @@
             "name": "idOrUsername",
             "required": true,
             "in": "path",
+            "description": "UUID пользователя или username",
             "schema": {
               "type": "string"
             }
@@ -134,9 +243,28 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Публичный профиль пользователя",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserProfileDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "404": {
+            "description": "Пользователь не найден"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить публичный профиль пользователя по UUID или username",
         "tags": ["Users"]
       }
     },
@@ -150,24 +278,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "minLength": 1,
-                    "format": "email"
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 12,
-                    "maxLength": 128
-                  },
-                  "passwordConfirmation": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": ["email", "password", "passwordConfirmation"]
+                "$ref": "#/components/schemas/RegisterDto"
               }
             }
           }
@@ -178,14 +289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accessToken": {
-                      "type": "string",
-                      "description": "JWT access token"
-                    }
-                  },
-                  "required": ["accessToken"]
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
                 }
               }
             }
@@ -195,24 +299,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 400
-                    },
-                    "message": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "example": {
-                        "email": "Некорректный email"
-                      },
-                      "description": "Карта ошибок `{ field: message }`."
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
                 }
               }
             }
@@ -222,21 +309,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -256,20 +329,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "minLength": 1,
-                    "format": "email"
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  }
-                },
-                "required": ["email", "password"]
+                "$ref": "#/components/schemas/LoginDto"
               }
             }
           }
@@ -280,14 +340,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accessToken": {
-                      "type": "string",
-                      "description": "JWT access token"
-                    }
-                  },
-                  "required": ["accessToken"]
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
                 }
               }
             }
@@ -297,24 +350,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 400
-                    },
-                    "message": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "example": {
-                        "email": "Некорректный email"
-                      },
-                      "description": "Карта ошибок `{ field: message }`."
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
                 }
               }
             }
@@ -324,21 +360,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -361,21 +383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -385,21 +393,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -427,21 +421,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -466,28 +446,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "currentPassword": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "newPassword": {
-                    "type": "string",
-                    "minLength": 12,
-                    "maxLength": 128
-                  },
-                  "newPasswordConfirmation": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "currentPassword",
-                  "newPassword",
-                  "newPasswordConfirmation"
-                ]
+                "$ref": "#/components/schemas/ChangePasswordDto"
               }
             }
           }
@@ -501,24 +460,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 400
-                    },
-                    "message": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "example": {
-                        "email": "Некорректный email"
-                      },
-                      "description": "Карта ошибок `{ field: message }`."
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
                 }
               }
             }
@@ -528,21 +470,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -552,21 +480,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -576,21 +490,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -615,14 +515,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accessToken": {
-                      "type": "string",
-                      "description": "JWT access token"
-                    }
-                  },
-                  "required": ["accessToken"]
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
                 }
               }
             }
@@ -632,21 +525,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -656,21 +535,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "statusCode": {
-                      "type": "number",
-                      "example": 401
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid credentials"
-                    },
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["statusCode", "message"]
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -678,6 +543,217 @@
         },
         "summary": "Обновление токенов — refresh token rotation (§65)",
         "tags": ["auth"]
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "operationId": "SessionsController_createSession",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Сессия успешно создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Создать новую интервью-сессию",
+        "tags": ["Sessions"]
+      }
+    },
+    "/api/v1/sessions/{id}/participants": {
+      "post": {
+        "operationId": "SessionsController_addParticipant",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID сессии",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddParticipantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Участник успешно добавлен"
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "403": {
+            "description": "Доступ запрещен (не владелец)"
+          },
+          "404": {
+            "description": "Сессия не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Добавить участника в сессию",
+        "tags": ["Sessions"]
+      }
+    },
+    "/api/v1/sessions/{id}/participants/{userId}": {
+      "delete": {
+        "operationId": "SessionsController_removeParticipant",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID сессии",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "UUID удаляемого участника",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Участник успешно удален"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "403": {
+            "description": "Доступ запрещен (не владелец)"
+          },
+          "404": {
+            "description": "Сессия или участник не найдены"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удалить участника из сессии",
+        "tags": ["Sessions"]
+      }
+    },
+    "/api/v1/sessions/{id}/close": {
+      "post": {
+        "operationId": "SessionsController_closeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID сессии",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Сессия успешно закрыта"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "403": {
+            "description": "Доступ запрещен (не владелец)"
+          },
+          "404": {
+            "description": "Сессия не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Закрыть интервью-сессию",
+        "tags": ["Sessions"]
+      }
+    },
+    "/api/v1/realtime/ticket": {
+      "post": {
+        "operationId": "RealtimeController_getTicket",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Тикет успешно выпущен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "429": {
+            "description": "Превышен лимит запросов (rate limit)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Выдать одноразовый тикет для подключения к WebSocket комнате",
+        "tags": ["Realtime"]
       }
     }
   },
@@ -701,6 +777,351 @@
         "type": "http"
       }
     },
-    "schemas": {}
+    "schemas": {
+      "UserProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          },
+          "avatarUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "telegramUsername": {
+            "nullable": true,
+            "type": "string"
+          },
+          "gitUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "username",
+          "avatarUrl",
+          "telegramUsername",
+          "gitUrl",
+          "createdAt",
+          "email",
+          "updatedAt"
+        ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 50
+          },
+          "username": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{3,30}$"
+          },
+          "avatarUrl": {
+            "nullable": true,
+            "type": "string",
+            "format": "uri"
+          },
+          "telegramUsername": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^@?[a-zA-Z0-9_]{5,32}$"
+          },
+          "gitUrl": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^https?:\\/\\/(www\\.)?(github|gitlab)\\.com\\/[a-zA-Z0-9_.-]+\\/?$"
+          }
+        }
+      },
+      "AvatarUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "avatarUrl": {
+            "type": "string"
+          }
+        },
+        "required": ["avatarUrl"]
+      },
+      "AvatarDeleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": ["avatarUrl"]
+      },
+      "MessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["message"]
+      },
+      "RestoreProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/UserProfileDto"
+          }
+        },
+        "required": ["message", "profile"]
+      },
+      "PublicUserProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          },
+          "avatarUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "telegramUsername": {
+            "nullable": true,
+            "type": "string"
+          },
+          "gitUrl": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "username",
+          "avatarUrl",
+          "telegramUsername",
+          "gitUrl",
+          "createdAt"
+        ]
+      },
+      "AccessTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT access token"
+          }
+        },
+        "required": ["accessToken"]
+      },
+      "ValidationErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 400
+          },
+          "message": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "email": "Некорректный email"
+            },
+            "description": "Карта ошибок `{ field: message }`."
+          }
+        },
+        "required": ["statusCode", "message"]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 401
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid credentials"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["statusCode", "message"]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "passwordConfirmation": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["email", "password", "passwordConfirmation"]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "newPasswordConfirmation": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "newPasswordConfirmation"
+        ]
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok", "error"]
+          },
+          "db": {
+            "type": "string",
+            "enum": ["up", "down"]
+          }
+        },
+        "required": ["status", "db"]
+      },
+      "TicketDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["sessionId"]
+      },
+      "TicketResponseDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "JWT тикет для аутентификации в WebSocket"
+          }
+        },
+        "required": ["ticket"]
+      },
+      "CreateSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["sessionId"]
+      },
+      "AddParticipantDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"]
+          }
+        },
+        "required": ["userId", "role"]
+      }
+    }
   }
 }

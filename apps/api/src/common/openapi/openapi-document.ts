@@ -3,6 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import type { OpenAPIObject } from "@nestjs/swagger";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
+import { getSchemaRegistry } from "./zod-openapi";
+
 const API_VERSION = "0.1.0";
 
 /**
@@ -34,5 +36,13 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
     .addServer(`http://localhost:${port}`)
     .build();
 
-  return SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, config);
+  document.components = document.components ?? {};
+  document.components.schemas = document.components.schemas ?? {};
+
+  for (const [name, schema] of getSchemaRegistry().entries()) {
+    document.components.schemas[name] = schema;
+  }
+
+  return document;
 }

@@ -39,7 +39,20 @@ pnpm run infra:down
 
 ---
 
-## 3. Инициализация хранилища (`minio-init`)
+## 3. Redis — обязательная зависимость для тестов API
+
+End-to-end тесты API (в т.ч. `realtime-ticket.e2e-spec.ts` — ходят в аутентифицированный маршрут выпуска тикетов) зависят от Redis (сессии, блэклисты, зеркала `session:{id}:*`):
+
+```bash
+pnpm run infra:up          # поднять PostgreSQL, Redis, MinIO
+pnpm --filter api test:e2e # e2e API (требует живой Redis)
+```
+
+Юнит-тесты API Redis не требуют.
+
+---
+
+## 4. Инициализация хранилища (`minio-init`)
 
 Сервис `minio-init` автоматически стартует после успешного запуска MinIO:
 1. Создает бакет `mock-interview-storage` (если он еще не существует).
@@ -48,7 +61,7 @@ pnpm run infra:down
 
 ---
 
-## 4. Сохранение данных (Persistent Volumes)
+## 5. Сохранение данных (Persistent Volumes)
 
 Данные сохраняются между перезапусками в именованных Docker Volumes:
 * `postgres-data` — файлы базы данных PostgreSQL.

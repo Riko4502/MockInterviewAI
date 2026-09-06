@@ -24,3 +24,39 @@ model User {
   @@index([username])
   @@index([deletedAt])
 }
+
+enum InterviewSessionStatus {
+  CREATED
+  ACTIVE
+  CLOSED
+}
+
+enum InterviewParticipantRole {
+  CANDIDATE
+  INTERVIEWER
+  OBSERVER
+}
+
+model InterviewSession {
+  id        String                  @id @default(uuid()) @db.Uuid
+  userId    String                  @db.Uuid // владелец (создатель) сессии
+  status    InterviewSessionStatus  @default(ACTIVE)
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  participants InterviewParticipant[]
+
+  @@map("interview_sessions")
+}
+
+model InterviewParticipant {
+  sessionId String  @db.Uuid
+  userId    String  @db.Uuid
+  role      InterviewParticipantRole
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@map("interview_participants")
+}

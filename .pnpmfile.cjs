@@ -7,12 +7,12 @@ function readPackage(pkg) {
     pkg.dependencies["deepmerge-ts"] = "^8.0.1";
   }
 
-  if (
-    pkg.name === "prisma" &&
-    pkg.dependencies &&
-    pkg.dependencies["mysql2"]
-  ) {
-    pkg.dependencies["mysql2"] = "^3.22.0";
+  if (pkg.name === "prisma" && pkg.dependencies && pkg.dependencies.mysql2) {
+    pkg.dependencies.mysql2 = "^3.22.0";
+  }
+
+  if (pkg.dependencies?.["fast-uri"]) {
+    pkg.dependencies["fast-uri"] = "^3.1.6";
   }
 
   return pkg;

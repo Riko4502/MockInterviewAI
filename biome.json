@@ -15,7 +15,8 @@
       "!dist",
       "!build",
       "!coverage",
-      "!apps/api/src/generated"
+      "!apps/api/src/generated",
+      "!packages/api/src/generated"
     ]
   },
   "formatter": {

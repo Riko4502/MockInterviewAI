@@ -17,10 +17,11 @@
 
 
 ### Аутентификация
-* Сервер считывает токен **исключительно из HTTP Cookie `access_token`**.
-* В браузере вызов `new WebSocket("ws://localhost:8080/ws/sessions/" + sessionId)` **автоматически отправляет cookies** на сервер.
+* **Тикет в subprotocol:** перед каждым WS-подключением клиент вызывает `POST /realtime/ticket` (Bearer access) и передает одноразовый тикет в `Sec-WebSocket-Protocol: ["realtime", <ticket>]`; сервер согласует subprotocol `realtime`.
+* Приоритет извлечения кредов на handshake: **subprotocol-тикет → `Authorization: Bearer` → HttpOnly Cookie** (`access_token`).
+* Тикет привязан к комнате (`sessionId` mismatch → `403`) и одноразовый (`ConsumeTicket` по `jti`; повторное использование → `401`).
 * **Важно**: Никакие токены в GET query-параметрах (`?token=...`) передавать не нужно (в целях безопасности это заблокировано).
-* Роль пользователя (`candidate`, `interviewer`, `observer`) определяется сервером автоматически на основе сессионного контекста в **Redis**.
+* Роль пользователя (`candidate`, `interviewer`, `observer`) определяется сервером строго по членству в сессии в **Redis** (`session:{id}:members`, `GetSessionUserRole`, fail-closed).
 
 ---
 

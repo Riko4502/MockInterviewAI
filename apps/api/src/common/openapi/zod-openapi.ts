@@ -1,5 +1,5 @@
 import { applyDecorators } from "@nestjs/common";
-import type { SchemaObject } from "@nestjs/swagger";
+import type { ReferenceObject, SchemaObject } from "@nestjs/swagger";
 import { ApiBody } from "@nestjs/swagger";
 import { z } from "zod";
 
@@ -98,7 +98,9 @@ function injectEmailFormats(
  */
 export function zodToSchemaObject(schema: z.ZodType): SchemaObject {
   const jsonSchema = z.toJSONSchema(schema, {
+    target: "openapi-3.0",
     io: "input",
+    unrepresentable: "any",
   }) as Record<string, unknown>;
 
   delete jsonSchema.$schema;
@@ -115,19 +117,60 @@ export function zodToSchemaObject(schema: z.ZodType): SchemaObject {
 }
 
 /**
+ * Реестр именованных схем для OpenAPI components.schemas.
+ */
+const schemaRegistry = new Map<string, SchemaObject>();
+
+/**
+ * Регистрирует схему под именем в реестре `components.schemas`
+ * и возвращает `$ref` объект на неё.
+ */
+export function registerSchema(
+  name: string,
+  schemaOrObject: z.ZodType | SchemaObject,
+): ReferenceObject {
+  const isZod =
+    schemaOrObject instanceof z.ZodType ||
+    typeof (schemaOrObject as { safeParse?: unknown })?.safeParse ===
+      "function" ||
+    (schemaOrObject as { _def?: unknown })?._def !== undefined;
+
+  const schemaObj = isZod
+    ? zodToSchemaObject(schemaOrObject as z.ZodType)
+    : (schemaOrObject as SchemaObject);
+
+  schemaRegistry.set(name, schemaObj);
+
+  return {
+    $ref: `#/components/schemas/${name}`,
+  };
+}
+
+/**
+ * Возвращает накопленный реестр схем для внедрения в OpenAPI Document.
+ */
+export function getSchemaRegistry(): Map<string, SchemaObject> {
+  return schemaRegistry;
+}
+
+/**
  * Декоратор тела запроса из zod-схемы (§61 SPEC.md).
  *
  * Единственный источник схемы DTO — `@packages/dto`; при изменении схем
  * документация обновляется автоматически, ручного дублирования нет.
  *
  * @param schema - Zod-схема тела запроса.
+ * @param name - Опциональное имя схемы для регистрации в components.schemas.
  * @returns Комбинированный декоратор Swagger для метода контроллера.
  */
-export function ZodBody(schema: z.ZodType): MethodDecorator {
+export function ZodBody(schema: z.ZodType, name?: string): MethodDecorator {
+  const schemaObj = name
+    ? registerSchema(name, schema)
+    : zodToSchemaObject(schema);
   return applyDecorators(
     ApiBody({
       description: "Тело запроса, валидируется соответствующей zod-схемой.",
-      schema: zodToSchemaObject(schema),
+      schema: schemaObj,
     }),
   );
 }

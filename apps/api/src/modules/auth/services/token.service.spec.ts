@@ -198,4 +198,79 @@ describe("TokenService", () => {
       expect(first).not.toBe(other);
     });
   });
+
+  describe("generateRealtimeTicket / verifyRealtimeTicket", () => {
+    it("генерирует тикет с typ=realtime, bound sessionId и exp=5m", () => {
+      const before = Math.floor(Date.now() / 1000);
+      const token = service.generateRealtimeTicket(
+        USER_ID,
+        SESSION_ID,
+        "interview-123",
+      );
+      const decoded = jwt.decode(token) as jwt.JwtPayload;
+
+      expect(typeof token).toBe("string");
+      expect(decoded.sub).toBe(USER_ID);
+      expect(decoded.sid).toBe(SESSION_ID);
+      expect(decoded.sessionId).toBe("interview-123");
+      expect(decoded.typ).toBe("realtime");
+      expect(decoded.iss).toBe(ISSUER);
+      expect(decoded.aud).toBe(AUDIENCE);
+      expect(decoded.jti).toMatch(UUID_REGEX);
+      expect(decoded.iat).toBeGreaterThanOrEqual(before);
+      expect(Number(decoded.exp) - Number(decoded.iat)).toBe(300);
+
+      jwt.verify(token, ACCESS_SECRET, {
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+    });
+
+    it("verifyRealtimeTicket принимает тикет и возвращает sessionId", () => {
+      const token = service.generateRealtimeTicket(
+        USER_ID,
+        SESSION_ID,
+        "interview-123",
+      );
+      const payload = service.verifyRealtimeTicket(token);
+
+      expect(payload.sub).toBe(USER_ID);
+      expect(payload.sid).toBe(SESSION_ID);
+      expect(payload.sessionId).toBe("interview-123");
+      expect(payload.typ).toBe("realtime");
+    });
+
+    it("verifyRealtimeTicket отклоняет access токен по typ mismatch", () => {
+      const accessToken = service.generateAccessToken(USER_ID, SESSION_ID);
+
+      expect(() => service.verifyRealtimeTicket(accessToken)).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("verifyAccessToken отклоняет тикет по typ mismatch", () => {
+      const ticket = service.generateRealtimeTicket(
+        USER_ID,
+        SESSION_ID,
+        "interview-123",
+      );
+
+      expect(() => service.verifyAccessToken(ticket)).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("тикет использует access-секрет (верификация refresh-секретом падает)", () => {
+      const ticket = service.generateRealtimeTicket(
+        USER_ID,
+        SESSION_ID,
+        "interview-123",
+      );
+
+      expect(() => jwt.verify(ticket, REFRESH_SECRET)).toThrow(
+        jwt.JsonWebTokenError,
+      );
+    });
+  });
 });

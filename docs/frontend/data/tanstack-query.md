@@ -7,15 +7,30 @@
 
 ## 1. Где находится инфраструктура TanStack Query?
 
-* **Создание инстанса QueryClient:** `apps/web/src/shared/api/query-client.ts`.
-* **Подключение React Provider:** `apps/web/src/app/providers/query-provider.tsx`.
+* **Создание инстанса QueryClient и React Provider:** [apps/web/src/shared/api/client.tsx](./apps/web/src/shared/api/client.tsx) (`QueryProvider`).
+* **Подключение в корневой Layout:** [apps/web/src/app/layout.tsx](./apps/web/src/app/layout.tsx).
+* **Сгенерированные хуки запросов и мутаций:** `@packages/api` (генерируются Orval автоматически).
 
 ---
 
-## 2. Фабрики ключей запросов (Query Keys Factory)
+## 2. Ключи запросов (Query Keys)
 
-Чтобы избежать опечаток и путаницы при инвалидации кэша, ключи запросов объявляются централизованно внутри соответствующих `entities`:
+Чтобы избежать опечаток и путаницы при инвалидации кэша:
 
+### Вариант А. Сгенерированные фабрики ключей из `@packages/api` (Рекомендуется)
+Orval генерирует готовые функции ключей для каждого эндпоинта:
+```ts
+import {
+  getSessionsControllerFindAllQueryKey,
+  getProfileControllerGetProfileQueryKey,
+} from "@packages/api";
+
+// Возвращает стабильный ключ запроса: ['/api/v1/sessions']
+const sessionListKey = getSessionsControllerFindAllQueryKey();
+```
+
+### Вариант Б. Доменные фабрики ключей в слое `entities`
+Для сложных составных иерархий ключей с клиентскими фильтрами:
 ```ts
 // entities/interview-session/model/query-keys.ts
 export const sessionKeys = {
@@ -29,24 +44,53 @@ export const sessionKeys = {
 
 ---
 
-## 3. Пример использования Query и Mutation
+## 3. Пример использования сгенерированных хуков из `@packages/api`
+
+Вместо рукописных функций с вызовом `fetch` используются типизированные хуки из `@packages/api`:
 
 ```tsx
 // features/create-interview/model/use-create-session.ts
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { sessionKeys } from '@/entities/interview-session';
-import { createSessionApi } from '../api/create-session-api';
+import {
+  useSessionsControllerCreateSession,
+  getSessionsControllerFindAllQueryKey,
+} from "@packages/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function useCreateSession() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: createSessionApi,
-    onSuccess: () => {
-      // Инвалидируем кэш списка сессий для автоматической перезагрузки данных
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+  return useSessionsControllerCreateSession({
+    mutation: {
+      onSuccess: () => {
+        // Инвалидируем кэш списка сессий для автоматической перезагрузки данных
+        queryClient.invalidateQueries({
+          queryKey: getSessionsControllerFindAllQueryKey(),
+        });
+      },
     },
   });
+}
+```
+
+### Использование хука запроса (Query):
+
+```tsx
+// entities/session/ui/SessionList.tsx
+import { useSessionsControllerFindAll } from "@packages/api";
+
+export function SessionList() {
+  const { data: sessions, isLoading, error } = useSessionsControllerFindAll();
+
+  if (isLoading) return <div>Загрузка списка сессий...</div>;
+  if (error) return <div>Ошибка загрузки данных</div>;
+
+  return (
+    <ul>
+      {sessions?.map((session) => (
+        <li key={session.id}>{session.title}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 

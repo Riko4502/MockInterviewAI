@@ -12,7 +12,7 @@ monorepo/
 │
 └── packages/
     ├── ui/            # UI Kit на базе shadcn/ui + Tailwind CSS (@packages/ui)
-    ├── api/           # Типизированный API клиент, генерируемый из OpenAPI (@packages/api)
+    ├── api/           # Сгенерированный API-клиент, DTO и TanStack Query v5 хуки (Orval + OpenAPI) (@packages/api)
     ├── dto/           # Общие DTO и схемы валидации Zod (@packages/dto)
     └── types/         # Общие TypeScript интерфейсы и типы (@packages/types)
 ```

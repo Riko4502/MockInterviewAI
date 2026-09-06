@@ -16,7 +16,9 @@
 | **Сборка только Web** | `pnpm --filter web build` |
 | **Проверка типов (Typecheck)** | `pnpm typecheck` |
 | **Генерация OpenAPI / Swagger (бэкенд, без Docker)** | `pnpm run generate:api` |
-| **Генерация TypeScript-типов API (@packages/api)** | `pnpm --filter @packages/api generate` |
+| **Генерация API-клиента и хуков (Orval)** | `pnpm run generate:client` |
+| **Полный цикл генерации API (OpenAPI + Orval)** | `pnpm run codegen` |
+| **Проверка синхронизации API-клиента в CI** | `pnpm run codegen:check` |
 | **Проверка линтером (Biome)** | `pnpm --filter web lint` |
 | **Автоформатирование кода** | `pnpm --filter web format` |
 

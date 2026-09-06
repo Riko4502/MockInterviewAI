@@ -1,13 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuthControllerLogin } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
-import { useLoginMutation } from "@/shared/api/auth";
 import { type LoginFormValues, loginSchema } from "../lib/schemas";
 
 export function LoginForm() {
-  const loginMutation = useLoginMutation();
+  const loginMutation = useAuthControllerLogin({
+    mutation: {
+      onSuccess: (data) => {
+        sessionStorage.setItem("accessToken", data.accessToken);
+        window.location.href = "/";
+      },
+    },
+  });
 
   const {
     register,
@@ -18,12 +25,7 @@ export function LoginForm() {
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data, {
-      onSuccess: (res) => {
-        sessionStorage.setItem("accessToken", res.accessToken);
-        window.location.href = "/";
-      },
-    });
+    loginMutation.mutate({ data });
   };
 
   return (
