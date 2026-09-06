@@ -107,7 +107,7 @@ describe("initApiTransport", () => {
     );
     expect(checkInitialized()).toBe(false);
 
-    await import("./client");
+    await import("./query-client");
     expect(checkInitialized()).toBe(true);
   });
 
