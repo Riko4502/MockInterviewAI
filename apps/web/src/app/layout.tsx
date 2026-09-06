@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { QueryProvider } from "@/shared/api/client";
 import "./globals.css";
 import "@packages/ui/globals.css";
+import { AppProviders } from "./providers/AppProviders";
 
 export const metadata: Metadata = {
   title: "Mock Interview AI",
@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <QueryProvider>{children}</QueryProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );
