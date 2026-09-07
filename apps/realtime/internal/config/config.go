@@ -51,7 +51,8 @@ func Load() (*Config, error) {
 
 	port := getEnv("REALTIME_PORT", getEnv("PORT", "8080"))
 	host := getEnv("REALTIME_HOST", getEnv("HOST", "0.0.0.0"))
-	env := getEnv("ENV", "development")
+	// Prod-контейнер задаёт ENVIRONMENT=production, локально используется ENV.
+	env := getEnv("ENV", getEnv("ENVIRONMENT", "development"))
 
 	// Считываем JWT ключи: 우선 JWT_ACCESS_SECRET, для обратной совместимости fallback на JWT_SECRET
 	jwtAccessSecret := getEnv("JWT_ACCESS_SECRET", getEnv("JWT_SECRET", ""))
