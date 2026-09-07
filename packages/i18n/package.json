@@ -19,7 +19,7 @@
     "format": "biome format --write --no-errors-on-unmatched"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
+    "@biomejs/biome": "2.5.12",
     "typescript": "^5"
   }
 }

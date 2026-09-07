@@ -32,7 +32,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
+    "@biomejs/biome": "2.5.12",
     "@rsbuild/plugin-react": "^1.1.0",
     "@rslib/core": "^0.23.2",
     "@tailwindcss/postcss": "^4",

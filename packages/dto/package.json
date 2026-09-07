@@ -18,10 +18,10 @@
   },
   "dependencies": {
     "@packages/utils": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
+    "@biomejs/biome": "2.5.12",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }
