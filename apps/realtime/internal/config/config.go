@@ -73,7 +73,7 @@ func Load() (*Config, error) {
 		if env == "production" {
 			return nil, fmt.Errorf("LIVEKIT_WEBHOOK_API_SECRET is required in production (webhook signature verification)")
 		}
-		liveKitWebhookAPISecret = "secret"
+		liveKitWebhookAPISecret = "dev-local-secret-change-me-0123456789"
 	}
 
 	shutdownSec, err := getEnvInt("SHUTDOWN_TIMEOUT_SECONDS", 10)
