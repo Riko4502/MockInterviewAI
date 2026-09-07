@@ -3,15 +3,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerLogin } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useSession } from "@/entities/session";
 import { type LoginFormValues, loginSchema } from "../lib/schemas";
 
 export function LoginForm() {
+  const router = useRouter();
+  const { startSession } = useSession();
+
   const loginMutation = useAuthControllerLogin({
     mutation: {
       onSuccess: (data) => {
-        sessionStorage.setItem("accessToken", data.accessToken);
-        window.location.href = "/";
+        startSession(data.accessToken);
+        router.replace("/");
       },
     },
   });
