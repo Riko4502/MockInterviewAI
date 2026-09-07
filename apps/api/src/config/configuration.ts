@@ -56,7 +56,8 @@ export const configuration = () => ({
   livekit: {
     url: process.env.LIVEKIT_URL ?? "ws://localhost:7880",
     apiKey: process.env.LIVEKIT_API_KEY ?? "devkey",
-    apiSecret: process.env.LIVEKIT_API_SECRET ?? "secret",
+    apiSecret:
+      process.env.LIVEKIT_API_SECRET ?? "dev-local-secret-change-me-0123456789",
     tokenTtlSeconds: Number(process.env.LIVEKIT_TOKEN_TTL_SECONDS ?? 1800),
   },
   storage: {

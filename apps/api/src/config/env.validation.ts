@@ -42,7 +42,10 @@ const envSchema = z.object({
   SESSION_MIRROR_TTL_SECONDS: z.coerce.number().int().positive().default(7200),
   LIVEKIT_URL: z.string().min(1).default("ws://localhost:7880"),
   LIVEKIT_API_KEY: z.string().min(1).default("devkey"),
-  LIVEKIT_API_SECRET: z.string().min(1).default("secret"),
+  LIVEKIT_API_SECRET: z
+    .string()
+    .min(32)
+    .default("dev-local-secret-change-me-0123456789"),
   LIVEKIT_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
 });
 
