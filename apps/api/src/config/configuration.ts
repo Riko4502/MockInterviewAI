@@ -53,6 +53,12 @@ export const configuration = () => ({
       process.env.SESSION_MIRROR_TTL_SECONDS ?? 2 * 60 * 60,
     ),
   },
+  livekit: {
+    url: process.env.LIVEKIT_URL ?? "ws://localhost:7880",
+    apiKey: process.env.LIVEKIT_API_KEY ?? "devkey",
+    apiSecret: process.env.LIVEKIT_API_SECRET ?? "secret",
+    tokenTtlSeconds: Number(process.env.LIVEKIT_TOKEN_TTL_SECONDS ?? 1800),
+  },
   storage: {
     endpoint: process.env.S3_ENDPOINT ?? "http://localhost:9000",
     region: process.env.S3_REGION ?? "us-east-1",
