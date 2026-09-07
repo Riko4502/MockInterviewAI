@@ -1,3 +1,5 @@
+"use client";
+
 import { SpinnerIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import * as React from "react";

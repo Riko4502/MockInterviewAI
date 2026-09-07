@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowDownIcon, ArrowUpIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import { Accordion as AccordionPrimitive } from "radix-ui";
