@@ -9,10 +9,12 @@ func TestConfigProductionValidation(t *testing.T) {
 	// 1. В продакшене без ALLOWED_ORIGINS должна быть ошибка (защита от CSWSH)
 	os.Setenv("ENV", "production")
 	os.Setenv("JWT_ACCESS_SECRET", "super-secret-key-12345")
+	os.Setenv("LIVEKIT_WEBHOOK_API_SECRET", "super-webhook-secret")
 	os.Setenv("ALLOWED_ORIGINS", "*")
 	defer func() {
 		os.Unsetenv("ENV")
 		os.Unsetenv("JWT_ACCESS_SECRET")
+		os.Unsetenv("LIVEKIT_WEBHOOK_API_SECRET")
 		os.Unsetenv("ALLOWED_ORIGINS")
 	}()
 

@@ -125,6 +125,38 @@ func (h *Hub) RemoveRoom(sessionID string) {
 	}
 }
 
+// BroadcastToRoom рассылает бизнес-событие (например, media.recording) в комнату
+// сессии. Если локальная комната существует — рассылает через неё (локально +
+// Redis-репликация через room.Broadcast). Если комнаты на этом инстансе нет,
+// но broadcaster включён — публикует напрямую в Redis (session:<id>:events)
+// для доставки клиентам на других репликах (echo-подавление по InstanceID).
+// Возвращает false, если событие некуда доставить (нет комнаты и нет broadcaster).
+func (h *Hub) BroadcastToRoom(sessionID string, data []byte) bool {
+	if room, ok := h.GetRoom(sessionID); ok {
+		room.Broadcast(data, "")
+		return true
+	}
+
+	if h.broadcaster != nil {
+		if err := h.broadcaster.Publish(h.ctx, sessionID, data); err != nil {
+			h.logger.Warn("broadcast to redis failed",
+				slog.String("sessionId", sessionID),
+				slog.String("error", err.Error()),
+			)
+			return false
+		}
+		h.logger.Debug("broadcast published to redis for room",
+			slog.String("sessionId", sessionID),
+		)
+		return true
+	}
+
+	h.logger.Warn("broadcast to room: no local room and no broadcaster",
+		slog.String("sessionId", sessionID),
+	)
+	return false
+}
+
 // TotalRooms возвращает количество активных комнат на данном сервере.
 func (h *Hub) TotalRooms() int {
 	h.mu.RLock()

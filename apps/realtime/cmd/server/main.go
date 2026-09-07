@@ -94,6 +94,12 @@ func run() error {
 		cfg.MaxRoomClients,
 		cfg.AllowAccessFallback,
 	)
+	liveKitWebhookHandler := handler.NewLiveKitWebhookHandler(
+		hub,
+		cfg.LiveKitWebhookAPIKey,
+		cfg.LiveKitWebhookAPISecret,
+		logger,
+	)
 
 	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()
@@ -108,6 +114,7 @@ func run() error {
 	r.Get("/healthz", healthHandler.Healthz)
 	r.Get("/readyz", healthHandler.Readyz)
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+	r.Handle("/webhooks/livekit", liveKitWebhookHandler)
 
 	// 5. Конфигурация HTTP-сервера
 	server := &http.Server{

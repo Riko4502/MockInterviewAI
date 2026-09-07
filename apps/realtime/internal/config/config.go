@@ -28,6 +28,11 @@ type Config struct {
 	MaxConnections         int
 	MaxRoomClients         int
 
+	// LiveKit webhook верификация (application/x-www-form-urlencoded JWT из Authorization).
+	// Fail-closed в production, как JWT_ACCESS_SECRET: без секрета webhook отклоняются.
+	LiveKitWebhookAPIKey    string
+	LiveKitWebhookAPISecret string
+
 	// Redis конфигурация (из корневого .env)
 	RedisAddr     string
 	RedisPassword string
@@ -57,6 +62,17 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("JWT_ACCESS_SECRET (or JWT_SECRET) is required in production (must be set in root .env or environment)")
 		}
 		jwtAccessSecret = "mock-interview-default-access-secret-key-change-in-prod"
+	}
+
+	// LiveKit webhook: ключ/секрет подписи webhook-JWT (из Authorization или Livekit-Webhook-Jwt).
+	// В production обязательны (fail-closed) — без них любые webhook-запросы отклоняются 401.
+	liveKitWebhookAPIKey := getEnv("LIVEKIT_WEBHOOK_API_KEY", "devkey")
+	liveKitWebhookAPISecret := getEnv("LIVEKIT_WEBHOOK_API_SECRET", "")
+	if liveKitWebhookAPISecret == "" {
+		if env == "production" {
+			return nil, fmt.Errorf("LIVEKIT_WEBHOOK_API_SECRET is required in production (webhook signature verification)")
+		}
+		liveKitWebhookAPISecret = "secret"
 	}
 
 	shutdownSec, err := getEnvInt("SHUTDOWN_TIMEOUT_SECONDS", 10)
@@ -146,6 +162,8 @@ func Load() (*Config, error) {
 		RedisDB:                redisDB,
 		RedisEnabled:           redisEnabled,
 		AllowAccessFallback:    allowAccessFallback,
+		LiveKitWebhookAPIKey:    liveKitWebhookAPIKey,
+		LiveKitWebhookAPISecret: liveKitWebhookAPISecret,
 	}, nil
 }
 
