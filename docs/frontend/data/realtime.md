@@ -202,13 +202,15 @@ export interface ChatMessagePayload {
 
 ### 3.4. Медиа-сигналинг LiveKit (WebRTC Audio/Video)
 
+> **Примечание:** join-токен выдаётся через **REST** — `POST /realtime/media-token` (Bearer access), а не через WS (решение A1, см. `apps/api/docs/spec-livekit-media.md`). События `media.token_request`/`media.token_response` в протоколе **не реализованы** и приведены как contract-only резерв (например, для перевыпуска токена); клиент не должен полагаться на них.
+
 ```typescript
-/** Событие "media.token_request" (Клиент ➔ Сервер): запрос LiveKit JWT */
+/** Событие "media.token_request" (Клиент ➔ Сервер), ⚠ contract-only — не реализовано */
 export interface MediaTokenRequestPayload {
   roomName: string;
 }
 
-/** Событие "media.token_response" (Сервер ➔ Клиент) */
+/** Событие "media.token_response" (Сервер ➔ Клиент), ⚠ contract-only — не реализовано */
 export interface MediaTokenResponsePayload {
   token: string;
   serverUrl: string;
@@ -229,11 +231,11 @@ export interface MediaSpeakerPayload {
   audioLevel: number; // 0.0 - 1.0
 }
 
-/** Событие "media.recording" (Сервер ➔ Клиенты): статус записи */
+/** Событие "media.recording" (Сервер ➔ Клиенты): статус записи (из webhook LiveKit Egress; LIVE) */
 export interface MediaRecordingPayload {
-  isRecording: boolean;
-  recordingId?: string;
-  startedAt?: string;
+  sessionId: string;
+  status: "started" | "stopped" | "failed";
+  recordUrl?: string;
 }
 ```
 
@@ -383,8 +385,8 @@ export interface SystemBroadcastPayload {
           |<-------------------- 6. event: "room.sync" --------------------------------|  (участники, код)                   |
           |       (Монтирование Monaco Editor)              |                          |                                        |
           |                                                |                          |                                        |
-          |---------------- 7. event: "media.token_request" -------------------------->|                                        |
-          |<--------------- 8. event: "media.token_response" ---------------------------|                                        |
+          |================ 7. POST /realtime/media-token ====>|  (Bearer access;      |                                        |
+          |<=============== 8. { token, serverUrl, roomName } =|   fail-closed: активная сессия + роль из Redis-зеркала)           |
           |================ 9. Подключение WebRTC медиа =======================================================================>|
           |                                                |                          |                                        |
           |---------------- 10. event: "code.update" (version: 1) --------------------->|                                        |

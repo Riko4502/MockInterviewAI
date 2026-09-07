@@ -1,6 +1,6 @@
 # Спецификация: LiveKit media — выдача join-токена (API) и поток media-событий (realtime)
 
-Версия: `0.5.0` — см. [история версий](#история-версий).
+Версия: `0.5.1` — см. [история версий](#история-версий).
 Статус: черновик утверждённого плана.
 Связанные документы: `plan-livekit-media.md` (план действий);
 `plan-realtime-ws-auth.md` / `spec-realtime-ws-auth.md` (WS-аутентификация, на которую опирается тикет).
@@ -211,10 +211,10 @@ hub.BroadcastToRoom(room, envelope):
 |---|---|---|---|
 | `LIVEKIT_URL` | API | `ws://localhost:7880` | URL SFU, отдаётся как `serverUrl` |
 | `LIVEKIT_API_KEY` | API | `devkey` | `iss` токена / ключ подписи |
-| `LIVEKIT_API_SECRET` | API | `secret` | HS256-секрет подписи LiveKit-токена |
+| `LIVEKIT_API_SECRET` | API | `dev-local-secret-change-me-0123456789` | HS256-секрет подписи LiveKit-токена; **≥32 символов** (требование livekit-server), должен совпадать с секретом контейнера `livekit` |
 | `LIVEKIT_TOKEN_TTL_SECONDS` | API | `1800` | TTL токена (30 мин; reconnect LiveKit продлевает самостоятельно) |
 | `LIVEKIT_WEBHOOK_API_KEY` | Realtime (Go) | `devkey` | Ключ верификации подписи webhook-JWT из `Authorization` (совпадает с webhook-ключом контейнера `livekit`) |
-| `LIVEKIT_WEBHOOK_API_SECRET` | Realtime (Go) | `secret` | HS256-секрет подписи webhook (production — обязателен, fail-closed как `JWT_ACCESS_SECRET`) |
+| `LIVEKIT_WEBHOOK_API_SECRET` | Realtime (Go) | `dev-local-secret-change-me-0123456789` | HS256-секрет подписи webhook (production — обязателен, fail-closed как `JWT_ACCESS_SECRET`); в dev совпадает с `LIVEKIT_API_SECRET` |
 
 В production переменные API обязательны (fail-closed через `env.validation.ts`/
 `config.Load`); dev-дефолты нужны, чтобы OpenAPI-генератор (`app.init()` с `validate`)
@@ -336,3 +336,4 @@ LiveKit-комната = `sessionId` интервью. Идентичность 
 | 0.3.0 | 2026-09-05 | Webhook-авторизация (A7): верификация подписи `Livekit-Webhook-Jwt` (stdlib HMAC-SHA256) вместо статического `LIVEKIT_WEBHOOK_AUTH_TOKEN`; env `LIVEKIT_WEBHOOK_API_KEY/SECRET`; обновлены §5.3, §5.4, §6, §8, §9 |
 | 0.4.0 | 2026-09-05 | `canPublishData: false` всем ролям в матрице §4.1 / A5 / §8 (данные по WS, а не data-channel); нормализация egress-статусов записи к словарю `media.recording` (`started`/`stopped`/`failed`) |
 | 0.5.0 | 2026-09-05 | Коррективы по глубокому анализу: webhook-JWT читается из `Authorization` (fallback `Livekit-Webhook-Jwt` для legacy) + сверка sha256-claim с хешем тела (A7, §1, §3, §5.3, §6, §8, §9); webhook обрабатывает только `egress_*` → `media.recording`, активирующий говорящий — на клиенте (A6, §1, §3, §5.3, §9); комната egress из `egressInfo.roomName`; `BroadcastToRoom` с fallback на `broadcaster.Publish` при отсутствии локальной комнаты (кросс-реплики); неизвестная роль → 403 (A4, §5.2, §7, §8); общие хелперы `session-keys.ts` (§5.2, §10) |
+| 0.5.1 | 2026-09-07 | §6: dev-дефолты `LIVEKIT_API_SECRET`/`LIVEKIT_WEBHOOK_API_SECRET` выровнены с инфраструктурой — `dev-local-secret-change-me-0123456789` (≥32 симв., совпадает с контейнером `livekit` и `.env.example`); `env.validation.ts` требует секрет ≥32 симв. |

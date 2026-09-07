@@ -17,6 +17,7 @@ docker-compose.prod.yml
 > **Внешние управляемые сервисы (Managed):**
 > * **PostgreSQL**: разворачивается как Managed DB (AWS RDS / Supabase / Selectel) с автоматическими бэкапами.
 > * **S3 Storage**: облачное объектное хранилище (Cloudflare R2 / AWS S3) с подключенным CDN.
+> * **LiveKit**: managed SFU (LiveKit Cloud или собственный livekit-server) для WebRTC-медиа. Из `docker-compose.prod.yml` не запускается — подключается по `LIVEKIT_*`; на SFU настраивается webhook на `realtime` (`POST /webhooks/livekit`).
 
 ---
 
@@ -29,6 +30,11 @@ API и Realtime аутентифицируют WebSocket через тикеты
 | `JWT_ACCESS_SECRET` | `api`, `realtime` | Подпись/верификация JWT (access + тикеты). **Должен совпадать** у обоих сервисов | общий секрет из единого `.env` / секретов деплоя |
 | `ALLOWED_ORIGINS` | `realtime`, `api` | Origin-проверка handshake и тикет-эндпоинта. Шаблон `*` — **запрещен** в prod (в dev допустим) | реальные домены платформы |
 | `REDIS_URL` | `api`, `realtime` | Сессии и их зеркала (`session:{id}:*`), блэклисты токенов, канал `auth:revocations`. Redis — hard-зависимость API при старте | managed Redis / общий VPC |
+| `LIVEKIT_URL` | `api` | URL SFU WebRTC, отдаётся как `serverUrl` в join-токене | `wss://…` managed LiveKit |
+| `LIVEKIT_API_KEY` | `api` | Ключ подписи LiveKit join-токенов (HS256) | совпадает с ключом сервера LiveKit |
+| `LIVEKIT_API_SECRET` | `api` | HS256-секрет подписи LiveKit join-токенов | **≥32 символов**, совпадает с секретом сервера LiveKit |
+| `LIVEKIT_WEBHOOK_API_KEY` | `realtime` | Верификация подписи webhook-JWT (`POST /webhooks/livekit`) | совпадает с webhook-ключом LiveKit |
+| `LIVEKIT_WEBHOOK_API_SECRET` | `realtime` | HS256-секрет верификации webhook-JWT | обязателен в prod (fail-closed как `JWT_ACCESS_SECRET`); webhook должен быть достижим из LiveKit |
 
 Порядок деплоя: `api` и `realtime` выкатываются **согласованно** — строгий режим `fail-closed` в realtime (обязательный тикет) вводится вместе с выпуском тикетов на API, иначе активные клиенты без тикета будут разорваны (`401`).
 

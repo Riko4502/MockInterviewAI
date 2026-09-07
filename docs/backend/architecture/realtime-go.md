@@ -23,7 +23,7 @@ apps/realtime/
 │       └── main.go           # Точка входа, конфигурация, запуск HTTP/WS сервера
 ├── internal/
 │   ├── config/               # Загрузка и валидация переменных окружения
-│   ├── handler/              # HTTP + WebSocket handler: /ws/sessions/{id}, /healthz
+│   ├── handler/              # HTTP + WebSocket handler: /ws/sessions/{id}, /healthz, POST /webhooks/livekit (LiveKit)
 │   ├── ws/                   # WebSocket Hub, комнаты (Room), клиенты (Client), Envelope
 │   ├── storage/              # Redis: Pub/Sub, зеркало сессий, code-state, тикеты, ревокации
 │   └── auth/                 # Верификация JWT (typ: access / realtime), ConsumeTicket
@@ -76,3 +76,14 @@ apps/realtime/
 5. При logout/revoke `apps/api` публикует в канал `auth:revocations` сообщение `{instanceId, data: userId, sessionId?}`; realtime без `sessionId` вызывает `Hub.EvictUser(userID)` (все комнаты), с `sessionId` — `Hub.EvictFromRoom(sessionID, userID)` (только комната сессии) и разрывает активные WS (`StatusPolicyViolation`).
 
 Подробности — `docs/backend/security/auth-jwt.md`, спецификация — `apps/api/docs/spec-realtime-ws-auth.md`.
+
+---
+
+## 6. LiveKit webhook (медиа-события)
+
+WebRTC-медиа (аудио/видео) идёт напрямую клиент ↔ LiveKit SFU; `realtime` в передаче медиа не участвует. Единственная интеграция с LiveKit на стороне сервиса — приём webhook-ов записи:
+
+1. **`POST /webhooks/livekit`** — без тикета; верификация подписи webhook-JWT (HS256, из `Authorization` с fallback на `Livekit-Webhook-Jwt`) по `LIVEKIT_WEBHOOK_API_KEY`/`LIVEKIT_WEBHOOK_API_SECRET`, плюс сверка sha256-claim с хешем тела. В production оба параметра обязательны (fail-closed как `JWT_ACCESS_SECRET`); dev-дефолт секрета — `dev-local-secret-change-me-0123456789` (совпадает с ключом контейнера `livekit`).
+2. Обрабатываются только события `egress_*` → бизнес-событие записи **`media.recording`** (`started`/`stopped`/`failed`), которое ретранслируется в комнату сессии через `BroadcastToRoom` (с fallback на `broadcaster.Publish` при отсутствии локальной комнаты). Активный говорящий — клиентская индикация (`livekit-client`), через realtime не распространяется.
+
+Спецификация — `apps/api/docs/spec-livekit-media.md`.
