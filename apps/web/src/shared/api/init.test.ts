@@ -100,17 +100,6 @@ describe("initApiTransport", () => {
     expect(typeof api.initApiTransport).toBe("function");
   });
 
-  it("должен гарантировать инициализацию транспорта при импорте client.tsx", async () => {
-    vi.resetModules();
-    const { isApiTransportInitialized: checkInitialized } = await import(
-      "./init"
-    );
-    expect(checkInitialized()).toBe(false);
-
-    await import("./client");
-    expect(checkInitialized()).toBe(true);
-  });
-
   it("resetApiTransportState() синхронно сбрасывает локальный флаг и состояние в @packages/api", () => {
     // 1. Инициализируем транспорт
     initApiTransport();

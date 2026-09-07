@@ -1,5 +1,5 @@
 import { realtimeControllerGetTicket } from "@packages/api";
-import { AuthError } from "@/shared/api/base";
+import { HttpError, RefreshSessionError } from "@/shared/api";
 import { realtimeWsUrl } from "@/shared/api/endpoints";
 
 /** Максимум последовательных failed handshake (403 при апгрейде) до остановки reconnect. */
@@ -85,7 +85,7 @@ export async function connectWebSocket(
     try {
       ticket = await getTicket(sessionId);
     } catch (error) {
-      if (error instanceof AuthError) {
+      if (error instanceof HttpError || error instanceof RefreshSessionError) {
         // Отсутствует/истёк access token: baseFetch уже перенаправил
         // на /login. Reconnect бессмыслен. При первичном подключении
         // пробрасываем вызывающему; при реконнекте — тихо останавливаемся.
@@ -168,7 +168,7 @@ export async function connectWebSocket(
     current?.close(1000, "client closed");
   }
 
-  // Первое подключение: ошибка (AuthError / сеть / невалидный URL)
+  // Первое подключение: ошибка (HttpError / сеть / невалидный URL)
   // пробрасывается вызывающему.
   await openSocket();
 
