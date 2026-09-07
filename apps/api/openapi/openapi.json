@@ -755,6 +755,54 @@
         "summary": "Выдать одноразовый тикет для подключения к WebSocket комнате",
         "tags": ["Realtime"]
       }
+    },
+    "/api/v1/realtime/media-token": {
+      "post": {
+        "operationId": "RealtimeController_getMediaToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaTokenRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "LiveKit токен успешно выпущен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaTokenResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "403": {
+            "description": "Сессия не активна или пользователь не является участником"
+          },
+          "429": {
+            "description": "Превышен лимит запросов (rate limit)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Выдать LiveKit join-токен для WebRTC медиа",
+        "tags": ["Realtime"]
+      }
     }
   },
   "info": {
@@ -1097,6 +1145,35 @@
           }
         },
         "required": ["ticket"]
+      },
+      "MediaTokenRequestDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["sessionId"]
+      },
+      "MediaTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "LiveKit access token (JWT) для подключения к SFU"
+          },
+          "serverUrl": {
+            "type": "string",
+            "description": "URL LiveKit сервера для подключения"
+          },
+          "roomName": {
+            "type": "string",
+            "description": "Название комнаты (совпадает с sessionId)"
+          }
+        },
+        "required": ["token", "serverUrl", "roomName"]
       },
       "CreateSessionResponseDto": {
         "type": "object",
