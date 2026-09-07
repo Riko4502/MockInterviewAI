@@ -68,8 +68,9 @@ services:
           port_range_start: 50000
           port_range_end: 50200
         keys:
-          ${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-secret}
+          ${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-dev-local-secret-change-me-0123456789}
         webhook:
+          api_key: ${LIVEKIT_WEBHOOK_API_KEY:-${LIVEKIT_API_KEY:-devkey}}
           urls:
             - ${LIVEKIT_WEBHOOK_URL:-http://realtime:8080/webhooks/livekit}
     ports:
