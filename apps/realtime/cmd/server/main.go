@@ -18,6 +18,7 @@ import (
 	"github.com/mockinterviewai/realtime/internal/config"
 	"github.com/mockinterviewai/realtime/internal/handler"
 	"github.com/mockinterviewai/realtime/internal/middleware"
+	"github.com/mockinterviewai/realtime/internal/sse"
 	"github.com/mockinterviewai/realtime/internal/storage"
 	"github.com/mockinterviewai/realtime/internal/ws"
 )
@@ -82,7 +83,26 @@ func run() error {
 	tokenVerifier := auth.NewTokenVerifier(cfg.JWTAccessSecret)
 	hub := ws.NewHub(rootCtx, redisStore, redisStore, logger)
 
-	healthHandler := handler.NewHealthHandler(hub, redisStore)
+	// Подсистема Server-Sent Events: глобальный поток уведомлений пользователя
+	sseHub := sse.NewHub(
+		rootCtx,
+		redisStore,
+		redisStore,
+		sse.Options{
+			HeartbeatInterval:     cfg.SSEHeartbeatInterval,
+			StreamBlockInterval:   cfg.SSEStreamBlockInterval,
+			SlowConsumerGrace:     cfg.SSESlowConsumerGrace,
+			ClientBufferSize:      cfg.SSEClientBufferSize,
+			MaxConnectionsPerUser: cfg.SSEMaxConnectionsPerUser,
+			MaxConnectionsPerIP:   cfg.SSEMaxConnectionsPerIP,
+			ReplayCount:           int64(cfg.SSEReplayCount),
+			RetryMs:               cfg.SSERetryMs,
+		},
+		redisStore.InstanceID(),
+		logger,
+	)
+
+	healthHandler := handler.NewHealthHandler(hub, sseHub, redisStore)
 	wsHandler := handler.NewWebSocketHandler(
 		hub,
 		tokenVerifier,
@@ -94,6 +114,18 @@ func run() error {
 		cfg.MaxRoomClients,
 		cfg.AllowAccessFallback,
 	)
+
+	sseHandler := handler.NewSSEHandler(
+		sseHub,
+		tokenVerifier,
+		redisStore,
+		redisStore,
+		logger,
+		cfg.AccessTokenCookieName,
+		cfg.TrustProxyHeaders,
+	)
+
+	metricsHandler := handler.NewMetricsHandler(sseHub, logger, cfg.MetricsAllowPublic)
 
 	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()
@@ -107,7 +139,9 @@ func run() error {
 	// Регистрация маршрутов
 	r.Get("/healthz", healthHandler.Healthz)
 	r.Get("/readyz", healthHandler.Readyz)
+	r.Get("/metrics", metricsHandler.ServeHTTP)
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+	r.Get("/sse/notifications", sseHandler.HandleNotifications)
 
 	// 5. Конфигурация HTTP-сервера
 	server := &http.Server{
@@ -168,7 +202,15 @@ func run() error {
 		)
 	}
 
-	// Шаг 2: Закрываем соединение с Redis
+	// Шаг 2: Закрываем все SSE-потоки уведомлений
+	if err := sseHub.Close(); err != nil {
+		logger.Warn(
+			"error closing sse hub",
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Шаг 3: Закрываем соединение с Redis
 	if err := redisStore.Close(); err != nil {
 		logger.Warn(
 			"error closing redis client",
@@ -176,7 +218,7 @@ func run() error {
 		)
 	}
 
-	// Шаг 3: Закрываем HTTP-сервер с таймаутом
+	// Шаг 4: Закрываем HTTP-сервер с таймаутом
 	shutdownCtx, shutdownCancel := context.WithTimeout(
 		context.Background(),
 		cfg.ShutdownTimeout,

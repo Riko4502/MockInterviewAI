@@ -51,6 +51,7 @@
 * [TanStack Query](./data/tanstack-query.md)
 * [State Management Decision Tree](./data/state-management.md)
 * [Realtime Integration (WS & SSE)](./data/realtime.md)
+* [SSE: практическое руководство для фронта](./data/sse.md)
 
 
 ### 4. [Разработка и качество](./development/typescript.md)
