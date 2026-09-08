@@ -12,7 +12,8 @@
     "format": "biome format --write --no-errors-on-unmatched",
     "test": "vitest run --passWithNoTests",
     "test:cov": "vitest run --coverage --passWithNoTests",
-    "vercel-ignore": "bash ../../scripts/vercel-ignore-landing.sh"
+    "vercel-ignore": "bash ../../scripts/vercel-ignore-landing.sh",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@packages/i18n": "workspace:*",
