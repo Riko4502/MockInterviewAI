@@ -1,110 +1,8 @@
 "use client";
 
 import { GithubIcon } from "@packages/icons";
-import type { TFunction } from "i18next";
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { getAppUrl, getAuthUrl, navigationConfig } from "@/shared/config";
-
-type TranslationFn = TFunction<"landing">;
-
-interface FooterLinkItem {
-  key: string;
-  getLabel: (t: TranslationFn) => string;
-  getHref: () => string;
-  icon?: ReactNode;
-  isExternal?: boolean;
-}
-
-interface FooterSection {
-  key: string;
-  getTitle: (t: TranslationFn) => string;
-  links: FooterLinkItem[];
-}
-
-const FOOTER_SECTIONS: readonly FooterSection[] = [
-  {
-    key: "product",
-    getTitle: (t) => t("footer.colProduct"),
-    links: [
-      {
-        key: "how-it-works",
-        getLabel: (t) => t("nav.howItWorks"),
-        getHref: () => "#how-it-works",
-      },
-      {
-        key: "features",
-        getLabel: (t) => t("nav.features"),
-        getHref: () => "#features",
-      },
-      {
-        key: "start",
-        getLabel: (t) => t("hero.ctaStart"),
-        getHref: getAuthUrl,
-      },
-    ],
-  },
-  {
-    key: "resources",
-    getTitle: (t) => t("footer.colResources"),
-    links: [
-      {
-        key: "docs",
-        getLabel: (t) => t("footer.docs"),
-        getHref: () => getAppUrl("/docs"),
-      },
-      {
-        key: "guides",
-        getLabel: (t) => t("footer.guides"),
-        getHref: () => getAppUrl("/guides"),
-      },
-      {
-        key: "system-design",
-        getLabel: (t) => t("footer.systemDesign"),
-        getHref: () => getAppUrl("/system-design"),
-      },
-    ],
-  },
-  {
-    key: "company",
-    getTitle: (t) => t("footer.colCompany"),
-    links: [
-      {
-        key: "about",
-        getLabel: (t) => t("footer.about"),
-        getHref: () => getAppUrl("/about"),
-      },
-      {
-        key: "github",
-        getLabel: () => "GitHub",
-        getHref: () => navigationConfig.githubUrl,
-        icon: <GithubIcon className="w-3.5 h-3.5 text-slate-400" />,
-        isExternal: true,
-      },
-    ],
-  },
-  {
-    key: "legal",
-    getTitle: (t) => t("footer.colLegal"),
-    links: [
-      {
-        key: "privacy",
-        getLabel: (t) => t("footer.privacy"),
-        getHref: () => getAppUrl("/privacy"),
-      },
-      {
-        key: "terms",
-        getLabel: (t) => t("footer.terms"),
-        getHref: () => getAppUrl("/terms"),
-      },
-      {
-        key: "security",
-        getLabel: (t) => t("footer.security"),
-        getHref: () => getAppUrl("/security"),
-      },
-    ],
-  },
-];
+import { FOOTER_SECTIONS } from "../constants";
 
 export function FooterNavLinks() {
   const { t } = useTranslation("landing");
@@ -125,7 +23,9 @@ export function FooterNavLinks() {
                   rel={link.isExternal ? "noopener noreferrer" : undefined}
                   className="hover:text-white transition-colors flex items-center gap-1.5"
                 >
-                  {link.icon}
+                  {link.icon === "github" && (
+                    <GithubIcon className="w-3.5 h-3.5 text-slate-400" />
+                  )}
                   {link.getLabel(t)}
                 </a>
               </li>

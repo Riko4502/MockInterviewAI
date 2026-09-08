@@ -4,8 +4,7 @@ import { CheckIcon } from "@packages/icons";
 import { Badge, Button, Card } from "@packages/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-
-type MockupTab = "solution" | "test";
+import { MOCKUP_TABS, type MockupTab, SOLUTION_CODE_LINES } from "../constants";
 
 export function HeroCodeMockup() {
   const { t } = useTranslation("landing");
@@ -32,34 +31,29 @@ export function HeroCodeMockup() {
 
           {/* Interactive Tabs */}
           <div className="ml-2 flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => setActiveTab("solution")}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
-                activeTab === "solution"
-                  ? "bg-[#131524] text-slate-200 border border-white/15 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <span className="text-sky-400 font-bold mr-1">TS</span>
-              <span>solution.ts</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => setActiveTab("test")}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
-                activeTab === "test"
-                  ? "bg-[#131524] text-slate-200 border border-white/15 shadow-sm"
-                  : "text-slate-500 hover:text-slate-300"
-              }`}
-            >
-              <span>test.spec.ts</span>
-            </Button>
+            {MOCKUP_TABS.map((tab) => (
+              <Button
+                key={tab.id}
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
+                  activeTab === tab.id
+                    ? "bg-[#131524] text-slate-200 border border-white/15 shadow-sm"
+                    : tab.id === "solution"
+                      ? "text-slate-400 hover:text-slate-200"
+                      : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                {tab.badge && (
+                  <span className="text-sky-400 font-bold mr-1">
+                    {tab.badge}
+                  </span>
+                )}
+                <span>{tab.filename}</span>
+              </Button>
+            ))}
           </div>
         </div>
 
@@ -89,82 +83,37 @@ export function HeroCodeMockup() {
         {/* Tab 1: Solution */}
         {activeTab === "solution" && (
           <div className="space-y-1.5 text-slate-300 leading-relaxed font-mono">
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                1
-              </span>
-              <div>
-                <span className="text-violet-400 font-semibold">
-                  export async function
-                </span>{" "}
-                <span className="text-sky-300">evaluateStream</span>(
+            {SOLUTION_CODE_LINES.map((row) => (
+              <div
+                key={row.line}
+                className={`flex gap-3 ${row.rowClassName ?? ""}`}
+              >
+                <span
+                  className={`${row.lineNumClassName ?? "text-slate-600"} select-none text-right w-4`}
+                >
+                  {row.line}
+                </span>
+                <div
+                  className={`${row.indentClass ?? ""} ${row.contentClassName ?? ""}`}
+                >
+                  {row.tokens.map((token) =>
+                    token.className ? (
+                      <span
+                        key={`${row.line}-${token.text}`}
+                        className={token.className}
+                      >
+                        {token.text}
+                      </span>
+                    ) : (
+                      token.text
+                    ),
+                  )}
+                  {row.hasCursor && (
+                    <span className="inline-block w-1.5 h-3.5 bg-violet-400 animate-pulse ml-0.5" />
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                2
-              </span>
-              <div className="pl-4">
-                <span className="text-slate-400">stream</span>:{" "}
-                <span className="text-amber-300">AsyncIterable</span>&lt;
-                <span className="text-emerald-300">Token</span>&gt;
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                3
-              </span>
-              <div>) &#123;</div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                4
-              </span>
-              <div className="pl-4">
-                <span className="text-violet-400">const</span> metrics ={" "}
-                <span className="text-violet-400">new</span>{" "}
-                <span className="text-amber-300">PerformanceTracker</span>();
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                5
-              </span>
-              <div className="pl-4">
-                <span className="text-violet-400">for await</span> (
-                <span className="text-violet-400">const</span> token{" "}
-                <span className="text-violet-400">of</span> stream) &#123;
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                6
-              </span>
-              <div className="pl-8 text-sky-300">
-                metrics.recordLatency(token.timestamp);
-              </div>
-            </div>
-            <div className="flex gap-3 bg-violet-500/10 -mx-2 px-2 rounded">
-              <span className="text-violet-400 select-none text-right w-4">
-                7
-              </span>
-              <div className="pl-8 text-emerald-400">
-                yield evaluatePrompt(token);{" "}
-                <span className="inline-block w-1.5 h-3.5 bg-violet-400 animate-pulse ml-0.5" />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                8
-              </span>
-              <div className="pl-4">&#125;</div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-slate-600 select-none text-right w-4">
-                9
-              </span>
-              <div>&#125;</div>
-            </div>
+            ))}
           </div>
         )}
 
