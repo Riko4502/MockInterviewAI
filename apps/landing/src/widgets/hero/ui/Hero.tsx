@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowRightIcon } from "@packages/icons";
-import { Badge, Button, Link } from "@packages/ui";
+import { Badge, Button, Typography } from "@packages/ui";
+import NextLink from "next/link";
 import { useTranslation } from "react-i18next";
 import { getRegisterUrl } from "@/shared/config";
 import { HeroCodeMockup } from "./HeroCodeMockup";
@@ -25,15 +26,15 @@ export function Hero() {
             </Badge>
 
             {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12] mb-6">
+            <Typography.H1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12] mb-6">
               {t("hero.title1")} <br className="hidden sm:inline" />
               <span className="text-gradient-purple">{t("hero.title2")}</span>
-            </h1>
+            </Typography.H1>
 
             {/* Subtitle */}
-            <p className="text-lg sm:text-xl text-slate-300 font-normal leading-relaxed mb-8 max-w-xl">
+            <Typography.Lead className="text-lg sm:text-xl text-slate-300 font-normal leading-relaxed mb-8 max-w-xl">
               {t("hero.subtitle")}
-            </p>
+            </Typography.Lead>
 
             {/* CTA Buttons */}
             <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto mb-12">
@@ -42,10 +43,10 @@ export function Hero() {
                 size="lg"
                 className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-xl shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-8 py-3.5 h-auto text-base font-semibold group gap-2.5"
               >
-                <Link href={registerUrl}>
+                <a href={registerUrl}>
                   <span>{t("hero.ctaStart")}</span>
                   <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Link>
+                </a>
               </Button>
 
               <Button
@@ -54,7 +55,7 @@ export function Hero() {
                 size="lg"
                 className="w-full sm:w-auto rounded-full bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white px-7 py-3.5 h-auto text-base font-semibold backdrop-blur-md"
               >
-                <Link href="#how-it-works">{t("hero.ctaExplore")}</Link>
+                <NextLink href="#how-it-works">{t("hero.ctaExplore")}</NextLink>
               </Button>
             </div>
 

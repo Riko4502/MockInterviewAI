@@ -1,7 +1,7 @@
 "use client";
 
 import { MicIcon } from "@packages/icons";
-import { Card } from "@packages/ui";
+import { Card, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 
 export function FeatureVoice() {
@@ -16,9 +16,9 @@ export function FeatureVoice() {
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 border border-indigo-400/40 flex items-center justify-center text-white mb-6 shadow-lg shadow-indigo-600/30 group-hover:scale-110 group-hover:shadow-indigo-500/50 transition-all">
           <MicIcon className="w-6 h-6" />
         </div>
-        <Card.Title className="text-xl sm:text-2xl font-bold text-white mb-3">
+        <Typography.H3 className="text-xl sm:text-2xl font-bold text-white mb-3">
           {t("features.card2Title")}
-        </Card.Title>
+        </Typography.H3>
         <Card.Description className="text-slate-300 text-sm leading-relaxed mb-6">
           {t("features.card2Desc")}
         </Card.Description>

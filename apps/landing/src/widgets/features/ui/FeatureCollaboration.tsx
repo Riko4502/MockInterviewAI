@@ -1,7 +1,7 @@
 "use client";
 
 import { HubConnectionIcon } from "@packages/icons";
-import { Badge, Card } from "@packages/ui";
+import { Badge, Card, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 
 export function FeatureCollaboration() {
@@ -16,9 +16,9 @@ export function FeatureCollaboration() {
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 border border-violet-400/40 flex items-center justify-center text-white mb-6 shadow-lg shadow-violet-600/30 group-hover:scale-110 group-hover:shadow-violet-500/50 transition-all">
           <HubConnectionIcon className="w-6 h-6" />
         </div>
-        <Card.Title className="text-xl sm:text-2xl font-bold text-white mb-3">
+        <Typography.H3 className="text-xl sm:text-2xl font-bold text-white mb-3">
           {t("features.card1Title")}
-        </Card.Title>
+        </Typography.H3>
         <Card.Description className="text-slate-300 text-sm sm:text-base leading-relaxed">
           {t("features.card1Desc")}
         </Card.Description>
