@@ -4,6 +4,7 @@ import { CheckIcon } from "@packages/icons";
 import { Button } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SIMULATION_TEST_STEPS } from "../constants";
 import { AiHintBanner } from "./AiHintBanner";
 import { StepHeader } from "./StepHeader";
 
@@ -127,29 +128,19 @@ export function StepLiveCoding() {
               <span className="text-sky-300">TEST SUITE CONSOLE</span>
               <span>{isRunning ? "EXEC..." : "18/18 PASSED"}</span>
             </div>
-            {completedSteps >= 1 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_cache_initialization (2ms)</span>
-              </div>
-            )}
-            {completedSteps >= 2 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_lru_eviction_policy (5ms)</span>
-              </div>
-            )}
-            {completedSteps >= 3 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_concurrent_writes (9ms)</span>
-              </div>
-            )}
-            {completedSteps >= 4 && (
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_memory_benchmark &lt; 2.4MB (12ms)</span>
-              </div>
+            {SIMULATION_TEST_STEPS.map(
+              (item) =>
+                completedSteps >= item.step && (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-2 text-emerald-400 ${
+                      item.isHighlighted ? "font-semibold" : ""
+                    }`}
+                  >
+                    <CheckIcon className="w-3 h-3" />
+                    <span>{item.label}</span>
+                  </div>
+                ),
             )}
           </div>
 

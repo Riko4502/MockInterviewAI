@@ -3,28 +3,9 @@
 import { Badge } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { getVerdict } from "../constants";
 import { ScoreMetricCard } from "./ScoreMetricCard";
 import { StepHeader } from "./StepHeader";
-
-const getVerdict = (score: number) => {
-  if (score >= 90)
-    return {
-      text: "STRONG HIRE",
-      variant: "statusSuccess" as const,
-      percentile: "Top 2%",
-    };
-  if (score >= 75)
-    return {
-      text: "HIRE",
-      variant: "statusInfo" as const,
-      percentile: "Top 15%",
-    };
-  return {
-    text: "LEVELED UP",
-    variant: "waiting" as const,
-    percentile: "Top 35%",
-  };
-};
 
 export function StepScorecard() {
   const { t } = useTranslation("landing");

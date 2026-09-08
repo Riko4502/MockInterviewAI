@@ -3,6 +3,7 @@
 import { Button } from "@packages/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AI_INTERVIEW_CHECKLIST } from "../constants";
 import { ParticipantFeed } from "./ParticipantFeed";
 import { StepHeader } from "./StepHeader";
 
@@ -29,24 +30,14 @@ export function StepAiInterview() {
           description={t("howItWorks.step2Desc")}
         />
         <ul className="space-y-3 text-sm text-slate-200">
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{t("howItWorks.step2Check1")}</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{t("howItWorks.step2Check2")}</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{t("howItWorks.step2Check3")}</span>
-          </li>
+          {AI_INTERVIEW_CHECKLIST.map((key) => (
+            <li key={key} className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
+                ✓
+              </div>
+              <span>{t(key)}</span>
+            </li>
+          ))}
         </ul>
       </div>
 

@@ -2,35 +2,13 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { TRACK_DEFINITIONS } from "../constants";
 import { StepHeader } from "./StepHeader";
 import { TrackCard } from "./TrackCard";
 
 export function StepTrackSelect() {
   const { t } = useTranslation("landing");
   const [selectedTrackIndex, setSelectedTrackIndex] = useState(0);
-
-  const tracks = [
-    {
-      title: t("howItWorks.track1Title"),
-      description: t("howItWorks.track1Desc"),
-      duration: "60 min",
-    },
-    {
-      title: t("howItWorks.track2Title"),
-      description: t("howItWorks.track2Desc"),
-      duration: "45 min",
-    },
-    {
-      title: t("howItWorks.track3Title"),
-      description: t("howItWorks.track3Desc"),
-      duration: "60 min",
-    },
-    {
-      title: t("howItWorks.track4Title"),
-      description: t("howItWorks.track4Desc"),
-      duration: "45 min",
-    },
-  ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -72,16 +50,16 @@ export function StepTrackSelect() {
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
-            {tracks.map((track, idx) => (
+            {TRACK_DEFINITIONS.map((track, idx) => (
               <button
                 type="button"
-                key={track.title}
+                key={track.id}
                 onClick={() => setSelectedTrackIndex(idx)}
                 className="w-full text-left cursor-pointer transition-transform active:scale-98"
               >
                 <TrackCard
-                  title={track.title}
-                  description={track.description}
+                  title={t(track.titleKey)}
+                  description={t(track.descriptionKey)}
                   duration={track.duration}
                   statusText={
                     selectedTrackIndex === idx
