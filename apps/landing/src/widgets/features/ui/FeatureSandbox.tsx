@@ -4,16 +4,11 @@ import { GlobeIcon } from "@packages/icons";
 import { Badge, Card } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SANDBOX_REGIONS } from "../constants";
 
 export function FeatureSandbox() {
   const { t } = useTranslation("landing");
   const [activeRegion, setActiveRegion] = useState("eu");
-
-  const regions = [
-    { id: "eu", name: "EU-Central", ping: "14ms", status: "Optimal" },
-    { id: "us", name: "US-East", ping: "18ms", status: "Optimal" },
-    { id: "ap", name: "AP-East", ping: "32ms", status: "Active" },
-  ];
 
   return (
     <Card className="w-full h-full relative rounded-3xl p-8 border border-sky-500/20 bg-gradient-to-b from-sky-950/20 via-[#0c0e1a]/80 to-[#07080e]/90 backdrop-blur-xl flex flex-col justify-between group hover:border-sky-500/60 hover:shadow-2xl hover:shadow-sky-950/50 transition-all duration-300 overflow-hidden">
@@ -34,7 +29,7 @@ export function FeatureSandbox() {
 
       <Card.Content className="p-0 relative z-10">
         <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-          {regions.map((reg) => (
+          {SANDBOX_REGIONS.map((reg) => (
             <button
               type="button"
               key={reg.id}
