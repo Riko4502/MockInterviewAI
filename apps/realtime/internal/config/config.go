@@ -28,6 +28,11 @@ type Config struct {
 	MaxConnections         int
 	MaxRoomClients         int
 
+	// LiveKit webhook верификация (application/x-www-form-urlencoded JWT из Authorization).
+	// Fail-closed в production, как JWT_ACCESS_SECRET: без секрета webhook отклоняются.
+	LiveKitWebhookAPIKey    string
+	LiveKitWebhookAPISecret string
+
 	// MetricsAllowPublic снимает ограничение на источник запросов к /metrics.
 	// По умолчанию эндпоинт отвечает только петлевым и частным адресам, так как
 	// раскрывает число активных пользователей ноды.
@@ -68,7 +73,8 @@ func Load() (*Config, error) {
 
 	port := getEnv("REALTIME_PORT", getEnv("PORT", "8080"))
 	host := getEnv("REALTIME_HOST", getEnv("HOST", "0.0.0.0"))
-	env := getEnv("ENV", "development")
+	// Prod-контейнер задаёт ENVIRONMENT=production, локально используется ENV.
+	env := getEnv("ENV", getEnv("ENVIRONMENT", "development"))
 
 	// Считываем JWT ключи: 우선 JWT_ACCESS_SECRET, для обратной совместимости fallback на JWT_SECRET
 	jwtAccessSecret := getEnv("JWT_ACCESS_SECRET", getEnv("JWT_SECRET", ""))
@@ -79,6 +85,17 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("JWT_ACCESS_SECRET (or JWT_SECRET) is required in production (must be set in root .env or environment)")
 		}
 		jwtAccessSecret = "mock-interview-default-access-secret-key-change-in-prod"
+	}
+
+	// LiveKit webhook: ключ/секрет подписи webhook-JWT (из Authorization или Livekit-Webhook-Jwt).
+	// В production обязательны (fail-closed) — без них любые webhook-запросы отклоняются 401.
+	liveKitWebhookAPIKey := getEnv("LIVEKIT_WEBHOOK_API_KEY", "devkey")
+	liveKitWebhookAPISecret := getEnv("LIVEKIT_WEBHOOK_API_SECRET", "")
+	if liveKitWebhookAPISecret == "" {
+		if env == "production" {
+			return nil, fmt.Errorf("LIVEKIT_WEBHOOK_API_SECRET is required in production (webhook signature verification)")
+		}
+		liveKitWebhookAPISecret = "dev-local-secret-change-me-0123456789"
 	}
 
 	shutdownSec, err := getEnvInt("SHUTDOWN_TIMEOUT_SECONDS", 10)
@@ -187,12 +204,14 @@ func Load() (*Config, error) {
 		SSEReplayCount:           sseCfg.ReplayCount,
 		SSERetryMs:               sseCfg.RetryMs,
 
-		RedisAddr:           redisAddr,
-		RedisPassword:       redisPassword,
-		RedisDB:             redisDB,
-		RedisPoolSize:       redisPoolSize,
-		RedisEnabled:        redisEnabled,
-		AllowAccessFallback: allowAccessFallback,
+		RedisAddr:               redisAddr,
+		RedisPassword:           redisPassword,
+		RedisDB:                 redisDB,
+		RedisPoolSize:           redisPoolSize,
+		RedisEnabled:            redisEnabled,
+		AllowAccessFallback:     allowAccessFallback,
+		LiveKitWebhookAPIKey:    liveKitWebhookAPIKey,
+		LiveKitWebhookAPISecret: liveKitWebhookAPISecret,
 	}, nil
 }
 

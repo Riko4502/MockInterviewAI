@@ -11,6 +11,7 @@ docker-compose.yml
 ├── postgres       # PostgreSQL 16 (порт 5432) — реляционная база данных
 ├── redis          # Redis 7 (порт 6379) — кэш, блэклисты токенов и Pub/Sub
 ├── minio          # MinIO (порт 9000 — S3 API, порт 9001 — Web Console)
+├── livekit        # LiveKit SFU (порт 7880 — WS-сигналинг, 7881 — HTTPS, 50000–50200 — UDP-медиа)
 └── minio-init     # Одноразовый CLI-контейнер для автосоздания бакетов
 ```
 
@@ -22,6 +23,9 @@ docker-compose.yml
 | **Redis** | `localhost:6379` | Сессии и брокер событий | пароль `mock-interview-redis` |
 | **MinIO S3 API** | `localhost:9000` | S3-эндпоинт для загрузки файлов | `minioadmin / minioadmin` |
 | **MinIO Console** | `localhost:9001` | Веб-интерфейс управления файлами | `minioadmin / minioadmin` |
+| **LiveKit** | `localhost:7880` | WebSocket-сигналинг WebRTC, отдаётся как `serverUrl` в join-токене | ключ `devkey` / секрет `dev-local-secret-change-me-0123456789` |
+| **LiveKit** | `localhost:7881` | HTTPS-эндпоинт (для продакшена/внешних клиентов) | — |
+| **LiveKit** | `localhost:50000–50200` | UDP-диапазон медиапотоков (аудио/видео) | — |
 
 ---
 
@@ -67,3 +71,10 @@ pnpm --filter api test:e2e # e2e API (требует живой Redis)
 * `postgres-data` — файлы базы данных PostgreSQL.
 * `redis-data` — dump/AOF файлы Redis.
 * `minio-data` — загруженные файлы S3-хранилища.
+
+---
+
+## 6. LiveKit — SFU для WebRTC
+
+* Секрет `LIVEKIT_API_SECRET` и webhook-секрет должны быть **≥32 символов** (требование livekit-server). Dev-дефолт — `dev-local-secret-change-me-0123456789` (задан в `docker-compose.yml`, корневом `.env` и `.env.example`). `apps/api` подписывает join-токены этим же секретом — рассогласование (например, дефолт API «вручную» вместо значения `.env`) приведёт к отказу `JOIN` в LiveKit.
+* В dev-композе webhook-URL контейнеру не задаётся (нет публичного адреса до realtime). Для ручного e2e записи через `livekit-cli` прогон выполняется с `LIVEKIT_WEBHOOK_URL=http://host.docker.internal:8080/webhooks/livekit` — иначе события egress не дойдут до realtime. Шаги — в `apps/api/docs/plan-livekit-media.md` (Phase 5).

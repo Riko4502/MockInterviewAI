@@ -114,6 +114,12 @@ func run() error {
 		cfg.MaxRoomClients,
 		cfg.AllowAccessFallback,
 	)
+	liveKitWebhookHandler := handler.NewLiveKitWebhookHandler(
+		hub,
+		cfg.LiveKitWebhookAPIKey,
+		cfg.LiveKitWebhookAPISecret,
+		logger,
+	)
 
 	sseHandler := handler.NewSSEHandler(
 		sseHub,
@@ -141,6 +147,7 @@ func run() error {
 	r.Get("/readyz", healthHandler.Readyz)
 	r.Get("/metrics", metricsHandler.ServeHTTP)
 	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+	r.Handle("/webhooks/livekit", liveKitWebhookHandler)
 	r.Get("/sse/notifications", sseHandler.HandleNotifications)
 
 	// 5. Конфигурация HTTP-сервера
