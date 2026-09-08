@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRightIcon } from "@packages/icons";
-import { Badge, Button, Card, Link } from "@packages/ui";
+import { Badge, Button, Card, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 import { getRegisterUrl } from "@/shared/config";
 import { CtaBenefits } from "./CtaBenefits";
@@ -33,14 +33,14 @@ export function CTA() {
             </div>
 
             {/* Title */}
-            <Card.Title className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
+            <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
               {t("cta.title")}
-            </Card.Title>
+            </Typography.H2>
 
             {/* Subtitle */}
-            <Card.Description className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+            <Typography.Lead className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
               {t("cta.subtitle")}
-            </Card.Description>
+            </Typography.Lead>
           </Card.Header>
 
           <Card.Content className="p-0">
@@ -51,10 +51,10 @@ export function CTA() {
                 size="lg"
                 className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:via-indigo-500 hover:to-cyan-500 text-white shadow-xl shadow-violet-600/40 hover:shadow-cyan-500/50 hover:scale-[1.03] active:scale-[0.98] transition-all px-9 py-4 h-auto text-base font-semibold group gap-2.5"
               >
-                <Link href={registerUrl}>
+                <a href={registerUrl}>
                   <span>{t("cta.button")}</span>
                   <ArrowRightIcon className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-                </Link>
+                </a>
               </Button>
             </div>
 
