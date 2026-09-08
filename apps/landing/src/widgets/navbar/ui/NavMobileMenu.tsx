@@ -1,15 +1,15 @@
 "use client";
 
 import { Link } from "@packages/ui";
+import { useTranslation } from "react-i18next";
 import { getAuthUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
 
 interface NavMobileMenuProps {
   isOpen: boolean;
 }
 
 export function NavMobileMenu({ isOpen }: NavMobileMenuProps) {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const authUrl = getAuthUrl();
 
   if (!isOpen) return null;
@@ -22,21 +22,21 @@ export function NavMobileMenu({ isOpen }: NavMobileMenuProps) {
           underline="none"
           className="text-base font-medium text-slate-200 hover:text-violet-400 py-2 border-b border-white/5"
         >
-          {landing.nav.howItWorks}
+          {t("nav.howItWorks")}
         </Link>
         <Link
           href="#features"
           underline="none"
           className="text-base font-medium text-slate-200 hover:text-violet-400 py-2 border-b border-white/5"
         >
-          {landing.nav.features}
+          {t("nav.features")}
         </Link>
         <Link
           href={authUrl}
           underline="none"
           className="text-base font-medium text-slate-200 hover:text-violet-400 py-2"
         >
-          {landing.nav.signIn}
+          {t("nav.signIn")}
         </Link>
       </div>
     </div>

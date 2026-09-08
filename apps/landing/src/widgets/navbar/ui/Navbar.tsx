@@ -1,11 +1,12 @@
 "use client";
 
+import { langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
 import { Button, Link } from "@packages/ui";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
 import { Logo } from "@/shared/ui";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
@@ -13,8 +14,12 @@ import { ScrollProgressBar } from "./ScrollProgressBar";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { landing, locale } = useLandingTranslations();
-  const homeUrl = locale === "ru" ? "/" : "/en";
+  const { t, i18n } = useTranslation("landing");
+  const locale =
+    (i18n.resolvedLanguage || i18n.language) === "ru" ? "ru" : "en";
+
+  const { homeUrl } = langConfig[locale];
+
   const authUrl = getAuthUrl();
   const registerUrl = getRegisterUrl();
 
@@ -36,14 +41,14 @@ export function Navbar() {
             variant="ghost"
             className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
           >
-            <Link href={authUrl}>{landing.nav.signIn}</Link>
+            <Link href={authUrl}>{t("nav.signIn")}</Link>
           </Button>
 
           <Button
             asChild
             className="rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-5 py-2.5 h-auto text-sm font-semibold"
           >
-            <Link href={registerUrl}>{landing.nav.getStarted}</Link>
+            <Link href={registerUrl}>{t("nav.getStarted")}</Link>
           </Button>
 
           {/* Mobile Menu Toggle Button */}

@@ -2,10 +2,10 @@
 
 import { HubConnectionIcon } from "@packages/icons";
 import { Badge, Card } from "@packages/ui";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
 
 export function FeatureCollaboration() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
 
   return (
     <Card className="w-full h-full relative rounded-3xl p-8 border border-violet-500/20 bg-gradient-to-b from-violet-950/20 via-[#0c0e1a]/80 to-[#07080e]/90 backdrop-blur-xl flex flex-col justify-between group hover:border-violet-500/60 hover:shadow-2xl hover:shadow-violet-950/50 transition-all duration-300 overflow-hidden">
@@ -17,10 +17,10 @@ export function FeatureCollaboration() {
           <HubConnectionIcon className="w-6 h-6" />
         </div>
         <Card.Title className="text-xl sm:text-2xl font-bold text-white mb-3">
-          {landing.features.card1Title}
+          {t("features.card1Title")}
         </Card.Title>
         <Card.Description className="text-slate-300 text-sm sm:text-base leading-relaxed">
-          {landing.features.card1Desc}
+          {t("features.card1Desc")}
         </Card.Description>
       </Card.Header>
 
@@ -29,10 +29,10 @@ export function FeatureCollaboration() {
           <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10 text-[11px] text-slate-400">
             <span className="text-violet-400 font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-              {landing.features.card1AiCopilot}
+              {t("features.card1AiCopilot")}
             </span>
             <span className="text-emerald-400 font-mono">
-              {landing.features.card1Synced}
+              {t("features.card1Synced")}
             </span>
           </div>
           <div className="space-y-1.5 text-slate-300">
@@ -41,18 +41,18 @@ export function FeatureCollaboration() {
                 variant="statusInfo"
                 className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px] border border-violet-500/30"
               >
-                {landing.features.card1InterviewerTag}
+                {t("features.card1InterviewerTag")}
               </Badge>
               <span className="text-slate-400">
-                {landing.features.card1InterviewerAction}
+                {t("features.card1InterviewerAction")}
               </span>
             </div>
             <div className="p-2.5 rounded-lg bg-violet-950/60 border border-violet-500/40 text-violet-200 mt-2">
               💡{" "}
               <span className="font-semibold">
-                {landing.features.card1HintLabel}
+                {t("features.card1HintLabel")}
               </span>{" "}
-              {landing.features.card1HintText}
+              {t("features.card1HintText")}
             </div>
           </div>
         </div>

@@ -3,12 +3,12 @@
 import { CheckIcon } from "@packages/icons";
 import { Badge, Button, Card } from "@packages/ui";
 import { useEffect, useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
 
 type MockupTab = "solution" | "test";
 
 export function HeroCodeMockup() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [activeTab, setActiveTab] = useState<MockupTab>("solution");
   const [latency, setLatency] = useState(28);
   const [hintExpanded, setHintExpanded] = useState(true);
@@ -69,7 +69,7 @@ export function HeroCodeMockup() {
             className="gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {landing.hero.mockStatusLive}
+            {t("hero.mockStatusLive")}
           </Badge>
           <span className="text-[10px] font-mono text-slate-400 w-10 text-right">
             {latency}ms
@@ -82,7 +82,7 @@ export function HeroCodeMockup() {
         <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-white/5">
           <span>TypeScript • React 19 • Algorithms</span>
           <span className="text-violet-400 font-semibold">
-            {landing.hero.mockRole}
+            {t("hero.mockRole")}
           </span>
         </div>
 
@@ -230,12 +230,12 @@ export function HeroCodeMockup() {
           <div className="text-[11px] leading-relaxed flex-1">
             <div className="font-semibold text-violet-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span>{landing.hero.mockAiFeedbackTitle}</span>
+                <span>{t("hero.mockAiFeedbackTitle")}</span>
                 <Badge
                   variant="statusInfo"
                   className="text-[9px] px-1.5 py-0.2 rounded bg-violet-500/30 text-violet-200 font-mono"
                 >
-                  {landing.hero.metric3Value}
+                  {t("hero.metric3Value")}
                 </Badge>
               </div>
               <span className="text-[10px] text-violet-400 underline">
@@ -244,7 +244,7 @@ export function HeroCodeMockup() {
             </div>
             {hintExpanded && (
               <div className="text-slate-300 mt-1 transition-all">
-                {landing.hero.mockAiFeedbackText}
+                {t("hero.mockAiFeedbackText")}
               </div>
             )}
           </div>
@@ -254,10 +254,10 @@ export function HeroCodeMockup() {
         <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 border-t border-white/5">
           <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
             <CheckIcon className="w-3.5 h-3.5" />
-            {landing.hero.mockTestsPassed}
+            {t("hero.mockTestsPassed")}
           </div>
           <span className="text-slate-400 font-mono font-medium">
-            {landing.hero.mockComplexity}
+            {t("hero.mockComplexity")}
           </span>
         </div>
       </div>

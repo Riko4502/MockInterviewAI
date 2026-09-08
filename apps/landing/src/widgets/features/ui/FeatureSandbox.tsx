@@ -3,10 +3,10 @@
 import { GlobeIcon } from "@packages/icons";
 import { Badge, Card } from "@packages/ui";
 import { useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
 
 export function FeatureSandbox() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [activeRegion, setActiveRegion] = useState("eu");
 
   const regions = [
@@ -25,10 +25,10 @@ export function FeatureSandbox() {
           <GlobeIcon className="w-6 h-6" />
         </div>
         <Card.Title className="text-xl sm:text-2xl font-bold text-white mb-3">
-          {landing.features.card3Title}
+          {t("features.card3Title")}
         </Card.Title>
         <Card.Description className="text-slate-300 text-sm leading-relaxed mb-6">
-          {landing.features.card3Desc}
+          {t("features.card3Desc")}
         </Card.Description>
       </Card.Header>
 

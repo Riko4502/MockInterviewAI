@@ -2,12 +2,12 @@
 
 import { ArrowRightIcon } from "@packages/icons";
 import { Badge, Button, Card, Link } from "@packages/ui";
+import { useTranslation } from "react-i18next";
 import { getRegisterUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
 import { CtaBenefits } from "./CtaBenefits";
 
 export function CTA() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const registerUrl = getRegisterUrl();
 
   return (
@@ -28,18 +28,18 @@ export function CTA() {
                 variant="statusInfo"
                 className="mb-6 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border-violet-500/40 text-violet-200 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
               >
-                {landing.cta.badge}
+                {t("cta.badge")}
               </Badge>
             </div>
 
             {/* Title */}
             <Card.Title className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
-              {landing.cta.title}
+              {t("cta.title")}
             </Card.Title>
 
             {/* Subtitle */}
             <Card.Description className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-              {landing.cta.subtitle}
+              {t("cta.subtitle")}
             </Card.Description>
           </Card.Header>
 
@@ -52,7 +52,7 @@ export function CTA() {
                 className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:via-indigo-500 hover:to-cyan-500 text-white shadow-xl shadow-violet-600/40 hover:shadow-cyan-500/50 hover:scale-[1.03] active:scale-[0.98] transition-all px-9 py-4 h-auto text-base font-semibold group gap-2.5"
               >
                 <Link href={registerUrl}>
-                  <span>{landing.cta.button}</span>
+                  <span>{t("cta.button")}</span>
                   <ArrowRightIcon className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
 import { SectionHeader } from "@/shared/ui";
 import { StepAiInterview } from "./StepAiInterview";
 import { StepLiveCoding } from "./StepLiveCoding";
@@ -8,7 +8,7 @@ import { StepScorecard } from "./StepScorecard";
 import { StepTrackSelect } from "./StepTrackSelect";
 
 export function HowItWorks() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
 
   return (
     <section
@@ -18,9 +18,9 @@ export function HowItWorks() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <SectionHeader
-          badge={landing.howItWorks.badge}
-          title={landing.howItWorks.title}
-          subtitle={landing.howItWorks.subtitle}
+          badge={t("howItWorks.badge")}
+          title={t("howItWorks.title")}
+          subtitle={t("howItWorks.subtitle")}
           className="mb-20 md:mb-28"
         />
 

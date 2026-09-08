@@ -2,13 +2,13 @@
 
 import { ArrowRightIcon } from "@packages/icons";
 import { Badge, Button, Link } from "@packages/ui";
+import { useTranslation } from "react-i18next";
 import { getRegisterUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
 import { HeroCodeMockup } from "./HeroCodeMockup";
 import { HeroMetrics } from "./HeroMetrics";
 
 export function Hero() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const registerUrl = getRegisterUrl();
 
   return (
@@ -21,20 +21,18 @@ export function Hero() {
               variant="statusInfo"
               className="mb-6 bg-violet-500/15 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
             >
-              {landing.hero.badge}
+              {t("hero.badge")}
             </Badge>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12] mb-6">
-              {landing.hero.title1} <br className="hidden sm:inline" />
-              <span className="text-gradient-purple">
-                {landing.hero.title2}
-              </span>
+              {t("hero.title1")} <br className="hidden sm:inline" />
+              <span className="text-gradient-purple">{t("hero.title2")}</span>
             </h1>
 
             {/* Subtitle */}
             <p className="text-lg sm:text-xl text-slate-300 font-normal leading-relaxed mb-8 max-w-xl">
-              {landing.hero.subtitle}
+              {t("hero.subtitle")}
             </p>
 
             {/* CTA Buttons */}
@@ -45,7 +43,7 @@ export function Hero() {
                 className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-xl shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-8 py-3.5 h-auto text-base font-semibold group gap-2.5"
               >
                 <Link href={registerUrl}>
-                  <span>{landing.hero.ctaStart}</span>
+                  <span>{t("hero.ctaStart")}</span>
                   <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>
@@ -56,7 +54,7 @@ export function Hero() {
                 size="lg"
                 className="w-full sm:w-auto rounded-full bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white px-7 py-3.5 h-auto text-base font-semibold backdrop-blur-md"
               >
-                <Link href="#how-it-works">{landing.hero.ctaExplore}</Link>
+                <Link href="#how-it-works">{t("hero.ctaExplore")}</Link>
               </Button>
             </div>
 
