@@ -21,9 +21,10 @@ if [ "$VERCEL_GIT_PREVIOUS_SHA" = "$VERCEL_GIT_COMMIT_SHA" ]; then
   exit 0
 fi
 
-# 3. Проверяем изменения в apps/landing, packages/ui, packages/icons, packages/tailwind-config, packages/utils и корневых манифестах
+# 3. Проверяем изменения в apps/landing, packages/i18n, packages/ui, packages/icons, packages/tailwind-config, packages/utils и корневых манифестах
 git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" "$VERCEL_GIT_COMMIT_SHA" -- \
   apps/landing \
+  packages/i18n \
   packages/ui \
   packages/icons \
   packages/tailwind-config \
@@ -35,10 +36,15 @@ git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" "$VERCEL_GIT_COMMIT_SHA" -- \
 
 DIFF_RESULT=$?
 
-if [ $DIFF_RESULT -eq 1 ]; then
+# Fail-safe: только код 0 гарантирует отсутствие изменений.
+# Любой другой код (1 — изменения обнаружены, >=2 — ошибка git diff) приводит к exit 1 (сборка разрешена).
+if [ $DIFF_RESULT -eq 0 ]; then
+  echo "🛑 [Vercel Ignore Check] No changes in Landing. Build skipped."
+  exit 0
+elif [ $DIFF_RESULT -eq 1 ]; then
   echo "✅ [Vercel Ignore Check] Changes detected in Landing or shared packages. Proceeding with build."
   exit 1
 else
-  echo "🛑 [Vercel Ignore Check] No changes in Landing. Build skipped."
-  exit 0
+  echo "⚠️  [Vercel Ignore Check] git diff returned code $DIFF_RESULT (error). Proceeding with build (fail-safe)."
+  exit 1
 fi
