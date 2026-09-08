@@ -23,7 +23,7 @@ export function LandingPage({ locale = "ru" }: LandingPageProps) {
         {/* Global Full-Page Spotlight Torch Effect */}
         <GlobalSpotlight />
 
-        <Navbar />
+        <Navbar locale={locale} />
         <main className="flex-1 relative z-10">
           <Hero />
           <HowItWorks />

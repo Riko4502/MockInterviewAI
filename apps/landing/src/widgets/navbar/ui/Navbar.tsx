@@ -1,6 +1,6 @@
 "use client";
 
-import { langConfig } from "@packages/i18n";
+import { type Locale, langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
 import { Button, Link } from "@packages/ui";
 import { useState } from "react";
@@ -12,11 +12,16 @@ import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
 import { ScrollProgressBar } from "./ScrollProgressBar";
 
-export function Navbar() {
+export interface NavbarProps {
+  locale?: Locale;
+}
+
+export function Navbar({ locale: propLocale }: NavbarProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t, i18n } = useTranslation("landing");
   const locale =
-    (i18n.resolvedLanguage || i18n.language) === "ru" ? "ru" : "en";
+    propLocale ??
+    ((i18n.resolvedLanguage || i18n.language) === "ru" ? "ru" : "en");
 
   const { homeUrl } = langConfig[locale];
 
@@ -34,7 +39,7 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
-          <NavLanguageSwitcher />
+          <NavLanguageSwitcher locale={locale} />
 
           <Button
             asChild

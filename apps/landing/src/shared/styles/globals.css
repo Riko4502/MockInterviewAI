@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@packages/ui/globals.css";
+@import "@packages/icons/globals.css";
 
 @layer base {
   body {
