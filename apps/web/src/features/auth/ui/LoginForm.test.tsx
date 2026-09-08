@@ -5,15 +5,30 @@ import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
 import { LoginForm } from "./LoginForm";
 
+const replaceMock = vi.fn();
+const startSessionMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+}));
+
+vi.mock("@/entities/session", () => ({
+  useSession: () => ({
+    startSession: startSessionMock,
+  }),
+}));
+
 vi.mock("@/shared/api/base", () => ({
   baseFetch: vi.fn(),
-  AuthError: class AuthError extends Error {
+  HttpError: class HttpError extends Error {
     constructor(
       message: string,
       public status: number,
     ) {
       super(message);
-      this.name = "AuthError";
+      this.name = "HttpError";
     }
   },
 }));
@@ -29,6 +44,7 @@ function createTestQueryClient() {
 
 function renderLoginForm() {
   const queryClient = createTestQueryClient();
+
   return render(
     <QueryClientProvider client={queryClient}>
       <LoginForm />
@@ -37,36 +53,17 @@ function renderLoginForm() {
 }
 
 describe("LoginForm Integration Flow (T032)", () => {
-  const originalLocation = window.location;
-
   beforeEach(() => {
     resetApiTransportState();
     initApiTransport();
     vi.clearAllMocks();
-    sessionStorage.clear();
-
-    // Мокируем window.location.href для проверки навигации в jsdom
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        ...originalLocation,
-        href: "http://localhost/",
-      },
-      writable: true,
-    });
   });
 
   afterEach(() => {
     resetApiTransportState();
-    sessionStorage.clear();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: originalLocation,
-      writable: true,
-    });
   });
 
-  it("успешный flow: useAuthControllerLogin -> customInstance -> web transport -> baseFetch -> sessionStorage -> redirect", async () => {
+  it("успешный flow: useAuthControllerLogin -> customInstance -> web transport -> baseFetch -> startSession -> redirect", async () => {
     vi.mocked(baseFetch).mockResolvedValueOnce({
       accessToken: "mock-access-token-login-777",
     });
@@ -80,9 +77,11 @@ describe("LoginForm Integration Flow (T032)", () => {
     fireEvent.change(emailInput, {
       target: { value: "developer@example.com" },
     });
+
     fireEvent.change(passwordInput, {
       target: { value: "StrongPassword123!" },
     });
+
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -100,18 +99,16 @@ describe("LoginForm Integration Flow (T032)", () => {
       }),
     );
 
-    // Проверяем сохранение токена в sessionStorage (§28 SPEC.md, CRIT-01)
     await waitFor(() => {
-      expect(sessionStorage.getItem("accessToken")).toBe(
+      expect(startSessionMock).toHaveBeenCalledWith(
         "mock-access-token-login-777",
       );
     });
 
-    // Проверяем навигацию на главную страницу после успешного логина
-    expect(window.location.href).toBe("/");
+    expect(replaceMock).toHaveBeenCalledWith("/");
   });
 
-  it("error path: ошибка API в baseFetch пробрасывается в mutation и не сохраняет токен", async () => {
+  it("error path: ошибка API в baseFetch пробрасывается в mutation и не запускает сессию", async () => {
     vi.mocked(baseFetch).mockRejectedValueOnce(
       new Error("HTTP Error 401: Unauthorized"),
     );
@@ -125,16 +122,18 @@ describe("LoginForm Integration Flow (T032)", () => {
     fireEvent.change(emailInput, {
       target: { value: "developer@example.com" },
     });
-    fireEvent.change(passwordInput, { target: { value: "WrongPassword123!" } });
+
+    fireEvent.change(passwordInput, {
+      target: { value: "WrongPassword123!" },
+    });
+
     fireEvent.click(submitButton);
 
     await waitFor(() => {
       expect(baseFetch).toHaveBeenCalledTimes(1);
     });
 
-    // Токен не должен быть сохранён при ошибке
-    expect(sessionStorage.getItem("accessToken")).toBeNull();
-    // Навигация не должна произойти
-    expect(window.location.href).not.toBe("/");
+    expect(startSessionMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

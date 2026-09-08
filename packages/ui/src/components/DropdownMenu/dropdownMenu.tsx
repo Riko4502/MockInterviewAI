@@ -1,3 +1,5 @@
+"use client";
+
 import { CheckIcon, ChevronRightIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";

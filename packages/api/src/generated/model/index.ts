@@ -22,6 +22,8 @@ export * from './healthResponseDto';
 export * from './healthResponseDtoDb';
 export * from './healthResponseDtoStatus';
 export * from './loginDto';
+export * from './mediaTokenRequestDto';
+export * from './mediaTokenResponseDto';
 export * from './messageResponseDto';
 export * from './profileControllerUploadAvatarBody';
 export * from './publicUserProfileDto';

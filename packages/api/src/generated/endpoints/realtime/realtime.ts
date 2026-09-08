@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  MediaTokenRequestDto,
+  MediaTokenResponseDto,
   TicketDto,
   TicketResponseDto
 } from '../../model';
@@ -113,4 +115,83 @@ export const useRealtimeControllerGetTicket = <TError = void,
         TContext
       > => {
       return useMutation(getRealtimeControllerGetTicketMutationOptions(options), queryClient);
+    }
+    export const getRealtimeControllerGetMediaTokenUrl = () => {
+
+
+
+
+  return `/api/v1/realtime/media-token`
+}
+
+/**
+ * @summary Выдать LiveKit join-токен для WebRTC медиа
+ */
+export const realtimeControllerGetMediaToken = async (mediaTokenRequestDto: MediaTokenRequestDto, options?: Parameters<typeof customInstance>[1]): Promise<MediaTokenResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<MediaTokenResponseDto>(getRealtimeControllerGetMediaTokenUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(mediaTokenRequestDto)
+  }
+);}
+
+
+
+
+
+export const getRealtimeControllerGetMediaTokenMutationKey = () => ['realtimeControllerGetMediaToken'] as const;
+
+export const getRealtimeControllerGetMediaTokenMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>, TError,RealtimeControllerGetMediaTokenMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>, TError,RealtimeControllerGetMediaTokenMutationVariables, TContext> => {
+
+const mutationKey = getRealtimeControllerGetMediaTokenMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>, RealtimeControllerGetMediaTokenMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  realtimeControllerGetMediaToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RealtimeControllerGetMediaTokenMutationResult = NonNullable<Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>>
+    export type RealtimeControllerGetMediaTokenMutationBody = MediaTokenRequestDto
+    export type RealtimeControllerGetMediaTokenMutationError = void
+    export type RealtimeControllerGetMediaTokenMutationVariables = {data: MediaTokenRequestDto}
+
+    /**
+ * @summary Выдать LiveKit join-токен для WebRTC медиа
+ */
+export const useRealtimeControllerGetMediaToken = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>, TError,RealtimeControllerGetMediaTokenMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof realtimeControllerGetMediaToken>>,
+        TError,
+        RealtimeControllerGetMediaTokenMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRealtimeControllerGetMediaTokenMutationOptions(options), queryClient);
     }

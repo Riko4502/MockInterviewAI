@@ -12,9 +12,5 @@ export default defineConfig({
       format: "esm",
       dts: true,
     },
-    {
-      bundle: false,
-      format: "cjs",
-    },
   ],
 });

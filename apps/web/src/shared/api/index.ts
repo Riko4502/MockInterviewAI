@@ -3,7 +3,7 @@
  *
  * Обеспечивает:
  * 1. Гарантированную инициализацию сетевого транспорта @packages/api через baseFetch.
- * 2. Реэкспорт инфраструктурных утилит (QueryProvider, baseFetch).
+ * 2. Реэкспорт инфраструктурных утилит.
  * 3. Реэкспорт сгенерированного API-клиента и хуков из @packages/api.
  */
 
@@ -13,8 +13,9 @@ import { initApiTransport } from "./init";
 initApiTransport();
 
 export * from "@packages/api";
-export { AuthError, baseFetch } from "./base";
-export { QueryProvider } from "./client";
+export { RefreshSessionError, refreshAccessToken } from "./auth-session";
+export { authToken } from "./auth-token";
+export { baseFetch, HttpError } from "./base";
 export { apiUrl, realtimeWsUrl } from "./endpoints";
 export {
   createBaseFetchTransport,
@@ -22,3 +23,4 @@ export {
   isApiTransportInitialized,
   resetApiTransportState,
 } from "./init";
+export { createQueryClient } from "./query-client";

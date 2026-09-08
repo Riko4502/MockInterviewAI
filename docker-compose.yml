@@ -53,6 +53,31 @@ services:
       timeout: 5s
       retries: 5
 
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: mock-interview-livekit
+    restart: unless-stopped
+    command:
+      - --config-body
+      - |
+        port: 7880
+        bind_addresses:
+          - ""
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50200
+        keys:
+          ${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-dev-local-secret-change-me-0123456789}
+        webhook:
+          api_key: ${LIVEKIT_WEBHOOK_API_KEY:-${LIVEKIT_API_KEY:-devkey}}
+          urls:
+            - ${LIVEKIT_WEBHOOK_URL:-http://realtime:8080/webhooks/livekit}
+    ports:
+      - "${LIVEKIT_PORT:-7880}:7880"       # сигнальный WS/HTTP
+      - "${LIVEKIT_TCP_PORT:-7881}:7881"   # TCP media (SRTP/TCP)
+      - "50000-50200:50000-50200/udp"      # UDP media (WebRTC)
+
   minio-init:
     image: minio/mc:latest
     container_name: mock-interview-minio-init
