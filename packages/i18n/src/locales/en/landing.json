@@ -67,6 +67,7 @@
     "clearAudio": "Clear Audio",
     "dialogueSpeaker": "Interviewer:",
     "dialogueText": "\"Let's walk through how you would handle race conditions when two users book the same seat simultaneously.\"",
+    "candidateDialogueText": "\"I suggest implementing a two-pointer approach to reduce space complexity from O(n) to O(1).\"",
     "step3Tag": "STEP 03 / LIVE CODING",
     "step3Title": "Collaborative live coding & on-demand AI hints",
     "step3Desc": "Write code together in real-time with full syntax support and automated tests. Need a nudge? Use up to 3 AI hints per interview that provide guiding clues without spoiling answers.",

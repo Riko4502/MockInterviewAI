@@ -127,10 +127,7 @@ export function StepAiInterview() {
                 <span className="text-emerald-400 font-semibold">
                   {t("howItWorks.candidateYou")}:
                 </span>{" "}
-                <span>
-                  &ldquo;I propose using a doubly linked list combined with a
-                  hash map to achieve O(1) get and put operations.&rdquo;
-                </span>
+                <span>{t("howItWorks.candidateDialogueText")}:</span>
               </div>
             )}
           </div>
