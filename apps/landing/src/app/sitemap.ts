@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
+import { envConfig } from "@/shared/config/env";
 
 export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://mockinterviewai.com";
+  const baseUrl = envConfig.siteUrl;
 
   return [
     {

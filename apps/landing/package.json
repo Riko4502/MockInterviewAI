@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev --port 4321",
     "build": "next build",
-    "start": "next start --port 4321",
+    "start": "npx --yes serve dist -p 4321",
+    "preview": "npx --yes serve dist -p 4321",
     "check": "tsc --noEmit",
     "lint": "biome check --no-errors-on-unmatched",
     "format": "biome format --write --no-errors-on-unmatched",

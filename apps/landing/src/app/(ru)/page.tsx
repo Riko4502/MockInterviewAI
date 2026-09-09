@@ -1,9 +1,9 @@
 import { messages } from "@packages/i18n";
 import type { Metadata } from "next";
+import { envConfig } from "@/shared/config/env";
 import { LandingPage } from "@/views/landing";
 
-const baseUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://mockinterviewai.com";
+const baseUrl = envConfig.siteUrl;
 
 export const metadata: Metadata = {
   title: messages.ru.landing.site.title,
