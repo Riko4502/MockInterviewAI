@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_REALTIME_URL"],
   "globalPassThroughEnv": [
     "LOCALAPPDATA",
     "GOPATH",
