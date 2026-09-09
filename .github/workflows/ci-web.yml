@@ -7,6 +7,13 @@ on:
         type: boolean
         default: true
         description: "Флаг запуска сборки Docker"
+
+    secrets:
+      NEXT_PUBLIC_API_URL:
+        required: true
+
+      NEXT_PUBLIC_REALTIME_URL:
+        required: true
     outputs:
       coverage:
         description: "Процент покрытия тестами Web"
