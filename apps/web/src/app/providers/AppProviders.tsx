@@ -1,16 +1,16 @@
 "use client";
 
+import { composeProviders, DialogProvider } from "@packages/ui";
 import type { PropsWithChildren } from "react";
 import { SessionProvider } from "@/entities/session";
-import { DialogProvider } from "./DialogProvider";
 import { QueryProvider } from "./QueryProvider";
 
+const Providers = composeProviders(
+  QueryProvider,
+  SessionProvider,
+  DialogProvider,
+);
+
 export function AppProviders({ children }: PropsWithChildren) {
-  return (
-    <QueryProvider>
-      <SessionProvider>
-        <DialogProvider>{children}</DialogProvider>
-      </SessionProvider>
-    </QueryProvider>
-  );
+  return <Providers>{children}</Providers>;
 }

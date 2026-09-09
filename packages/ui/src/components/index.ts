@@ -1,3 +1,4 @@
+export * from "../model/DialogProvider";
 export * from "./Accordion";
 export * from "./Avatar";
 export * from "./Badge";

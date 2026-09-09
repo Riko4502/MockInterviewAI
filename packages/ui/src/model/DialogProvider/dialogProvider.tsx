@@ -7,33 +7,27 @@ import {
   useContext,
   useState,
 } from "react";
-
-interface DialogEntry {
-  id: string;
-  payload?: unknown;
-}
-
-interface DialogContextValue {
-  stack: DialogEntry[];
-  open: (id: string, payload?: unknown) => void;
-  close: (id: string) => void;
-}
+import type { DialogContextValue, DialogEntry } from "./types";
 
 const DialogContext = createContext<DialogContextValue | null>(null);
 
 export function DialogProvider({ children }: PropsWithChildren) {
   const [stack, setStack] = useState<DialogEntry[]>([]);
 
-  const open = useCallback((id: string, payload?: unknown) => {
-    setStack((prev) => [...prev, { id, payload }]);
+  const open = useCallback((name: string, payload?: unknown) => {
+    setStack((prev) => [...prev, { name, payload }]);
   }, []);
 
-  const close = useCallback((id: string) => {
-    setStack((prev) => prev.filter((entry) => entry.id !== id));
+  const close = useCallback((name: string) => {
+    setStack((prev) => prev.filter((entry) => entry.name !== name));
+  }, []);
+
+  const allClose = useCallback(() => {
+    setStack([]);
   }, []);
 
   return (
-    <DialogContext.Provider value={{ stack, open, close }}>
+    <DialogContext.Provider value={{ stack, open, close, allClose }}>
       {children}
     </DialogContext.Provider>
   );
