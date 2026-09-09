@@ -5,6 +5,21 @@ import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
 import { RegisterForm } from "./RegisterForm";
 
+const replaceMock = vi.fn();
+const startSessionMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+}));
+
+vi.mock("@/entities/session", () => ({
+  useSession: () => ({
+    startSession: startSessionMock,
+  }),
+}));
+
 vi.mock("@/shared/api/base", () => ({
   baseFetch: vi.fn(),
   AuthError: class AuthError extends Error {
