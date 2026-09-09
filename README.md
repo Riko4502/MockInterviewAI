@@ -133,8 +133,14 @@ pnpm run db:generate
 pnpm run generate:api
 # или: pnpm --filter api generate:openapi
 
-# 2. Сгенерировать TypeScript-типы для фронтенда (@packages/api):
-pnpm --filter @packages/api generate
+# 2. Сгенерировать типизированный API-клиент и TanStack Query хуки (@packages/api):
+pnpm run generate:client
+
+# Или выполнить полный цикл кодогенерации (OpenAPI + Orval клиент) одной командой:
+pnpm run codegen
+
+# Проверить актуальность и чистоту сгенерированного кода в CI:
+pnpm run codegen:check
 ```
 
 ### 7. Запуск сервисов в режиме разработки

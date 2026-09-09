@@ -7,11 +7,19 @@ import {
   Post,
 } from "@nestjs/common";
 import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
+import {
   type AddParticipantDto,
   addParticipantSchema,
   type InterviewParticipantRole,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { SessionsService } from "./sessions.service";
 
@@ -21,6 +29,8 @@ import { SessionsService } from "./sessions.service";
  * Все маршруты защищены глобальным `AccessTokenGuard` (Bearer + live-сессия).
  * Модифицирующие операции (участники, close) доступны только владельцу сессии.
  */
+@ApiTags("Sessions")
+@ApiBearerAuth()
 @Controller("sessions")
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
@@ -33,6 +43,19 @@ export class SessionsController {
    * @returns `{ sessionId }`.
    */
   @Post()
+  @ApiOperation({ summary: "Создать новую интервью-сессию" })
+  @ApiResponse({
+    status: 201,
+    description: "Сессия успешно создана",
+    schema: registerSchema("CreateSessionResponseDto", {
+      type: "object",
+      properties: {
+        sessionId: { type: "string", format: "uuid" },
+      },
+      required: ["sessionId"],
+    }),
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
   async createSession(
     @CurrentUser("sub") userId: string,
   ): Promise<{ sessionId: string }> {
@@ -47,6 +70,19 @@ export class SessionsController {
    * @param ownerId - UUID текущего пользователя.
    */
   @Post(":id/participants")
+  @ApiOperation({ summary: "Добавить участника в сессию" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ZodBody(addParticipantSchema, "AddParticipantDto")
+  @ApiResponse({ status: 201, description: "Участник успешно добавлен" })
+  @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 403, description: "Доступ запрещен (не владелец)" })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
   async addParticipant(
     @Param("id") sessionId: string,
     @Body(new ZodValidationPipe(addParticipantSchema)) body: AddParticipantDto,
@@ -68,6 +104,23 @@ export class SessionsController {
    * @param ownerId - UUID текущего пользователя.
    */
   @Delete(":id/participants/:userId")
+  @ApiOperation({ summary: "Удалить участника из сессии" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiParam({
+    name: "userId",
+    type: "string",
+    format: "uuid",
+    description: "UUID удаляемого участника",
+  })
+  @ApiResponse({ status: 200, description: "Участник успешно удален" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 403, description: "Доступ запрещен (не владелец)" })
+  @ApiResponse({ status: 404, description: "Сессия или участник не найдены" })
   async removeParticipant(
     @Param("id") sessionId: string,
     @Param("userId") userId: string,
@@ -85,6 +138,17 @@ export class SessionsController {
    * @param ownerId - UUID текущего пользователя.
    */
   @Post(":id/close")
+  @ApiOperation({ summary: "Закрыть интервью-сессию" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiResponse({ status: 201, description: "Сессия успешно закрыта" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 403, description: "Доступ запрещен (не владелец)" })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
   async closeSession(
     @Param("id") sessionId: string,
     @CurrentUser("sub") ownerId: string,

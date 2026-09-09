@@ -6,16 +6,10 @@ import { InterviewParticipantRole } from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 
+import { sessionActiveKey, sessionMembersKey } from "./session-keys";
+
 const ACTIVE_VALUE = "true";
 const CLOSED_VALUE = "closed";
-
-function sessionActiveKey(sessionId: string): string {
-  return `session:${sessionId}:active`;
-}
-
-function sessionMembersKey(sessionId: string): string {
-  return `session:${sessionId}:members`;
-}
 
 /**
  * Управляет интервью-сессиями и их Redis-зеркалом (источник правды о членстве).

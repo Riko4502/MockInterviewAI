@@ -34,6 +34,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: "Сборка пакетов монорепозитория и Next.js"
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
         run: pnpm turbo run build --filter=...web
 
       - name: "Кэширование браузеров Playwright"

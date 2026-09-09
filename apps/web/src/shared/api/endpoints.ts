@@ -6,7 +6,6 @@
  * ```ts
  * import { endpoints, apiUrl } from "@/shared/api/endpoints";
  *
- * fetch(`${apiUrl}${endpoints.auth.login}`, ...)
  * ```
  *
  * ## Важно
@@ -15,9 +14,22 @@
  * - Эндпоинты нужно синхронизировать с бэкендом.
  */
 
-// TODO: заменить на реальные эндпоинты бэкенда
-export const apiUrl =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+function getApiUrl(): string {
+  const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (process.env.NODE_ENV === "production") {
+    if (!envApiUrl || envApiUrl.trim() === "") {
+      throw new Error(
+        "NEXT_PUBLIC_API_URL is required in production environment",
+      );
+    }
+    return envApiUrl;
+  }
+
+  return envApiUrl ?? "http://localhost:3001";
+}
+
+export const apiUrl = getApiUrl();
 
 /**
  * Базовый URL realtime-сервера (WebSocket).
@@ -27,15 +39,3 @@ export const apiUrl =
  */
 export const realtimeWsUrl =
   process.env.NEXT_PUBLIC_REALTIME_URL ?? "ws://localhost:8080";
-
-export const endpoints = {
-  auth: {
-    login: "/auth/login",
-    register: "/auth/register",
-    refresh: "/auth/refresh",
-    logout: "/auth/logout",
-  },
-  realtime: {
-    ticket: "/realtime/ticket",
-  },
-} as const;

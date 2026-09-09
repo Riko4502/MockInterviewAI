@@ -7,3 +7,19 @@ export const localeLabels: Record<Locale, string> = {
   ru: "Русский",
   en: "English",
 };
+
+export const langConfig: Record<
+  Locale,
+  { switchUrl: string; switchLabel: string; homeUrl: string }
+> = {
+  ru: {
+    homeUrl: "/",
+    switchUrl: "/en",
+    switchLabel: localeLabels.ru,
+  },
+  en: {
+    homeUrl: "/en",
+    switchUrl: "/",
+    switchLabel: localeLabels.en,
+  },
+};

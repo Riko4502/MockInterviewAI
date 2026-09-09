@@ -30,6 +30,11 @@ export {
   type UserProfileDto,
   userProfileSchema,
 } from "./profile/user-profile.dto";
+export {
+  type MediaTokenRequestDto,
+  type MediaTokenResponseDto,
+  mediaTokenRequestSchema,
+} from "./realtime/media-token.dto";
 export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
 export {
   type AddParticipantDto,

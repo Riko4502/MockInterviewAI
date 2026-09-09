@@ -1,13 +1,22 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { type RegisterDto, useAuthControllerRegister } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
-import { useRegisterMutation } from "@/shared/api/auth";
+import { useSession } from "@/entities/session";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
 
 export function RegisterForm() {
-  const registerMutation = useRegisterMutation();
+  const { startSession } = useSession();
+  const registerMutation = useAuthControllerRegister({
+    mutation: {
+      onSuccess: (data) => {
+        startSession(data.accessToken);
+        window.location.href = "/";
+      },
+    },
+  });
 
   const {
     register,
@@ -18,14 +27,13 @@ export function RegisterForm() {
   });
 
   const onSubmit = (data: RegisterFormValues) => {
-    const { confirmPassword: _, ...payload } = data;
+    const payload: RegisterDto = {
+      email: data.email,
+      password: data.password,
+      passwordConfirmation: data.confirmPassword,
+    };
 
-    registerMutation.mutate(payload, {
-      onSuccess: (res) => {
-        sessionStorage.setItem("accessToken", res.accessToken);
-        window.location.href = "/";
-      },
-    });
+    registerMutation.mutate({ data: payload });
   };
 
   return (

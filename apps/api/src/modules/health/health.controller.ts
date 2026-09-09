@@ -3,6 +3,7 @@ import type { SchemaObject } from "@nestjs/swagger";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Public } from "../../common/decorators/public.decorator";
+import { registerSchema } from "../../common/openapi/zod-openapi";
 import { PrismaService } from "../../prisma/prisma.service";
 
 interface HealthResponse {
@@ -50,12 +51,12 @@ export class HealthController {
   @ApiResponse({
     status: 200,
     description: "Приложение и PostgreSQL доступны.",
-    schema: HEALTH_RESPONSE_SCHEMA,
+    schema: registerSchema("HealthResponseDto", HEALTH_RESPONSE_SCHEMA),
   })
   @ApiResponse({
     status: 503,
     description: "PostgreSQL недоступен. Детали ошибки только в логах (§56).",
-    schema: HEALTH_RESPONSE_SCHEMA,
+    schema: { $ref: "#/components/schemas/HealthResponseDto" },
   })
   async check(
     @Res({ passthrough: true }) response: Response,
