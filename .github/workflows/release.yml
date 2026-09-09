@@ -38,9 +38,6 @@ jobs:
     outputs:
       download_url: ${{ steps.upload_s3.outputs.download_url }}
       tag_name: ${{ steps.vars.outputs.tag_name }}
-    env:
-      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-      NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -71,6 +68,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: "Сборка проектов (Turborepo build)"
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
         run: pnpm build
 
       - name: "Компиляция Go бинарника Realtime"
