@@ -67,7 +67,10 @@ describe("normalizeBrowserLocale", () => {
     });
 
     it("возвращает defaultLocale для undefined параметра", () => {
+      // Мокаем navigator.language как undefined
+      vi.stubGlobal("navigator", { language: undefined });
       expect(normalizeBrowserLocale(undefined)).toBe(defaultLocale);
+      vi.unstubAllGlobals();
     });
 
     it("возвращает defaultLocale для невалидных строк", () => {
