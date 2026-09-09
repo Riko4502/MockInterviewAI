@@ -1,3 +1,4 @@
+import type { Theme } from "@packages/types";
 import type { editor } from "monaco-editor";
 import type { LanguageId } from "@/languages/config";
 
@@ -35,9 +36,9 @@ export interface CodeEditorProps {
   /** Коллбэк при изменении текста пользователем */
   onChange?: (value: string) => void;
   /** Язык программирования */
-  language?: LanguageId | string;
-  /** Тема оформления ('mockinterview-dark' по умолчанию) */
-  theme?: string;
+  language?: LanguageId;
+  /** Тема оформления ('dark' по умолчанию) */
+  theme?: Theme;
   /** Режим только для чтения */
   readOnly?: boolean;
   /**

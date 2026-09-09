@@ -1,5 +1,4 @@
 import { lazy, Suspense } from "react";
-// import { Spin } from "@packages/ui";
 import type { CodeEditorProps } from "./types";
 
 export interface CodeEditorLazyProps extends CodeEditorProps {}

@@ -437,6 +437,9 @@ importers:
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.50.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@packages/types':
+        specifier: workspace:*
+        version: link:../types
       '@packages/ui':
         specifier: workspace:*
         version: link:../ui
@@ -527,6 +530,15 @@ importers:
       tailwindcss:
         specifier: ^4
         version: 4.3.3
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/types:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.4.2
+        version: 2.4.2
       typescript:
         specifier: ^5
         version: 5.9.3

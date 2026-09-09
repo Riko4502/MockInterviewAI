@@ -1,4 +1,4 @@
-import Editor from "@monaco-editor/react";
+import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
@@ -12,15 +12,15 @@ import {
 } from "@/languages";
 import { LANGUAGE_CONFIGS } from "@/languages/config";
 import { useRemoteCursors } from "@/multiplayer";
-import { MOCKINTERVIEW_DARK_THEME_ID, registerThemes } from "@/themes";
+import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
-  value,
+  value = "",
   onChange,
   language = "typescript",
-  theme = MOCKINTERVIEW_DARK_THEME_ID,
+  theme = "dark",
   readOnly = false,
   collaborators = [],
   onCursorChange,
@@ -38,7 +38,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   // Вызывается ДО монтирования редактора.
   // Регистрируем тему и автокомплит для всех языков кроме TS/JS
   // (у них полноценный IntelliSense из коробки).
-  const handleBeforeMount = (monaco: typeof import("monaco-editor")) => {
+  const handleBeforeMount = (monaco: Monaco) => {
     registerThemes(monaco);
     registerSqlCompletion(monaco);
     registerPythonCompletion(monaco);
@@ -50,7 +50,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
-    _monacoInstance: typeof import("monaco-editor"),
+    _monaco: Monaco,
   ) => {
     setEditorInstance(editor);
 
@@ -113,10 +113,3 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     </div>
   );
 };
-
-// Для полного отключения автокомплита передать в props -
-// options={{
-//   quickSuggestions: false, // Отключает автоматические подсказки при наборе
-//     suggestOnTriggerCharacters: false, // Отключает подсказки при вводе "." и т.д.
-//     parameterHints: { enabled: false }, // Отключает подсказки параметров функций
-// }}

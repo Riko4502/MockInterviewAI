@@ -3,10 +3,9 @@ import { MOCKINTERVIEW_DARK_THEME } from "./mockinterview-dark";
 import { MOCKINTERVIEW_LIGHT_THEME } from "./mockinterview-light";
 
 /**
- * Уникальные идентификаторы кастомных тем для Monaco Editor.
+ * Идентификаторы тем оформления Monaco Editor.
  */
-export const MOCKINTERVIEW_DARK_THEME_ID = "mockinterview-dark";
-export const MOCKINTERVIEW_LIGHT_THEME_ID = "mockinterview-light";
+export const THEMES = ["dark", "light"] as const;
 
 /**
  * Регистрирует кастомные темы в инстансе Monaco Editor.
@@ -14,12 +13,6 @@ export const MOCKINTERVIEW_LIGHT_THEME_ID = "mockinterview-light";
  * @param monaco - Инстанс Monaco Editor, получаемый из beforeMount или onMount
  */
 export function registerThemes(monaco: Monaco) {
-  monaco.editor.defineTheme(
-    MOCKINTERVIEW_DARK_THEME_ID,
-    MOCKINTERVIEW_DARK_THEME,
-  );
-  monaco.editor.defineTheme(
-    MOCKINTERVIEW_LIGHT_THEME_ID,
-    MOCKINTERVIEW_LIGHT_THEME,
-  );
+  monaco.editor.defineTheme("dark", MOCKINTERVIEW_DARK_THEME);
+  monaco.editor.defineTheme("light", MOCKINTERVIEW_LIGHT_THEME);
 }

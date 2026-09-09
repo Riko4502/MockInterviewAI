@@ -127,7 +127,7 @@ console.log(\`Элемент найден на позиции: \${index}\`);
           value={value}
           onChange={setValue}
           language="typescript"
-          theme="mockinterview-light"
+          theme="light"
         />
       </div>
     );
@@ -179,7 +179,7 @@ export const DarkVsLight: Story = {
               value={lightCode}
               onChange={setLightCode}
               language="typescript"
-              theme="mockinterview-light"
+              theme="light"
             />
           </div>
         </div>

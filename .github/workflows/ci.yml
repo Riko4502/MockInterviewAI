@@ -166,6 +166,7 @@ jobs:
               - 'turbo.json'
             editor:
               - 'packages/editor/**'
+              - 'packages/types/**'
               - 'packages/tailwind-config/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
