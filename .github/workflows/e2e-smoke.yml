@@ -34,12 +34,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: "Сборка пакетов монорепозитория и Next.js"
-        run: |
-          # Копируем .env.example в .env
-          cp apps/web/.env.example apps/web/.env
-          # Или для корневого .env.example
-          cp .env.example .env
-          pnpm turbo run build --filter=...web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
+        run: pnpm turbo run build --filter=...web
 
       - name: "Кэширование браузеров Playwright"
         uses: actions/cache@v6
