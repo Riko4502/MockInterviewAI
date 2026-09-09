@@ -66,7 +66,12 @@ jobs:
           echo "✅ Unit-тесты и рендеринг компонентов успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
       - name: "Проверка сборки Next.js"
-        run: pnpm --filter web build
+        run: |
+          # Копируем .env.example в .env
+          cp apps/web/.env.example apps/web/.env
+          # Или для корневого .env.example
+          cp .env.example .env
+          pnpm --filter web build
 
       - name: "Настройка Docker Buildx"
         if: inputs.should_build_docker
