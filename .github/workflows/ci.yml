@@ -171,6 +171,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/ci-web.yml
+    secrets: inherit
     with:
       should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_web == 'true' }}
 
