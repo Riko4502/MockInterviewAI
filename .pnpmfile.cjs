@@ -15,6 +15,23 @@ function readPackage(pkg) {
     pkg.dependencies["fast-uri"] = "^3.1.6";
   }
 
+  if (pkg.dependencies?.multer) {
+    pkg.dependencies.multer = "^2.3.0";
+  }
+
+  // Исправление уязвимостей js-yaml
+  if (pkg.dependencies?.["js-yaml"]) {
+    const version = pkg.dependencies["js-yaml"];
+    // Если версия 3.x
+    if (version.startsWith("^3") || version.startsWith("~3") || version.startsWith("3")) {
+      pkg.dependencies["js-yaml"] = "^3.15.2";
+    }
+    // Если версия 4.x
+    if (version.startsWith("^4") || version.startsWith("~4") || version.startsWith("4")) {
+      pkg.dependencies["js-yaml"] = "^4.3.2";
+    }
+  }
+
   return pkg;
 }
 

@@ -1,58 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
+import { TRACK_DEFINITIONS } from "../constants";
 import { StepHeader } from "./StepHeader";
 import { TrackCard } from "./TrackCard";
 
 export function StepTrackSelect() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [selectedTrackIndex, setSelectedTrackIndex] = useState(0);
-
-  const tracks = [
-    {
-      title: landing.howItWorks.track1Title,
-      description: landing.howItWorks.track1Desc,
-      duration: "60 min",
-    },
-    {
-      title: landing.howItWorks.track2Title,
-      description: landing.howItWorks.track2Desc,
-      duration: "45 min",
-    },
-    {
-      title: landing.howItWorks.track3Title,
-      description: landing.howItWorks.track3Desc,
-      duration: "60 min",
-    },
-    {
-      title: landing.howItWorks.track4Title,
-      description: landing.howItWorks.track4Desc,
-      duration: "45 min",
-    },
-  ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
       <div className="lg:col-span-6 flex flex-col items-start">
         <StepHeader
           stepNumber="01"
-          tag={landing.howItWorks.step1Tag}
-          title={landing.howItWorks.step1Title}
-          description={landing.howItWorks.step1Desc}
+          tag={t("howItWorks.step1Tag")}
+          title={t("howItWorks.step1Title")}
+          description={t("howItWorks.step1Desc")}
         />
         <div className="flex flex-wrap gap-2 text-xs font-medium">
           <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
-            {landing.howItWorks.trackTagFrontend}
+            {t("howItWorks.trackTagFrontend")}
           </span>
           <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
-            {landing.howItWorks.trackTagBackend}
+            {t("howItWorks.trackTagBackend")}
           </span>
           <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
-            {landing.howItWorks.trackTagSystemDesign}
+            {t("howItWorks.trackTagSystemDesign")}
           </span>
           <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
-            {landing.howItWorks.trackTagAlgo}
+            {t("howItWorks.trackTagAlgo")}
           </span>
         </div>
       </div>
@@ -65,28 +43,28 @@ export function StepTrackSelect() {
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10 relative z-10">
             <span className="text-sm font-semibold text-white flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-              {landing.howItWorks.step1SelectTitle}
+              {t("howItWorks.step1SelectTitle")}
             </span>
             <span className="text-xs text-purple-400 font-medium font-mono">
-              {landing.howItWorks.step1Customizable}
+              {t("howItWorks.step1Customizable")}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
-            {tracks.map((track, idx) => (
+            {TRACK_DEFINITIONS.map((track, idx) => (
               <button
                 type="button"
-                key={track.title}
+                key={track.id}
                 onClick={() => setSelectedTrackIndex(idx)}
                 className="w-full text-left cursor-pointer transition-transform active:scale-98"
               >
                 <TrackCard
-                  title={track.title}
-                  description={track.description}
+                  title={t(track.titleKey)}
+                  description={t(track.descriptionKey)}
                   duration={track.duration}
                   statusText={
                     selectedTrackIndex === idx
-                      ? landing.howItWorks.track1Status
-                      : landing.howItWorks.selectAction
+                      ? t("howItWorks.track1Status")
+                      : t("howItWorks.selectAction")
                   }
                   selected={selectedTrackIndex === idx}
                 />

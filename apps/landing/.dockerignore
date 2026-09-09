@@ -1,0 +1,32 @@
+.git
+.gitignore
+.vscode
+
+# Dependencies (protects against Windows NTFS Junctions)
+node_modules
+**/node_modules
+
+# Build artifacts & caches
+.next
+**/.next
+.turbo
+**/.turbo
+dist
+**/dist
+build
+**/build
+coverage
+**/coverage
+tsconfig.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Documentation & Environment
+README.md
+*.md
+.env*
+!.env.example

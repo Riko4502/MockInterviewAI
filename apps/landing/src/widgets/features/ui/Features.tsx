@@ -1,6 +1,6 @@
 "use client";
 
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
 import { SectionHeader } from "@/shared/ui";
 import { FeatureAnalytics } from "./FeatureAnalytics";
 import { FeatureCollaboration } from "./FeatureCollaboration";
@@ -8,7 +8,7 @@ import { FeatureSandbox } from "./FeatureSandbox";
 import { FeatureVoice } from "./FeatureVoice";
 
 export function Features() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
 
   return (
     <section
@@ -18,9 +18,9 @@ export function Features() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <SectionHeader
-          badge={landing.features.badge}
-          title={landing.features.title}
-          subtitle={landing.features.subtitle}
+          badge={t("features.badge")}
+          title={t("features.title")}
+          subtitle={t("features.subtitle")}
         />
 
         {/* Bento Grid with Dynamic Ambient Glows */}

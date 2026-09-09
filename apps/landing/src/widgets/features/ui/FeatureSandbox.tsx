@@ -1,19 +1,14 @@
 "use client";
 
 import { GlobeIcon } from "@packages/icons";
-import { Badge, Card } from "@packages/ui";
+import { Badge, Card, Typography } from "@packages/ui";
 import { useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
+import { SANDBOX_REGIONS } from "../constants";
 
 export function FeatureSandbox() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [activeRegion, setActiveRegion] = useState("eu");
-
-  const regions = [
-    { id: "eu", name: "EU-Central", ping: "14ms", status: "Optimal" },
-    { id: "us", name: "US-East", ping: "18ms", status: "Optimal" },
-    { id: "ap", name: "AP-East", ping: "32ms", status: "Active" },
-  ];
 
   return (
     <Card className="w-full h-full relative rounded-3xl p-8 border border-sky-500/20 bg-gradient-to-b from-sky-950/20 via-[#0c0e1a]/80 to-[#07080e]/90 backdrop-blur-xl flex flex-col justify-between group hover:border-sky-500/60 hover:shadow-2xl hover:shadow-sky-950/50 transition-all duration-300 overflow-hidden">
@@ -24,17 +19,17 @@ export function FeatureSandbox() {
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 border border-sky-400/40 flex items-center justify-center text-white mb-6 shadow-lg shadow-sky-600/30 group-hover:scale-110 group-hover:shadow-sky-500/50 transition-all">
           <GlobeIcon className="w-6 h-6" />
         </div>
-        <Card.Title className="text-xl sm:text-2xl font-bold text-white mb-3">
-          {landing.features.card3Title}
-        </Card.Title>
+        <Typography.H3 className="text-xl sm:text-2xl font-bold text-white mb-3">
+          {t("features.card3Title")}
+        </Typography.H3>
         <Card.Description className="text-slate-300 text-sm leading-relaxed mb-6">
-          {landing.features.card3Desc}
+          {t("features.card3Desc")}
         </Card.Description>
       </Card.Header>
 
       <Card.Content className="p-0 relative z-10">
         <div className="grid grid-cols-3 gap-2 text-xs font-mono">
-          {regions.map((reg) => (
+          {SANDBOX_REGIONS.map((reg) => (
             <button
               type="button"
               key={reg.id}

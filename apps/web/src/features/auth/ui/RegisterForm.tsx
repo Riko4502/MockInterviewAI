@@ -4,13 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type RegisterDto, useAuthControllerRegister } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
 import { useForm } from "react-hook-form";
+import { useSession } from "@/entities/session";
 import { type RegisterFormValues, registerSchema } from "../lib/schemas";
 
 export function RegisterForm() {
+  const { startSession } = useSession();
   const registerMutation = useAuthControllerRegister({
     mutation: {
       onSuccess: (data) => {
-        sessionStorage.setItem("accessToken", data.accessToken);
+        startSession(data.accessToken);
         window.location.href = "/";
       },
     },
