@@ -90,6 +90,9 @@ jobs:
           file: ./apps/web/Dockerfile
           push: false
           tags: mockinterviewai-web:test
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_REALTIME_URL=${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
