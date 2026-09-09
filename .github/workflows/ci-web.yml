@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       coverage: ${{ steps.web_coverage.outputs.pct }}
+    env:
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
     steps:
       - name: "Клонирование репозитория"
         uses: actions/checkout@v7
@@ -66,12 +69,7 @@ jobs:
           echo "✅ Unit-тесты и рендеринг компонентов успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
       - name: "Проверка сборки Next.js"
-        run: |
-          # Копируем .env.example в .env
-          cp apps/web/.env.example apps/web/.env
-          # Или для корневого .env.example
-          cp .env.example .env
-          pnpm --filter web build
+        run: pnpm --filter web build
 
       - name: "Настройка Docker Buildx"
         if: inputs.should_build_docker
