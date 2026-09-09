@@ -1,20 +1,22 @@
 "use client";
 
-import { Badge } from "@packages/ui";
-import { useLandingTranslations } from "@/shared/lib";
+import { Badge, Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
 import { Logo } from "@/shared/ui";
 
 export function FooterBrand() {
-  const { landing, locale } = useLandingTranslations();
+  const { t, i18n } = useTranslation("landing");
+  const locale =
+    (i18n.resolvedLanguage || i18n.language) === "ru" ? "ru" : "en";
   const homeUrl = locale === "ru" ? "/" : "/en";
 
   return (
     <div className="md:col-span-4 flex flex-col items-start">
       <Logo href={homeUrl} className="mb-4" />
 
-      <p className="text-xs text-slate-400 leading-relaxed mb-6 max-w-sm">
-        {landing.footer.desc}
-      </p>
+      <Typography.Muted className="text-xs text-slate-400 leading-relaxed mb-6 max-w-sm">
+        {t("footer.desc")}
+      </Typography.Muted>
 
       {/* System status pill */}
       <Badge
@@ -22,7 +24,7 @@ export function FooterBrand() {
         className="gap-2 px-3 py-1 bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-mono"
       >
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span>{landing.footer.status}</span>
+        <span>{t("footer.status")}</span>
       </Badge>
     </div>
   );

@@ -29,6 +29,11 @@ COPY types/ ./types/
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_REALTIME_URL
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_REALTIME_URL=$NEXT_PUBLIC_REALTIME_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm turbo run build --filter=web^... && \
     pnpm --filter web build

@@ -1,6 +1,6 @@
 import { CodeIcon } from "@packages/icons";
-import { Link } from "@packages/ui";
 import { cn } from "@packages/utils";
+import NextLink from "next/link";
 
 interface LogoProps {
   href?: string;
@@ -9,9 +9,8 @@ interface LogoProps {
 
 export function Logo({ href = "/", className }: LogoProps) {
   return (
-    <Link
+    <NextLink
       href={href}
-      underline="none"
       className={cn("flex items-center gap-3 group text-inherit", className)}
     >
       <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:scale-105 group-hover:shadow-violet-500/40 transition-all duration-300">
@@ -25,6 +24,6 @@ export function Logo({ href = "/", className }: LogoProps) {
           Interview AI
         </span>
       </div>
-    </Link>
+    </NextLink>
   );
 }

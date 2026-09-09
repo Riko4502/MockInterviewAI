@@ -1,15 +1,16 @@
 "use client";
 
-import { Link } from "@packages/ui";
+import NextLink from "next/link";
+import { useTranslation } from "react-i18next";
 import { getAuthUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
+import { NAV_LINKS } from "../constants";
 
 interface NavMobileMenuProps {
   isOpen: boolean;
 }
 
 export function NavMobileMenu({ isOpen }: NavMobileMenuProps) {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const authUrl = getAuthUrl();
 
   if (!isOpen) return null;
@@ -17,27 +18,21 @@ export function NavMobileMenu({ isOpen }: NavMobileMenuProps) {
   return (
     <div className="md:hidden border-t border-white/[0.06] bg-[#07080e]/60 backdrop-blur-2xl px-4 pt-4 pb-6 space-y-4 shadow-2xl">
       <div className="flex flex-col space-y-3">
-        <Link
-          href="#how-it-works"
-          underline="none"
-          className="text-base font-medium text-slate-200 hover:text-violet-400 py-2 border-b border-white/5"
-        >
-          {landing.nav.howItWorks}
-        </Link>
-        <Link
-          href="#features"
-          underline="none"
-          className="text-base font-medium text-slate-200 hover:text-violet-400 py-2 border-b border-white/5"
-        >
-          {landing.nav.features}
-        </Link>
-        <Link
+        {NAV_LINKS.map((link) => (
+          <NextLink
+            key={link.href}
+            href={link.href}
+            className="text-base font-medium text-slate-200 hover:text-violet-400 py-2 border-b border-white/5"
+          >
+            {t(link.labelKey)}
+          </NextLink>
+        ))}
+        <a
           href={authUrl}
-          underline="none"
           className="text-base font-medium text-slate-200 hover:text-violet-400 py-2"
         >
-          {landing.nav.signIn}
-        </Link>
+          {t("nav.signIn")}
+        </a>
       </div>
     </div>
   );

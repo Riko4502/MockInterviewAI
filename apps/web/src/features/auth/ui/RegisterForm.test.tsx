@@ -5,6 +5,15 @@ import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
 import { RegisterForm } from "./RegisterForm";
 
+// Мокаем useSession
+const startSessionMock = vi.fn();
+
+vi.mock("@/entities/session", () => ({
+  useSession: () => ({
+    startSession: startSessionMock,
+  }),
+}));
+
 vi.mock("@/shared/api/base", () => ({
   baseFetch: vi.fn(),
   AuthError: class AuthError extends Error {
@@ -66,7 +75,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     });
   });
 
-  it("успешный flow: useAuthControllerRegister -> customInstance -> web transport -> baseFetch -> sessionStorage -> redirect", async () => {
+  it("успешный flow: useAuthControllerRegister -> customInstance -> web transport -> baseFetch -> startSession -> redirect", async () => {
     vi.mocked(baseFetch).mockResolvedValueOnce({
       accessToken: "mock-access-token-register-888",
     });
@@ -107,14 +116,14 @@ describe("RegisterForm Integration Flow (T032)", () => {
       }),
     );
 
-    // Проверяем сохранение access token в sessionStorage (§28 SPEC.md, CRIT-01)
+    // Проверяем что startSession был вызван с токеном
     await waitFor(() => {
-      expect(sessionStorage.getItem("accessToken")).toBe(
+      expect(startSessionMock).toHaveBeenCalledWith(
         "mock-access-token-register-888",
       );
     });
 
-    // Проверяем навигацию на главную страницу после успешной регистрации
+    // Проверяем навигацию на главную страницу
     expect(window.location.href).toBe("/");
   });
 
@@ -147,8 +156,8 @@ describe("RegisterForm Integration Flow (T032)", () => {
       expect(baseFetch).toHaveBeenCalledTimes(1);
     });
 
-    // Токен не должен быть сохранён при ошибке регистрации
-    expect(sessionStorage.getItem("accessToken")).toBeNull();
+    // startSession не должен быть вызван
+    expect(startSessionMock).not.toHaveBeenCalled();
     // Навигация не должна произойти
     expect(window.location.href).not.toBe("/");
   });
