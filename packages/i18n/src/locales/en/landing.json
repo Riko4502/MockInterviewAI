@@ -149,5 +149,13 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "security": "Security"
+  },
+  "notFound": {
+    "badge": "SYSTEM FAULT // ROUTE NOT FOUND",
+    "title": "Route Not Found in Session",
+    "description": "The page you are trying to access has been moved, deleted, or never existed in the DEVSYNC protocols.",
+    "backHome": "Back to Home",
+    "codeComment": "Warning: Target room or mock interview track is unreachable",
+    "codeError": "404 Page Not Found"
   }
 }
