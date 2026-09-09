@@ -15,6 +15,10 @@ function readPackage(pkg) {
     pkg.dependencies["fast-uri"] = "^3.1.6";
   }
 
+  if (pkg.dependencies?.multer) {
+    pkg.dependencies.multer = "^2.3.0";
+  }
+
   // Исправление уязвимостей js-yaml
   if (pkg.dependencies?.["js-yaml"]) {
     const version = pkg.dependencies["js-yaml"];
@@ -26,11 +30,6 @@ function readPackage(pkg) {
     if (version.startsWith("^4") || version.startsWith("~4") || version.startsWith("4")) {
       pkg.dependencies["js-yaml"] = "^4.3.2";
     }
-  }
-
-  // Исправление уязвимостей multer
-  if (pkg.dependencies?.["multer"]) {
-    pkg.dependencies["multer"] = "^2.3.0";
   }
 
   return pkg;
