@@ -31,7 +31,7 @@ export interface Collaborator {
  */
 export interface CodeEditorProps {
   /** Текст кода в редакторе (управляемое состояние) */
-  value: string;
+  value?: string;
   /** Коллбэк при изменении текста пользователем */
   onChange?: (value: string) => void;
   /** Язык программирования */
