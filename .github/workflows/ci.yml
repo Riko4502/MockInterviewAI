@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches:
+      - 'feat/*'
+      - 'feat/**'
       - 'feature/*'
       - 'feature/**'
       - 'fix/*'
@@ -21,6 +23,8 @@ on:
       - 'dev'
   pull_request:
     branches:
+      - 'feat/*'
+      - 'feat/**'
       - 'feature/*'
       - 'feature/**'
       - 'fix/*'
