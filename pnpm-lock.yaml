@@ -4,7 +4,7 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-pnpmfileChecksum: jufs6s4xc6rn2c25avom5t3kzq
+pnpmfileChecksum: 7q2pxr2pzsinbbsc7smjf63akm
 
 importers:
 
@@ -318,6 +318,9 @@ importers:
       '@packages/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@packages/dto':
+        specifier: workspace:*
+        version: link:../../packages/dto
       '@packages/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n

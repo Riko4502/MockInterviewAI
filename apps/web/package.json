@@ -19,6 +19,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
     "@packages/api": "workspace:*",
+    "@packages/dto": "workspace:*",
     "@packages/i18n": "workspace:^",
     "@packages/icons": "workspace:*",
     "@packages/tailwind-config": "workspace:*",

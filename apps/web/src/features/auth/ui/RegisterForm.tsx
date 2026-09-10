@@ -1,19 +1,24 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type RegisterDto, useAuthControllerRegister } from "@packages/api";
+import { useAuthControllerRegister } from "@packages/api";
+import { registerSchema } from "@packages/dto";
 import { Button, Field, Input } from "@packages/ui";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
-import { type RegisterFormValues, registerSchema } from "../lib/schemas";
+import type { RegisterFormValues } from "../lib/schemas";
 
 export function RegisterForm() {
+  const router = useRouter();
+
   const { startSession } = useSession();
+
   const registerMutation = useAuthControllerRegister({
     mutation: {
       onSuccess: (data) => {
         startSession(data.accessToken);
-        window.location.href = "/";
+        router.replace("/");
       },
     },
   });
@@ -27,17 +32,15 @@ export function RegisterForm() {
   });
 
   const onSubmit = (data: RegisterFormValues) => {
-    const payload: RegisterDto = {
-      email: data.email,
-      password: data.password,
-      passwordConfirmation: data.confirmPassword,
-    };
-
-    registerMutation.mutate({ data: payload });
+    registerMutation.mutate({ data });
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="flex flex-col gap-4"
+      noValidate
+    >
       <Field invalid={!!errors.email}>
         <Field.Label>Email</Field.Label>
         <Field.Content>
@@ -66,17 +69,17 @@ export function RegisterForm() {
         </Field.Content>
       </Field>
 
-      <Field invalid={!!errors.confirmPassword}>
+      <Field invalid={!!errors.passwordConfirmation}>
         <Field.Label>Подтверждение пароля</Field.Label>
         <Field.Content>
           <Input
             type="password"
             placeholder="Введите пароль"
-            data-invalid={!!errors.confirmPassword}
-            aria-invalid={!!errors.confirmPassword}
-            {...register("confirmPassword")}
+            data-invalid={!!errors.passwordConfirmation}
+            aria-invalid={!!errors.passwordConfirmation}
+            {...register("passwordConfirmation")}
           />
-          <Field.Error>{errors.confirmPassword?.message}</Field.Error>
+          <Field.Error>{errors.passwordConfirmation?.message}</Field.Error>
         </Field.Content>
       </Field>
 

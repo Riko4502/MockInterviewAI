@@ -2,11 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerLogin } from "@packages/api";
+import { loginSchema } from "@packages/dto";
 import { Button, Field, Input } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
-import { type LoginFormValues, loginSchema } from "../lib/schemas";
+import type { LoginFormValues } from "../lib/schemas";
 
 export function LoginForm() {
   const router = useRouter();

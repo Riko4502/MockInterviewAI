@@ -6,11 +6,12 @@
  * - `baseFetch()` выполняет HTTP-запросы к API.
  * - Access token хранится только в памяти приложения и автоматически
  *   добавляется в заголовок `Authorization`.
- * - При ответе `401 Unauthorized` выполняется попытка обновить access token.
+ * - При ответе `401 Unauthorized` и наличии токена выполняется попытка обновить access token.
  * - Refresh token хранится в HttpOnly cookie и отправляется браузером
  *   автоматически благодаря `credentials: "include"`.
  * - После успешного refresh исходный запрос повторяется один раз
  *   с новым access token.
+ * - Ошибки API (400, 403, 500 и т.д.) сохраняют статус и structured data в HttpError.
  * - Ответ `204 No Content` корректно обрабатывается без вызова `response.json()`.
  * - Для `FormData` заголовок `Content-Type` не выставляется вручную,
  *   чтобы браузер самостоятельно добавил multipart boundary.
@@ -18,12 +19,13 @@
 
 import { RefreshSessionError, refreshAccessToken } from "./auth-session";
 import { authToken } from "./auth-token";
-import { apiUrl } from "./endpoints";
+import { getApiUrl } from "./endpoints";
 
-export class HttpError extends Error {
+export class HttpError<T = unknown> extends Error {
   constructor(
     message: string,
     public status: number,
+    public data?: T,
   ) {
     super(message);
     this.name = "HttpError";
@@ -35,6 +37,7 @@ export async function baseFetch<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const headers = createHeaders(options.headers, options.body);
+  const apiUrl = getApiUrl();
 
   const response = await fetch(`${apiUrl}${url}`, {
     ...options,
@@ -42,7 +45,9 @@ export async function baseFetch<T>(
     credentials: "include",
   });
 
-  if (response.status !== 401) {
+  const hasToken = !!authToken.get();
+
+  if (response.status !== 401 || !hasToken) {
     return handleResponse<T>(response);
   }
 
@@ -64,7 +69,9 @@ export async function baseFetch<T>(
       (error.status === 401 || error.status === 403)
     ) {
       authToken.clear();
-      window.location.href = "/login";
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
 
     throw error;
@@ -88,9 +95,53 @@ function createHeaders(init?: HeadersInit, body?: BodyInit | null): Headers {
   return headers;
 }
 
+async function extractErrorPayload(
+  response: Response,
+): Promise<{ message: string; data?: unknown }> {
+  let errorData: unknown;
+  const contentType = response.headers.get("content-type");
+
+  if (contentType?.includes("application/json")) {
+    try {
+      errorData = await response.json();
+    } catch {
+      // JSON parse fallback
+    }
+  } else {
+    try {
+      const text = await response.text();
+      if (text) {
+        errorData = { message: text };
+      }
+    } catch {
+      // text read fallback
+    }
+  }
+
+  let message = `HTTP ${response.status}`;
+  if (
+    typeof errorData === "object" &&
+    errorData !== null &&
+    "message" in errorData &&
+    typeof (errorData as { message: unknown }).message === "string"
+  ) {
+    message = (errorData as { message: string }).message;
+  } else if (
+    typeof errorData === "object" &&
+    errorData !== null &&
+    "error" in errorData &&
+    typeof (errorData as { error: unknown }).error === "string"
+  ) {
+    message = (errorData as { error: string }).error;
+  }
+
+  return { message, data: errorData };
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new HttpError(`HTTP ${response.status}`, response.status);
+    const { message, data } = await extractErrorPayload(response);
+    throw new HttpError(message, response.status, data);
   }
 
   if (response.status === 204) {

@@ -1,21 +1,16 @@
-import { z } from "zod";
+import {
+  type LoginDto,
+  loginSchema,
+  type RegisterDto,
+  registerSchema,
+} from "@packages/dto";
+import type { z } from "zod";
 
-export const registerSchema = z
-  .object({
-    email: z.string().min(1, "Email обязателен").email("Некорректный email"),
-    password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
-    confirmPassword: z.string().min(1, "Подтверждение пароля обязательно"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Пароли не совпадают",
-    path: ["confirmPassword"],
-  });
+export { loginSchema, registerSchema, type LoginDto, type RegisterDto };
 
-export type RegisterFormValues = z.infer<typeof registerSchema>;
-
-export const loginSchema = z.object({
-  email: z.string().min(1, "Email обязателен").email("Некорректный email"),
-  password: z.string().min(1, "Пароль обязателен"),
-});
+/**
+ * Значения, которые вводит пользователь в форме регистрации.
+ */
+export type RegisterFormValues = z.input<typeof registerSchema>;
 
 export type LoginFormValues = z.infer<typeof loginSchema>;

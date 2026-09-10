@@ -4,16 +4,31 @@ import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { TokenPayload } from "./services/token.service";
 
 const DTO = {
   email: "user@example.com",
   password: "Str0ngPassw0rd!123",
+  passwordConfirmation: "Str0ngPassw0rd!123",
 };
 
 const AUTH_RESULT = {
   accessToken: "raw.access.token",
   refreshToken: "raw.refresh.token",
 };
+
+const USER_PAYLOAD: TokenPayload = {
+  sub: "user-uuid",
+  sid: "session-uuid",
+  typ: "access",
+  iss: "mock-interview-ai",
+  aud: "web",
+  iat: 1_700_000_000,
+  exp: 1_700_000_900,
+  jti: "token-uuid",
+};
+
+type AuthenticatedRequest = Request & { user: TokenPayload };
 
 function createConfigService(secure: boolean): ConfigService {
   const defaults: Record<string, unknown> = {
@@ -73,8 +88,15 @@ describe("AuthController", () => {
     return { cookies } as unknown as Request;
   }
 
-  function createRequestWithUser(user: { sub: string }): Request {
-    return { user } as unknown as Request;
+  function createRequestWithUser(
+    user: Partial<TokenPayload> = {},
+  ): AuthenticatedRequest {
+    return {
+      user: {
+        ...USER_PAYLOAD,
+        ...user,
+      },
+    } as AuthenticatedRequest;
   }
 
   describe("register response (§4, §45 SPEC.md)", () => {

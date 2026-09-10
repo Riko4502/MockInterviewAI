@@ -1,6 +1,6 @@
 import type { AccessTokenResponseDto } from "@packages/api";
 import { authToken } from "./auth-token";
-import { apiUrl } from "./endpoints";
+import { getApiUrl } from "./endpoints";
 
 let refreshPromise: Promise<string> | null = null;
 
@@ -41,6 +41,7 @@ async function performRefresh(): Promise<string> {
   let response: Response;
 
   try {
+    const apiUrl = getApiUrl();
     response = await fetch(`${apiUrl}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",

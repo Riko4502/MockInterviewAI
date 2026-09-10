@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
-import { envConfig } from "@/shared/config/env";
+import { getSiteUrl } from "@/shared/config/env";
 
 export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = envConfig.siteUrl;
+  const baseUrl = getSiteUrl();
 
   return [
     {

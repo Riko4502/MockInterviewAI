@@ -20,6 +20,9 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  sessions         InterviewSession[]
+  participations   InterviewParticipant[]
+
   @@map("users")
   @@index([username])
   @@index([deletedAt])
@@ -38,16 +41,19 @@ enum InterviewParticipantRole {
 }
 
 model InterviewSession {
-  id        String                  @id @default(uuid()) @db.Uuid
-  userId    String                  @db.Uuid // владелец (создатель) сессии
-  status    InterviewSessionStatus  @default(ACTIVE)
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime                @default(now())
-  updatedAt DateTime                @updatedAt
+  id           String                  @id @default(uuid()) @db.Uuid
+  userId       String                  @db.Uuid // владелец (создатель) сессии
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       InterviewSessionStatus  @default(ACTIVE)
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
   participants InterviewParticipant[]
 
   @@map("interview_sessions")
+  @@index([userId])
+  @@index([status])
 }
 
 model InterviewParticipant {
@@ -55,8 +61,10 @@ model InterviewParticipant {
   userId    String  @db.Uuid
   role      InterviewParticipantRole
 
-  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([sessionId, userId])
   @@map("interview_participants")
+  @@index([userId])
 }

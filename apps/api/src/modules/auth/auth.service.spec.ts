@@ -35,6 +35,7 @@ const TOKEN_FAMILY_ID = "22222222-2222-4222-8222-222222222222";
 const DTO = {
   email: "user@example.com",
   password: "Str0ngPassw0rd!123",
+  passwordConfirmation: "Str0ngPassw0rd!123",
 };
 
 const USER = { id: "user-1", email: DTO.email };
