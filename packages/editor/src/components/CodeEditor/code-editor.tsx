@@ -2,14 +2,6 @@ import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import {
-  registerCppCompletion,
-  registerGoCompletion,
-  registerJavaCompletion,
-  registerPythonCompletion,
-  registerRustCompletion,
-  registerSqlCompletion,
-} from "@/languages";
 import { LANGUAGE_CONFIGS } from "@/languages/config";
 import { useRemoteCursors } from "@/multiplayer";
 import { registerThemes } from "@/themes";
@@ -36,16 +28,18 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   useRemoteCursors(editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
-  // Регистрируем тему и автокомплит для всех языков кроме TS/JS
-  // (у них полноценный IntelliSense из коробки).
   const handleBeforeMount = (monaco: Monaco) => {
     registerThemes(monaco);
-    registerSqlCompletion(monaco);
-    registerPythonCompletion(monaco);
-    registerGoCompletion(monaco);
-    registerJavaCompletion(monaco);
-    registerCppCompletion(monaco);
-    registerRustCompletion(monaco);
+
+    // Поддержка современного стандарта ESNext
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ESNext,
+      allowNonTextExtensions: true,
+    });
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ESNext,
+      allowNonTextExtensions: true,
+    });
   };
 
   const handleEditorDidMount = (
@@ -99,7 +93,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }
 
   return (
-    <div className="w-full h-full min-h-[400px] border border-[var(--border)] rounded-md overflow-hidden relative">
+    <div className="w-full h-full relative">
       <Editor
         height="100%"
         language={language}
