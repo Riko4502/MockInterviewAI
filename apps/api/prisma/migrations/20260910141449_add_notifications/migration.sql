@@ -5,9 +5,10 @@ CREATE TYPE "NotificationType" AS ENUM ('SYSTEM', 'INTERVIEW', 'MESSAGE');
 CREATE TABLE "notifications" (
     "id" UUID NOT NULL,
     "userId" UUID NOT NULL,
-    "type" "NotificationType" NOT NULL,
+    "category" "NotificationType" NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
+    "actionUrl" TEXT,
     "readAt" TIMESTAMP(3),
     "deletedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

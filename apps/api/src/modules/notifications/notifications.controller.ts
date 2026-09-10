@@ -1,84 +1,137 @@
 import {
   Controller,
+  DefaultValuePipe,
+  Delete,
   Get,
-  type MessageEvent,
   Param,
+  ParseIntPipe,
   Patch,
-  Sse,
+  Query,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import type { Observable } from "rxjs";
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
+import {
+  notificationActionResponseSchema,
+  notificationsListSchema,
+  unreadNotificationsCountSchema,
+} from "@packages/dto";
 
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { registerSchema } from "../../common/openapi/zod-openapi";
 import { NotificationsService } from "./notifications.service";
 
-/**
- * Контроллер уведомлений текущего авторизованного пользователя.
- */
 @ApiTags("Notifications")
 @ApiBearerAuth()
 @Controller("notifications")
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  /**
-   * Получает список неудаленных уведомлений текущего пользователя.
-   *
-   * @param userId - UUID пользователя из JWT токена.
-   * @returns Список уведомлений, отсортированный от новых к старым.
-   */
   @Get()
-  getNotifications(@CurrentUser("sub") userId: string) {
-    return this.notificationsService.getNotifications(userId);
+  @ApiOperation({
+    summary: "Get user notifications",
+  })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Paginated notifications list",
+    schema: registerSchema("NotificationsListDto", notificationsListSchema),
+  })
+  async getNotifications(
+    @CurrentUser("sub") userId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe)
+    page: number,
+    @Query("limit", new DefaultValuePipe(20), ParseIntPipe)
+    limit: number,
+  ) {
+    return this.notificationsService.getNotifications(userId, page, limit);
   }
 
-  /**
-   * Получает количество непрочитанных уведомлений текущего пользователя.
-   *
-   * @param userId - UUID пользователя из JWT токена.
-   * @returns Количество непрочитанных и неудаленных уведомлений.
-   */
   @Get("unread-count")
-  getUnreadCount(@CurrentUser("sub") userId: string) {
+  @ApiOperation({
+    summary: "Get unread notifications count",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Unread notifications count",
+    schema: registerSchema(
+      "UnreadNotificationsCountDto",
+      unreadNotificationsCountSchema,
+    ),
+  })
+  async getUnreadCount(@CurrentUser("sub") userId: string) {
     return this.notificationsService.getUnreadCount(userId);
   }
 
-  /**
-   * Открывает SSE-соединение для получения обновлений уведомлений
-   * в реальном времени.
-   *
-   * @param userId - UUID пользователя из JWT токена.
-   * @returns SSE-поток событий текущего пользователя.
-   */
-  @Sse("stream")
-  stream(@CurrentUser("sub") userId: string): Observable<MessageEvent> {
-    return this.notificationsService.getStream(userId);
-  }
-
-  /**
-   * Помечает уведомление текущего пользователя как прочитанное.
-   *
-   * @param userId - UUID пользователя из JWT токена.
-   * @param id - UUID уведомления.
-   * @returns Результат выполнения операции.
-   */
   @Patch(":id/read")
-  markAsRead(@CurrentUser("sub") userId: string, @Param("id") id: string) {
+  @ApiOperation({
+    summary: "Mark notification as read",
+  })
+  @ApiParam({
+    name: "id",
+    type: String,
+    format: "uuid",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Notification marked as read",
+    schema: registerSchema(
+      "NotificationActionResponseDto",
+      notificationActionResponseSchema,
+    ),
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Notification not found",
+  })
+  async markAsRead(
+    @CurrentUser("sub") userId: string,
+    @Param("id") id: string,
+  ) {
     return this.notificationsService.markAsRead(userId, id);
   }
 
-  /**
-   * Выполняет soft-delete уведомления текущего пользователя.
-   *
-   * Уведомление остается в базе данных, но больше не возвращается
-   * пользователю в списке уведомлений.
-   *
-   * @param userId - UUID пользователя из JWT токена.
-   * @param id - UUID уведомления.
-   * @returns Результат выполнения операции.
-   */
-  @Patch(":id/delete")
-  markAsDeleted(@CurrentUser("sub") userId: string, @Param("id") id: string) {
+  @Delete(":id")
+  @ApiOperation({
+    summary: "Delete notification",
+  })
+  @ApiParam({
+    name: "id",
+    type: String,
+    format: "uuid",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Notification deleted",
+    schema: registerSchema(
+      "NotificationActionResponseDto",
+      notificationActionResponseSchema,
+    ),
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Notification not found",
+  })
+  async markAsDeleted(
+    @CurrentUser("sub") userId: string,
+    @Param("id") id: string,
+  ) {
     return this.notificationsService.markAsDeleted(userId, id);
   }
 }

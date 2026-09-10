@@ -1,59 +1,85 @@
-import {
-  Injectable,
-  type MessageEvent,
-  NotFoundException,
-} from "@nestjs/common";
-import { Observable, Subject } from "rxjs";
+import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { NotificationType } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 
-/**
- * Сервис управления уведомлениями пользователя.
- *
- * Отвечает за получение и изменение уведомлений в базе данных,
- * создание новых уведомлений и их доставку через SSE.
- */
 @Injectable()
 export class NotificationsService {
-  /**
-   * Хранилище активных SSE-потоков пользователей.
-   *
-   * Ключ — UUID пользователя.
-   * Значение — поток событий, предназначенный только для этого пользователя.
-   */
-  private readonly streams = new Map<string, Subject<MessageEvent>>();
+  private readonly cacheTtlSeconds = 60;
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly notificationStreamMaxLength = 100;
 
-  /**
-   * Получает все неудаленные уведомления пользователя.
-   *
-   * @param userId - UUID пользователя.
-   * @returns Список уведомлений, отсортированный от новых к старым.
-   */
-  async getNotifications(userId: string) {
-    return this.prisma.notification.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+  private readonly notificationStreamTtlSeconds = 7 * 24 * 60 * 60;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
+
+  async getNotifications(userId: string, page = 1, limit = 20) {
+    const safePage = Math.max(page, 1);
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+    const cacheKey = this.getNotificationsCacheKey(userId, safePage, safeLimit);
+
+    const cached = await this.redis.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const skip = (safePage - 1) * safeLimit;
+
+    const [notifications, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: safeLimit,
+      }),
+
+      this.prisma.notification.count({
+        where: {
+          userId,
+          deletedAt: null,
+        },
+      }),
+    ]);
+
+    const result = {
+      items: notifications,
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
+    };
+
+    await this.redis.set(
+      cacheKey,
+      JSON.stringify(result),
+      this.cacheTtlSeconds,
+    );
+
+    return result;
   }
 
-  /**
-   * Получает количество непрочитанных уведомлений пользователя.
-   *
-   * Учитываются только уведомления, которые не прочитаны
-   * и не были удалены пользователем.
-   *
-   * @param userId - UUID пользователя.
-   * @returns Количество непрочитанных уведомлений.
-   */
   async getUnreadCount(userId: string): Promise<{ count: number }> {
+    const cacheKey = this.getUnreadCountCacheKey(userId);
+
+    const cached = await this.redis.get(cacheKey);
+
+    if (cached !== null) {
+      return {
+        count: Number(cached),
+      };
+    }
+
     const count = await this.prisma.notification.count({
       where: {
         userId,
@@ -62,41 +88,11 @@ export class NotificationsService {
       },
     });
 
+    await this.redis.set(cacheKey, String(count), this.cacheTtlSeconds);
+
     return { count };
   }
 
-  /**
-   * Возвращает SSE-поток событий для конкретного пользователя.
-   *
-   * Если поток для пользователя еще не создан,
-   * создается новый Subject и сохраняется в памяти.
-   *
-   * @param userId - UUID пользователя.
-   * @returns Observable с событиями уведомлений.
-   */
-  getStream(userId: string): Observable<MessageEvent> {
-    let stream = this.streams.get(userId);
-
-    if (!stream) {
-      stream = new Subject<MessageEvent>();
-      this.streams.set(userId, stream);
-    }
-
-    return stream.asObservable();
-  }
-
-  /**
-   * Помечает уведомление пользователя как прочитанное.
-   *
-   * После изменения пересчитывает количество непрочитанных уведомлений
-   * и отправляет актуальный счетчик через SSE.
-   *
-   * @param userId - UUID пользователя.
-   * @param id - UUID уведомления.
-   * @returns Результат выполнения операции.
-   * @throws NotFoundException если уведомление не найдено,
-   * не принадлежит пользователю или уже удалено.
-   */
   async markAsRead(userId: string, id: string): Promise<{ success: true }> {
     const result = await this.prisma.notification.updateMany({
       where: {
@@ -113,24 +109,15 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    await this.emitUnreadCount(userId);
+    await this.invalidateCache(userId);
 
-    return { success: true };
+    await this.publishUnreadCount(userId);
+
+    return {
+      success: true,
+    };
   }
 
-  /**
-   * Выполняет soft-delete уведомления пользователя.
-   *
-   * Уведомление остается в базе данных,
-   * но больше не возвращается в списке уведомлений.
-   * После удаления пересчитывается счетчик непрочитанных.
-   *
-   * @param userId - UUID пользователя.
-   * @param id - UUID уведомления.
-   * @returns Результат выполнения операции.
-   * @throws NotFoundException если уведомление не найдено,
-   * не принадлежит пользователю или уже удалено.
-   */
   async markAsDeleted(userId: string, id: string): Promise<{ success: true }> {
     const result = await this.prisma.notification.updateMany({
       where: {
@@ -147,76 +134,94 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    await this.emitUnreadCount(userId);
+    await this.invalidateCache(userId);
 
-    return { success: true };
+    await this.publishUnreadCount(userId);
+
+    return {
+      success: true,
+    };
   }
 
-  /**
-   * Создает новое уведомление для пользователя.
-   *
-   * После сохранения в базе данных уведомление отправляется
-   * пользователю через SSE, а затем отправляется актуальный
-   * счетчик непрочитанных уведомлений.
-   *
-   * Метод предназначен для внутреннего использования
-   * другими backend-сервисами приложения.
-   *
-   * @param params - Данные нового уведомления.
-   * @returns Созданное уведомление.
-   */
   async createNotification(params: {
     userId: string;
-    type: NotificationType;
+    category: NotificationType;
     title: string;
     message: string;
+    actionUrl?: string;
   }) {
     const notification = await this.prisma.notification.create({
       data: {
         userId: params.userId,
-        type: params.type,
+        category: params.category,
         title: params.title,
         message: params.message,
+        actionUrl: params.actionUrl,
       },
     });
 
-    this.emit(params.userId, {
-      type: "notification.created",
-      data: notification,
+    await this.invalidateCache(params.userId);
+
+    await this.publishNotificationEvent(params.userId, "notification.new", {
+      id: notification.id,
+      title: notification.title,
+      message: notification.message,
+      category: notification.category,
+      actionUrl: notification.actionUrl,
     });
 
-    await this.emitUnreadCount(params.userId);
+    await this.publishUnreadCount(params.userId);
 
     return notification;
   }
 
-  /**
-   * Пересчитывает количество непрочитанных уведомлений
-   * и отправляет актуальное значение пользователю через SSE.
-   *
-   * @param userId - UUID пользователя.
-   */
-  private async emitUnreadCount(userId: string): Promise<void> {
+  private async publishUnreadCount(userId: string): Promise<void> {
     const { count } = await this.getUnreadCount(userId);
 
-    this.emit(userId, {
-      type: "notification.unread-count",
-      data: {
-        count,
-      },
+    await this.publishNotificationEvent(userId, "notification.badge", {
+      unreadCount: count,
     });
   }
 
-  /**
-   * Публикует SSE-событие в поток конкретного пользователя.
-   *
-   * Если пользователь не подключен к SSE,
-   * событие просто не отправляется.
-   *
-   * @param userId - UUID пользователя.
-   * @param event - SSE-событие.
-   */
-  private emit(userId: string, event: MessageEvent): void {
-    this.streams.get(userId)?.next(event);
+  private async publishNotificationEvent(
+    userId: string,
+    type: string,
+    data: unknown,
+  ): Promise<void> {
+    await this.redis.xadd(
+      this.getNotificationStreamKey(userId),
+      type,
+      data,
+      this.notificationStreamMaxLength,
+      this.notificationStreamTtlSeconds,
+    );
+  }
+
+  private async invalidateCache(userId: string): Promise<void> {
+    const notificationKeys = await this.redis.scanKeys(
+      `notifications:${userId}:page:*`,
+    );
+
+    await Promise.all([
+      ...notificationKeys.map((key) => this.redis.delete(key)),
+
+      this.redis.delete(this.getUnreadCountCacheKey(userId)),
+    ]);
+  }
+
+  private getNotificationsCacheKey(
+    userId: string,
+    page: number,
+    limit: number,
+  ): string {
+    return `notifications:${userId}:page:${page}:limit:${limit}`;
+  }
+
+  private getUnreadCountCacheKey(userId: string): string {
+    return `notifications:${userId}:unread-count`;
+  }
+
+  private getNotificationStreamKey(userId: string): string {
+    return `user:${userId}:notifications`;
   }
 }

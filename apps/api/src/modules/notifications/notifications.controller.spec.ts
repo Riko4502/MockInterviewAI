@@ -1,6 +1,3 @@
-import type { MessageEvent } from "@nestjs/common";
-import type { Observable } from "rxjs";
-
 import { NotificationsController } from "./notifications.controller";
 import type { NotificationsService } from "./notifications.service";
 
@@ -8,7 +5,6 @@ describe("NotificationsController", () => {
   let notificationsServiceMock: {
     getNotifications: jest.Mock;
     getUnreadCount: jest.Mock;
-    getStream: jest.Mock;
     markAsRead: jest.Mock;
     markAsDeleted: jest.Mock;
   };
@@ -16,26 +12,38 @@ describe("NotificationsController", () => {
   let controller: NotificationsController;
 
   const userId = "11111111-1111-4111-a111-111111111111";
+
   const notificationId = "22222222-2222-4222-a222-222222222222";
 
   const mockNotification = {
     id: notificationId,
     userId,
-    type: "INTERVIEW",
+    category: "INTERVIEW",
     title: "Новое уведомление",
     message: "Тестовое уведомление",
+    actionUrl: "/interviews/123",
     readAt: null,
     deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
+  const paginatedNotifications = {
+    items: [mockNotification],
+    page: 1,
+    limit: 20,
+    total: 1,
+    totalPages: 1,
+  };
+
   beforeEach(() => {
     notificationsServiceMock = {
-      getNotifications: jest.fn().mockResolvedValue([mockNotification]),
+      getNotifications: jest.fn().mockResolvedValue(paginatedNotifications),
+
       getUnreadCount: jest.fn().mockResolvedValue({ count: 1 }),
-      getStream: jest.fn(),
+
       markAsRead: jest.fn().mockResolvedValue({ success: true }),
+
       markAsDeleted: jest.fn().mockResolvedValue({ success: true }),
     };
 
@@ -44,14 +52,19 @@ describe("NotificationsController", () => {
     );
   });
 
-  it("getNotifications возвращает уведомления текущего пользователя", async () => {
-    const result = await controller.getNotifications(userId);
+  it("getNotifications возвращает пагинированные уведомления текущего пользователя", async () => {
+    const page = 1;
+    const limit = 20;
+
+    const result = await controller.getNotifications(userId, page, limit);
 
     expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
       userId,
+      page,
+      limit,
     );
 
-    expect(result).toEqual([mockNotification]);
+    expect(result).toEqual(paginatedNotifications);
   });
 
   it("getUnreadCount возвращает количество непрочитанных уведомлений", async () => {
@@ -61,19 +74,9 @@ describe("NotificationsController", () => {
       userId,
     );
 
-    expect(result).toEqual({ count: 1 });
-  });
-
-  it("stream возвращает SSE поток текущего пользователя", () => {
-    const streamMock = {} as Observable<MessageEvent>;
-
-    notificationsServiceMock.getStream.mockReturnValue(streamMock);
-
-    const result = controller.stream(userId);
-
-    expect(notificationsServiceMock.getStream).toHaveBeenCalledWith(userId);
-
-    expect(result).toBe(streamMock);
+    expect(result).toEqual({
+      count: 1,
+    });
   });
 
   it("markAsRead помечает уведомление прочитанным", async () => {
@@ -84,7 +87,9 @@ describe("NotificationsController", () => {
       notificationId,
     );
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+    });
   });
 
   it("markAsDeleted помечает уведомление удаленным", async () => {
@@ -95,6 +100,8 @@ describe("NotificationsController", () => {
       notificationId,
     );
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+    });
   });
 });
