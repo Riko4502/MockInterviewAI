@@ -1,0 +1,24 @@
+{
+  "name": "@packages/types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --no-errors-on-unmatched"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.2",
+    "typescript": "^5"
+  }
+}

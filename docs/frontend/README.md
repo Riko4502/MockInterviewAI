@@ -45,6 +45,7 @@
 
 ### 2. [UI и дизайн-система](./ui/ui-kit.md)
 * [UI Kit & shadcn/ui](./ui/ui-kit.md)
+* [Редактор кода (Monaco Editor)](./ui/editor.md)
 * [Стилизация и Tailwind CSS](./ui/styling.md)
 * [Storybook стандарты](./ui/storybook.md)
 
