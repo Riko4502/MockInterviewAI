@@ -3,3 +3,64 @@
 @import "@packages/ui/globals.css";
 /* Пакет иконок */
 @import "@packages/icons/globals.css";
+
+@keyframes float-1 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(40px, -40px) scale(1.12);
+  }
+  66% {
+    transform: translate(-30px, 30px) scale(0.92);
+  }
+}
+
+@keyframes float-2 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(-50px, -40px) scale(1.18) rotate(180deg);
+  }
+}
+
+@keyframes float-3 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(50px, 50px) scale(1.1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.15);
+  }
+}
+
+.animate-blob-1 {
+  animation: float-1 16s ease-in-out infinite;
+}
+
+.animate-blob-2 {
+  animation: float-2 22s ease-in-out infinite;
+}
+
+.animate-blob-3 {
+  animation: float-3 18s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 7s ease-in-out infinite;
+}

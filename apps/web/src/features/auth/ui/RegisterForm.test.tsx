@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
+import { paths } from "@/shared/config";
 import { RegisterForm } from "./RegisterForm";
 
 const replaceMock = vi.fn();
@@ -114,7 +115,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     });
 
     // Проверяем навигацию через router.replace
-    expect(replaceMock).toHaveBeenCalledWith("/");
+    expect(replaceMock).toHaveBeenCalledWith(paths.dashboard);
   });
 
   it("error path: ошибка API (409 Conflict) в baseFetch пробрасывается в mutation и не сохраняет токен", async () => {

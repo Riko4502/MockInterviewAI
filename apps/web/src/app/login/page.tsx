@@ -1,18 +1,25 @@
-import { Logo, Typography } from "@packages/ui";
+import Link from "next/link";
 import { LoginForm } from "@/features/auth";
+import { paths } from "@/shared/config";
+import { AuthCard } from "@/widgets/auth-card";
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4">
-      <div className="mb-6 flex justify-center">
-        <Logo href="/" variant="full" size="lg" />
-      </div>
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm">
-        <Typography.H1 className="mb-6 text-center text-2xl font-semibold text-foreground">
-          Авторизация
-        </Typography.H1>
-        <LoginForm />
-      </div>
-    </main>
+    <AuthCard
+      title="Авторизация"
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Нет аккаунта?{" "}
+          <Link
+            href={paths.register}
+            className="font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+          >
+            Зарегистрироваться
+          </Link>
+        </p>
+      }
+    >
+      <LoginForm />
+    </AuthCard>
   );
 }

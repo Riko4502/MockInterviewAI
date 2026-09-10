@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { paths } from "./shared/config";
 
 export function proxy(request: NextRequest) {
   const refreshToken = request.cookies.get("refresh_token");
 
   if (!refreshToken) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL(paths.login, request.url);
 
     loginUrl.searchParams.set("returnTo", request.nextUrl.pathname);
 

@@ -7,6 +7,7 @@ import { Button, Field, Input } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
+import { paths } from "@/shared/config";
 import type { LoginFormValues } from "../lib/schemas";
 
 export function LoginForm() {
@@ -17,7 +18,7 @@ export function LoginForm() {
     mutation: {
       onSuccess: (data) => {
         startSession(data.accessToken);
-        router.replace("/");
+        router.replace(paths.dashboard);
       },
     },
   });

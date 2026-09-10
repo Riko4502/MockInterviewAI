@@ -7,6 +7,7 @@ import { Button, Field, Input, Typography } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
+import { paths } from "@/shared/config";
 import type { RegisterFormValues } from "../lib/schemas";
 
 export function RegisterForm() {
@@ -18,7 +19,7 @@ export function RegisterForm() {
     mutation: {
       onSuccess: (data) => {
         startSession(data.accessToken);
-        router.replace("/");
+        router.replace(paths.dashboard);
       },
     },
   });

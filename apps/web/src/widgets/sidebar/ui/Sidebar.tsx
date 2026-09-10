@@ -11,28 +11,29 @@ import { Logo } from "@packages/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
+import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 
 const NAV_ITEMS = [
-  { labelKey: "navigation.dashboard", href: "/dashboard", icon: HelpIcon },
+  { labelKey: "navigation.dashboard", href: paths.dashboard, icon: HelpIcon },
   {
     labelKey: "navigation.interviews",
-    href: "/dashboard/interviews",
+    href: paths.interviews,
     icon: CodeIcon,
   },
   {
     labelKey: "navigation.findPartners",
-    href: "/dashboard/partners",
+    href: paths.partners,
     icon: UsersIcon,
   },
   {
     labelKey: "navigation.statistics",
-    href: "/dashboard/statistics",
+    href: paths.statistics,
     icon: TrendUpIcon,
   },
   {
     labelKey: "navigation.resources",
-    href: "/dashboard/resources",
+    href: paths.resources,
     icon: BookIcon,
   },
 ] as const;
@@ -44,7 +45,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-2 px-6">
-        <Logo href="/dashboard" variant="full" size="md" />
+        <Logo href={paths.dashboard} variant="full" size="md" />
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
