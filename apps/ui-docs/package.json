@@ -17,6 +17,7 @@
     "@packages/utils": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
+    "@packages/editor": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
