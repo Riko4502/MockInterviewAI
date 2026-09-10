@@ -1,26 +1,18 @@
+export type DialogName =
+  | "profile"
+  | "setting_profile"
+  | "setting_menu"
+  | "confirm-delete";
+
 export interface DialogEntry {
-  name: string;
+  name: DialogName;
   payload?: unknown;
 }
 
-export interface DialogContextValue {
-  stack: DialogEntry[];
-  open: (name: string, payload?: unknown) => void;
-  close: (name: string) => void;
-  allClose: () => void;
-}
-
 export interface DialogController {
-  open: (name: string, payload?: unknown) => void;
-  close: (name: string) => void;
+  open: <T = unknown>(name: DialogName, payload?: T) => void;
+  close: (name: DialogName) => void;
   allClose: () => void;
-}
-
-export interface DialogState<T> {
-  isOpen: boolean;
-  isTop: boolean;
-  payload: T | undefined;
-  open: (data?: T) => void;
-  close: () => void;
-  allClose: () => void;
+  get: <T = unknown>(name: DialogName) => T | undefined;
+  isOpen: (name: DialogName) => boolean;
 }

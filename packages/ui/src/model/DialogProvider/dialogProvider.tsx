@@ -7,18 +7,18 @@ import {
   useContext,
   useState,
 } from "react";
-import type { DialogContextValue, DialogEntry } from "./types";
+import type { DialogController, DialogEntry, DialogName } from "./types";
 
-const DialogContext = createContext<DialogContextValue | null>(null);
+const DialogContext = createContext<DialogController | null>(null);
 
 export function DialogProvider({ children }: PropsWithChildren) {
   const [stack, setStack] = useState<DialogEntry[]>([]);
 
-  const open = useCallback((name: string, payload?: unknown) => {
+  const open = useCallback(function open<T>(name: DialogName, payload?: T) {
     setStack((prev) => [...prev, { name, payload }]);
   }, []);
 
-  const close = useCallback((name: string) => {
+  const close = useCallback((name: DialogName) => {
     setStack((prev) => prev.filter((entry) => entry.name !== name));
   }, []);
 
@@ -26,19 +26,31 @@ export function DialogProvider({ children }: PropsWithChildren) {
     setStack([]);
   }, []);
 
+  const get = useCallback(
+    function get<T>(name: DialogName): T | undefined {
+      return stack.find((entry) => entry.name === name)?.payload as
+        | T
+        | undefined;
+    },
+    [stack],
+  );
+
+  const isOpen = useCallback(
+    (name: DialogName) => stack.some((entry) => entry.name === name),
+    [stack],
+  );
+
   return (
-    <DialogContext.Provider value={{ stack, open, close, allClose }}>
+    <DialogContext.Provider value={{ open, close, allClose, get, isOpen }}>
       {children}
     </DialogContext.Provider>
   );
 }
 
-export function useDialogContext() {
+export function useDialog(): DialogController {
   const ctx = useContext(DialogContext);
   if (!ctx) {
-    throw new Error(
-      "useDialogContext должен использоваться внутри DialogProvider",
-    );
+    throw new Error("useDialog должен использоваться внутри DialogProvider");
   }
   return ctx;
 }
