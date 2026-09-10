@@ -2,6 +2,14 @@ import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import {
+  registerCppCompletion,
+  registerGoCompletion,
+  registerJavaCompletion,
+  registerPythonCompletion,
+  registerRustCompletion,
+  registerSqlCompletion,
+} from "@/languages";
 import { LANGUAGE_CONFIGS } from "@/languages/config";
 import { useRemoteCursors } from "@/multiplayer";
 import { registerThemes } from "@/themes";
@@ -28,8 +36,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   useRemoteCursors(editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
+  // Регистрируем темы и базовые сниппеты/ключевые слова для языков
   const handleBeforeMount = (monaco: Monaco) => {
     registerThemes(monaco);
+    registerSqlCompletion(monaco);
+    registerPythonCompletion(monaco);
+    registerGoCompletion(monaco);
+    registerJavaCompletion(monaco);
+    registerCppCompletion(monaco);
+    registerRustCompletion(monaco);
 
     // Поддержка современного стандарта ESNext
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
