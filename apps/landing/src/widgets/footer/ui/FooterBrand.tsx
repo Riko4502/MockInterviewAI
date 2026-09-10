@@ -1,8 +1,7 @@
 "use client";
 
-import { Badge, Typography } from "@packages/ui";
+import { Badge, Logo, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
-import { Logo } from "@/shared/ui";
 
 export function FooterBrand() {
   const { t, i18n } = useTranslation("landing");

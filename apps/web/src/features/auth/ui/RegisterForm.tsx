@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerRegister } from "@packages/api";
 import { registerSchema } from "@packages/dto";
-import { Button, Field, Input } from "@packages/ui";
+import { Button, Field, Input, Typography } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
@@ -93,9 +93,9 @@ export function RegisterForm() {
       </Button>
 
       {registerMutation.isError && (
-        <p className="text-sm text-destructive">
+        <Typography.P className="text-sm text-destructive">
           Ошибка регистрации. Попробуйте снова.
-        </p>
+        </Typography.P>
       )}
     </form>
   );

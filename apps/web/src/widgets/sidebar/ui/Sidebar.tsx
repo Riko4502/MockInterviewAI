@@ -7,6 +7,7 @@ import {
   TrendUpIcon,
   UsersIcon,
 } from "@packages/icons";
+import { Logo } from "@packages/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -43,9 +44,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-2 px-6">
-        <span className="text-lg font-bold text-sidebar-primary">
-          {t("appName")}
-        </span>
+        <Logo href="/dashboard" variant="full" size="md" />
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
