@@ -2,12 +2,11 @@
 
 import { type Locale, langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
-import { Button } from "@packages/ui";
+import { Button, Logo } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
-import { Logo } from "@/shared/ui";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
 import { ScrollProgressBar } from "./ScrollProgressBar";

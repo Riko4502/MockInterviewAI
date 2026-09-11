@@ -1,9 +1,9 @@
 import { messages } from "@packages/i18n";
 import type { Metadata } from "next";
-import { envConfig } from "@/shared/config/env";
+import { getSiteUrl } from "@/shared/config/env";
 import { LandingPage } from "@/views/landing";
 
-const baseUrl = envConfig.siteUrl;
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: messages.ru.landing.site.title,

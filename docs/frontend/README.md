@@ -38,8 +38,10 @@
 * [Обзор архитектуры](./architecture/overview.md)
 * [Feature-Sliced Design (FSD)](./architecture/fsd.md)
 * [Next.js App Router интеграция](./architecture/nextjs.md)
+* [Маршрутизация и защита маршрутов (AuthBoundary)](./architecture/auth-routing.md)
 * [Landing Architecture (Next.js)](./architecture/landing.md)
 * [Интернационализация (i18n)](./i18n.md)
+
 
 ### 2. [UI и дизайн-система](./ui/ui-kit.md)
 * [UI Kit & shadcn/ui](./ui/ui-kit.md)

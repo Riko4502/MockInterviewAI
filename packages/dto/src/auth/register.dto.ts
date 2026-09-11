@@ -45,11 +45,9 @@ export const registerSchema = z
   .refine((data) => data.password === data.passwordConfirmation, {
     message: "Пароли не совпадают",
     path: ["passwordConfirmation"],
-  })
-  .transform((data) => ({
-    email: data.email,
-    password: data.password,
-  }));
+  });
 
-/** Типизированный DTO регистрации: `passwordConfirmation` в результат не попадает. */
+/**
+ * Данные после валидации
+ */
 export type RegisterDto = z.infer<typeof registerSchema>;

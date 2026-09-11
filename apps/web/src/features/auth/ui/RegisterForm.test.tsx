@@ -1,12 +1,20 @@
+import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
+import { paths } from "@/shared/config";
 import { RegisterForm } from "./RegisterForm";
 
-// Мокаем useSession
+const replaceMock = vi.fn();
 const startSessionMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+}));
 
 vi.mock("@/entities/session", () => ({
   useSession: () => ({
@@ -46,33 +54,14 @@ function renderRegisterForm() {
 }
 
 describe("RegisterForm Integration Flow (T032)", () => {
-  const originalLocation = window.location;
-
   beforeEach(() => {
     resetApiTransportState();
     initApiTransport();
     vi.clearAllMocks();
-    sessionStorage.clear();
-
-    // Мокируем window.location.href для проверки навигации в jsdom
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        ...originalLocation,
-        href: "http://localhost/register",
-      },
-      writable: true,
-    });
   });
 
   afterEach(() => {
     resetApiTransportState();
-    sessionStorage.clear();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: originalLocation,
-      writable: true,
-    });
   });
 
   it("успешный flow: useAuthControllerRegister -> customInstance -> web transport -> baseFetch -> startSession -> redirect", async () => {
@@ -84,7 +73,9 @@ describe("RegisterForm Integration Flow (T032)", () => {
 
     const emailInput = screen.getByLabelText("Email");
     const passwordInput = screen.getByLabelText("Пароль");
-    const confirmPasswordInput = screen.getByLabelText("Подтверждение пароля");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
     const submitButton = screen.getByRole("button", {
       name: /зарегистрироваться/i,
     });
@@ -95,7 +86,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     fireEvent.change(passwordInput, {
       target: { value: "StrongPassword123!" },
     });
-    fireEvent.change(confirmPasswordInput, {
+    fireEvent.change(passwordConfirmationInput, {
       target: { value: "StrongPassword123!" },
     });
     fireEvent.click(submitButton);
@@ -123,8 +114,8 @@ describe("RegisterForm Integration Flow (T032)", () => {
       );
     });
 
-    // Проверяем навигацию на главную страницу
-    expect(window.location.href).toBe("/");
+    // Проверяем навигацию через router.replace
+    expect(replaceMock).toHaveBeenCalledWith(paths.dashboard);
   });
 
   it("error path: ошибка API (409 Conflict) в baseFetch пробрасывается в mutation и не сохраняет токен", async () => {
@@ -136,7 +127,9 @@ describe("RegisterForm Integration Flow (T032)", () => {
 
     const emailInput = screen.getByLabelText("Email");
     const passwordInput = screen.getByLabelText("Пароль");
-    const confirmPasswordInput = screen.getByLabelText("Подтверждение пароля");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
     const submitButton = screen.getByRole("button", {
       name: /зарегистрироваться/i,
     });
@@ -147,7 +140,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     fireEvent.change(passwordInput, {
       target: { value: "StrongPassword123!" },
     });
-    fireEvent.change(confirmPasswordInput, {
+    fireEvent.change(passwordConfirmationInput, {
       target: { value: "StrongPassword123!" },
     });
     fireEvent.click(submitButton);
@@ -159,6 +152,172 @@ describe("RegisterForm Integration Flow (T032)", () => {
     // startSession не должен быть вызван
     expect(startSessionMock).not.toHaveBeenCalled();
     // Навигация не должна произойти
-    expect(window.location.href).not.toBe("/");
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("validation: блокирует отправку и показывает ошибку при пароле ровно 11 символов", async () => {
+    renderRegisterForm();
+
+    const emailInput = screen.getByLabelText("Email");
+    const passwordInput = screen.getByLabelText("Пароль");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: /зарегистрироваться/i,
+    });
+
+    fireEvent.change(emailInput, {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(passwordInput, {
+      target: { value: "12345678901" }, // 11 chars
+    });
+    fireEvent.change(passwordConfirmationInput, {
+      target: { value: "12345678901" },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Пароль должен содержать минимум 12 символов"),
+      ).toBeInTheDocument();
+    });
+
+    expect(baseFetch).not.toHaveBeenCalled();
+  });
+
+  it("validation: разрешает отправку при пароле ровно 12 символов", async () => {
+    vi.mocked(baseFetch).mockResolvedValueOnce({
+      accessToken: "mock-access-token-12-chars",
+    });
+
+    renderRegisterForm();
+
+    const emailInput = screen.getByLabelText("Email");
+    const passwordInput = screen.getByLabelText("Пароль");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: /зарегистрироваться/i,
+    });
+
+    fireEvent.change(emailInput, {
+      target: { value: "boundary@example.com" },
+    });
+    fireEvent.change(passwordInput, {
+      target: { value: "123456789012" }, // 12 chars
+    });
+    fireEvent.change(passwordConfirmationInput, {
+      target: { value: "123456789012" },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(baseFetch).toHaveBeenCalledTimes(1);
+    });
+
+    expect(baseFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "boundary@example.com",
+          password: "123456789012",
+          passwordConfirmation: "123456789012",
+        }),
+      }),
+    );
+  });
+
+  it("validation: блокирует отправку при некорректном формате email", async () => {
+    renderRegisterForm();
+
+    const emailInput = screen.getByLabelText("Email");
+    const passwordInput = screen.getByLabelText("Пароль");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: /зарегистрироваться/i,
+    });
+
+    fireEvent.change(emailInput, {
+      target: { value: "not-an-email" },
+    });
+    fireEvent.change(passwordInput, {
+      target: { value: "Password12345!" },
+    });
+    fireEvent.change(passwordConfirmationInput, {
+      target: { value: "Password12345!" },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Некорректный email")).toBeInTheDocument();
+    });
+
+    expect(baseFetch).not.toHaveBeenCalled();
+  });
+
+  it("validation: блокирует отправку при пустом email", async () => {
+    renderRegisterForm();
+
+    const emailInput = screen.getByLabelText("Email");
+    const passwordInput = screen.getByLabelText("Пароль");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: /зарегистрироваться/i,
+    });
+
+    fireEvent.change(emailInput, {
+      target: { value: "" },
+    });
+    fireEvent.change(passwordInput, {
+      target: { value: "Password12345!" },
+    });
+    fireEvent.change(passwordConfirmationInput, {
+      target: { value: "Password12345!" },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Email обязателен")).toBeInTheDocument();
+    });
+
+    expect(baseFetch).not.toHaveBeenCalled();
+  });
+
+  it("validation: блокирует отправку и показывает ошибку при несовпадении паролей", async () => {
+    renderRegisterForm();
+
+    const emailInput = screen.getByLabelText("Email");
+    const passwordInput = screen.getByLabelText("Пароль");
+    const passwordConfirmationInput = screen.getByLabelText(
+      "Подтверждение пароля",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: /зарегистрироваться/i,
+    });
+
+    fireEvent.change(emailInput, {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(passwordInput, {
+      target: { value: "Password12345!" }, // 14 chars >= 12
+    });
+    fireEvent.change(passwordConfirmationInput, {
+      target: { value: "Mismatch12345!" },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Пароли не совпадают")).toBeInTheDocument();
+    });
+
+    expect(baseFetch).not.toHaveBeenCalled();
   });
 });

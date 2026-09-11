@@ -16,6 +16,7 @@ export * from "./InputGroup";
 export * from "./Kbd";
 export * from "./Label";
 export * from "./Link";
+export * from "./Logo";
 export * from "./Pagination";
 export * from "./Progress";
 export * from "./Select";
