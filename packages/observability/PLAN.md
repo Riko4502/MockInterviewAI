@@ -15,7 +15,7 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 2 | Sentry в `apps/api` + `prom-client` `/metrics` (в т.ч. in-app Redis) | api | P0 | ✅ сделано |
 | 3 | Sentry в `apps/web` + source maps | web | P0 | ✅ сделано |
 | 4 | Sentry в `apps/realtime` (Go SDK) | realtime | P0 | ✅ сделано |
-| 5 | Sentry в `apps/landing` | landing | P1 | ⏳ |
+| 5 | Sentry в `apps/landing` | landing | P1 | ✅ сделано: `sentry.client.config.ts`, `withSentryConfig` в `next.config.ts` (guard по `SENTRY_DSN`), клиентская инициализация через `NEXT_PUBLIC_SENTRY_DSN` |
 | 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ⏳ |
 | 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ⏳ |
 | 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | ✅ сделано: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` (realtime), api-часть — в шаге 2 |
@@ -81,6 +81,13 @@ GRAFANA_ADMIN_PASSWORD=
 ---
 
 ## Изменения
+
+### 0.5.0 — 2026-09-11
+- Шаг 5 выполнен: Sentry в `apps/landing` — `sentry.client.config.ts` +
+  `withSentryConfig` в `next.config.ts` (guard по `SENTRY_DSN`), зависимости
+  `@packages/observability` + `@sentry/nextjs`. Статический export — только
+  клиентская инициализация через `NEXT_PUBLIC_SENTRY_DSN`.
+- Верификация: `tsc --noEmit`, `biome check`, `next build` (с DSN и без) — чисто.
 
 ### 0.4.0 — 2026-09-11
 - Шаг 8 выполнен: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total`
