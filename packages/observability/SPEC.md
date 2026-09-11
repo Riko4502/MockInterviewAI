@@ -1,6 +1,6 @@
 # Spec: Observability Package
 
-**Версия:** 0.4.0
+**Версия:** 0.5.0
 
 ## 1. Цель
 
@@ -98,8 +98,14 @@ packages/observability/
 ### 5.2 apps/web и apps/landing (Next.js)
 
 - `@sentry/nextjs`.
-- `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`.
-- `next.config.ts` оборачивается в `withSentryConfig`.
+- **apps/web** (standalone SSR): `sentry.client.config.ts`,
+  `sentry.server.config.ts`, `sentry.edge.config.ts`, `next.config.ts`
+  оборачивается в `withSentryConfig`.
+- **apps/landing** (`output: "export"`, статический лендинг): только клиентская
+  инициализация `sentry.client.config.ts` через
+  `NEXT_PUBLIC_SENTRY_DSN`; серверного/edge рантайма нет. `next.config.ts`
+  оборачивается в `withSentryConfig` — только build-плагин (source maps,
+  upload), guard по `SENTRY_DSN` (без DSN конфиг не оборачивается).
 - Source Maps: `SENTRY_AUTH_TOKEN` + script `sentry:sourcemaps` после
   `next build`.
 
@@ -201,6 +207,12 @@ infra/
 ---
 
 ## Изменения
+
+### 0.5.0 — 2026-09-11
+- Шаг 5 реализован: Sentry в `apps/landing` (статические) — только клиентская
+  инициализация через `NEXT_PUBLIC_SENTRY_DSN`, `withSentryConfig` в
+  `next.config.ts` (guard по `SENTRY_DSN`); §5.2 уточнён.
+- Шаг 12 реализован: единый `.env.example` дополнен Sentry/Grafana-блоками.
 
 ### 0.4.0 — 2026-09-11
 - Шаги 8–9 PLAN реализованы: `redis_pool_*` (снимок `PoolStats()`),
