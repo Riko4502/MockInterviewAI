@@ -1,6 +1,6 @@
 # Plan: Observability Package
 
-**Версия:** 0.4.0
+**Версия:** 0.5.0
 
 ## 1. Текущая цель
 
@@ -22,7 +22,7 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds` + gauge `realtime_sse_stream_backlog_entries` и гистограмма `realtime_sse_poll_batch_entries` |
 | 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ⏳ |
 | 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ⏳ |
-| 12 | `.env.example` + docs | shared | P2 | 🟡 частично: `.env.example` realtime дополнен, общий — ⏳ |
+| 12 | `.env.example` + docs | shared | P2 | ✅ сделано: единый `.env.example` дополнен Sentry/Grafana, SPEC/PLAN актуализированы |
 
 **Phase 1 (P0, шаги 1–4) — завершена 2026-09-11.** Дальше по шагам 6–12
 останавливаемся до подтверждения.
@@ -87,6 +87,7 @@ GRAFANA_ADMIN_PASSWORD=
   `withSentryConfig` в `next.config.ts` (guard по `SENTRY_DSN`), зависимости
   `@packages/observability` + `@sentry/nextjs`. Статический export — только
   клиентская инициализация через `NEXT_PUBLIC_SENTRY_DSN`.
+- Шаг 12 выполнен: единый `.env.example` дополнен Sentry/Grafana-блоками.
 - Верификация: `tsc --noEmit`, `biome check`, `next build` (с DSN и без) — чисто.
 
 ### 0.4.0 — 2026-09-11
