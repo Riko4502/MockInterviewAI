@@ -23,6 +23,8 @@ export * from "./Pagination";
 export * from "./Progress";
 export * from "./Select";
 export * from "./Separator";
+export * from "./Sheet";
+export * from "./Sidebar";
 export * from "./Skeleton";
 export * from "./Spin";
 export * from "./Switch";
