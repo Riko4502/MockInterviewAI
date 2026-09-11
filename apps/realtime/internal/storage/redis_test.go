@@ -1,6 +1,9 @@
 package storage
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // TestRedactRedisAddr закрывает регрессию: строка подключения писалась в лог
 // как есть, из-за чего пароль из REDIS_URL уезжал в агрегатор логов на уровне INFO.
@@ -44,4 +47,42 @@ func TestRedactRedisAddr(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPoolStatsDisabledReturnsNil закрывает регрессию: без клиента Redis
+// (disabled-режим) пула не существует, и метрики экспортируются без него.
+func TestPoolStatsDisabledReturnsNil(t *testing.T) {
+	store := &RedisStore{}
+	if ps := store.PoolStats(); ps != nil {
+		t.Errorf("PoolStats on disabled store must be nil, got %+v", ps)
+	}
+}
+
+// TestObservePubSubLag проверяет, что наблюдатель вызывается только на
+// сообщениях с проставленной меткой времени и только с неотрицательной задержкой.
+func TestObservePubSubLag(t *testing.T) {
+	var got []float64
+	store := &RedisStore{}
+	store.SetPubSubLagObserver(func(seconds float64) { got = append(got, seconds) })
+
+	// Сообщение без метки времени (старый продюсер) — не замеряем.
+	store.observePubSubLag(0)
+	if len(got) != 0 {
+		t.Fatalf("sentAt=0 must not produce a measurement, got %v", got)
+	}
+
+	// Метка в будущем (clock skew) — отрицательную задержку отбрасываем.
+	store.observePubSubLag(time.Now().Add(time.Hour).UnixMilli())
+	if len(got) != 0 {
+		t.Fatalf("negative lag must be dropped, got %v", got)
+	}
+
+	store.observePubSubLag(time.Now().Add(-time.Millisecond).UnixMilli())
+	if len(got) != 1 || got[0] <= 0 {
+		t.Fatalf("expected one positive lag measurement, got %v", got)
+	}
+
+	// Nil-наблюдатель не должен ронять замеры.
+	store.SetPubSubLagObserver(nil)
+	store.observePubSubLag(time.Now().UnixMilli())
 }

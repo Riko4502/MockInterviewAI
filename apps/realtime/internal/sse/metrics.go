@@ -34,6 +34,10 @@ var latencyBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5,
 // durationBuckets — границы гистограммы длительности удержания SSE-сессии в секундах.
 var durationBuckets = []float64{1, 5, 15, 30, 60, 300, 900, 1800, 3600, 7200, 21600}
 
+// pollBuckets — границы гистограммы числа событий, доставленных за один XREAD-поллинг.
+// Значение больше 1 означает, что ридер отставал и догнал часть накопленного хвоста стрима.
+var pollBuckets = []float64{1, 2, 5, 10, 20, 50, 100, 250, 500, 1000}
+
 // Metrics агрегирует SRE-метрики SSE-подсистемы (см. SSE_SPEC.md, раздел 8).
 //
 // Счетчики реализованы без клиентской библиотеки Prometheus: экспорт выполняется
@@ -45,6 +49,7 @@ type Metrics struct {
 	activeUsers         atomic.Int64
 	connectionsSuccess  atomic.Int64
 	connectionsRejected atomic.Int64
+	streamBacklog       atomic.Int64
 
 	mu         sync.Mutex
 	dispatched map[string]int64
@@ -52,6 +57,7 @@ type Metrics struct {
 
 	streamLag       *histogram
 	sessionDuration *histogram
+	pollBatch       *histogram
 }
 
 // NewMetrics создает набор метрик, помеченных идентификатором текущей ноды.
@@ -66,6 +72,7 @@ func NewMetrics(nodeID string) *Metrics {
 		dropped:         make(map[string]int64),
 		streamLag:       newHistogram(latencyBuckets),
 		sessionDuration: newHistogram(durationBuckets),
+		pollBatch:       newHistogram(pollBuckets),
 	}
 }
 
@@ -119,6 +126,24 @@ func (m *Metrics) ObserveSessionDuration(seconds float64) {
 	m.sessionDuration.observe(seconds)
 }
 
+// ObservePollBatch учитывает пачку событий, прочитанную одним XREAD-поллингом.
+// gauge streamBacklog приближенно оценивает «длину» невычитанного хвоста
+// персональных стримов на ноде: за каждый поллинг добавляется (batch-1)
+// невостребованных событий, когда ридер догоняет накопленные события.
+func (m *Metrics) ObservePollBatch(batch int) {
+	if batch <= 0 {
+		return
+	}
+
+	m.streamBacklog.Add(int64(batch - 1))
+	m.pollBatch.observe(float64(batch))
+}
+
+// StreamBacklog возвращает текущее значение gauge невычитанного хвоста стримов.
+func (m *Metrics) StreamBacklog() int {
+	return int(m.streamBacklog.Load())
+}
+
 // ConnectedClients возвращает текущее число активных SSE-клиентов на ноде.
 func (m *Metrics) ConnectedClients() int {
 	return int(m.connectedClients.Load())
@@ -141,6 +166,10 @@ func (m *Metrics) WritePrometheus(w io.Writer) {
 	writeGauge(&buf, "realtime_sse_active_users",
 		"Number of unique users with at least one open SSE stream",
 		`node_id="`+node+`"`, m.activeUsers.Load())
+
+	writeGauge(&buf, "realtime_sse_stream_backlog_entries",
+		"Approximate number of unread events in user notification streams (sum of poll batch excess)",
+		`node_id="`+node+`"`, m.streamBacklog.Load())
 
 	buf.WriteString("# HELP realtime_sse_connections_total Total number of SSE connection attempts\n")
 	buf.WriteString("# TYPE realtime_sse_connections_total counter\n")
@@ -174,6 +203,10 @@ func (m *Metrics) WritePrometheus(w io.Writer) {
 
 	m.sessionDuration.write(&buf, "realtime_sse_session_duration_seconds",
 		"How long clients keep an SSE connection open",
+		`node_id="`+node+`"`)
+
+	m.pollBatch.write(&buf, "realtime_sse_poll_batch_entries",
+		"Number of events delivered by a single notification stream XREAD poll",
 		`node_id="`+node+`"`)
 
 	_, _ = io.WriteString(w, buf.String())

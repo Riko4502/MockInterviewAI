@@ -1,6 +1,6 @@
 # Plan: Observability Package
 
-**Версия:** 0.3.0
+**Версия:** 0.4.0
 
 ## 1. Текущая цель
 
@@ -18,8 +18,8 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 5 | Sentry в `apps/landing` | landing | P1 | ⏳ |
 | 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ⏳ |
 | 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ⏳ |
-| 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | 🟡 частично: api-часть сделана в шаге 2, `PoolStats` realtime — ⏳ |
-| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ⏳ |
+| 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | ✅ сделано: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` (realtime), api-часть — в шаге 2 |
+| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds` + gauge `realtime_sse_stream_backlog_entries` и гистограмма `realtime_sse_poll_batch_entries` |
 | 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ⏳ |
 | 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ⏳ |
 | 12 | `.env.example` + docs | shared | P2 | 🟡 частично: `.env.example` realtime дополнен, общий — ⏳ |
@@ -81,6 +81,14 @@ GRAFANA_ADMIN_PASSWORD=
 ---
 
 ## Изменения
+
+### 0.4.0 — 2026-09-11
+- Шаг 8 выполнен: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total`
+  (снимок `PoolStats()` go-redis на скрейпе `/metrics`, disabled-пул не экспортируется).
+- Шаг 9 выполнен: `realtime_ws_pubsub_lag_seconds` (histogram по метке `sentAt`
+  в `PubSubMessage`), `realtime_sse_stream_backlog_entries` (gauge) +
+  `realtime_sse_poll_batch_entries` (histogram).
+- Метрики добавлены в `dashboards/realtime-sse.json` (WS lag, pool, stream backlog).
 
 ### 0.3.0 — 2026-09-11
 - **Phase 1 (шаги 1–4) реализована:** scaffolding, Sentry в api/web/realtime,

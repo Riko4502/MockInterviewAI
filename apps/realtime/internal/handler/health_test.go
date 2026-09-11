@@ -155,7 +155,7 @@ func TestMetricsEndpointRejectsExternalPeers(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			metricsHandler := NewMetricsHandler(sseHub, logger, tc.allowPublic)
+			metricsHandler := NewMetricsHandler(sseHub, nil, nil, "test-node", logger, tc.allowPublic)
 
 			req := httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody)
 			req.RemoteAddr = tc.remoteAddr
@@ -185,7 +185,7 @@ func TestMetricsEndpointIgnoresProxyHeaders(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "127.0.0.1")
 
 	rec := httptest.NewRecorder()
-	NewMetricsHandler(sseHub, logger, false).ServeHTTP(rec, req)
+	NewMetricsHandler(sseHub, nil, nil, "test-node", logger, false).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("spoofed X-Forwarded-For must not grant access, got %d", rec.Code)

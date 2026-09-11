@@ -1,6 +1,6 @@
 # Spec: Observability Package
 
-**Версия:** 0.3.0
+**Версия:** 0.4.0
 
 ## 1. Цель
 
@@ -119,7 +119,15 @@ packages/observability/
   скрейпинг.
 - Redis (go-redis): экспорт `PoolStats()` (total/idle/stale/hits/misses —
   критично при `PoolSize=100` из-за блокирующих XREAD в SSE) и литеральные
-  метрики задержки Pub/Sub-релея событий комнат — **планируется (шаг 8/9 PLAN)**.
+  метрики задержки Pub/Sub-релея событий комнат — **реализовано (шаги 8–9 PLAN)**:
+  - `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total`
+    (снимок `PoolStats()` на каждом скрейпе `/metrics`);
+  - `realtime_ws_pubsub_lag_seconds` (histogram) — замер по метке времени
+    `sentAt` внутри `PubSubMessage` между публикацией и приёмом на реплике;
+  - `realtime_sse_stream_backlog_entries` (gauge) — приближённая оценка длины
+    невычитанного хвоста персональных стримов (сумма `batch-1` по XREAD);
+  - `realtime_sse_poll_batch_entries` (histogram) — размер пачек событий,
+    прочитанных одним XREAD-поллингом.
 
 ## 6. Prometheus → Grafana
 
@@ -169,7 +177,7 @@ infra/
 > адаптер PrismaPg не даёт доступа к пулу `pg`. Панели в `api-http.json`
 > остаются без данных.
 
-### Realtime (apps/realtime) — уже реализовано (до Phase 1)
+### Realtime (apps/realtime) — уже реализовано
 - `realtime_sse_connected_clients`
 - `realtime_sse_active_users`
 - `realtime_sse_connections_total`
@@ -177,10 +185,12 @@ infra/
 - `realtime_sse_dropped_messages_total`
 - `realtime_sse_redis_stream_lag_seconds`
 - `realtime_sse_session_duration_seconds`
-
-### Realtime (apps/realtime) — планируется (шаги 8–9 PLAN)
-- `redis_pool_*` — `PoolStats()`: total/idle/stale активные, hits/misses/timeouts
+- `realtime_sse_stream_backlog_entries` — приближённая длина невычитанного
+  хвоста персональных стримов (сумма `batch-1` по XREAD-поллингам)
+- `realtime_sse_poll_batch_entries` — histogram размеров пачек событий за поллинг
 - `realtime_ws_pubsub_lag_seconds` — задержка релея событий комнат через Pub/Sub
+- `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` —
+  снимок `PoolStats()` go-redis
 
 ### Серверный Redis (redis_exporter, шаг 7 PLAN)
 - `used_memory` vs `maxmemory`, `connected_clients` vs `maxclients`
@@ -191,6 +201,12 @@ infra/
 ---
 
 ## Изменения
+
+### 0.4.0 — 2026-09-11
+- Шаги 8–9 PLAN реализованы: `redis_pool_*` (снимок `PoolStats()`),
+  `realtime_ws_pubsub_lag_seconds` (по метке `sentAt` в `PubSubMessage`),
+  `realtime_sse_stream_backlog_entries` + `realtime_sse_poll_batch_entries`
+  (оценка длины хвоста стримов). Метрики добавлены в `realtime-sse.json`.
 
 ### 0.3.0 — 2026-09-11
 - **Phase 1 реализована** (Sentry+PROM в api/web/realtime, пакет заскаффолден):

@@ -13,6 +13,7 @@ type Hub struct {
 	rooms        map[string]*Room
 	broadcaster  storage.Broadcaster
 	sessionStore storage.SessionStore
+	metrics      *Metrics
 	mu           sync.RWMutex
 	logger       *slog.Logger
 	ctx          context.Context
@@ -23,10 +24,17 @@ type Hub struct {
 // NewHub создает центральный реестр комнат с поддержкой межсерверного Broadcaster и SessionStore.
 func NewHub(parentCtx context.Context, broadcaster storage.Broadcaster, sessionStore storage.SessionStore, logger *slog.Logger) *Hub {
 	ctx, cancel := context.WithCancel(parentCtx)
+
+	nodeID := "unknown"
+	if broadcaster != nil {
+		nodeID = broadcaster.InstanceID()
+	}
+
 	hub := &Hub{
 		rooms:        make(map[string]*Room),
 		broadcaster:  broadcaster,
 		sessionStore: sessionStore,
+		metrics:      NewMetrics(nodeID),
 		logger:       logger.With(slog.String("component", "hub")),
 		ctx:          ctx,
 		cancel:       cancel,
@@ -70,6 +78,11 @@ func (h *Hub) EvictFromRoom(sessionID string, userID string, reason string) {
 		return
 	}
 	room.EvictUser(userID, reason)
+}
+
+// Metrics возвращает набор метрик WebSocket-подсистемы.
+func (h *Hub) Metrics() *Metrics {
+	return h.metrics
 }
 
 // GetOrCreateRoom находит существующую комнату или создает новую и запускает ее воркер.
