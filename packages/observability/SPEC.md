@@ -1,6 +1,6 @@
 # Spec: Observability Package
 
-**Версия:** 0.5.0
+**Версия:** 0.6.0
 
 ## 1. Цель
 
@@ -144,30 +144,45 @@ packages/observability/
 
 ## 7. Инфраструктура (Docker Compose prod)
 
-Добавить сервисы в `docker-compose.prod.yml`:
+Инфраструктурные конфиги живут в пакете (`packages/observability/infra`),
+при деплое копируются на сервер вместе с `docker-compose.prod.yml`
+(`deploy-server.yml`, scp). Дашборды не дублируются: источник истины —
+`packages/observability/dashboards/`, provisioning-провайдер читает их из
+смонтированной копии.
 
-- `prometheus` (image `prom/prometheus`) + volume `prometheus-data`.
-- `grafana` (image `grafana/grafana`) + provisioning + volume `grafana-data`.
-- `redis_exporter` (image `prom/redis-exporter`) + `REDIS_ADDR=redis://redis:6379`,
+Сервисы в `docker-compose.prod.yml`:
+
+- `prometheus` (image `prom/prometheus:v2.54.1`) + volume `prometheus_data`,
+  config и alert-правила монтируются из `packages/observability/infra/prometheus/`.
+- `grafana` (image `grafana/grafana:11.1.4`) + provisioning + volume
+  `grafana_data`, порт `3001:3000` (избежали коллизии с web на 3000).
+- `redis_exporter` (image `prom/redis-exporter:v1.61.0`) + `REDIS_ADDR=redis://redis:6379`,
   `REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications`,
   `REDIS_EXPORTER_CHECK_KEYS=session:*:active`, порт `9121`.
-- сеть `monitoring`.
-- порт Grafana `3001:3000` (избежать коллизии с web на 3000).
+- сеть `monitoring` (bridge) для мониторинг-контейнеров.
+- Alert-правила Prometheus (`infra/prometheus/alerting/redis.yml`):
+  `RedisTargetDown`, `RedisStreamLagHigh`, `RedisEvictions`,
+  `RealtimePubSubLagHigh`, `ApiTargetDown`, `RealtimeTargetDown`.
+  Правила оцениваются в Prometheus; Alertmanager нотификация (Telegram) —
+  за рамками этого этапа.
 
 ```
-infra/
-├── prometheus/
-│   └── prometheus.yml
-└── grafana/
-    ├── provisioning/
-    │   ├── datasources/
-    │   │   └── prometheus.yml
-    │   └── dashboards/
-    │       └── default.yml
-    └── dashboards/
-        ├── realtime-sse.json
-        ├── api-http.json
-        └── redis.json
+packages/observability/
+├── infra/
+│   ├── prometheus/
+│   │   ├── prometheus.yml        # scrape: api, realtime, redis
+│   │   └── alerting/
+│   │       └── redis.yml         # alert-правила
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/
+│           │   └── prometheus.yml
+│           └── dashboards/
+│               └── default.yml   # provider → /var/lib/grafana/dashboards
+└── dashboards/
+    ├── realtime-sse.json
+    ├── api-http.json
+    └── redis.json
 ```
 
 ## 8. Метрики
@@ -207,6 +222,12 @@ infra/
 ---
 
 ## Изменения
+
+### 0.6.0 — 2026-09-11
+- Infra-фаза реализована: §7 переписан под `packages/observability/infra/`
+  (prometheus.yml, alerting, grafana provisioning), сервисы в
+  `docker-compose.prod.yml`, scp-шаги в `deploy-server.yml`.
+- Дашборды не дублируются в infra/ — источник истины в `packages/observability/dashboards/`.
 
 ### 0.5.0 — 2026-09-11
 - Шаг 5 реализован: Sentry в `apps/landing` (статические) — только клиентская

@@ -16,16 +16,16 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 3 | Sentry в `apps/web` + source maps | web | P0 | ✅ сделано |
 | 4 | Sentry в `apps/realtime` (Go SDK) | realtime | P0 | ✅ сделано |
 | 5 | Sentry в `apps/landing` | landing | P1 | ✅ сделано: `sentry.client.config.ts`, `withSentryConfig` в `next.config.ts` (guard по `SENTRY_DSN`), клиентская инициализация через `NEXT_PUBLIC_SENTRY_DSN` |
-| 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ⏳ |
-| 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ⏳ |
+| 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ✅ сделано: `infra/` в пакете, сервисы prometheus/grafana/redis_exporter + сеть `monitoring` в `docker-compose.prod.yml`, scp в `deploy-server.yml` |
+| 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ✅ сделано: сервис в compose, job `redis` в prometheus.yml, `REDIS_EXPORTER_CHECK_STREAMS`/`REDIS_EXPORTER_CHECK_KEYS` |
 | 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | ✅ сделано: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` (realtime), api-часть — в шаге 2 |
 | 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds` + gauge `realtime_sse_stream_backlog_entries` и гистограмма `realtime_sse_poll_batch_entries` |
-| 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ⏳ |
-| 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ⏳ |
+| 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ✅ сделано: datasource + file-provisioning, дашборды монтируются из `packages/observability/dashboards/` |
+| 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ✅ сделано: `infra/prometheus/alerting/redis.yml` (target-down, evictions, stream-lag, pubsub-lag); нотификация — вне этапа |
 | 12 | `.env.example` + docs | shared | P2 | ✅ сделано: единый `.env.example` дополнен Sentry/Grafana, SPEC/PLAN актуализированы |
 
-**Phase 1 (P0, шаги 1–4) — завершена 2026-09-11.** Дальше по шагам 6–12
-останавливаемся до подтверждения.
+**Phase 1 (P0, шаги 1–4) — завершена 2026-09-11.**
+**Infra-фаза (шаги 6, 7, 10, 11) — завершена 2026-09-11.**
 
 ## 3. Env-переменные (единый .env.example)
 
@@ -81,6 +81,13 @@ GRAFANA_ADMIN_PASSWORD=
 ---
 
 ## Изменения
+
+### 0.6.0 — 2026-09-11
+- Infra-фаза (шаги 6, 7, 10, 11) реализована: конфиги в `packages/observability/infra/`,
+  сервисы prometheus/grafana/redis_exporter + сеть `monitoring` в compose,
+  file-provisioning Grafana, alert-правила в prometheus/alerting/redis.yml.
+- Дашборды не дублируются: провайдер Grafana читает копию `packages/observability/dashboards/`,
+  scp-шаг в `deploy-server.yml` копирует их на сервер.
 
 ### 0.5.0 — 2026-09-11
 - Шаг 5 выполнен: Sentry в `apps/landing` — `sentry.client.config.ts` +
