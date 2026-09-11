@@ -51,8 +51,11 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/start.sh ./apps/api/start.sh
+RUN chmod +x ./apps/api/start.sh
+
 USER 1001:1001
 
 EXPOSE 3001
 
-CMD ["node", "apps/api/dist/src/main.js"]
+CMD ["./apps/api/start.sh"]
