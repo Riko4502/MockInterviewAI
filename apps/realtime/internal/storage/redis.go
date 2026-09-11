@@ -40,6 +40,12 @@ type SessionStore interface {
 type PubSubMessage struct {
 	InstanceID string `json:"instanceId"`
 	Data       []byte `json:"data"`
+
+	// SentAt — время публикации в Unix-миллисекундах. Используется для
+	// измерения задержки релея событий комнат через Redis Pub/Sub
+	// (метрика realtime_ws_pubsub_lag_seconds). 0 — у старых продюсеров,
+	// в этом случае задержка не измеряется.
+	SentAt int64 `json:"sentAt,omitempty"`
 }
 
 // RevocationMessage описывает сообщение ревокации из канала "auth:revocations"
@@ -85,6 +91,10 @@ type RedisStore struct {
 	instanceID string
 	logger     *slog.Logger
 	enabled    bool
+
+	// onPubSubLag — наблюдатель задержки релея событий комнат через Redis
+	// Pub/Sub (PLAN шаг 9). Устанавливается из main.go и привязан к ws-метрикам.
+	onPubSubLag func(seconds float64)
 }
 
 // NewRedisStore создает подключение к Redis. Если Redis выключен или недоступен, работает в no-op безопасном режиме.
@@ -177,6 +187,58 @@ func (r *RedisStore) InstanceID() string {
 	return r.instanceID
 }
 
+// RedisPoolStats — снимок состояния пула соединений Redis (уплощенная проекция
+// redis.PoolStats). Импорт go-redis для этого в месте экспорта метрик не нужен.
+type RedisPoolStats struct {
+	TotalConns int
+	IdleConns  int
+	StaleConns int
+	Hits       int64
+	Misses     int64
+	Timeouts   int64
+}
+
+// PoolStats возвращает статистику пула соединений клиента Redis. Возвращает nil
+// в disabled-режиме (клиент не создан — пула не существует). Hits/Misses/Timeouts
+// кумулятивны с момента создания клиента, поэтому экспортируются как счетчики.
+func (r *RedisStore) PoolStats() *RedisPoolStats {
+	if !r.Enabled() {
+		return nil
+	}
+
+	ps := r.client.PoolStats()
+	return &RedisPoolStats{
+		TotalConns: int(ps.TotalConns),
+		IdleConns:  int(ps.IdleConns),
+		StaleConns: int(ps.StaleConns),
+		Hits:       int64(ps.Hits),
+		Misses:     int64(ps.Misses),
+		Timeouts:   int64(ps.Timeouts),
+	}
+}
+
+// SetPubSubLagObserver регистрирует наблюдателя задержки релея событий комнат
+// через Redis Pub/Sub. No-op, если регистрируется nil.
+func (r *RedisStore) SetPubSubLagObserver(observe func(seconds float64)) {
+	if observe == nil {
+		return
+	}
+	r.onPubSubLag = observe
+}
+
+// observePubSubLag передает замер задержки наблюдателю, если он зарегистрирован.
+func (r *RedisStore) observePubSubLag(sentAtMillis int64) {
+	if r.onPubSubLag == nil || sentAtMillis <= 0 {
+		return
+	}
+
+	lag := time.Since(time.UnixMilli(sentAtMillis)).Seconds()
+	if lag < 0 {
+		return
+	}
+	r.onPubSubLag(lag)
+}
+
 // Publish публикует событие в канал Redis для всех реплик.
 func (r *RedisStore) Publish(ctx context.Context, sessionID string, data []byte) error {
 	if !r.enabled || r.client == nil {
@@ -186,6 +248,7 @@ func (r *RedisStore) Publish(ctx context.Context, sessionID string, data []byte)
 	payload, err := json.Marshal(PubSubMessage{
 		InstanceID: r.instanceID,
 		Data:       data,
+		SentAt:     time.Now().UnixMilli(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal pubsub message: %w", err)
@@ -231,6 +294,9 @@ func (r *RedisStore) Subscribe(ctx context.Context, sessionID string, onMessage 
 					continue
 				}
 
+				// Замер задержки релея событий комнат через Pub/Sub (PLAN шаг 9).
+				r.observePubSubLag(wrapped.SentAt)
+
 				onMessage(wrapped.Data)
 			}
 		}
@@ -253,6 +319,7 @@ func (r *RedisStore) RevokeUser(ctx context.Context, userID string) error {
 	payload, err := json.Marshal(PubSubMessage{
 		InstanceID: r.instanceID,
 		Data:       []byte(userID),
+		SentAt:     time.Now().UnixMilli(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal revocation message: %w", err)

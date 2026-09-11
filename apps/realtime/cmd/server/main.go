@@ -112,6 +112,9 @@ func run() error {
 		logger,
 	)
 
+	// Замер задержки релея событий комнат через Redis Pub/Sub (PLAN шаг 9)
+	redisStore.SetPubSubLagObserver(hub.Metrics().ObservePubSubLag)
+
 	healthHandler := handler.NewHealthHandler(hub, sseHub, redisStore)
 	wsHandler := handler.NewWebSocketHandler(
 		hub,
@@ -141,7 +144,14 @@ func run() error {
 		cfg.TrustProxyHeaders,
 	)
 
-	metricsHandler := handler.NewMetricsHandler(sseHub, logger, cfg.MetricsAllowPublic)
+	metricsHandler := handler.NewMetricsHandler(
+		sseHub,
+		hub,
+		redisStore,
+		redisStore.InstanceID(),
+		logger,
+		cfg.MetricsAllowPublic,
+	)
 
 	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()
