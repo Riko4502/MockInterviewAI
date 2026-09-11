@@ -1,3 +1,5 @@
+import "./instrument";
+
 import type { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";

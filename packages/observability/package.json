@@ -1,0 +1,54 @@
+{
+  "name": "@packages/observability",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./sentry": {
+      "types": "./dist/sentry/index.d.ts",
+      "default": "./dist/sentry/index.js"
+    },
+    "./prometheus": {
+      "types": "./dist/prometheus/index.d.ts",
+      "default": "./dist/prometheus/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-dashboards.mjs",
+    "lint": "biome check",
+    "format": "biome format --write --no-errors-on-unmatched",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "@sentry/nextjs": "^10.0.0",
+    "@sentry/nestjs": "^10.0.0",
+    "@sentry/profiling-node": "^10.0.0",
+    "prom-client": "^15.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/nextjs": {
+      "optional": true
+    },
+    "@sentry/nestjs": {
+      "optional": true
+    },
+    "@sentry/profiling-node": {
+      "optional": true
+    },
+    "prom-client": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.2",
+    "typescript": "^5"
+  }
+}

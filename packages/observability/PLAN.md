@@ -1,6 +1,6 @@
 # Plan: Observability Package
 
-**Версия:** 0.2.0
+**Версия:** 0.3.0
 
 ## 1. Текущая цель
 
@@ -9,20 +9,23 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 
 ## 2. Порядок реализации
 
-| # | Шаг | Сервис | Приоритет |
-|---|-----|--------|-----------|
-| 1 | Scaffolding `packages/observability` | shared | P0 |
-| 2 | Sentry в `apps/api` + `prom-client` `/metrics` (в т.ч. in-app Redis) | api | P0 |
-| 3 | Sentry в `apps/web` + source maps | web | P0 |
-| 4 | Sentry в `apps/realtime` (Go SDK) | realtime | P0 |
-| 5 | Sentry в `apps/landing` | landing | P1 |
-| 6 | Prometheus config + docker-compose.prod.yml | infra | P0 |
-| 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 |
-| 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 |
-| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 |
-| 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 |
-| 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 |
-| 12 | `.env.example` + docs | shared | P2 |
+| # | Шаг | Сервис | Приоритет | Статус |
+|---|-----|--------|-----------|--------|
+| 1 | Scaffolding `packages/observability` | shared | P0 | ✅ сделано |
+| 2 | Sentry в `apps/api` + `prom-client` `/metrics` (в т.ч. in-app Redis) | api | P0 | ✅ сделано |
+| 3 | Sentry в `apps/web` + source maps | web | P0 | ✅ сделано |
+| 4 | Sentry в `apps/realtime` (Go SDK) | realtime | P0 | ✅ сделано |
+| 5 | Sentry в `apps/landing` | landing | P1 | ⏳ |
+| 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ⏳ |
+| 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ⏳ |
+| 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | 🟡 частично: api-часть сделана в шаге 2, `PoolStats` realtime — ⏳ |
+| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ⏳ |
+| 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ⏳ |
+| 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ⏳ |
+| 12 | `.env.example` + docs | shared | P2 | 🟡 частично: `.env.example` realtime дополнен, общий — ⏳ |
+
+**Phase 1 (P0, шаги 1–4) — завершена 2026-09-11.** Дальше по шагам 6–12
+останавливаемся до подтверждения.
 
 ## 3. Env-переменные (единый .env.example)
 
@@ -57,21 +60,37 @@ GRAFANA_ADMIN_PASSWORD=
 
 ## 6. Открытые вопросы
 
-- [ ] Использовать Sentry Datasource plugin в Grafana для корреляции ошибок
+- [x] Использовать Sentry Datasource plugin в Grafana для корреляции ошибок
       с метриками, или связать через дашборды вручную?
+      **Решение:** ставим plugin (записано в SPEC §3).
 - [ ] Нужен ли единый `GRAFANA_ADMIN_PASSWORD` из секрета, или достаточно
       dev-дефолта?
-- [ ] Копировать дашборды из пакета при деплое, или монтировать напрямую
+- [x] Копировать дашборды из пакета при деплое, или монтировать напрямую
       из репозитория?
+      **Решение:** копировать при деплое (CI-шаг `deploy:observability`),
+      тома не монтируем (записано в SPEC §3).
 - [ ] Переводить ли throttler API на Redis (`ThrottlerStorageRedis`) —
       план откладывает, документировано в `docs/backend/data/redis-caching.md`
       расходятся с фактической in-memory реализацией.
-- [ ] Добавлять ли `--maxmemory-policy allkeys-lru` для прод-Redis вместе с
+- [x] Добавлять ли `--maxmemory-policy allkeys-lru` для прод-Redis вместе с
       alert'ами на эвикцию?
+      **Решение:** отложить до анализа usage-паттернов (записано в SPEC §3).
+- [x] Redis-auth в прод (requirepass): **отложить**; фиксация риска в
+      `SECURITY.md` — открытый долг (записано в SPEC §3).
 
 ---
 
 ## Изменения
+
+### 0.3.0 — 2026-09-11
+- **Phase 1 (шаги 1–4) реализована:** scaffolding, Sentry в api/web/realtime,
+  prom-client `/metrics` в api.
+- Таблица §2 дополнена колонкой «Статус»; неоткрытые вопросы §6 закрыты
+  решениями, новые решения перенесены в SPEC §3.
+- Шаг 12 помечен как частично выполненный (`.env.example` realtime).
+- Верификация Phase 1: `go build`/`go vet`/`go test ./...` (realtime),
+  `nest build` + 281 тест (api), `typecheck`/`lint`/`next build` через turbo
+  (web) — чисто.
 
 ### 0.2.0 — 2026-09-08
 - В порядок реализации добавлены шаги Redis-мониторинга (7–11) с приоритетами

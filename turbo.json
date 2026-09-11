@@ -42,6 +42,11 @@
         "PATH",
         "HOME"
       ]
+    },
+    "deploy:observability": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": ["dist/**"]
     }
   }
 }

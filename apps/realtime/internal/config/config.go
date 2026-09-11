@@ -64,6 +64,12 @@ type Config struct {
 	// AllowAccessFallback разрешает подключение старых клиентов по access-токену
 	// (typ=="access", multi-use). Выключается после перевода всех клиентов на тикеты (P9).
 	AllowAccessFallback bool
+
+	// Sentry конфигурация (ошибко-трекинг, SPEC.md §5.3). Пустой SentryDSN
+	// означает, что Sentry не инициализируется (guard в internal/sentry).
+	SentryDSN         string
+	SentryEnvironment string
+	SentryTracesRate  float64
 }
 
 // Load загружает настройки из переменных окружения и .env файлов.
@@ -177,6 +183,19 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// Sentry: DSN может быть пустым (Sentry просто не инициализируется).
+	sentryDSN := getEnv("SENTRY_DSN", "")
+	sentryTracesRate, err := getEnvFloat("SENTRY_TRACES_SAMPLE_RATE", 0.2)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SENTRY_TRACES_SAMPLE_RATE: %w", err)
+	}
+	if sentryTracesRate < 0 {
+		sentryTracesRate = 0
+	}
+	if sentryTracesRate > 1 {
+		sentryTracesRate = 1
+	}
+
 	return &Config{
 		Port:                   port,
 		Host:                   host,
@@ -212,6 +231,10 @@ func Load() (*Config, error) {
 		AllowAccessFallback:     allowAccessFallback,
 		LiveKitWebhookAPIKey:    liveKitWebhookAPIKey,
 		LiveKitWebhookAPISecret: liveKitWebhookAPISecret,
+
+		SentryDSN:         sentryDSN,
+		SentryEnvironment: env,
+		SentryTracesRate:  sentryTracesRate,
 	}, nil
 }
 
@@ -354,4 +377,12 @@ func getEnvInt(key string, fallback int) (int, error) {
 		return fallback, nil
 	}
 	return strconv.Atoi(strings.TrimSpace(valStr))
+}
+
+func getEnvFloat(key string, fallback float64) (float64, error) {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return fallback, nil
+	}
+	return strconv.ParseFloat(strings.TrimSpace(valStr), 64)
 }

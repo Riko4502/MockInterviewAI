@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org $SENTRY_ORG --project $SENTRY_PROJECT .next/static && sentry-cli sourcemaps upload --org $SENTRY_ORG --project $SENTRY_PROJECT .next/static",
     "analyze": "next build --profile",
     "start": "next start",
     "lint": "biome check --no-errors-on-unmatched",
@@ -21,8 +22,10 @@
     "@packages/api": "workspace:*",
     "@packages/i18n": "workspace:^",
     "@packages/icons": "workspace:*",
+    "@packages/observability": "workspace:^",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
+    "@sentry/nextjs": "^10.0.0",
     "@tanstack/react-query": "^5.101.4",
     "i18next": "^24.0.0",
     "next": "16.3.0",
