@@ -1,12 +1,14 @@
 import { EventEmitter } from "node:events";
 import type { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
+import type { MetricsService } from "../common/metrics/metrics.service";
 import { RedisService } from "./redis.service";
 
 const mockRedisInstance = {
   connect: jest.fn().mockResolvedValue(undefined),
   quit: jest.fn().mockResolvedValue("OK"),
   disconnect: jest.fn(),
+  on: jest.fn(),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(1),
@@ -35,12 +37,19 @@ function createConfigService(overrides?: Record<string, unknown>) {
   } as unknown as ConfigService;
 }
 
+function createMetricsService(): MetricsService {
+  return {
+    setRedisStatus: jest.fn(),
+    incRedisError: jest.fn(),
+  } as unknown as MetricsService;
+}
+
 describe("RedisService", () => {
   let service: RedisService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RedisService(createConfigService());
+    service = new RedisService(createConfigService(), createMetricsService());
   });
 
   describe("onModuleInit", () => {
@@ -64,7 +73,7 @@ describe("RedisService", () => {
 
     it("использует дефолты если конфиг не задан", async () => {
       const config = createConfigService({});
-      const svc = new RedisService(config);
+      const svc = new RedisService(config, createMetricsService());
       await svc.onModuleInit();
       expect(Redis).toHaveBeenCalledWith(
         expect.objectContaining({ host: "localhost", port: 6379 }),

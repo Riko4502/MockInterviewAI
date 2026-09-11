@@ -1,6 +1,6 @@
 # Spec: Observability Package
 
-**Версия:** 0.2.0
+**Версия:** 0.3.0
 
 ## 1. Цель
 
@@ -23,8 +23,9 @@
 ## 2. Принципы (Constitution монорепо)
 
 1. `packages/*` никогда не импортирует из `apps/*` (Dependency Inversion).
-2. Пакет source-only (как `@packages/tailwind-config`) — без продакшн-билда
-   для конфигов; допускается сборка копирования JSON-дашбордов.
+2. Наборный пакет (как `@packages/dto`): компилируется в CJS через `tsc`,
+   т.к. `apps/api` использует `moduleResolution: "node"` и требует runtime-`js`;
+   билд также копирует JSON-дашборды в `dist/` (`tsc && node scripts/copy-dashboards.mjs`).
 3. Вся конфигурация отправки данных в Sentry/Prometheus управляется **через
    переменные окружения**, схемы которых задаются в этом пакете.
 
@@ -40,6 +41,10 @@
 | Клиентская (in-app) инструментация Redis | **Лёгкая** — статус соединения, `PoolStats`, счётчики ошибок; без гистограмм латентности команд (берётся из exporter `commandstats`) |
 | Пароль прод-Redis (`requirepass`) | **Без изменений** в рамках этого этапа — только мониторинг |
 | Throttler API → Redis (`ThrottlerStorageRedis`) | **Отложено** (в открытых вопросах) |
+| Sentry Datasource plugin в Grafana | **Да** — ставим для корреляции ошибок с метриками |
+| Распространение dashboards | **Копировать при деплое** (CI-шаг `deploy:observability`), тома не монтировать |
+| Прод-Redis `maxmemory-policy` | **Отложено** до анализа usage-паттернов (alert на эвикцию всё равно ставим) |
+| Redis-auth в прод | **Отложено**; фиксация риска в `SECURITY.md` — открытый долг |
 
 ## 4. Структура
 
@@ -52,31 +57,43 @@ packages/observability/
 ├── src/
 │   ├── index.ts
 │   ├── sentry/
-│   │   ├── env.ts          # Zod-схема env Sentry
+│   │   ├── index.ts         # barrel
+│   │   ├── env.ts           # Zod-схема env Sentry
 │   │   ├── nestjs.config.ts # пресет для @sentry/nestjs
-│   │   └── nextjs.config.ts # пресет для @sentry/nextjs
+│   │   ├── nextjs.config.ts # пресет для @sentry/nextjs (build-time)
+│   │   ├── runtime.config.ts# пресет для серверного/edge рантайма
+│   │   └── client.config.ts # пресет для браузерного рантайма (NEXT_PUBLIC_SENTRY_DSN)
 │   └── prometheus/
-│       └── env.ts          # Zod-схема env Prometheus
+│       ├── index.ts         # barrel
+│       └── env.ts           # Zod-схема env Prometheus
+├── scripts/
+│   └── copy-dashboards.mjs  # копирует dashboards/ в dist/ при build
 └── dashboards/
-    ├── realtime-sse.json    # дашборд SSE/WebSocket метрик
-    ├── api-http.json        # дашборд NestJS HTTP метрик
-    └── redis.json           # дашборд серверных метрик Redis (exporter)
+    ├── realtime-sse.json    # дашборд SSE/WebSocket метрик (uid: realtime-sse)
+    ├── api-http.json        # дашборд NestJS HTTP метрик (uid: api-http)
+    └── redis.json           # дашборд серверных метрик Redis (exporter, uid: redis)
 ```
 
 ## 5. Интеграция по сервисам
 
 ### 5.1 apps/api (NestJS)
 
-- Зависимости: `@sentry/nestjs`, `@sentry/profiling-node`, `prom-client`.
-- `Sentry.init()` выполняется до импорта `AppModule` (через `instrument.js`).
-- `SentryModule.forRoot()` как глобальный модуль.
-- Sentry Interceptor — автоматический трекинг HTTP-транзакций.
-- Sentry Filter — расширение `HttpExceptionFilter`, `captureException` +
-  breadcrumbs.
-- `prom-client` → эндпоинт `/metrics` (HTTP status, duration, активные
-  запросы, пул Prisma).
-- Redis (ioredis): экспорт gauge статуса соединения (`ready`, `error`,
-  `close`, `reconnecting`) и счётчика ошибок клиента (`NOAUTH`, `ECONNREFUSED`).
+- Зависимости: `@packages/observability` (workspace), `@sentry/nestjs`,
+  `@sentry/profiling-node`, `prom-client`.
+- `src/instrument.ts` — первый импорт в `main.ts`; `Sentry.init(sentryNestjsConfig())`
+  выполняется до импорта `AppModule`, **guard по `SENTRY_DSN`** (без DSN Sentry
+  не активируется). `@sentry/nestjs` v10 не предоставляет `SentryModule` —
+  вместо него глобальный `MetricsModule` + `APP_INTERCEPTOR`.
+- `MetricsModule` (`@Global`) — `prom-client` (коллекция по умолчанию):
+  - `http_requests_total` / `http_request_duration_seconds` (histogram) /
+    `nestjs_active_requests` — снимаются через `MetricsInterceptor`
+    (route из `request.route?.path`).
+  - `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
+    и `redis_client_errors_total` (`NOAUTH`, `ECONNREFUSED`, ...) — из
+    `RedisService` (слушатели событий ioredis).
+- `MetricsController` — `GET /metrics` (`@Public`, `text/plain`).
+- `HttpExceptionFilter` — в ветке необработанных ошибок `captureException`.
+- Через `SENTRY_*` из `env.validation.ts` (Zod, runtime-parse в `validate`).
 
 ### 5.2 apps/web и apps/landing (Next.js)
 
@@ -88,14 +105,21 @@ packages/observability/
 
 ### 5.3 apps/realtime (Go)
 
-- `github.com/getsentry/sentry-go`.
-- `internal/sentry/sentry.go` — `sentry.Init()` + `Flush()`.
-- `internal/middleware/sentry.go` — chi middleware (span + recovery).
+- `github.com/getsentry/sentry-go` (v0.49.0) — **реализовано**:
+  - `internal/sentry/sentry.go` — `sentry.Init()` + `Flush()`; guard по
+    `SENTRY_DSN` (пустой DSN → no-op), конфиг через `internal/config`
+    (`SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE` default 0.2).
+  - `internal/middleware/sentry.go` — chi middleware (транзакция `http.server`,
+    тег `request_id`, breadcrumb, URL через `SanitizeURI`).
+  - `internal/middleware/recovery.go` — паники отправляются в Sentry
+    (`hub.RecoverWithContext`) в дополнение к JSON-ответу 500.
+  - `cmd/server/main.go` — middleware после `Recoverer`, `Flush()` при
+    graceful shutdown.
 - `/metrics` уже существует в Prometheus text format — только настроить
   скрейпинг.
 - Redis (go-redis): экспорт `PoolStats()` (total/idle/stale/hits/misses —
   критично при `PoolSize=100` из-за блокирующих XREAD в SSE) и литеральные
-  метрики задержки Pub/Sub-релея событий комнат.
+  метрики задержки Pub/Sub-релея событий комнат — **планируется (шаг 8/9 PLAN)**.
 
 ## 6. Prometheus → Grafana
 
@@ -132,15 +156,20 @@ infra/
         └── redis.json
 ```
 
-## 8. Планируемые метрики
+## 8. Метрики
 
-### NestJS (apps/api)
+### NestJS (apps/api) — реализовано
 - `http_request_duration_seconds` (histogram)
 - `http_requests_total{status_code}`
-- `prisma_pool_connections_*`
 - `nestjs_active_requests`
+- `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
+- `redis_client_errors_total` (счётчик: `NOAUTH`, `ECONNREFUSED`, ...)
 
-### Realtime (apps/realtime) — уже реализовано
+> **Известное исключение:** `prisma_pool_connections_*` — **не реализовано**:
+> адаптер PrismaPg не даёт доступа к пулу `pg`. Панели в `api-http.json`
+> остаются без данных.
+
+### Realtime (apps/realtime) — уже реализовано (до Phase 1)
 - `realtime_sse_connected_clients`
 - `realtime_sse_active_users`
 - `realtime_sse_connections_total`
@@ -149,15 +178,11 @@ infra/
 - `realtime_sse_redis_stream_lag_seconds`
 - `realtime_sse_session_duration_seconds`
 
-### Realtime (apps/realtime) — планируется
+### Realtime (apps/realtime) — планируется (шаги 8–9 PLAN)
 - `redis_pool_*` — `PoolStats()`: total/idle/stale активные, hits/misses/timeouts
 - `realtime_ws_pubsub_lag_seconds` — задержка релея событий комнат через Pub/Sub
 
-### In-app Redis (apps/api)
-- `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
-- `redis_client_errors_total` (счётчик: `NOAUTH`, `ECONNREFUSED`, ...)
-
-### Серверный Redis (redis_exporter)
+### Серверный Redis (redis_exporter, шаг 7 PLAN)
 - `used_memory` vs `maxmemory`, `connected_clients` vs `maxclients`
 - `blocked_clients` (блокирующие XREAD из SSE-ридеров)
 - `evicted_keys`, `keyspace_hits/misses`, `commandstats` (латентность p50/p95)
@@ -166,6 +191,23 @@ infra/
 ---
 
 ## Изменения
+
+### 0.3.0 — 2026-09-11
+- **Phase 1 реализована** (Sentry+PROM в api/web/realtime, пакет заскаффолден):
+  разделы §4/§5/§8 приведены к фактической реализации.
+- §2: пакет больше не source-only — добавлен tsc-билд в CJS (требование
+  `moduleResolution: "node"` в `apps/api`), dashboards копируются в `dist/`.
+- §3: добавлены решения — Sentry Datasource plugin «да»; dashboards копируются
+  при деплое (не тома); `maxmemory-policy` отложено; Redis-auth отложено
+  (фиксация риска в `SECURITY.md` — открытый долг).
+- §5.1: фактическая реализация — `instrument.ts` с guard по `SENTRY_DSN`,
+  `MetricsModule` + `MetricsInterceptor` (вместо несуществующего в
+  `@sentry/nestjs` v10 `SentryModule`), `captureException` в
+  `HttpExceptionFilter`.
+- §5.3: Sentry in realtime помечен «реализовано», `PoolStats`/Pub/Sub-лаг —
+  планируется (шаги 8–9 PLAN).
+- §8: `prisma_pool_connections_*` — **не реализовано** (PrismaPg не отдаёт
+  пул), добавлена заметка; in-app Redis-метрики api перемещены в «реализовано».
 
 ### 0.2.0 — 2026-09-08
 - Добавлен раздел наблюдения за Redis (три слоя: серверный exporter, лёгкая

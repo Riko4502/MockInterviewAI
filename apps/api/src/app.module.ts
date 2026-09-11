@@ -1,11 +1,13 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { AccessTokenGuard } from "./common/guards/access-token.guard";
 import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
+import { MetricsInterceptor } from "./common/interceptors/metrics.interceptor";
+import { MetricsModule } from "./common/metrics/metrics.module";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -50,6 +52,7 @@ import { RedisModule } from "./redis/redis.module";
     }),
     PrismaModule,
     RedisModule,
+    MetricsModule,
     ScheduleModule.forRoot(),
     HealthModule,
     UsersModule,
@@ -72,6 +75,10 @@ import { RedisModule } from "./redis/redis.module";
     {
       provide: APP_GUARD,
       useClass: OriginCheckGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MetricsInterceptor,
     },
   ],
 })
