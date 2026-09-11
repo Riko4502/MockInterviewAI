@@ -1,3 +1,4 @@
+export * from "../model/DialogProvider";
 export * from "./Accordion";
 export * from "./Avatar";
 export * from "./Badge";
@@ -8,6 +9,7 @@ export * from "./Card";
 export * from "./Checkbox";
 export * from "./DataTable";
 export * from "./DatePicker";
+export * from "./Dialog";
 export * from "./DropdownMenu";
 export * from "./Empty";
 export * from "./Form";
