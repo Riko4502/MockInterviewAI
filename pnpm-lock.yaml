@@ -197,6 +197,9 @@ importers:
       '@packages/icons':
         specifier: workspace:*
         version: link:../../packages/icons
+      '@packages/observability':
+        specifier: workspace:^
+        version: link:../../packages/observability
       '@packages/tailwind-config':
         specifier: workspace:*
         version: link:../../packages/tailwind-config
@@ -206,6 +209,9 @@ importers:
       '@packages/utils':
         specifier: workspace:*
         version: link:../../packages/utils
+      '@sentry/nextjs':
+        specifier: ^10.0.0
+        version: 10.74.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(next@16.3.0(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(webpack@5.106.2(esbuild@0.28.2))
       i18next:
         specifier: ^26.4.0
         version: 26.4.1(typescript@5.9.3)

@@ -1,3 +1,5 @@
+import { sentryNextjsConfig } from "@packages/observability";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -9,9 +11,12 @@ const nextConfig: NextConfig = {
     "@packages/ui",
     "@packages/icons",
     "@packages/utils",
-    "@packages/tailwind-config",
+"@packages/tailwind-config",
     "@packages/editor",
+    "@packages/observability",
   ],
 };
 
-export default nextConfig;
+export default process.env.SENTRY_DSN
+  ? withSentryConfig(nextConfig, sentryNextjsConfig())
+  : nextConfig;
