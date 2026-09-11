@@ -11,6 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* t
 COPY types ./types
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/prisma ./apps/api/prisma/
+COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY packages/ ./packages/
 
 RUN pnpm install --frozen-lockfile
