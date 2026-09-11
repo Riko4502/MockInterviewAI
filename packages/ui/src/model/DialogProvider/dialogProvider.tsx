@@ -7,18 +7,18 @@ import {
   useContext,
   useState,
 } from "react";
-import type { DialogController, DialogEntry, DialogName } from "./types";
+import type { DialogController, DialogEntry } from "./types";
 
 const DialogContext = createContext<DialogController | null>(null);
 
 export function DialogProvider({ children }: PropsWithChildren) {
   const [stack, setStack] = useState<DialogEntry[]>([]);
 
-  const open = useCallback(function open<T>(name: DialogName, payload?: T) {
+  const open = useCallback(function open<T>(name: string, payload?: T) {
     setStack((prev) => [...prev, { name, payload }]);
   }, []);
 
-  const close = useCallback((name: DialogName) => {
+  const close = useCallback((name: string) => {
     setStack((prev) => prev.filter((entry) => entry.name !== name));
   }, []);
 
@@ -27,7 +27,7 @@ export function DialogProvider({ children }: PropsWithChildren) {
   }, []);
 
   const get = useCallback(
-    function get<T>(name: DialogName): T | undefined {
+    function get<T>(name: string): T | undefined {
       return stack.find((entry) => entry.name === name)?.payload as
         | T
         | undefined;
@@ -36,7 +36,7 @@ export function DialogProvider({ children }: PropsWithChildren) {
   );
 
   const isOpen = useCallback(
-    (name: DialogName) => stack.some((entry) => entry.name === name),
+    (name: string) => stack.some((entry) => entry.name === name),
     [stack],
   );
 
