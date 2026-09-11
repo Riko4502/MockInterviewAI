@@ -1,0 +1,66 @@
+groups:
+  - name: redis
+    rules:
+      - alert: RedisTargetDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis exporter is down"
+          description: "The redis exporter job {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: RedisStreamLagHigh
+        expr: |
+          redis_stream_length{key=~"user:.*:notifications"} > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification stream lag is high"
+          description: "Stream {{ $labels.key }} has {{ $value | humanize }} entries, SSE readers may not keep up."
+
+      - alert: RedisEvictions
+        expr: |
+          increase(redis_evicted_keys_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is evicting keys"
+          description: "Redis evicted {{ $value | humanize }} keys in the last 5 minutes; maxmemory-policy may cause data loss."
+
+  - name: realtime
+    rules:
+      - alert: RealtimePubSubLagHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            rate(realtime_ws_pubsub_lag_seconds_bucket[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WS Pub/Sub relay lag is high"
+          description: "p95 of room event relay delay through Redis Pub/Sub exceeded 1s for 5 minutes."
+
+  - name: targets
+    rules:
+      - alert: ApiTargetDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API target is down"
+          description: "The api job {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: RealtimeTargetDown
+        expr: up{job="realtime"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Realtime target is down"
+          description: "The realtime job {{ $labels.instance }} has been unreachable for more than 2 minutes."

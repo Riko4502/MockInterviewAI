@@ -26,7 +26,10 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          source: 'docker-compose.prod.yml'
+          source: |
+            docker-compose.prod.yml
+            packages/observability/infra
+            packages/observability/dashboards
           target: '/opt/mock-interview-ai'
 
       - name: "Выполнение команд обновления контейнеров по SSH"
@@ -85,7 +88,7 @@ jobs:
             # --- Health checks ---
             echo "Checking container status..."
             sleep 5
-            for svc in mock-interview-api mock-interview-realtime mock-interview-web mock-interview-landing; do
+            for svc in mock-interview-api mock-interview-realtime mock-interview-web mock-interview-landing mock-interview-prometheus mock-interview-grafana mock-interview-redis-exporter; do
               STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
               if [ "$STATUS" != "running" ]; then
                 echo "❌ Container $svc is not running (status: $STATUS)"
