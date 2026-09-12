@@ -39,6 +39,7 @@ const sizeConfig = {
   },
 } as const;
 
+/** Renders the brand logo as a link or through a caller-provided child element. */
 export function Logo({
   variant = "full",
   size = "md",
@@ -66,7 +67,7 @@ export function Logo({
           <span
             className={cn(
               config.title,
-              "font-extrabold tracking-tight text-white group-hover:text-violet-400 transition-colors leading-none",
+              "font-extrabold tracking-tight text-foreground group-hover:text-primary transition-colors leading-none",
             )}
           >
             DEVSYNC
@@ -74,7 +75,7 @@ export function Logo({
           <span
             className={cn(
               config.subtitle,
-              "font-mono tracking-widest text-slate-400 uppercase leading-tight mt-0.5",
+              "font-mono tracking-widest text-muted-foreground uppercase leading-tight mt-0.5",
             )}
           >
             Interview AI

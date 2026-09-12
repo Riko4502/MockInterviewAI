@@ -10,36 +10,24 @@ RUN apk add --no-cache libc6-compat && \
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
 COPY types ./types
-COPY apps/landing/package.json ./apps/landing/
+COPY apps/ui-docs/package.json ./apps/ui-docs/
 COPY packages ./packages
 
 RUN pnpm install --frozen-lockfile
 
-COPY apps/landing ./apps/landing
+COPY apps/ui-docs ./apps/ui-docs
 
-ARG NEXT_PUBLIC_SITE_URL
-ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_AUTH_URL
-ARG NEXT_PUBLIC_REGISTER_URL
-ARG NEXT_PUBLIC_GITHUB_URL
-
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_AUTH_URL=$NEXT_PUBLIC_AUTH_URL
-ENV NEXT_PUBLIC_REGISTER_URL=$NEXT_PUBLIC_REGISTER_URL
-ENV NEXT_PUBLIC_GITHUB_URL=$NEXT_PUBLIC_GITHUB_URL
-
-RUN pnpm turbo run build --filter=landing^... && \
-    pnpm --filter landing build
+RUN pnpm turbo run build --filter=ui-docs^... && \
+    pnpm --filter ui-docs build
 
 # -------------------------------------------------------------
 # Runtime stage – отдаём статический контент через nginx
 # -------------------------------------------------------------
 FROM nginxinc/nginx-unprivileged:alpine AS runtime
 
-COPY apps/landing/nginx.conf /etc/nginx/conf.d/default.conf
-# Копируем собранный сайт
-COPY --from=builder /app/apps/landing/dist /usr/share/nginx/html
+COPY apps/ui-docs/nginx.conf /etc/nginx/conf.d/default.conf
+# Копируем собранный Storybook
+COPY --from=builder /app/apps/ui-docs/storybook-static /usr/share/nginx/html
 
 # Открываем порт 8080
 EXPOSE 8080

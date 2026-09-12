@@ -182,3 +182,18 @@ services:
         sync: false # e.g. https://devsync-web-x081.onrender.com/register
       - key: NEXT_PUBLIC_GITHUB_URL
         value: https://github.com/Riko4502/MockInterviewAI
+
+  # -------------------------------------------------------------
+  # UI Docs / Storybook (Nginx Static Export)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-ui-docs
+    runtime: docker
+    dockerfilePath: ./apps/ui-docs/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: PORT
+        value: "80"
+

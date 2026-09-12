@@ -1,5 +1,6 @@
 import type { LanguageId } from "@packages/editor";
 import { CodeEditorLazy, getTemplate } from "@packages/editor";
+import { Button } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 
@@ -127,36 +128,22 @@ export const Languages: Story = {
     };
 
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          gap: "8px",
-        }}
-      >
-        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+      <div className="flex flex-col h-full gap-3">
+        <div className="flex flex-wrap gap-1.5">
           {languages.map((lang) => (
-            <button
-              type="button"
+            <Button
               key={lang}
+              type="button"
+              size="sm"
+              variant={language === lang ? "default" : "outline"}
+              aria-pressed={language === lang}
               onClick={() => handleLanguageChange(lang)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
-                border: "1px solid",
-                borderColor: language === lang ? "#a855f7" : "#333",
-                background: language === lang ? "#a855f7" : "transparent",
-                color: "white",
-                cursor: "pointer",
-                fontSize: "13px",
-              }}
             >
               {lang}
-            </button>
+            </Button>
           ))}
         </div>
-        <div style={{ flex: 1 }}>
+        <div className="flex-1 min-h-0">
           <CodeEditorLazy value={code} onChange={setCode} language={language} />
         </div>
       </div>
