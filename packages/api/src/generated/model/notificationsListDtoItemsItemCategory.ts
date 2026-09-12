@@ -10,10 +10,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type NotificationsListDtoItemType = typeof NotificationsListDtoItemType[keyof typeof NotificationsListDtoItemType];
+export type NotificationsListDtoItemsItemCategory = typeof NotificationsListDtoItemsItemCategory[keyof typeof NotificationsListDtoItemsItemCategory];
 
 
-export const NotificationsListDtoItemType = {
+export const NotificationsListDtoItemsItemCategory = {
   SYSTEM: 'SYSTEM',
   INTERVIEW: 'INTERVIEW',
   MESSAGE: 'MESSAGE',

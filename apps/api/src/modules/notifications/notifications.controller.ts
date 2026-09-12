@@ -40,13 +40,18 @@ export class NotificationsController {
     name: "page",
     required: false,
     type: Number,
-    example: 1,
+    default: 1,
+    minimum: 1,
+    description: "Page number. Minimum value is 1.",
   })
   @ApiQuery({
     name: "limit",
     required: false,
     type: Number,
-    example: 20,
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+    description: "Number of notifications per page. Allowed range: 1–100.",
   })
   @ApiResponse({
     status: 200,

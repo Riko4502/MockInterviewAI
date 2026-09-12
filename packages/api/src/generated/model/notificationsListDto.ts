@@ -9,6 +9,28 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
-import type { NotificationsListDtoItem } from './notificationsListDtoItem';
+import type { NotificationsListDtoItemsItem } from './notificationsListDtoItemsItem';
 
-export type NotificationsListDto = NotificationsListDtoItem[];
+export interface NotificationsListDto {
+  items: NotificationsListDtoItemsItem[];
+  /**
+     * @minimum 1
+     * @maximum 9007199254740991
+     */
+  page: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  limit: number;
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
+  total: number;
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
+  totalPages: number;
+}

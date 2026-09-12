@@ -23,8 +23,8 @@ export type NotificationDto = z.infer<typeof notificationSchema>;
 
 export const notificationsListSchema = z.object({
   items: z.array(notificationSchema),
-  page: z.number().int().positive(),
-  limit: z.number().int().positive(),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1).max(100),
   total: z.number().int().nonnegative(),
   totalPages: z.number().int().nonnegative(),
 });

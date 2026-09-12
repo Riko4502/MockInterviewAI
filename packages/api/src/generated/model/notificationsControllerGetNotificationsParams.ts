@@ -11,6 +11,15 @@
  */
 
 export type NotificationsControllerGetNotificationsParams = {
+/**
+ * Page number. Minimum value is 1.
+ * @minimum 1
+ */
 page?: number;
+/**
+ * Number of notifications per page. Allowed range: 1–100.
+ * @minimum 1
+ * @maximum 100
+ */
 limit?: number;
 };
