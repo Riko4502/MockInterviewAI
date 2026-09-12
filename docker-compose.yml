@@ -65,8 +65,8 @@ services:
           - ""
         rtc:
           tcp_port: 7881
-          port_range_start: 50000
-          port_range_end: 50200
+          port_range_start: 50060
+          port_range_end: 50078
         keys:
           ${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-dev-local-secret-change-me-0123456789}
         webhook:
@@ -76,7 +76,7 @@ services:
     ports:
       - "${LIVEKIT_PORT:-7880}:7880"       # сигнальный WS/HTTP
       - "${LIVEKIT_TCP_PORT:-7881}:7881"   # TCP media (SRTP/TCP)
-      - "50000-50200:50000-50200/udp"      # UDP media (WebRTC)
+      - "50060-50078:50060-50078/udp"      # UDP media (WebRTC); вне исключённых Windows UDP-портов
 
   minio-init:
     image: minio/mc:latest

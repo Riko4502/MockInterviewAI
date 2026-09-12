@@ -10,6 +10,7 @@
     {
       "title": "Request Rate (RPS by status)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
@@ -30,6 +31,7 @@
     {
       "title": "Request Latency (p95, p50)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
@@ -55,6 +57,7 @@
     {
       "title": "Active Requests",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
@@ -75,6 +78,7 @@
     {
       "title": "Redis Connection Status",
       "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
       "targets": [
         {
@@ -113,6 +117,7 @@
     {
       "title": "Redis Client Errors (rate)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
       "targets": [
         {
@@ -126,36 +131,6 @@
           "color": { "mode": "palette-classic" },
           "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 50 },
           "unit": "cps"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "title": "Prisma Pool Connections",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
-      "targets": [
-        {
-          "expr": "prisma_pool_connections_open",
-          "legendFormat": "open",
-          "refId": "A"
-        },
-        {
-          "expr": "prisma_pool_connections_idle",
-          "legendFormat": "idle",
-          "refId": "B"
-        },
-        {
-          "expr": "prisma_pool_connections_busy",
-          "legendFormat": "busy",
-          "refId": "C"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
-          "unit": "short"
         },
         "overrides": []
       }

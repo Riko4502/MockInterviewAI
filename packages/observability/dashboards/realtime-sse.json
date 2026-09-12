@@ -10,6 +10,7 @@
     {
       "title": "Active SSE Clients",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
@@ -30,6 +31,7 @@
     {
       "title": "Active Users (unique with open SSE streams)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
@@ -50,6 +52,7 @@
     {
       "title": "Connection Attempts (total)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
@@ -70,6 +73,7 @@
     {
       "title": "Messages Dispatched (rate by event type)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         {
@@ -90,6 +94,7 @@
     {
       "title": "Dropped Messages (rate by reason)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
@@ -110,6 +115,7 @@
     {
       "title": "Redis Stream Lag (p95)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
@@ -135,6 +141,7 @@
     {
       "title": "WS Pub/Sub Relay Lag (p95)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "targets": [
         {
@@ -160,6 +167,7 @@
     {
       "title": "Redis Pool Connections",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "targets": [
         { "expr": "redis_pool_total", "legendFormat": "total", "refId": "A" },
@@ -178,6 +186,7 @@
     {
       "title": "Redis Pool Events (rate)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "targets": [
         {
@@ -208,6 +217,7 @@
     {
       "title": "Notification Stream Backlog (approx)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "targets": [
         {
@@ -228,6 +238,7 @@
     {
       "title": "Session Duration (p95)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
       "targets": [
         {

@@ -1,6 +1,6 @@
 # Plan: Observability Package
 
-**Версия:** 0.5.0
+**Версия:** 0.6.0
 
 ## 1. Текущая цель
 
@@ -35,7 +35,7 @@ SENTRY_DSN=
 SENTRY_AUTH_TOKEN=
 SENTRY_ORG=mockinterviewai
 SENTRY_PROJECT=
-SENTRY_ENVIRONMENT=production
+SENTRY_ENVIRONMENT=development
 SENTRY_TRACES_SAMPLE_RATE=0.2
 
 # Grafana
@@ -45,8 +45,10 @@ GRAFANA_ADMIN_PASSWORD=
 
 ## 4. Turborepo
 
-Добавить в `turbo.json` задачу `deploy:observability`, которая зависит от
-`^build` и копирует JSON-дашборды в `dist/`.
+Задача `deploy:observability` не нужна: дашборды не передаются через `dist/`,
+а копируются на сервер scp-шагом `deploy-server.yml` из исходных директорий
+(`packages/observability/infra` + `packages/observability/dashboards`). Задача
+удалена из `turbo.json`; обычный `build` пакета (`tsc`) остаётся.
 
 ## 5. Redis-мониторинг (объём этапа)
 
@@ -63,12 +65,17 @@ GRAFANA_ADMIN_PASSWORD=
 - [x] Использовать Sentry Datasource plugin в Grafana для корреляции ошибок
       с метриками, или связать через дашборды вручную?
       **Решение:** ставим plugin (записано в SPEC §3).
-- [ ] Нужен ли единый `GRAFANA_ADMIN_PASSWORD` из секрета, или достаточно
+- [x] Нужен ли единый `GRAFANA_ADMIN_PASSWORD` из секрета, или достаточно
       dev-дефолта?
+      **Решение:** dev-дефолт упразднён — в проде `GRAFANA_ADMIN_PASSWORD`
+      обязателен (fail-closed в compose), прокидывается через
+      `secrets.GRAFANA_ADMIN_PASSWORD` (записано в SPEC §7).
 - [x] Копировать дашборды из пакета при деплое, или монтировать напрямую
       из репозитория?
-      **Решение:** копировать при деплое (CI-шаг `deploy:observability`),
-      тома не монтируем (записано в SPEC §3).
+      **Решение:** копируем при деплое — scp-шаг `deploy-server.yml`
+      копирует `infra` + `dashboards` на сервер, затем compose монтирует их
+      томом (read-only, перечитывание раз в 30 c); CI-шаг `deploy:observability`
+      удалён (записано в SPEC §3 и §4).
 - [ ] Переводить ли throttler API на Redis (`ThrottlerStorageRedis`) —
       план откладывает, документировано в `docs/backend/data/redis-caching.md`
       расходятся с фактической in-memory реализацией.
@@ -78,9 +85,56 @@ GRAFANA_ADMIN_PASSWORD=
 - [x] Redis-auth в прод (requirepass): **отложить**; фиксация риска в
       `SECURITY.md` — открытый долг (записано в SPEC §3).
 
+## 7. Backlog: dev-контур наблюдения (не начато)
+
+**Проблема:** при `turbo dev` наблюдение работает только рантаймом —
+`api`/`realtime` отдают метрики по `/metrics`, но Prometheus/Grafana/
+redis-exporter существуют лишь в `docker-compose.prod.yml` и поднимаются
+только на проде. Локально дашборды не посмотреть, watch над ними нет.
+
+**Предлагаемый состав (гипотеза, требует подтверждения):**
+1. Отдельный композ `infra/observability.dev.yml` (по образцу сервисов из
+   `docker-compose.prod.yml`, без прод-ограничений):
+   - prometheus + redis_exporter + grafana с портами на `127.0.0.1`
+     (например 9090 / 9121 / 3002);
+   - `GRAFANA_ADMIN_PASSWORD` из `.env` (в dev — без fail-closed `:?`);
+   - те же volume-маунты `packages/observability/infra` и
+     `packages/observability/dashboards` → правки дашбордов и правил
+     подхватываются за `updateIntervalSeconds: 30` (в провайдере уже
+     `allowUiUpdates: true`).
+2. Запуск только по требованию: `docker compose -f infra/observability.dev.yml up -d`,
+   НЕ в `predev` api — dev-инфра остаётся лёгкой (postgres/redis/minio/livekit)
+   и не тянет мониторинг каждому разработчику. По умолчанию стек выключен,
+   включается явной командой.
+
+**Критерий готовности:** `turbo dev` + поднятый dev-композ → Grafana на
+`127.0.0.1:3002` показывает живые метрики api/realtime и redis-экспортер,
+alert-правила активны; правки `dashboards/*.json` отражаются без
+пересоздания контейнера.
+
+**Статус:** записана идея, реализация НЕ начата (вне текущего этапа).
+
 ---
 
 ## Изменения
+
+### 0.6.0 — 2026-09-12
+- **Дашборды:** исправлена метрика длины стримов в `redis.json`
+  (`redis_streams_stream_length` → `redis_stream_length`, label `{{key}}`);
+  удалена пустая панель Prisma из `api-http.json`; панели всех дашбордов
+  привязаны к datasource Prometheus (`"uid": "prometheus"`).
+- **Infra (security):** порты Prometheus/Grafana/Redis-exporter привязаны
+  к `127.0.0.1`; `GRAFANA_ADMIN_PASSWORD` обязателен (fail-closed) и
+  прокидывается через секрет в `deploy-server.yml`; в Grafana установлен
+  Sentry Datasource plugin (`GF_INSTALL_PLUGINS=grafana-sentry-datasource`).
+- **Чистка:** удалены мёртвые `deploy:observability` из `turbo.json` и
+  `scripts/copy-dashboards.mjs` — дашборды копируются scp-шагом
+  `deploy-server.yml` (§4 обновлён).
+- Верификация: JSON-валидность дашбордов, `docker compose config`,
+  turbo-сборка — чисто.
+- NEW: секция §7 «Backlog: dev-контур наблюдения» (dev-compose для
+  Prometheus/Grafana/redis-exporter, по требованию); уточнены решения §3/§6
+  по распространению dashboards (scp → mount, без CI-шага `deploy:observability`).
 
 ### 0.6.0 — 2026-09-11
 - Infra-фаза (шаги 6, 7, 10, 11) реализована: конфиги в `packages/observability/infra/`,

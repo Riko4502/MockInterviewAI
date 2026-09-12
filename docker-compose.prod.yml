@@ -88,7 +88,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       - api
       - realtime
@@ -106,7 +106,7 @@ services:
       - REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications
       - REDIS_EXPORTER_CHECK_KEYS=session:*:active
     ports:
-      - "9121:9121"
+      - "127.0.0.1:9121:9121"
     depends_on:
       redis:
         condition: service_healthy
@@ -120,15 +120,16 @@ services:
     restart: unless-stopped
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-sentry-datasource
     volumes:
       - ./packages/observability/infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./packages/observability/infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./packages/observability/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       - prometheus
     networks:
