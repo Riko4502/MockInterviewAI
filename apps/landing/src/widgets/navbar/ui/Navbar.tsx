@@ -1,20 +1,29 @@
 "use client";
 
+import { type Locale, langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
-import { Button, Link } from "@packages/ui";
+import { Button, Logo } from "@packages/ui";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
-import { Logo } from "@/shared/ui";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
 import { ScrollProgressBar } from "./ScrollProgressBar";
 
-export function Navbar() {
+export interface NavbarProps {
+  locale?: Locale;
+}
+
+export function Navbar({ locale: propLocale }: NavbarProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { landing, locale } = useLandingTranslations();
-  const homeUrl = locale === "ru" ? "/" : "/en";
+  const { t, i18n } = useTranslation("landing");
+  const locale =
+    propLocale ??
+    ((i18n.resolvedLanguage || i18n.language) === "ru" ? "ru" : "en");
+
+  const { homeUrl } = langConfig[locale];
+
   const authUrl = getAuthUrl();
   const registerUrl = getRegisterUrl();
 
@@ -29,21 +38,21 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
-          <NavLanguageSwitcher />
+          <NavLanguageSwitcher locale={locale} />
 
           <Button
             asChild
             variant="ghost"
             className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
           >
-            <Link href={authUrl}>{landing.nav.signIn}</Link>
+            <a href={authUrl}>{t("nav.signIn")}</a>
           </Button>
 
           <Button
             asChild
             className="rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-5 py-2.5 h-auto text-sm font-semibold"
           >
-            <Link href={registerUrl}>{landing.nav.getStarted}</Link>
+            <a href={registerUrl}>{t("nav.getStarted")}</a>
           </Button>
 
           {/* Mobile Menu Toggle Button */}

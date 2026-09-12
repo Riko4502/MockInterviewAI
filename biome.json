@@ -43,6 +43,7 @@
       "includes": [
         "apps/web/**",
         "packages/ui/**",
+        "packages/editor/**",
         "packages/icons/**",
         "packages/tailwind-config/**",
         "apps/landing/**",

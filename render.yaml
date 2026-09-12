@@ -1,0 +1,184 @@
+# Render Blueprint Specification (render.yaml)
+# https://render.com/docs/blueprint-spec
+
+version: "1"
+
+databases:
+  - name: devsync-db
+    databaseName: devsync
+    user: devsync_user
+    plan: free
+    region: frankfurt
+    ipAllowList: [] # internal access only
+
+services:
+  # -------------------------------------------------------------
+  # Redis Cache & Pub/Sub
+  # -------------------------------------------------------------
+  - type: redis
+    name: devsync-redis
+    plan: free
+    region: frankfurt
+    ipAllowList: [] # internal access only
+    maxmemoryPolicy: allkeys-lru
+
+  # -------------------------------------------------------------
+  # Backend API (NestJS)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: API_PORT
+        value: "3001"
+      - key: API_DATABASE_URL
+        fromDatabase:
+          name: devsync-db
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: devsync-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: devsync-redis
+          property: port
+      - key: REDIS_PASSWORD
+        value: ""
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_HASH_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: JWT_ISSUER
+        value: devsync
+      - key: JWT_AUDIENCE
+        value: api
+      - key: JWT_ACCESS_EXPIRATION
+        value: 15m
+      - key: JWT_REFRESH_EXPIRATION
+        value: 7d
+      - key: ALLOWED_ORIGINS
+        sync: false # Set to your frontend domain (e.g. https://devsync-web.onrender.com)
+      - key: S3_ENDPOINT
+        sync: false # Cloudflare R2 / AWS S3 endpoint
+      - key: S3_REGION
+        value: auto
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        value: devsync-storage
+      - key: S3_PUBLIC_URL
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      - key: LIVEKIT_URL
+        sync: false # e.g. wss://your-project.livekit.cloud
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+
+  # -------------------------------------------------------------
+  # Realtime WebSocket & SSE Server (Go)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-realtime
+    runtime: docker
+    dockerfilePath: ./apps/realtime/Dockerfile
+    dockerContext: ./apps/realtime
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: devsync-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: devsync-redis
+          property: port
+      - key: REDIS_PASSWORD
+        value: ""
+      - key: JWT_ACCESS_SECRET
+        fromService:
+          type: web
+          name: devsync-api
+          envVarKey: JWT_ACCESS_SECRET
+      - key: JWT_REFRESH_SECRET
+        fromService:
+          type: web
+          name: devsync-api
+          envVarKey: JWT_REFRESH_SECRET
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: LIVEKIT_WEBHOOK_API_KEY
+        sync: false
+      - key: LIVEKIT_WEBHOOK_API_SECRET
+        sync: false
+
+  # -------------------------------------------------------------
+  # Web Frontend (Next.js)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-web
+    runtime: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # e.g. https://devsync-api.onrender.com
+      - key: NEXT_PUBLIC_REALTIME_URL
+        sync: false # e.g. wss://devsync-realtime.onrender.com
+
+  # -------------------------------------------------------------
+  # Landing Page (Nginx Static Export)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-landing
+    runtime: docker
+    dockerfilePath: ./apps/landing/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: PORT
+        value: "80"
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false # e.g. https://devsync-landing.onrender.com
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false # e.g. https://devsync-web-x081.onrender.com
+      - key: NEXT_PUBLIC_AUTH_URL
+        sync: false # e.g. https://devsync-web-x081.onrender.com/login
+      - key: NEXT_PUBLIC_REGISTER_URL
+        sync: false # e.g. https://devsync-web-x081.onrender.com/register
+      - key: NEXT_PUBLIC_GITHUB_URL
+        value: https://github.com/Riko4502/MockInterviewAI

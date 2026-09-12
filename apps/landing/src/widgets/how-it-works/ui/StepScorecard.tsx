@@ -2,37 +2,18 @@
 
 import { Badge } from "@packages/ui";
 import { useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
+import { getVerdict } from "../constants";
 import { ScoreMetricCard } from "./ScoreMetricCard";
 import { StepHeader } from "./StepHeader";
 
 export function StepScorecard() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [algoScore, setAlgoScore] = useState(96);
   const [archScore, setArchScore] = useState(92);
   const [commScore, setCommScore] = useState(88);
 
   const averageScore = Math.round((algoScore + archScore + commScore) / 3);
-
-  const getVerdict = (score: number) => {
-    if (score >= 90)
-      return {
-        text: "STRONG HIRE",
-        variant: "statusSuccess" as const,
-        percentile: "Top 2%",
-      };
-    if (score >= 75)
-      return {
-        text: "HIRE",
-        variant: "statusInfo" as const,
-        percentile: "Top 15%",
-      };
-    return {
-      text: "LEVELED UP",
-      variant: "waiting" as const,
-      percentile: "Top 35%",
-    };
-  };
 
   const verdict = getVerdict(averageScore);
 
@@ -41,9 +22,9 @@ export function StepScorecard() {
       <div className="lg:col-span-6 lg:order-2 flex flex-col items-start">
         <StepHeader
           stepNumber="04"
-          tag={landing.howItWorks.step4Tag}
-          title={landing.howItWorks.step4Title}
-          description={landing.howItWorks.step4Desc}
+          tag={t("howItWorks.step4Tag")}
+          title={t("howItWorks.step4Title")}
+          description={t("howItWorks.step4Desc")}
         />
         <div className="space-y-4 w-full">
           {/* Interactive Slider 1: Algo */}
@@ -51,7 +32,7 @@ export function StepScorecard() {
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-white flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                {landing.howItWorks.skillAlgo}
+                {t("howItWorks.skillAlgo")}
               </span>
               <span className="font-mono font-bold text-violet-300">
                 {algoScore} / 100
@@ -71,7 +52,7 @@ export function StepScorecard() {
               value={algoScore}
               onChange={(e) => setAlgoScore(Number(e.target.value))}
               className="w-full accent-violet-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
-              aria-label={landing.howItWorks.skillAlgo}
+              aria-label={t("howItWorks.skillAlgo")}
             />
           </div>
 
@@ -80,7 +61,7 @@ export function StepScorecard() {
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-white flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                {landing.howItWorks.skillArch}
+                {t("howItWorks.skillArch")}
               </span>
               <span className="font-mono font-bold text-sky-300">
                 {archScore} / 100
@@ -100,7 +81,7 @@ export function StepScorecard() {
               value={archScore}
               onChange={(e) => setArchScore(Number(e.target.value))}
               className="w-full accent-sky-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
-              aria-label={landing.howItWorks.skillArch}
+              aria-label={t("howItWorks.skillArch")}
             />
           </div>
 
@@ -109,7 +90,7 @@ export function StepScorecard() {
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-white flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                {landing.howItWorks.skillComm}
+                {t("howItWorks.skillComm")}
               </span>
               <span className="font-mono font-bold text-emerald-300">
                 {commScore} / 100
@@ -129,7 +110,7 @@ export function StepScorecard() {
               value={commScore}
               onChange={(e) => setCommScore(Number(e.target.value))}
               className="w-full accent-emerald-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
-              aria-label={landing.howItWorks.skillComm}
+              aria-label={t("howItWorks.skillComm")}
             />
           </div>
         </div>
@@ -143,10 +124,10 @@ export function StepScorecard() {
           <div className="flex items-center justify-between pb-4 border-b border-white/10 relative z-10">
             <div>
               <div className="text-xs font-mono text-slate-400">
-                {landing.howItWorks.sessionReport}
+                {t("howItWorks.sessionReport")}
               </div>
               <div className="text-base font-bold text-white">
-                {landing.howItWorks.reportRole}
+                {t("howItWorks.reportRole")}
               </div>
             </div>
             <div className="text-right flex flex-col items-end gap-1">
@@ -165,24 +146,24 @@ export function StepScorecard() {
           <div className="grid grid-cols-3 gap-3 my-4 relative z-10">
             <ScoreMetricCard
               value="O(n)"
-              label={landing.howItWorks.timeComplexity}
+              label={t("howItWorks.timeComplexity")}
             />
             <ScoreMetricCard
               value="O(1)"
-              label={landing.howItWorks.spaceComplexity}
+              label={t("howItWorks.spaceComplexity")}
             />
             <ScoreMetricCard
               value={verdict.percentile}
-              label={landing.howItWorks.globalPercentile}
+              label={t("howItWorks.globalPercentile")}
               valueColor="text-emerald-400"
             />
           </div>
 
           <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-slate-300 leading-relaxed shadow-sm relative z-10">
             <span className="font-semibold text-emerald-300">
-              {landing.howItWorks.keyRecommendation}
+              {t("howItWorks.keyRecommendation")}
             </span>{" "}
-            {landing.howItWorks.recommendationText}
+            {t("howItWorks.recommendationText")}
           </div>
         </div>
       </div>

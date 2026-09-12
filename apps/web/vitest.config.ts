@@ -22,6 +22,10 @@ export default defineConfig({
         import.meta.dirname,
         "../../packages/api/src",
       ),
+      "@packages/dto": path.resolve(
+        import.meta.dirname,
+        "../../packages/dto/src",
+      ),
       "@": path.resolve(import.meta.dirname, "./src"),
       "@app": path.resolve(import.meta.dirname, "./src/app"),
       "@pages": path.resolve(import.meta.dirname, "./src/pages"),

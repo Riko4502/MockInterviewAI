@@ -2,12 +2,13 @@
 
 import { Button } from "@packages/ui";
 import { useEffect, useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
+import { AI_INTERVIEW_CHECKLIST } from "../constants";
 import { ParticipantFeed } from "./ParticipantFeed";
 import { StepHeader } from "./StepHeader";
 
 export function StepAiInterview() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [activeSpeaker, setActiveSpeaker] = useState<"ai" | "candidate">("ai");
   const [isPlaying, setIsPlaying] = useState(true);
 
@@ -24,29 +25,19 @@ export function StepAiInterview() {
       <div className="lg:col-span-6 lg:order-2 flex flex-col items-start">
         <StepHeader
           stepNumber="02"
-          tag={landing.howItWorks.step2Tag}
-          title={landing.howItWorks.step2Title}
-          description={landing.howItWorks.step2Desc}
+          tag={t("howItWorks.step2Tag")}
+          title={t("howItWorks.step2Title")}
+          description={t("howItWorks.step2Desc")}
         />
         <ul className="space-y-3 text-sm text-slate-200">
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{landing.howItWorks.step2Check1}</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{landing.howItWorks.step2Check2}</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
-              ✓
-            </div>
-            <span>{landing.howItWorks.step2Check3}</span>
-          </li>
+          {AI_INTERVIEW_CHECKLIST.map((key) => (
+            <li key={key} className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
+                ✓
+              </div>
+              <span>{t(key)}</span>
+            </li>
+          ))}
         </ul>
       </div>
 
@@ -81,11 +72,11 @@ export function StepAiInterview() {
               }`}
             >
               <ParticipantFeed
-                name={landing.howItWorks.aiInterviewer}
-                roleBadge={landing.howItWorks.aiRole}
+                name={t("howItWorks.aiInterviewer")}
+                roleBadge={t("howItWorks.aiRole")}
                 avatarText="LEAD"
                 avatarGradient="bg-gradient-to-tr from-rose-600 to-pink-600 shadow-lg shadow-rose-600/40 ring-4 ring-rose-500/20 text-white"
-                micActiveText={landing.howItWorks.micActive}
+                micActiveText={t("howItWorks.micActive")}
                 isLead={activeSpeaker === "ai"}
               />
             </div>
@@ -99,15 +90,15 @@ export function StepAiInterview() {
               }`}
             >
               <ParticipantFeed
-                name={landing.howItWorks.candidateYou}
+                name={t("howItWorks.candidateYou")}
                 avatarText="DEV"
                 avatarGradient={
                   activeSpeaker === "candidate"
                     ? "bg-gradient-to-tr from-emerald-600 to-teal-600 shadow-md shadow-emerald-600/40 text-white"
                     : "bg-slate-800 border border-white/15 text-slate-300 shadow-md"
                 }
-                micActiveText={landing.howItWorks.micActive}
-                videoQualityText={landing.howItWorks.clearAudio}
+                micActiveText={t("howItWorks.micActive")}
+                videoQualityText={t("howItWorks.clearAudio")}
                 isLead={activeSpeaker === "candidate"}
               />
             </div>
@@ -118,19 +109,16 @@ export function StepAiInterview() {
             {activeSpeaker === "ai" ? (
               <div>
                 <span className="text-rose-400 font-semibold">
-                  {landing.howItWorks.dialogueSpeaker}:
+                  {t("howItWorks.dialogueSpeaker")}:
                 </span>{" "}
-                <span>{landing.howItWorks.dialogueText}</span>
+                <span>{t("howItWorks.dialogueText")}</span>
               </div>
             ) : (
               <div>
                 <span className="text-emerald-400 font-semibold">
-                  {landing.howItWorks.candidateYou}:
+                  {t("howItWorks.candidateYou")}:
                 </span>{" "}
-                <span>
-                  &ldquo;I propose using a doubly linked list combined with a
-                  hash map to achieve O(1) get and put operations.&rdquo;
-                </span>
+                <span>{t("howItWorks.candidateDialogueText")}:</span>
               </div>
             )}
           </div>

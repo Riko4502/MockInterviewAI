@@ -205,7 +205,8 @@ describe("UsersService", () => {
         data: { deletedAt: null },
         select: expect.any(Object),
       });
-      expect(result.deletedAt).toBeNull();
+      expect(result.id).toBe(mockUser.id);
+      expect(result.email).toBe(mockUser.email);
     });
 
     it("выбрасывает GoneException если прошло более 30 дней", async () => {

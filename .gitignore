@@ -33,3 +33,7 @@ storybook-static
 coverage/
 *.lcov
 coverage.out
+
+.agents
+.specify
+specs

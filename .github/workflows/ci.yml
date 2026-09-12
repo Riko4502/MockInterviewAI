@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches:
+      - 'feat/*'
+      - 'feat/**'
       - 'feature/*'
       - 'feature/**'
       - 'fix/*'
@@ -21,6 +23,8 @@ on:
       - 'dev'
   pull_request:
     branches:
+      - 'feat/*'
+      - 'feat/**'
       - 'feature/*'
       - 'feature/**'
       - 'fix/*'
@@ -53,6 +57,7 @@ jobs:
       landing: ${{ steps.filter.outputs.landing }}
       api: ${{ steps.filter.outputs.api }}
       storybook: ${{ steps.filter.outputs.storybook }}
+      editor: ${{steps.filter.outputs.editor}}
       docker_realtime: ${{ steps.filter.outputs.docker_realtime }}
       docker_web: ${{ steps.filter.outputs.docker_web }}
       docker_landing: ${{ steps.filter.outputs.docker_landing }}
@@ -77,6 +82,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-realtime.yml'
             web:
+              - 'packages/editor/**'
               - 'apps/web/**'
               - 'packages/ui/**'
               - 'packages/icons/**'
@@ -117,6 +123,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-landing.yml'
             storybook:
+              - 'packages/editor/**'
               - 'apps/ui-docs/**'
               - 'packages/ui/**'
               - 'packages/icons/**'
@@ -157,6 +164,16 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+            editor:
+              - 'packages/editor/**'
+              - 'packages/types/**'
+              - 'packages/tailwind-config/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-editor.yml'
 
   realtime:
     name: "Realtime"
@@ -171,6 +188,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/ci-web.yml
+    secrets: inherit
     with:
       should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_web == 'true' }}
 
@@ -196,13 +214,20 @@ jobs:
     if: needs.changes.outputs.storybook == 'true'
     uses: ./.github/workflows/ci-storybook.yml
 
+  editor:
+    name: "Editor"
+    needs: changes
+    if: needs.changes.outputs.editor == 'true'
+    uses: ./.github/workflows/ci-editor.yml
+
   security:
     name: "Security"
     uses: ./.github/workflows/ci-security.yml
 
+
   notify:
     name: "Telegram"
-    needs: [changes, realtime, web, api, security, landing, storybook]
+    needs: [changes, realtime, web, api, security, landing, storybook, editor]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
@@ -218,11 +243,13 @@ jobs:
       api_coverage: ${{ needs.api.outputs.coverage || '' }}
       storybook_result: ${{ needs.storybook.result }}
       storybook_coverage: ${{ needs.storybook.outputs.coverage || '' }}
+      editor_result: ${{ needs.editor.result }}
+      editor_coverage: ${{ needs.editor.outputs.coverage || '' }}
       security_result: ${{ needs.security.result }}
 
   pr-status-comment:
     name: "Обновление статуса PR"
-    needs: [realtime, web, api, landing, storybook, security]
+    needs: [realtime, web, api, landing, storybook, security, editor]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -245,6 +272,8 @@ jobs:
               -e "s|{{REALTIME_STATUS}}|${{ needs.realtime.result == 'success' && '✅ Успешно' || (needs.realtime.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{STORYBOOK_COV}}|${{ needs.storybook.outputs.coverage || '—' }}|g" \
               -e "s|{{STORYBOOK_STATUS}}|${{ needs.storybook.result == 'success' && '✅ Успешно' || (needs.storybook.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{EDITOR_COV}}|${{ needs.editor.outputs.coverage || '—' }}|g" \
+              -e "s|{{EDITOR_STATUS}}|${{ needs.editor.result == 'success' && '✅ Успешно' || (needs.editor.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{SECURITY_STATUS}}|${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }}|g" \
               .github/templates/pr-status-summary.md > pr-comment.md
 
