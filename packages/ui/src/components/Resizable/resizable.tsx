@@ -1,7 +1,8 @@
 "use client";
 
+import { GripVerticalIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
-import type * as React from "react";
+import { createContext, useContext } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { RESIZABLE_STYLES } from "./constants";
 import type {
@@ -10,34 +11,13 @@ import type {
   ResizablePanelProps,
 } from "./types";
 
-/**
- * Иконка точек для визуальной плашки захвата (Grip).
- */
-function GripVerticalIcon({
-  className,
-  ...props
-}: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="9" cy="12" r="1" />
-      <circle cx="9" cy="5" r="1" />
-      <circle cx="9" cy="19" r="1" />
-      <circle cx="15" cy="12" r="1" />
-      <circle cx="15" cy="5" r="1" />
-      <circle cx="15" cy="19" r="1" />
-    </svg>
-  );
+interface ResizableGroupContextValue {
+  orientation: "horizontal" | "vertical";
 }
+
+const ResizableGroupContext = createContext<ResizableGroupContextValue>({
+  orientation: "horizontal",
+});
 
 /**
  * Контейнер группы панелей (ResizablePanelGroup).
@@ -51,12 +31,17 @@ function ResizablePanelGroup({
   const resolvedOrientation = orientation ?? direction ?? "horizontal";
 
   return (
-    <Group
-      data-slot="resizable-panel-group"
-      orientation={resolvedOrientation}
-      className={cn(RESIZABLE_STYLES.group, className)}
-      {...props}
-    />
+    <ResizableGroupContext.Provider
+      value={{ orientation: resolvedOrientation }}
+    >
+      <Group
+        data-slot="resizable-panel-group"
+        data-orientation={resolvedOrientation}
+        orientation={resolvedOrientation}
+        className={cn(RESIZABLE_STYLES.group, className)}
+        {...props}
+      />
+    </ResizableGroupContext.Provider>
   );
 }
 
@@ -77,9 +62,12 @@ function ResizableHandle({
   className,
   ...props
 }: ResizableHandleProps) {
+  const { orientation } = useContext(ResizableGroupContext);
+
   return (
     <Separator
       data-slot="resizable-handle"
+      data-orientation={orientation}
       className={cn(RESIZABLE_STYLES.handle, className)}
       {...props}
     >

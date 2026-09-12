@@ -70,10 +70,7 @@ function MyComponent() {
         Открыть профиль
       </Button>
 
-      <Drawer
-        open={drawer.isOpen("user-details")}
-        onOpenChange={(open) => !open && drawer.close("user-details")}
-      >
+      <Drawer name="user-details">
         <Drawer.Content>
           <Drawer.Header>
             <Drawer.Title>Пользователь</Drawer.Title>
@@ -232,14 +229,7 @@ function UseDrawerDemo() {
         </Button>
       </div>
 
-      <Drawer
-        open={drawer.isOpen("topic-drawer")}
-        onOpenChange={(open) => {
-          if (!open) {
-            drawer.close("topic-drawer");
-          }
-        }}
-      >
+      <Drawer name="topic-drawer">
         <Drawer.Content side="bottom">
           <Drawer.Header>
             <Drawer.Title>{payload?.title ?? "Выбор темы"}</Drawer.Title>

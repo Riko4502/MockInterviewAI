@@ -1,9 +1,11 @@
 "use client";
 
 import { Button } from "@components/Button";
+import { DrawerContext } from "@model/DrawerProvider";
 import { CloseIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import { Dialog as DrawerPrimitive } from "radix-ui";
+import { useContext } from "react";
 import { DRAWER_STYLES, drawerContentVariants } from "./constants";
 import type {
   DrawerCloseProps,
@@ -24,11 +26,33 @@ import type {
  * Поддерживает как неконтролируемый/контролируемый режим, так и синхронизацию по `name` с `useDrawer`.
  */
 function DrawerRoot({ name, open, onOpenChange, ...props }: DrawerProps) {
+  const drawer = useContext(DrawerContext);
+
+  const resolvedOpen =
+    open !== undefined
+      ? open
+      : name && drawer
+        ? drawer.isOpen(name)
+        : undefined;
+
+  const resolvedOnOpenChange =
+    onOpenChange !== undefined
+      ? onOpenChange
+      : name && drawer
+        ? (nextOpen: boolean) => {
+            if (nextOpen) {
+              drawer.open(name);
+            } else {
+              drawer.close(name);
+            }
+          }
+        : undefined;
+
   return (
     <DrawerPrimitive.Root
       data-slot="drawer"
-      open={open}
-      onOpenChange={onOpenChange}
+      open={resolvedOpen}
+      onOpenChange={resolvedOnOpenChange}
       {...props}
     />
   );

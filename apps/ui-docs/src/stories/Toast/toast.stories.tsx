@@ -160,6 +160,7 @@ function ToastInteractiveLauncher(args: ToastStoryProps) {
               title: args.title,
               description: args.description,
               duration: args.duration,
+              showCloseButton: args.showCloseButton,
             })
           }
         >

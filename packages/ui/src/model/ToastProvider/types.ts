@@ -20,6 +20,7 @@ export interface ToastPushOptions {
   title: React.ReactNode;
   description?: React.ReactNode;
   duration?: number;
+  showCloseButton?: boolean;
   action?: ToastActionItem | React.ReactNode;
   onClose?: () => void;
 }
@@ -29,6 +30,7 @@ export interface ToastData extends Required<Pick<ToastPushOptions, "id">> {
   title: React.ReactNode;
   description?: React.ReactNode;
   duration?: number;
+  showCloseButton?: boolean;
   action?: ToastActionItem | React.ReactNode;
   open: boolean;
   onClose?: () => void;

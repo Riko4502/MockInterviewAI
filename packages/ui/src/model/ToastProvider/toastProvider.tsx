@@ -1,13 +1,17 @@
 "use client";
 
 import { Toast } from "@components/Toast";
-import { CheckIcon } from "@packages/icons";
+import {
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  CheckIcon,
+  InfoIcon,
+} from "@packages/icons";
 import {
   createContext,
   type PropsWithChildren,
   useCallback,
   useContext,
-  useId,
   useMemo,
   useState,
 } from "react";
@@ -33,61 +37,19 @@ function StatusIcon({ status }: { status: ToastStatus }) {
     case "error":
       return (
         <div className="mt-0.5 shrink-0 rounded-full bg-destructive/15 p-1 text-destructive">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="size-3.5"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="15" y1="9" x2="9" y2="15" />
-            <line x1="9" y1="9" x2="15" y2="15" />
-          </svg>
+          <AlertCircleIcon className="size-3.5" />
         </div>
       );
     case "warning":
       return (
         <div className="mt-0.5 shrink-0 rounded-full bg-amber-500/15 p-1 text-amber-500 dark:text-amber-400">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="size-3.5"
-            aria-hidden="true"
-          >
-            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
+          <AlertTriangleIcon className="size-3.5" />
         </div>
       );
     case "info":
       return (
         <div className="mt-0.5 shrink-0 rounded-full bg-chart-4/15 p-1 text-chart-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="size-3.5"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
-          </svg>
+          <InfoIcon className="size-3.5" />
         </div>
       );
     default:
@@ -109,19 +71,42 @@ function isActionItem(action: unknown): action is ToastActionItem {
  */
 export function ToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<ToastData[]>([]);
-  const idPrefix = useId();
 
-  const dismiss = useCallback((id?: string) => {
-    setToasts((prev) =>
-      prev.map((item) =>
-        id === undefined || item.id === id ? { ...item, open: false } : item,
-      ),
-    );
+  const removeToast = useCallback((predicate: (item: ToastData) => boolean) => {
+    setToasts((prev) => {
+      const remaining: ToastData[] = [];
+      const closing: ToastData[] = [];
+
+      for (const item of prev) {
+        if (predicate(item)) {
+          closing.push(item);
+        } else {
+          remaining.push(item);
+        }
+      }
+
+      if (closing.length === 0) {
+        return prev;
+      }
+
+      for (const item of closing) {
+        item.onClose?.();
+      }
+
+      return remaining;
+    });
   }, []);
+
+  const dismiss = useCallback(
+    (id?: string) => {
+      removeToast((item) => id === undefined || item.id === id);
+    },
+    [removeToast],
+  );
 
   const allDismiss = useCallback(() => {
-    setToasts((prev) => prev.map((item) => ({ ...item, open: false })));
-  }, []);
+    removeToast(() => true);
+  }, [removeToast]);
 
   const push = useCallback(
     ({
@@ -130,12 +115,11 @@ export function ToastProvider({ children }: PropsWithChildren) {
       title,
       description,
       duration = 5000,
+      showCloseButton = true,
       action,
       onClose,
     }: ToastPushOptions) => {
-      const toastId =
-        id ??
-        `${idPrefix}-toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const toastId = id ?? crypto.randomUUID();
 
       const newToast: ToastData = {
         id: toastId,
@@ -143,6 +127,7 @@ export function ToastProvider({ children }: PropsWithChildren) {
         title,
         description,
         duration,
+        showCloseButton,
         action,
         open: true,
         onClose,
@@ -151,7 +136,7 @@ export function ToastProvider({ children }: PropsWithChildren) {
       setToasts((prev) => [...prev.filter((t) => t.id !== toastId), newToast]);
       return toastId;
     },
-    [idPrefix],
+    [],
   );
 
   const controller = useMemo<ToastController>(
@@ -172,11 +157,11 @@ export function ToastProvider({ children }: PropsWithChildren) {
             key={item.id}
             status={item.status}
             duration={item.duration}
+            showCloseButton={item.showCloseButton}
             open={item.open}
             onOpenChange={(open) => {
               if (!open) {
-                item.onClose?.();
-                setToasts((prev) => prev.filter((t) => t.id !== item.id));
+                removeToast((t) => t.id === item.id);
               }
             }}
           >

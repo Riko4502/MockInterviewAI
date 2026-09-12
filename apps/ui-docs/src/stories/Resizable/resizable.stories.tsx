@@ -57,11 +57,11 @@ import {
 ### **Базовый пример использования**
 \`\`\`tsx
 <Resizable direction="horizontal" className="h-[400px] w-full rounded-xl border border-border">
-  <Resizable.Panel defaultSize={30} minSize={20} maxSize={50}>
+  <Resizable.Panel defaultSize="30" minSize="20" maxSize="50">
     <div className="p-4">Сайдбар</div>
   </Resizable.Panel>
   <Resizable.Handle withHandle />
-  <Resizable.Panel defaultSize={70}>
+  <Resizable.Panel defaultSize="70">
     <div className="p-4">Основная область</div>
   </Resizable.Panel>
 </Resizable>
@@ -123,7 +123,7 @@ export const Default: Story = {
         direction={args.direction}
         className="h-[380px] rounded-xl border border-border bg-card shadow-lg"
       >
-        <Resizable.Panel defaultSize={35} minSize={20} maxSize={60}>
+        <Resizable.Panel defaultSize="35" minSize="20" maxSize="60">
           <div className="flex h-full flex-col justify-center items-center p-8 bg-muted/20 text-center">
             <div className="rounded-full bg-primary/10 p-3 text-primary mb-3">
               <FolderIcon className="size-6" />
@@ -140,7 +140,7 @@ export const Default: Story = {
           withHandle={args.withHandle}
           disabled={args.disabled}
         />
-        <Resizable.Panel defaultSize={65}>
+        <Resizable.Panel defaultSize="65">
           <div className="flex h-full flex-col justify-center items-center p-8 text-center bg-card">
             <div className="rounded-full bg-secondary p-3 text-foreground mb-3">
               <CodeIcon className="size-6" />
@@ -193,7 +193,7 @@ export const IDELayout: Story = {
         className="h-[520px] rounded-b-xl border border-border bg-card shadow-2xl"
       >
         {/* Левая панель: проводник файлов */}
-        <Resizable.Panel defaultSize={24} minSize={16} maxSize={38}>
+        <Resizable.Panel defaultSize="24" minSize="16" maxSize="38">
           <div className="flex h-full flex-col bg-muted/15">
             <div className="flex items-center justify-between p-3 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -233,10 +233,10 @@ export const IDELayout: Story = {
         <Resizable.Handle withHandle />
 
         {/* Правая секция: Редактор + Терминал */}
-        <Resizable.Panel defaultSize={76}>
+        <Resizable.Panel defaultSize="76">
           <Resizable direction="vertical">
             {/* Верхний блок: Редактор кода */}
-            <Resizable.Panel defaultSize={62} minSize={30}>
+            <Resizable.Panel defaultSize="62" minSize="30">
               <div className="flex h-full flex-col bg-background">
                 {/* Вкладки редактора */}
                 <div className="flex items-center justify-between border-b border-border bg-muted/30 px-2 pt-1 text-xs">
@@ -317,7 +317,7 @@ export const IDELayout: Story = {
             <Resizable.Handle withHandle />
 
             {/* Нижний блок: Консоль и результаты тестов */}
-            <Resizable.Panel defaultSize={38} minSize={20}>
+            <Resizable.Panel defaultSize="38" minSize="20">
               <div className="flex h-full flex-col bg-card">
                 <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/20 text-xs">
                   <div className="flex items-center gap-3">
@@ -373,7 +373,7 @@ export const Vertical: Story = {
         direction="vertical"
         className="h-[460px] rounded-xl border border-border bg-card shadow-lg"
       >
-        <Resizable.Panel defaultSize={60} minSize={30}>
+        <Resizable.Panel defaultSize="60" minSize="30">
           <div className="flex h-full flex-col p-6 bg-background">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <span className="text-sm font-semibold">
@@ -394,7 +394,7 @@ export const Vertical: Story = {
           </div>
         </Resizable.Panel>
         <Resizable.Handle withHandle />
-        <Resizable.Panel defaultSize={40} minSize={20}>
+        <Resizable.Panel defaultSize="40" minSize="20">
           <div className="flex h-full flex-col p-6 bg-muted/20">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <span className="text-sm font-semibold">
@@ -426,7 +426,7 @@ export const ThreeColumns: Story = {
         direction="horizontal"
         className="h-[400px] rounded-xl border border-border bg-card shadow-lg"
       >
-        <Resizable.Panel defaultSize={30} minSize={20} maxSize={45}>
+        <Resizable.Panel defaultSize="30" minSize="20" maxSize="45">
           <div className="flex h-full flex-col p-6 bg-muted/20 border-r border-border">
             <h4 className="text-sm font-bold text-foreground">
               1. Описание задачи
@@ -438,7 +438,7 @@ export const ThreeColumns: Story = {
           </div>
         </Resizable.Panel>
         <Resizable.Handle withHandle />
-        <Resizable.Panel defaultSize={45} minSize={30}>
+        <Resizable.Panel defaultSize="45" minSize="30">
           <div className="flex h-full flex-col p-6 bg-background">
             <h4 className="text-sm font-bold text-primary">
               2. Редактор решения
@@ -449,7 +449,7 @@ export const ThreeColumns: Story = {
           </div>
         </Resizable.Panel>
         <Resizable.Handle withHandle />
-        <Resizable.Panel defaultSize={25} minSize={15} maxSize={40}>
+        <Resizable.Panel defaultSize="25" minSize="15" maxSize="40">
           <div className="flex h-full flex-col p-6 bg-muted/30">
             <h4 className="text-sm font-bold text-foreground">3. Оценка AI</h4>
             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
@@ -473,10 +473,10 @@ export const Collapsible: Story = {
         className="h-[380px] rounded-xl border border-border bg-card shadow-lg"
       >
         <Resizable.Panel
-          defaultSize={28}
+          defaultSize="28"
           collapsible={true}
-          minSize={18}
-          maxSize={45}
+          minSize="18"
+          maxSize="45"
           className="transition-all duration-200"
         >
           <div className="flex h-full flex-col justify-center items-center p-6 bg-muted/30 text-center">
@@ -490,7 +490,7 @@ export const Collapsible: Story = {
           </div>
         </Resizable.Panel>
         <Resizable.Handle withHandle />
-        <Resizable.Panel defaultSize={72}>
+        <Resizable.Panel defaultSize="72">
           <div className="flex h-full flex-col justify-center items-center p-8 text-center bg-background">
             <span className="text-base font-bold text-foreground">
               Главная панель

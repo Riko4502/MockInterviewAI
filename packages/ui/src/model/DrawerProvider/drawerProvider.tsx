@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { DrawerController, DrawerEntry } from "./types";
 
-const DrawerContext = createContext<DrawerController | null>(null);
+export const DrawerContext = createContext<DrawerController | null>(null);
 
 /**
  * Провайдер контекста для программного управления шторками (Drawer).
