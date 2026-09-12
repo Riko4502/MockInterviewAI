@@ -1,12 +1,7 @@
 "use client";
 
 import { Toast } from "@components/Toast";
-import {
-  AlertCircleIcon,
-  AlertTriangleIcon,
-  CheckIcon,
-  InfoIcon,
-} from "@packages/icons";
+import { StatusIcon } from "@components/Toast/components/StatusIcon";
 import {
   createContext,
   type PropsWithChildren,
@@ -20,42 +15,9 @@ import type {
   ToastController,
   ToastData,
   ToastPushOptions,
-  ToastStatus,
 } from "./types";
 
 const ToastContext = createContext<ToastController | null>(null);
-
-function StatusIcon({ status }: { status: ToastStatus }) {
-  switch (status) {
-    case "success":
-      return (
-        <div className="mt-0.5 shrink-0 rounded-full bg-success/15 p-1 text-success">
-          <CheckIcon className="size-3.5" />
-        </div>
-      );
-    case "destructive":
-    case "error":
-      return (
-        <div className="mt-0.5 shrink-0 rounded-full bg-destructive/15 p-1 text-destructive">
-          <AlertCircleIcon className="size-3.5" />
-        </div>
-      );
-    case "warning":
-      return (
-        <div className="mt-0.5 shrink-0 rounded-full bg-amber-500/15 p-1 text-amber-500 dark:text-amber-400">
-          <AlertTriangleIcon className="size-3.5" />
-        </div>
-      );
-    case "info":
-      return (
-        <div className="mt-0.5 shrink-0 rounded-full bg-chart-4/15 p-1 text-chart-4">
-          <InfoIcon className="size-3.5" />
-        </div>
-      );
-    default:
-      return null;
-  }
-}
 
 function isActionItem(action: unknown): action is ToastActionItem {
   return (
@@ -71,21 +33,22 @@ function isActionItem(action: unknown): action is ToastActionItem {
  */
 export function ToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [isHovered, setIsHovered] = useState(false);
 
   const removeToast = useCallback((predicate: (item: ToastData) => boolean) => {
     setToasts((prev) => {
       const remaining: ToastData[] = [];
       const closing: ToastData[] = [];
 
-      for (const item of prev) {
+      prev.forEach((item) => {
         if (predicate(item)) {
           closing.push(item);
         } else {
           remaining.push(item);
         }
-      }
+      });
 
-      if (closing.length === 0) {
+      if (!closing.length) {
         return prev;
       }
 
@@ -148,49 +111,110 @@ export function ToastProvider({ children }: PropsWithChildren) {
     [push, dismiss, allDismiss],
   );
 
+  const total = toasts.length;
+
   return (
     <ToastContext.Provider value={controller}>
       <Toast.Provider swipeDirection="right">
         {children}
-        {toasts.map((item) => (
-          <Toast
-            key={item.id}
-            status={item.status}
-            duration={item.duration}
-            showCloseButton={item.showCloseButton}
-            open={item.open}
-            onOpenChange={(open) => {
-              if (!open) {
-                removeToast((t) => t.id === item.id);
+        {toasts.map((item, index) => {
+          const offset = total - 1 - index;
+
+          let transform = "translate3d(0, 0, 0) scale(1)";
+          let opacity = 1;
+          const zIndex = 50 - offset;
+          let pointerEvents: "auto" | "none" = "auto";
+
+          if (total > 1) {
+            if (isHovered) {
+              if (offset < 5) {
+                transform = `translate3d(0, calc(-${offset} * (100% + 12px)), 0) scale(1)`;
+                opacity = 1;
+                pointerEvents = "auto";
+              } else {
+                transform = `translate3d(0, calc(-${offset} * (100% + 12px)), 0) scale(0.85)`;
+                opacity = 0;
+                pointerEvents = "none";
               }
-            }}
-          >
-            <div className="flex w-full items-start gap-3">
-              <StatusIcon status={item.status} />
-              <div className="flex flex-1 flex-col gap-1 pr-4">
-                <Toast.Title>{item.title}</Toast.Title>
-                {item.description && (
-                  <Toast.Description>{item.description}</Toast.Description>
-                )}
-              </div>
-              {item.action && (
-                <div className="shrink-0 self-center">
-                  {isActionItem(item.action) ? (
-                    <Toast.Action
-                      altText={item.action.altText ?? "Выполнить действие"}
-                      onClick={item.action.onClick}
-                    >
-                      {item.action.label}
-                    </Toast.Action>
-                  ) : (
-                    item.action
+            } else {
+              if (!offset) {
+                transform = "translate3d(0, 0px, 0) scale(1)";
+                opacity = 1;
+                pointerEvents = "auto";
+              } else if (offset === 1) {
+                transform = "translate3d(0, -14px, 0) scale(0.95)";
+                opacity = 0.9;
+                pointerEvents = "auto";
+              } else if (offset === 2) {
+                transform = "translate3d(0, -28px, 0) scale(0.90)";
+                opacity = 0.75;
+                pointerEvents = "none";
+              } else {
+                transform = "translate3d(0, -42px, 0) scale(0.85)";
+                opacity = 0;
+                pointerEvents = "none";
+              }
+            }
+          }
+
+          return (
+            <Toast
+              key={item.id}
+              status={item.status}
+              duration={item.duration}
+              showCloseButton={item.showCloseButton}
+              open={item.open}
+              className="absolute bottom-4 right-4 left-4 md:left-auto md:w-[388px] max-w-[calc(100vw-2rem)] origin-bottom"
+              style={{
+                position: "absolute",
+                bottom: "1rem",
+                right: "1rem",
+                transformOrigin: "bottom center",
+                transform,
+                opacity,
+                zIndex,
+                pointerEvents,
+                transition:
+                  "transform 350ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease, box-shadow 300ms ease",
+              }}
+              onMouseEnter={() => setIsHovered(true)}
+              onOpenChange={(open) => {
+                if (!open) {
+                  removeToast((t) => t.id === item.id);
+                }
+              }}
+            >
+              <div className="flex w-full items-start gap-3">
+                <StatusIcon status={item.status} />
+                <div className="flex flex-1 flex-col gap-1 pr-4">
+                  <Toast.Title>{item.title}</Toast.Title>
+                  {item.description && (
+                    <Toast.Description>{item.description}</Toast.Description>
                   )}
                 </div>
-              )}
-            </div>
-          </Toast>
-        ))}
-        <Toast.Viewport />
+                {item.action && (
+                  <div className="shrink-0 self-center">
+                    {isActionItem(item.action) ? (
+                      <Toast.Action
+                        altText={item.action.altText ?? "Выполнить действие"}
+                        onClick={item.action.onClick}
+                      >
+                        {item.action.label}
+                      </Toast.Action>
+                    ) : (
+                      item.action
+                    )}
+                  </div>
+                )}
+              </div>
+            </Toast>
+          );
+        })}
+        <Toast.Viewport
+          className={isHovered ? "pointer-events-auto" : undefined}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        />
       </Toast.Provider>
     </ToastContext.Provider>
   );

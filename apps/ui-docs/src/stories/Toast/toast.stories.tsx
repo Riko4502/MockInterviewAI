@@ -342,3 +342,64 @@ export const Variants: Story = {
     </div>
   ),
 };
+
+/**
+ * Демонстрация эффекта гармошки/стопки при нескольких активных тостах.
+ */
+function ToastStackedDemo() {
+  const toast = useToast();
+
+  const handleCreateBatch = () => {
+    toast.push({
+      status: "default",
+      title: "1. Инициализация проекта",
+      description: "Создание рабочего окружения и контейнеров...",
+      duration: 15000,
+    });
+    toast.push({
+      status: "info",
+      title: "2. Загрузка данных",
+      description: "Импорт структуры тестов и кодовой базы.",
+      duration: 15000,
+    });
+    toast.push({
+      status: "warning",
+      title: "3. Проверка зависимостей",
+      description: "Обнаружено предупреждение о версии пакета.",
+      duration: 15000,
+    });
+    toast.push({
+      status: "success",
+      title: "4. Готово к работе",
+      description: "Все сервисы успешно запущены и готовы к сессии.",
+      duration: 15000,
+    });
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4 p-6">
+      <div className="text-center space-y-1 mb-2">
+        <p className="text-sm font-semibold text-foreground">
+          Группировка тостов в стопку («гармошка»)
+        </p>
+        <p className="text-xs text-muted-foreground max-w-md">
+          Нажмите кнопку, чтобы запустить несколько уведомлений. Они аккуратно
+          складываются в стопку, а при наведении курсора раздвигаются вверх в
+          полный список.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <Button onClick={handleCreateBatch}>
+          Запустить пачку тостов (4 шт.)
+        </Button>
+        <Button variant="outline" onClick={() => toast.allDismiss()}>
+          Очистить все
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export const StackedAccordion: Story = {
+  render: () => <ToastStackedDemo />,
+};
