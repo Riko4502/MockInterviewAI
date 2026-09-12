@@ -98,7 +98,7 @@ services:
     container_name: mock-interview-landing
     restart: unless-stopped
     ports:
-      - "4321:80"
+      - "4321:8080"
 
 volumes:
   redis_data:
