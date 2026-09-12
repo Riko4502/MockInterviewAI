@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "concurrency": "11",
   "globalPassThroughEnv": [
     "LOCALAPPDATA",
     "GOPATH",
@@ -42,11 +43,6 @@
         "PATH",
         "HOME"
       ]
-    },
-    "deploy:observability": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": ["dist/**"]
     }
   }
 }

@@ -176,7 +176,8 @@ realtime не вызывает API); механика входа участни�
 ### Шаги
 1. `docker-compose.yml`:
    - сервис `livekit` (`livekit/livekit-server:latest`), порты `7880` (сигнальный WS/HTTP),
-     `7881` (TCP media), UDP `50000-50200` (WebRTC), env `LIVEKIT_KEYS: devkey: secret`,
+     `7881` (TCP media), UDP `50060-50078` (WebRTC; диапазон выбран вне
+     исключённых Windows UDP-портов 50000-50478), env `LIVEKIT_KEYS: devkey: secret`,
      `LIVEKIT_WEBHOOK_URL: http://realtime:8080/webhooks/livekit`,
      `LIVEKIT_WEBHOOK_API_KEY: devkey`, `LIVEKIT_WEBHOOK_API_SECRET: secret`
      (из корневого `.env` через `${...}` с дефолтами);

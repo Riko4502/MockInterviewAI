@@ -1,6 +1,6 @@
 # Spec: Observability Package
 
-**Версия:** 0.6.0
+**Версия:** 0.7.2
 
 ## 1. Цель
 
@@ -24,8 +24,7 @@
 
 1. `packages/*` никогда не импортирует из `apps/*` (Dependency Inversion).
 2. Наборный пакет (как `@packages/dto`): компилируется в CJS через `tsc`,
-   т.к. `apps/api` использует `moduleResolution: "node"` и требует runtime-`js`;
-   билд также копирует JSON-дашборды в `dist/` (`tsc && node scripts/copy-dashboards.mjs`).
+   т.к. `apps/api` использует `moduleResolution: "node"` и требует runtime-`js`.
 3. Вся конфигурация отправки данных в Sentry/Prometheus управляется **через
    переменные окружения**, схемы которых задаются в этом пакете.
 
@@ -42,7 +41,7 @@
 | Пароль прод-Redis (`requirepass`) | **Без изменений** в рамках этого этапа — только мониторинг |
 | Throttler API → Redis (`ThrottlerStorageRedis`) | **Отложено** (в открытых вопросах) |
 | Sentry Datasource plugin в Grafana | **Да** — ставим для корреляции ошибок с метриками |
-| Распространение dashboards | **Копировать при деплое** (CI-шаг `deploy:observability`), тома не монтировать |
+| Распространение dashboards | **Копировать при деплое** — scp-шаг `deploy-server.yml` копирует `infra` + `dashboards` на сервер; compose монтирует их томом (read-only, перечитывание раз в 30 c) |
 | Прод-Redis `maxmemory-policy` | **Отложено** до анализа usage-паттернов (alert на эвикцию всё равно ставим) |
 | Redis-auth в прод | **Отложено**; фиксация риска в `SECURITY.md` — открытый долг |
 
@@ -66,12 +65,10 @@ packages/observability/
 │   └── prometheus/
 │       ├── index.ts         # barrel
 │       └── env.ts           # Zod-схема env Prometheus
-├── scripts/
-│   └── copy-dashboards.mjs  # копирует dashboards/ в dist/ при build
-└── dashboards/
-    ├── realtime-sse.json    # дашборд SSE/WebSocket метрик (uid: realtime-sse)
-    ├── api-http.json        # дашборд NestJS HTTP метрик (uid: api-http)
-    └── redis.json           # дашборд серверных метрик Redis (exporter, uid: redis)
+├── dashboards/
+│   ├── realtime-sse.json    # дашборд SSE/WebSocket метрик (uid: realtime-sse)
+│   ├── api-http.json        # дашборд NestJS HTTP метрик (uid: api-http)
+│   └── redis.json           # дашборд серверных метрик Redis (exporter, uid: redis)
 ```
 
 ## 5. Интеграция по сервисам
@@ -91,7 +88,7 @@ packages/observability/
   - `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
     и `redis_client_errors_total` (`NOAUTH`, `ECONNREFUSED`, ...) — из
     `RedisService` (слушатели событий ioredis).
-- `MetricsController` — `GET /metrics` (`@Public`, `text/plain`).
+- `MetricsController` — `GET /api/v1/metrics` (полный путь после глобального префикса, `@Public`, `text/plain`).
 - `HttpExceptionFilter` — в ветке необработанных ошибок `captureException`.
 - Через `SENTRY_*` из `env.validation.ts` (Zod, runtime-parse в `validate`).
 
@@ -137,7 +134,7 @@ packages/observability/
 
 ## 6. Prometheus → Grafana
 
-- `apps/api` отдаёт `/metrics` через `prom-client`.
+- `apps/api` отдаёт метрики на `/api/v1/metrics` (глобальный префикс `/api/v1`).
 - `apps/realtime` уже отдаёт `/metrics` (hand-rolled Prometheus format).
 - `redis_exporter` (порт 9121) отдаёт серверные метрики Redis.
 - Prometheus scrape config — три job'а: `api`, `realtime`, `redis`.
@@ -153,12 +150,16 @@ packages/observability/
 Сервисы в `docker-compose.prod.yml`:
 
 - `prometheus` (image `prom/prometheus:v2.54.1`) + volume `prometheus_data`,
-  config и alert-правила монтируются из `packages/observability/infra/prometheus/`.
+  config и alert-правила монтируются из `packages/observability/infra/prometheus/`;
+  UI привязан к `127.0.0.1:9090` (внешнего доступа нет).
 - `grafana` (image `grafana/grafana:11.1.4`) + provisioning + volume
-  `grafana_data`, порт `3001:3000` (избежали коллизии с web на 3000).
+  `grafana_data`, порт `127.0.0.1:3001:3000` (избежали коллизии с web на 3000).
+  Установлен Sentry Datasource plugin (`GF_INSTALL_PLUGINS=grafana-sentry-datasource`);
+  `GRAFANA_ADMIN_PASSWORD` — **обязателен** (fail-closed, `:?` в compose),
+  прокидывается через `secrets.GRAFANA_ADMIN_PASSWORD` в `deploy-server.yml`.
 - `redis_exporter` (image `prom/redis-exporter:v1.61.0`) + `REDIS_ADDR=redis://redis:6379`,
   `REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications`,
-  `REDIS_EXPORTER_CHECK_KEYS=session:*:active`, порт `9121`.
+  `REDIS_EXPORTER_CHECK_KEYS=session:*:active`, порт `127.0.0.1:9121`.
 - сеть `monitoring` (bridge) для мониторинг-контейнеров.
 - Alert-правила Prometheus (`infra/prometheus/alerting/redis.yml`):
   `RedisTargetDown`, `RedisStreamLagHigh`, `RedisEvictions`,
@@ -195,8 +196,9 @@ packages/observability/
 - `redis_client_errors_total` (счётчик: `NOAUTH`, `ECONNREFUSED`, ...)
 
 > **Известное исключение:** `prisma_pool_connections_*` — **не реализовано**:
-> адаптер PrismaPg не даёт доступа к пулу `pg`. Панели в `api-http.json`
-> остаются без данных.
+> адаптер PrismaPg не даёт доступа к пулу `pg`. Панель в `api-http.json` удалена
+> (v0.7.0) — вернуть при появлении доступа к пулу (например, через обёртку
+> `pg.Pool` рядом с PrismaPg).
 
 ### Realtime (apps/realtime) — уже реализовано
 - `realtime_sse_connected_clients`
@@ -221,7 +223,125 @@ packages/observability/
 
 ---
 
+## 9. Разработка (dev)
+
+### 9.1 Быстрый старт
+
+`pnpm dev` (turbo dev): пакет собирается в watch-режиме (`tsc --watch`), `dist/`
+обновляется на каждое сохранение. Холодный старт безопасен: `predev` (`tsc`)
+выполняет одноразовую полную сборку до запуска watch-процесса. У dev-таски turbo
+нет `dependsOn` (`turbo.json`): persistent-таска не может зависеть от
+persistent, а `^build` вызывал гонку — одноразовая `build` (из `^build`
+консьюмеров) и `dev`/watch писали в один `dist/` одновременно (TS7016 вида
+«нет деклараций у `@packages/utils`»); `"concurrency": "11"` покрывает 10
+persistent-тасок. По умолчанию Sentry выключен
+(пустые DSN), мониторинговая инфраструктура (Prometheus/Grafana/redis_exporter)
+в dev не запускается — она живёт в `docker-compose.prod.yml` и поднимается только
+на прод-сервере (см. PLAN §7 «Backlog: dev-контур наблюдения»).
+
+Приложения поднимаются на:
+- `api` → `localhost:${API_PORT}` (NestJS; по умолчанию `API_PORT=3001`, см. `.env`)
+- `realtime` → `localhost:8080` (Go, WS/SSE)
+- `web` → `localhost:3000` (Next.js)
+- `landing` → `localhost:4321` (Next.js, статический export)
+
+### 9.2 Дефолтный режим (пустые env)
+
+При пустых `SENTRY_*`/`GRAFANA_*` наблюдаемость почти инертна:
+
+- **Sentry — no-op:** guard по `SENTRY_DSN` в `instrument.ts` (api) и
+  `sentry.*.config.ts`/`next.config.ts` (web, landing); `next.config` не
+  оборачивается в `withSentryConfig`.
+- **Метрики работают всегда** (не зависят от env):
+
+| Сервис | Endpoint | Что отдаёт |
+|--------|----------|------------|
+| api | `GET localhost:${API_PORT}/api/v1/metrics` | HTTP-метрики, состояние соединения ioredis |
+| realtime | `GET localhost:8080/metrics` | PoolStats go-redis, pub/sub lag, SSE backlog |
+
+Смотреть можно через curl или браузер; Prometheus-scrape в dev отсутствует.
+
+### 9.3 Включение Sentry локально (тестовый проект)
+
+Чтобы проверить отправку ошибок/трассировок локально, достаточно задать DSN
+в `.env` и перезапустить приложение:
+
+- `SENTRY_DSN` (валидный `https://…`) — серверная инициализация: api
+  (`instrument.ts`), web (server/edge), realtime (`internal/config`);
+- `NEXT_PUBLIC_SENTRY_DSN` — браузерная инициализация web/landing
+  (`sentryClientConfig`, иначе `null` → no-op);
+- `SENTRY_ENVIRONMENT=development` — тег окружения;
+- `SENTRY_TRACES_SAMPLE_RATE=0.2` — доля трассировок (0..1).
+
+В dev **не нужны**: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — они
+используются только на этапе сборки (upload source maps, Sentry Datasource
+plugin).
+
+Особенности:
+- С заданным `SENTRY_DSN` `next.config` web/landing оборачивается в
+  `withSentryConfig` — dev-сборка становится заметно тяжелее.
+- Пресеты (`sentryNestjsConfig`, `sentryRuntimeConfig`) используют строгую
+  Zod-валидацию и бросят ошибку при некорректном DSN — безопасно, т.к.
+  вызываются только под guard по `SENTRY_DSN`.
+- Для локальных тестов используйте тестовый DSN и окружение `development`,
+  а не прод-проект.
+
+### 9.4 Разработка самого пакета
+
+- Правки в `src/` пересобираются watch-таской в `dist/`. Потребители
+  подхватывают изменения по-разному:
+  - `api` — `nest start --watch` перекомпилирует при изменении файлов;
+  - `web`/`landing` — Next dev перекомпилирует модуль по запросу;
+  - `realtime` (Go) на пакет не завязан — Sentry и метрики там в
+    `apps/realtime/internal`.
+- Локальные проверки: `pnpm --filter @packages/observability lint`,
+  `pnpm --filter @packages/observability typecheck`,
+  `pnpm --filter @packages/observability build`.
+
+### 9.5 Наблюдение в dev
+
+Полноценный dev-контур (локально Prometheus + Grafana + redis_exporter) пока
+не реализован — открытая задача PLAN §7 (dev-compose
+`infra/observability.dev.yml`). До её появления источник правды — сырые
+`/api/v1/metrics` (api) и `/metrics` (realtime), см. §9.2; дашборды и
+alert-правила Grafana проверяются на проде.
+
+---
+
 ## Изменения
+
+### 0.7.2 — 2026-09-12
+- **Контракт Prometheus → api:** job `api` скрейпит `metrics_path: /api/v1/metrics`
+  (глобальный префикс `/api/v1`), раннее `/metrics` давало 404 в проде.
+- **Уточнены пути:** `MetricsController` — `GET /api/v1/metrics` (§5.1, §6);
+  локально api слушает `API_PORT` (по умолч. 3001) → `localhost:${API_PORT}/api/v1/metrics`;
+  прод-таргет `api:4000/api/v1/metrics` (§9).
+- Realtime не менялся: `/metrics` на `:8080` (job `realtime` корректен).
+
+### 0.7.1 — 2026-09-12
+- Добавлен §9 «Разработка (dev)»: dev-режим пакета (watch-сборка в `turbo dev`),
+  дефолтный режим с пустыми env и endpoint'ами метрик, включение Sentry локально
+  (таблица env), разработка самого пакета, наблюдение в dev (отсылка к PLAN §7).
+- Dev-цикл: у пакета `dev` — `predev: tsc` + `tsc --watch`; dev-таска turbo без
+  `dependsOn` (persistent не может зависеть от persistent; `^build` давал гонку
+  одноразовой сборки и watch на одном `dist/`); для 10 persistent-тасок задан
+  `"concurrency": "11"`.
+
+### 0.7.0 — 2026-09-12
+- **Дашборды:** исправлено имя метрики в `redis.json` (`redis_streams_stream_length` →
+  `redis_stream_length`, легенда `{{stream}}` → `{{key}}` — у redis_exporter label `key`);
+  панели явно привязаны к datasource Prometheus (`"uid": "prometheus"`).
+- **Дашборды:** удалена пустая панель «Prisma Pool Connections» из `api-http.json`
+  (метрики PrismaPg не реализованы, см. §8).
+- **Инфраструктура:** Sentry Datasource plugin в Grafana реализован
+  (`GF_INSTALL_PLUGINS=grafana-sentry-datasource`, §3 решение «Да» закрыто).
+- **Безопасность:** порты Prometheus/Grafana/Redis-exporter привязаны к `127.0.0.1`
+  (§7); `GRAFANA_ADMIN_PASSWORD` стал обязательным (fail-closed) и прокидывается
+  через `secrets.GRAFANA_ADMIN_PASSWORD` в `deploy-server.yml`; открытый вопрос
+  PLAN §6 закрыт.
+- **Чистка:** удалены мёртвые артефакты — задача `deploy:observability` из `turbo.json`
+  и скрипт `scripts/copy-dashboards.mjs` (распространение дашбордов делает scp-шаг
+  `deploy-server.yml` из исходных директорий). §2/§3/§4 обновлены.
 
 ### 0.6.0 — 2026-09-11
 - Infra-фаза реализована: §7 переписан под `packages/observability/infra/`

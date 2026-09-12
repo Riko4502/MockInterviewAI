@@ -19,7 +19,9 @@
     }
   },
   "scripts": {
-    "build": "tsc && node scripts/copy-dashboards.mjs",
+    "build": "tsc",
+    "predev": "tsc",
+    "dev": "tsc --watch",
     "lint": "biome check",
     "format": "biome format --write --no-errors-on-unmatched",
     "typecheck": "tsc --noEmit"

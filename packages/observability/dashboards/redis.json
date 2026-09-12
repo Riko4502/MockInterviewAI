@@ -10,6 +10,7 @@
     {
       "title": "Memory Usage",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
@@ -35,6 +36,7 @@
     {
       "title": "Memory Usage Ratio",
       "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
@@ -64,6 +66,7 @@
     {
       "title": "Connected Clients",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
       "targets": [
         {
@@ -89,6 +92,7 @@
     {
       "title": "Blocked Clients (XREAD from SSE readers)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
@@ -109,6 +113,7 @@
     {
       "title": "Evicted Keys (rate)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         {
@@ -129,6 +134,7 @@
     {
       "title": "Keyspace Hits / Misses (rate)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
@@ -154,6 +160,7 @@
     {
       "title": "Command Latency (p95 by command)",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
@@ -174,11 +181,12 @@
     {
       "title": "Stream Length: user:*:notifications",
       "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "targets": [
         {
-          "expr": "redis_streams_stream_length",
-          "legendFormat": "{{stream}}",
+          "expr": "redis_stream_length",
+          "legendFormat": "{{key}}",
           "refId": "A"
         }
       ],
