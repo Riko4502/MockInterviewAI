@@ -3,6 +3,7 @@ export * from "../model/DrawerProvider";
 export * from "../model/ToastProvider";
 export * from "../model/UIProvider";
 export * from "./Accordion";
+export * from "./Attachment";
 export * from "./Avatar";
 export * from "./Badge";
 export * from "./Breadcrumb";
