@@ -136,6 +136,7 @@ export const Languages: Story = {
               type="button"
               size="sm"
               variant={language === lang ? "default" : "outline"}
+              aria-pressed={language === lang}
               onClick={() => handleLanguageChange(lang)}
             >
               {lang}
