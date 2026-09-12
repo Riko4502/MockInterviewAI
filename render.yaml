@@ -171,7 +171,7 @@ services:
     region: frankfurt
     envVars:
       - key: PORT
-        value: "80"
+        value: "8080"
       - key: NEXT_PUBLIC_SITE_URL
         sync: false # e.g. https://devsync-landing.onrender.com
       - key: NEXT_PUBLIC_APP_URL
@@ -195,5 +195,5 @@ services:
     region: frankfurt
     envVars:
       - key: PORT
-        value: "80"
+        value: "8080"
 
