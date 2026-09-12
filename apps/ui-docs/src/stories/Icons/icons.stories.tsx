@@ -148,6 +148,7 @@ interface IconCardGridProps {
   size?: IconSize;
 }
 
+/** Renders icon cards that copy the selected icon's JSX usage. */
 function IconCardGrid({ icons, size = "md" }: IconCardGridProps) {
   const [copiedName, setCopiedName] = useState<string | null>(null);
 

@@ -377,6 +377,7 @@ const COLOR_GROUPS: ColorGroup[] = [
   },
 ];
 
+/** Renders the color-token reference and provides CSS variable copy actions. */
 function ColorsOverview() {
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
 

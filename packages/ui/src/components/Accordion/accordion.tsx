@@ -18,6 +18,7 @@ function AccordionRoot({
   );
 }
 
+/** Renders an individual item within the compound accordion. */
 function AccordionItem({
   className,
   ...props
@@ -31,6 +32,7 @@ function AccordionItem({
   );
 }
 
+/** Renders the accessible control that expands or collapses an accordion item. */
 function AccordionTrigger({
   className,
   children,
@@ -60,6 +62,7 @@ function AccordionTrigger({
   );
 }
 
+/** Renders the animated content panel for an accordion item. */
 function AccordionContent({
   className,
   children,

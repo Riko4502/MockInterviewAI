@@ -39,6 +39,7 @@ const sizeConfig = {
   },
 } as const;
 
+/** Renders the brand logo as a link or through a caller-provided child element. */
 export function Logo({
   variant = "full",
   size = "md",
