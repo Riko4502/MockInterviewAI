@@ -270,6 +270,9 @@ importers:
       '@storybook/addon-onboarding':
         specifier: ^10.5.8
         version: 10.5.10(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))
+      '@storybook/addon-themes':
+        specifier: ^10.6.0
+        version: 10.6.0(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))
       '@storybook/react':
         specifier: ^10.5.8
         version: 10.5.10(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))(typescript@5.9.3)
@@ -318,15 +321,15 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.7.1
         version: 5.7.1(@sinclair/typebox@0.34.52)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.20.0)(joi@17.13.6)(react-hook-form@7.85.0(react@19.2.8))(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
-      '@packages/editor':
-        specifier: workspace:*
-        version: link:../../packages/editor
       '@packages/api':
         specifier: workspace:*
         version: link:../../packages/api
       '@packages/dto':
         specifier: workspace:*
         version: link:../../packages/dto
+      '@packages/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
       '@packages/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
@@ -3863,6 +3866,11 @@ packages:
     resolution: {integrity: sha512-Qm1JyjM1wOabeZJykSuyT8mSyZE0/WdjT5wLjOnelE31nCWCh4DsBOgj8A1QDRt+3Hijq9/AW00olowJtf+eYA==}
     peerDependencies:
       storybook: ^10.5.10
+
+  '@storybook/addon-themes@10.6.0':
+    resolution: {integrity: sha512-PJtRtaCzKCAcouEqkHevMwv0aeQNsYWab4K/qszNGuSyFXxdcPQguKwmbB6Ajd/FxW+Of/mLXjRgpjrGVSgm1g==}
+    peerDependencies:
+      storybook: ^10.6.0
 
   '@storybook/csf-plugin@10.5.10':
     resolution: {integrity: sha512-TaCLBrqVEr767+w58QDotDUiCTuE5cyRJuRcDlsKQyUIyGBv+lYD3lu8wBiVCYxgIjB/gu9HmqiC+0yx1rHzaw==}
@@ -12222,6 +12230,11 @@ snapshots:
   '@storybook/addon-onboarding@10.5.10(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))':
     dependencies:
       storybook: 10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8)
+
+  '@storybook/addon-themes@10.6.0(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))':
+    dependencies:
+      storybook: 10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8)
+      ts-dedent: 2.3.0
 
   '@storybook/csf-plugin@10.5.10(esbuild@0.28.2)(storybook@10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))(webpack@5.106.2(@swc/core@1.16.1(@swc/helpers@0.5.23))(esbuild@0.28.2))':
     dependencies:

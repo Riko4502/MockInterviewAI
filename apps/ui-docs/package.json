@@ -13,11 +13,11 @@
     "vercel-ignore": "bash ../../scripts/vercel-ignore-ui-docs.sh"
   },
   "dependencies": {
+    "@packages/editor": "workspace:*",
     "@packages/icons": "workspace:*",
-    "@packages/utils": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
-    "@packages/editor": "workspace:*",
+    "@packages/utils": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -28,6 +28,7 @@
     "@storybook/addon-a11y": "^10.5.8",
     "@storybook/addon-docs": "^10.5.8",
     "@storybook/addon-onboarding": "^10.5.8",
+    "@storybook/addon-themes": "^10.6.0",
     "@storybook/react": "^10.5.8",
     "@storybook/test-runner": "^0.24.4",
     "@tailwindcss/postcss": "^4",

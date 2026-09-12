@@ -1,0 +1,759 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ru-RU"
+
+reviews:
+  profile: "assertive"
+
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+
+    # Основная ветка разработки проекта.
+    # Default branch CodeRabbit также включает автоматически.
+    base_branches:
+      - "dev"
+
+  path_filters:
+    # Dependencies / generated / build artifacts
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/.turbo/**"
+    - "!**/out/**"
+    - "!**/.cache/**"
+
+    # Lock files обычно не требуют AI review
+    - "!**/pnpm-lock.yaml"
+
+    # Minified / generated assets
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+
+  path_instructions:
+
+    # ============================================================
+    # GENERAL TYPESCRIPT / JAVASCRIPT
+    # ============================================================
+
+    - path: "**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        Проводить review на уровне Senior Engineer.
+
+        Приоритет проверки:
+
+        1. Реальные bugs и incorrect behavior.
+        2. Security issues.
+        3. Business logic errors.
+        4. Regressions.
+        5. API contract violations.
+        6. Race conditions и async issues.
+        7. Resource leaks.
+        8. Significant performance problems.
+        9. Architectural violations.
+        10. Error handling.
+        11. Type safety.
+
+        Не тратить review на:
+
+        - formatting;
+        - субъективный naming;
+        - личные stylistic preferences;
+        - trivial refactoring;
+        - косметические изменения без влияния на behavior.
+
+        Не предлагать изменения только потому, что существует другой
+        возможный способ реализации.
+
+        Перед утверждением архитектурного нарушения проверить проектную
+        документацию и существующие conventions.
+
+    # ============================================================
+    # WEB
+    # ============================================================
+
+    - path: "apps/web/**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        apps/web — основное Next.js приложение проекта.
+
+        Используется Next.js App Router.
+
+        Проверять:
+
+        - Server Components / Client Components;
+        - корректность "use client";
+        - server/client boundaries;
+        - hydration issues;
+        - unnecessary client-side rendering;
+        - unnecessary useEffect;
+        - unnecessary local state;
+        - stale closures;
+        - incorrect effect dependencies;
+        - async behavior;
+        - race conditions;
+        - loading / error / empty states;
+        - API integration;
+        - generated API client usage;
+        - type safety;
+        - accessibility;
+        - performance;
+        - unnecessary rerenders;
+        - memory/resource leaks.
+
+        Архитектура frontend должна соответствовать FSD,
+        описанной в docs/frontend/README.md.
+
+        Не считать FSD violation только по расположению файла,
+        если нарушение не подтверждается архитектурными правилами проекта.
+
+        Для API-контрактов учитывать
+        docs/frontend/data/api-contracts.md.
+
+        Для UI учитывать:
+        docs/frontend/ui/ui-kit.md
+        docs/frontend/ui/storybook.md.
+
+        Для i18n учитывать docs/I18N.md.
+
+    # ============================================================
+    # LANDING
+    # ============================================================
+
+    - path: "apps/landing/**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        apps/landing — отдельное Next.js приложение.
+
+        Проверять:
+
+        - Server Components / Client Components;
+        - корректность "use client";
+        - SSR / SSG;
+        - hydration;
+        - metadata;
+        - SEO;
+        - accessibility;
+        - loading/error states;
+        - performance;
+        - unnecessary JavaScript;
+        - unnecessary client components;
+        - unnecessary useEffect;
+        - type safety;
+        - API usage;
+        - i18n;
+        - responsive behavior.
+
+        Не переносить автоматически архитектурные требования apps/web,
+        если они не относятся к landing.
+
+    # ============================================================
+    # API / NESTJS
+    # ============================================================
+
+    - path: "apps/api/**/*.{ts,tsx}"
+      instructions: |
+        apps/api — NestJS backend.
+
+        Проводить Senior Backend review.
+
+        Проверять:
+
+        - authentication;
+        - authorization;
+        - validation;
+        - DTO;
+        - business logic;
+        - HTTP status codes;
+        - error handling;
+        - exception handling;
+        - transaction boundaries;
+        - race conditions;
+        - concurrency;
+        - N+1 queries;
+        - database consistency;
+        - Prisma usage;
+        - performance;
+        - resource leaks;
+        - sensitive data exposure;
+        - logging of sensitive information;
+        - API contract compatibility;
+        - backward compatibility.
+
+        Если изменён API:
+
+        - проверить соответствие DTO;
+        - проверить OpenAPI contract;
+        - проверить generated client;
+        - проверить необходимость code generation.
+
+        Не предлагать ручное редактирование generated API code,
+        если изменение должно выполняться через backend/OpenAPI и codegen.
+
+        Учитывать docs/frontend/data/api-contracts.md.
+
+    # ============================================================
+    # PRISMA / DATABASE
+    # ============================================================
+
+    - path: "apps/api/**/*.{prisma,ts}"
+      instructions: |
+        При изменениях, связанных с Prisma или database,
+        дополнительно проверять:
+
+        - relations;
+        - foreign keys;
+        - nullable / non-nullable fields;
+        - unique constraints;
+        - indexes;
+        - referential integrity;
+        - N+1 queries;
+        - transaction boundaries;
+        - consistency;
+        - concurrent updates;
+        - migration safety;
+        - backward compatibility;
+        - destructive schema changes.
+
+        Изменение Prisma schema должно сопровождаться соответствующей
+        database migration.
+
+        Проверять, не ломает ли migration существующие данные,
+        существующий API или deployment process.
+
+    # ============================================================
+    # GENERATED API CLIENT
+    # ============================================================
+
+    - path: "packages/api/**/*.{ts,tsx}"
+      instructions: |
+        packages/api содержит typed API client / generated code
+        и интеграцию с TanStack Query.
+
+        Проверять:
+
+        - соответствие OpenAPI contract;
+        - type safety;
+        - transport configuration;
+        - API endpoint compatibility;
+        - TanStack Query v5 usage;
+        - query/mutation behavior;
+        - error handling;
+        - duplicate DTO/type definitions.
+
+        Если код является generated code:
+
+        НЕ предлагать ручное редактирование generated файлов,
+        если изменение должно быть сделано через OpenAPI/backend
+        и последующий code generation.
+
+        При изменении API проверить необходимость:
+
+        pnpm run generate:api
+        pnpm run generate:client
+        pnpm run codegen
+        pnpm run codegen:check
+
+    # ============================================================
+    # UI PACKAGE
+    # ============================================================
+
+    - path: "packages/ui/**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        packages/ui — shared UI kit / design system.
+
+        Проверять:
+
+        - public component API;
+        - props;
+        - TypeScript types;
+        - controlled/uncontrolled behavior;
+        - state management;
+        - accessibility;
+        - keyboard interaction;
+        - focus management;
+        - ARIA;
+        - composability;
+        - backwards compatibility;
+        - visual regressions;
+        - unnecessary rerenders;
+        - performance;
+        - design-system consistency.
+
+        При изменении публичного поведения компонента проверить
+        наличие или обновление соответствующей Storybook story.
+
+        Учитывать:
+
+        docs/frontend/ui/ui-kit.md
+        docs/frontend/ui/storybook.md
+
+    # ============================================================
+    # STORYBOOK / UI DOCS
+    # ============================================================
+
+    - path: "apps/ui-docs/**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        apps/ui-docs — Storybook / UI documentation приложение.
+
+        Проверять:
+
+        - корректность stories;
+        - соответствие stories реальным компонентам;
+        - args;
+        - argTypes;
+        - controls;
+        - default states;
+        - loading states;
+        - error states;
+        - empty states;
+        - disabled states;
+        - edge cases;
+        - accessibility;
+        - interaction tests;
+        - imports из packages/ui;
+        - imports из packages/icons;
+        - light/dark themes;
+        - отсутствие regression существующих stories.
+
+        Если изменяется компонент из packages/ui и изменяется его
+        публичное или визуальное поведение, проверить наличие
+        соответствующей Storybook story.
+
+        Не считать отсутствие story проблемой для чисто внутренних
+        технических изменений, которые не меняют публичное поведение.
+
+        Учитывать docs/frontend/ui/storybook.md
+        и docs/frontend/ui/ui-kit.md.
+
+    # ============================================================
+    # ICONS
+    # ============================================================
+
+    - path: "packages/icons/**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        packages/icons — shared icons package.
+
+        Проверять:
+
+        - public API;
+        - TypeScript types;
+        - compatibility;
+        - breaking changes;
+        - accessibility;
+        - naming consistency;
+        - unnecessary dependencies;
+        - bundle impact.
+
+    # ============================================================
+    # I18N
+    # ============================================================
+
+    - path: "packages/i18n/**/*.{ts,tsx,json}"
+      instructions: |
+        packages/i18n является Single Source of Truth для
+        текстовых констант, переводов и language settings.
+
+        Поддерживаемые локали:
+
+        - ru — default;
+        - en.
+
+        Namespaces:
+
+        - common;
+        - auth;
+        - interview.
+
+        Проверять:
+
+        - missing translation keys;
+        - лишние/несогласованные keys;
+        - структуру namespaces;
+        - соответствие ru/en;
+        - type safety;
+        - корректность использования namespace;
+        - отсутствие hardcoded user-facing text;
+        - корректность Server Components;
+        - корректность Client Components;
+        - использование getMessages(locale) на Server;
+        - использование useTranslation на Client.
+
+        Учитывать docs/I18N.md.
+
+    # ============================================================
+    # SHARED DTO
+    # ============================================================
+
+    - path: "packages/dto/**/*.{ts,tsx}"
+      instructions: |
+        packages/dto содержит shared DTO/contracts.
+
+        Проверять:
+
+        - contract consistency;
+        - compatibility между frontend/backend;
+        - validation;
+        - optional/required fields;
+        - nullable fields;
+        - enum consistency;
+        - backward compatibility;
+        - duplicate definitions;
+        - breaking changes.
+
+        Не создавать альтернативные DTO-типы без необходимости.
+
+    # ============================================================
+    # SHARED TYPES
+    # ============================================================
+
+    - path: "packages/types/**/*.{ts,tsx}"
+      instructions: |
+        packages/types содержит shared TypeScript types.
+
+        Проверять:
+
+        - type correctness;
+        - compatibility;
+        - unnecessary duplication;
+        - unsafe any;
+        - incorrect nullability;
+        - breaking changes;
+        - circular dependencies;
+        - leaking implementation details.
+
+    # ============================================================
+    # UTILS
+    # ============================================================
+
+    - path: "packages/utils/**/*.{ts,tsx}"
+      instructions: |
+        Проверять shared utilities на:
+
+        - корректность edge cases;
+        - pure/impure behavior;
+        - mutation;
+        - unexpected side effects;
+        - type safety;
+        - performance;
+        - error handling;
+        - test coverage для существенной business logic.
+
+    # ============================================================
+    # GO REALTIME
+    # ============================================================
+
+    - path: "apps/realtime/**/*.go"
+      instructions: |
+        apps/realtime — Go realtime service.
+
+        Архитектурным источником истины является:
+
+        docs/WEBSOCKET_ARCHITECTURE.md
+
+        Проверять на уровне Senior Go Engineer.
+
+        Особое внимание:
+
+        - goroutine leaks;
+        - race conditions;
+        - deadlocks;
+        - mutex misuse;
+        - channel misuse;
+        - context cancellation;
+        - connection lifecycle;
+        - cleanup;
+        - error propagation;
+        - resource leaks;
+        - concurrent access;
+        - Hub;
+        - Room;
+        - Client;
+        - ReadPump;
+        - WritePump;
+        - slow consumers;
+        - heartbeat;
+        - authentication;
+        - ticket authentication;
+        - Bearer/Cookie authentication;
+        - Origin validation;
+        - CSWSH protection;
+        - connection limits;
+        - Redis Pub/Sub;
+        - Redis state persistence;
+        - distributed synchronization;
+        - scaling behavior.
+
+        Учитывать существующую архитектуру WebSocket.
+
+        Не предлагать архитектурные изменения только потому,
+        что существует другой возможный подход.
+
+        Если предлагаемый код противоречит documented architecture,
+        указать конкретное противоречие и потенциальный impact.
+
+    # ============================================================
+    # GO TESTS
+    # ============================================================
+
+    - path: "apps/realtime/**/*_test.go"
+      instructions: |
+        Для Go tests дополнительно проверять:
+
+        - concurrency;
+        - race-prone behavior;
+        - goroutine lifecycle;
+        - context cancellation;
+        - connection cleanup;
+        - Redis behavior;
+        - error paths;
+        - edge cases;
+        - flaky tests;
+        - shared mutable state;
+        - test isolation.
+
+        Не считать большой объём mocking автоматически проблемой,
+        если он необходим для isolation.
+
+    # ============================================================
+    # SSE
+    # ============================================================
+
+    - path: "apps/api/**/*.{ts,tsx}"
+      instructions: |
+        Если изменение относится к SSE:
+
+        SSE используется для global notifications.
+
+        WebSocket используется для bidirectional session traffic.
+
+        Учитывать docs/SSE_ARCHITECTURE.md.
+
+        Проверять:
+
+        - Redis Streams;
+        - replay;
+        - Last-Event-ID;
+        - reconnect;
+        - heartbeat;
+        - connection lifecycle;
+        - slow consumers;
+        - cleanup;
+        - concurrency;
+        - event ordering;
+        - duplicate events;
+        - lost events.
+
+        Не смешивать ответственность SSE и WebSocket без
+        архитектурного обоснования.
+
+    # ============================================================
+    # S3 / FILE STORAGE
+    # ============================================================
+
+    - path: "apps/api/**/*.{ts,tsx}"
+      instructions: |
+        Если изменение относится к file/object storage,
+        учитывать docs/STORAGE_S3.md.
+
+        Проверять:
+
+        - authorization перед доступом к private objects;
+        - public/private object separation;
+        - presigned URLs;
+        - TTL;
+        - object URL leakage;
+        - upload validation;
+        - delete authorization;
+        - object key structure;
+        - content type validation;
+        - file size limits;
+        - sensitive data exposure.
+
+        Private prefixes:
+
+        - resumes/
+        - recordings/
+        - reports/
+
+        Public prefixes:
+
+        - avatars/
+        - public/
+
+        Backend должен авторизовывать доступ к private objects
+        до выдачи presigned URL.
+
+    # ============================================================
+    # TESTS
+    # ============================================================
+
+    - path: "**/*.{test,spec}.{ts,tsx,js,jsx}"
+      instructions: |
+        Проверять качество тестов:
+
+        - meaningful assertions;
+        - business behavior;
+        - error paths;
+        - edge cases;
+        - async behavior;
+        - race-prone behavior;
+        - test isolation;
+        - flaky behavior;
+        - excessive mocking;
+        - false-positive tests.
+
+        Если существенная business logic изменена и тесты отсутствуют,
+        указать это только если отсутствие теста действительно повышает
+        риск regression.
+
+    # ============================================================
+    # GITHUB ACTIONS / CI
+    # ============================================================
+
+    - path: ".github/**/*.{yml,yaml}"
+      instructions: |
+        Проверять GitHub Actions / CI/CD.
+
+        Особое внимание:
+
+        - permissions;
+        - secrets;
+        - token permissions;
+        - hardcoded secrets;
+        - unsafe interpolation;
+        - pull_request / pull_request_target;
+        - workflow triggers;
+        - dependency ordering;
+        - caching;
+        - Node versions;
+        - Go versions;
+        - pnpm versions;
+        - build;
+        - test;
+        - lint;
+        - typecheck;
+        - deployment;
+        - production environment;
+        - artifact handling.
+
+        Проверять, не создаёт ли workflow возможность выполнить
+        недоверенный код с повышенными permissions.
+
+    # ============================================================
+    # DOCUMENTATION
+    # ============================================================
+
+    - path: "docs/**/*.md"
+      instructions: |
+        Documentation является архитектурным контекстом проекта.
+
+        Проверять:
+
+        - фактическую корректность;
+        - соответствие README;
+        - соответствие текущей архитектуре;
+        - актуальность команд;
+        - актуальность путей;
+        - актуальность terminology;
+        - consistency между документами;
+        - отсутствие stale instructions.
+
+        Не тратить review на субъективные stylistic preferences.
+
+    # ============================================================
+    # DATABASE MIGRATIONS
+    # ============================================================
+
+    - path: "**/*migration*/**"
+      instructions: |
+        Для database migrations проверять:
+
+        - destructive changes;
+        - data loss;
+        - rollback implications;
+        - backward compatibility;
+        - nullable transitions;
+        - unique constraints;
+        - indexes;
+        - foreign keys;
+        - production safety;
+        - ordering dependencies.
+
+        Проверять совместимость migration с существующим приложением
+        во время rolling deployment.
+
+    # ============================================================
+    # DOCKER / INFRASTRUCTURE
+    # ============================================================
+
+    - path: "**/{Dockerfile,docker-compose.yml,docker-compose.yaml,compose.yml,compose.yaml}"
+      instructions: |
+        Проверять:
+
+        - security;
+        - secrets;
+        - exposed ports;
+        - unnecessary privileges;
+        - root user;
+        - image versions;
+        - reproducibility;
+        - healthchecks;
+        - dependencies;
+        - volumes;
+        - production configuration;
+        - environment variables;
+        - resource limits.
+
+    # ============================================================
+    # PACKAGE CONFIGURATION
+    # ============================================================
+
+    - path: "**/package.json"
+      instructions: |
+        Проверять:
+
+        - dependency correctness;
+        - unnecessary dependencies;
+        - dependency duplication;
+        - scripts;
+        - workspace references;
+        - package boundaries;
+        - breaking changes;
+        - production/runtime dependencies;
+        - devDependencies;
+        - version compatibility.
+
+        Учитывать pnpm workspaces и monorepo architecture.
+
+    # ============================================================
+    # PROJECT CONFIGURATION
+    # ============================================================
+
+    - path: "**/*.{json,yml,yaml}"
+      instructions: |
+        Для configuration files проверять только существенные проблемы:
+
+        - broken configuration;
+        - incompatible versions;
+        - security;
+        - incorrect paths;
+        - invalid workspace references;
+        - build/runtime failures;
+        - CI failures.
+
+        Не репортить stylistic preferences.
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+      - "**/GEMINI.md"
+      - "**/.github/copilot-instructions.md"

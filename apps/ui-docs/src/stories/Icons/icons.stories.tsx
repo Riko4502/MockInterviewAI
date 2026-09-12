@@ -170,15 +170,15 @@ function IconCardGrid({ icons, size = "md" }: IconCardGridProps) {
             onClick={() => handleCopy(name)}
             className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all cursor-pointer ${
               isCopied
-                ? "border-emerald-500 bg-emerald-50 text-emerald-800 scale-95 shadow-sm"
-                : "border-neutral-200 bg-white hover:border-primary/80 hover:shadow-md text-neutral-900 shadow-xs"
+                ? "border-success bg-success/15 text-success scale-95 shadow-sm"
+                : "border-border bg-card hover:border-primary/80 hover:bg-muted/40 text-card-foreground shadow-xs"
             }`}
             title={`Нажмите для копирования <${name} size="${size}" />`}
           >
-            <div className="h-10 w-10 flex items-center justify-center mb-2 text-neutral-900 group-hover:scale-110 transition-transform">
+            <div className="h-10 w-10 flex items-center justify-center mb-2 text-foreground group-hover:scale-110 transition-transform">
               <IconComponent size={size} />
             </div>
-            <span className="text-[11px] font-mono truncate w-full text-neutral-700 group-hover:text-neutral-950 font-semibold">
+            <span className="text-[11px] font-mono truncate w-full text-muted-foreground group-hover:text-foreground font-semibold">
               {name.replace(/Icon$/, "")}
             </span>
 
@@ -374,7 +374,7 @@ export const Colors: Story = {
         </code>{" "}
         или могут окрашиваться с помощью стандартных утилит Tailwind CSS.
       </p>
-      <div className="flex flex-wrap items-center gap-6 p-4 rounded-lg bg-white border border-neutral-200 shadow-xs">
+      <div className="flex flex-wrap items-center gap-6 p-4 rounded-lg bg-card border border-border shadow-xs">
         <div className="flex flex-col items-center gap-1.5 text-blue-500">
           <Icons.CodeIcon size="lg" />
           <span className="text-xs font-mono">text-blue-500</span>

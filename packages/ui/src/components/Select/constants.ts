@@ -8,7 +8,7 @@ export const selectTriggerVariants = cva(
         default:
           "border-input bg-transparent hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/50",
         primary:
-          "border-transparent bg-primary text-background hover:bg-primary/90",
+          "border-transparent bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
       },
@@ -31,7 +31,7 @@ export const selectContentVariants = cva(
       variant: {
         default:
           "border border-border bg-popover text-popover-foreground ring-1 ring-foreground/10",
-        primary: "border border-primary/20 bg-primary text-background",
+        primary: "border border-primary/20 bg-primary text-primary-foreground",
         secondary:
           "border border-secondary/20 bg-secondary text-secondary-foreground",
       },
@@ -48,7 +48,7 @@ export const selectItemVariants = cva(
     variants: {
       variant: {
         default: "focus:bg-accent focus:text-accent-foreground",
-        primary: "focus:bg-background/20 focus:text-background",
+        primary: "focus:bg-primary-foreground/20 focus:text-primary-foreground",
         secondary:
           "focus:bg-secondary-foreground/15 focus:text-secondary-foreground",
       },
