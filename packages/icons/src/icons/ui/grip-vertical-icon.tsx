@@ -2,13 +2,13 @@ import { cn } from "@packages/utils";
 import { iconVariants } from "../../constants";
 import type { IconProps } from "../../types";
 
-export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
+export function GripVerticalIcon({ size, className, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -16,9 +16,12 @@ export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
       className={cn(iconVariants({ size, className }))}
       {...props}
     >
-      <path d="m18 8 4 4-4 4" />
-      <path d="M2 12h20" />
-      <path d="m6 8-4 4 4 4" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
     </svg>
   );
 }

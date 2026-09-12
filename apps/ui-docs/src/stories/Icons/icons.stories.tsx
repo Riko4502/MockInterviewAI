@@ -1,6 +1,6 @@
 import type { IconProps, IconSize } from "@packages/icons";
 import * as Icons from "@packages/icons";
-import { Badge, Button, Input } from "@packages/ui";
+import { Badge, Button, Input, useToast } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 import type React from "react";
 import { useMemo, useState } from "react";
@@ -72,14 +72,23 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   ScreenIcon: ICON_CATEGORIES.MEDIA,
 
   // Интерфейс и действия
+  AlertCircleIcon: ICON_CATEGORIES.UI,
+  AlertTriangleIcon: ICON_CATEGORIES.UI,
+  WarningIcon: ICON_CATEGORIES.UI,
   ArrowDownIcon: ICON_CATEGORIES.UI,
+  ArrowRightIcon: ICON_CATEGORIES.UI,
   ArrowUpIcon: ICON_CATEGORIES.UI,
   BellIcon: ICON_CATEGORIES.UI,
   BookIcon: ICON_CATEGORIES.UI,
   BugIcon: ICON_CATEGORIES.UI,
+  CalendarIcon: ICON_CATEGORIES.UI,
   CheckIcon: ICON_CATEGORIES.UI,
   ChevronRightIcon: ICON_CATEGORIES.UI,
   MoreHorizontalIcon: ICON_CATEGORIES.UI,
+  EllipsisIcon: ICON_CATEGORIES.UI,
+  MoreVerticalIcon: ICON_CATEGORIES.UI,
+  EllipsisVerticalIcon: ICON_CATEGORIES.UI,
+  MoveHorizontalIcon: ICON_CATEGORIES.UI,
   ClockIcon: ICON_CATEGORIES.UI,
   CloseIcon: ICON_CATEGORIES.UI,
   CodeIcon: ICON_CATEGORIES.UI,
@@ -89,12 +98,17 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   FileIcon: ICON_CATEGORIES.UI,
   FolderIcon: ICON_CATEGORIES.UI,
   FolderOpenIcon: ICON_CATEGORIES.UI,
+  GlobeIcon: ICON_CATEGORIES.UI,
+  GripVerticalIcon: ICON_CATEGORIES.UI,
   HelpIcon: ICON_CATEGORIES.UI,
   HubConnectionIcon: ICON_CATEGORIES.UI,
+  InfoIcon: ICON_CATEGORIES.UI,
   LoginIcon: ICON_CATEGORIES.UI,
   MaximizeIcon: ICON_CATEGORIES.UI,
+  MenuIcon: ICON_CATEGORIES.UI,
   MinimizeIcon: ICON_CATEGORIES.UI,
   PackageIcon: ICON_CATEGORIES.UI,
+  PaperclipIcon: ICON_CATEGORIES.UI,
   PlayIcon: ICON_CATEGORIES.UI,
   PlusIcon: ICON_CATEGORIES.UI,
   RedoIcon: ICON_CATEGORIES.UI,
@@ -106,6 +120,7 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   TrashIcon: ICON_CATEGORIES.UI,
   TrendUpIcon: ICON_CATEGORIES.UI,
   UndoIcon: ICON_CATEGORIES.UI,
+  UploadIcon: ICON_CATEGORIES.UI,
   UsersIcon: ICON_CATEGORIES.UI,
   WandIcon: ICON_CATEGORIES.UI,
 };
@@ -151,13 +166,43 @@ interface IconCardGridProps {
 /** Renders icon cards that copy the selected icon's JSX usage. */
 function IconCardGrid({ icons, size = "md" }: IconCardGridProps) {
   const [copiedName, setCopiedName] = useState<string | null>(null);
+  const toast = useToast();
 
-  const handleCopy = (name: string) => {
-    navigator.clipboard.writeText(`<${name} size="${size}" />`);
-    setCopiedName(name);
-    setTimeout(() => {
-      setCopiedName((curr) => (curr === name ? null : curr));
-    }, 2000);
+  const handleCopy = async (name: string) => {
+    const code = `<${name} size="${size}" />`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      setCopiedName(name);
+      setTimeout(() => {
+        setCopiedName((curr) => (curr === name ? null : curr));
+      }, 2000);
+
+      toast.push({
+        status: "success",
+        title: "Иконка скопирована",
+        description: code,
+        duration: 3000,
+      });
+    } catch {
+      toast.push({
+        status: "error",
+        title: "Ошибка копирования",
+        description: "Не удалось получить доступ к буферу обмена.",
+        duration: 4000,
+      });
+    }
   };
 
   return (
@@ -184,7 +229,7 @@ function IconCardGrid({ icons, size = "md" }: IconCardGridProps) {
             </span>
 
             {isCopied && (
-              <span className="absolute inset-x-0 bottom-1 text-[10px] font-bold text-emerald-700">
+              <span className="absolute inset-x-0 bottom-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
                 Скопировано!
               </span>
             )}
