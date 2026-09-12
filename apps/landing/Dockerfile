@@ -35,14 +35,14 @@ RUN pnpm turbo run build --filter=landing^... && \
 # -------------------------------------------------------------
 # Runtime stage – отдаём статический контент через nginx
 # -------------------------------------------------------------
-FROM nginx:alpine AS runtime
+FROM nginxinc/nginx-unprivileged:alpine AS runtime
 
 COPY apps/landing/nginx.conf /etc/nginx/conf.d/default.conf
 # Копируем собранный сайт
 COPY --from=builder /app/apps/landing/dist /usr/share/nginx/html
 
-# Открываем порт 80
-EXPOSE 80
+# Открываем порт 8080
+EXPOSE 8080
 
 # Запуск nginx в фоновом режиме контейнера
 CMD ["nginx", "-g", "daemon off;"]
