@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import {
   act,
   cleanup,
@@ -7,6 +5,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "@/components";
 import { ToastProvider, useToast } from "./toastProvider";
@@ -281,5 +280,55 @@ describe("ToastProvider and useToast", () => {
     });
 
     expect(onActionClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onClose exactly once when rendered in React.StrictMode", () => {
+    const onClose1 = vi.fn();
+    const onClose2 = vi.fn();
+
+    let controller!: ReturnType<typeof useToast>;
+
+    render(
+      <StrictMode>
+        <ToastProvider>
+          <TestComponent
+            onInit={(c) => {
+              controller = c;
+            }}
+          />
+        </ToastProvider>
+      </StrictMode>,
+    );
+
+    act(() => {
+      controller.push({
+        id: "strict-toast-1",
+        title: "Strict Toast 1",
+        onClose: onClose1,
+      });
+      controller.push({
+        id: "strict-toast-2",
+        title: "Strict Toast 2",
+        onClose: onClose2,
+      });
+    });
+
+    expect(screen.getByText("Strict Toast 1")).toBeDefined();
+    expect(screen.getByText("Strict Toast 2")).toBeDefined();
+
+    // Dismiss one toast
+    act(() => {
+      controller.dismiss("strict-toast-1");
+    });
+
+    expect(onClose1).toHaveBeenCalledTimes(1);
+    expect(onClose2).not.toHaveBeenCalled();
+
+    // Dismiss all remaining
+    act(() => {
+      controller.allDismiss();
+    });
+
+    expect(onClose2).toHaveBeenCalledTimes(1);
   });
 });

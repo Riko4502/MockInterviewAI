@@ -8,6 +8,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -34,30 +35,28 @@ function isActionItem(action: unknown): action is ToastActionItem {
 export function ToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [isHovered, setIsHovered] = useState(false);
+  const toastsRef = useRef<ToastData[]>(toasts);
+  toastsRef.current = toasts;
 
   const removeToast = useCallback((predicate: (item: ToastData) => boolean) => {
-    setToasts((prev) => {
-      const remaining: ToastData[] = [];
-      const closing: ToastData[] = [];
+    const current = toastsRef.current;
+    const closing: ToastData[] = [];
 
-      prev.forEach((item) => {
-        if (predicate(item)) {
-          closing.push(item);
-        } else {
-          remaining.push(item);
-        }
-      });
-
-      if (!closing.length) {
-        return prev;
+    for (const item of current) {
+      if (predicate(item)) {
+        closing.push(item);
       }
+    }
 
-      for (const item of closing) {
-        item.onClose?.();
-      }
+    if (closing.length === 0) {
+      return;
+    }
 
-      return remaining;
-    });
+    setToasts((prev) => prev.filter((item) => !predicate(item)));
+
+    for (const item of closing) {
+      item.onClose?.();
+    }
   }, []);
 
   const dismiss = useCallback(

@@ -123,6 +123,54 @@ describe("DrawerProvider and Drawer name binding", () => {
     expect(screen.queryByText("Drawer Title")).toBeNull();
   });
 
+  it("updates payload and replaces previous entry when opened again with the same name", () => {
+    let controller!: ReturnType<typeof useDrawer<TestPayload>>;
+
+    render(
+      <DrawerProvider>
+        <TestDrawerConsumer
+          onInit={(c) => {
+            controller = c;
+          }}
+        />
+      </DrawerProvider>,
+    );
+
+    // Initial open with first payload
+    act(() => {
+      controller.open("test-drawer", {
+        title: "Initial Title",
+        info: "Initial Info",
+      });
+    });
+
+    expect(controller.isOpen("test-drawer")).toBe(true);
+    expect(controller.get("test-drawer")).toEqual({
+      title: "Initial Title",
+      info: "Initial Info",
+    });
+    expect(screen.getByText("Initial Title")).toBeDefined();
+    expect(screen.getByText("Initial Info")).toBeDefined();
+
+    // Re-open with updated payload for the same drawer name
+    act(() => {
+      controller.open("test-drawer", {
+        title: "Updated Title",
+        info: "Updated Info",
+      });
+    });
+
+    expect(controller.isOpen("test-drawer")).toBe(true);
+    expect(controller.get("test-drawer")).toEqual({
+      title: "Updated Title",
+      info: "Updated Info",
+    });
+    expect(screen.queryByText("Initial Title")).toBeNull();
+    expect(screen.queryByText("Initial Info")).toBeNull();
+    expect(screen.getByText("Updated Title")).toBeDefined();
+    expect(screen.getByText("Updated Info")).toBeDefined();
+  });
+
   it("closes Drawer bound by name via drawer.allClose()", () => {
     let controller!: ReturnType<typeof useDrawer<TestPayload>>;
 

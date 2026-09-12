@@ -9,6 +9,7 @@ export interface AttachmentProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof attachmentVariants> {
   status?: AttachmentStatus;
+  variant?: AttachmentVariant;
 }
 
 export interface AttachmentPreviewProps

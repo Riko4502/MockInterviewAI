@@ -9,6 +9,7 @@ import {
 } from "@packages/icons";
 import { Badge, Button, Resizable } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, fireEvent, within } from "storybook/test";
 
 /**
  * Метаданные компонента Resizable для Storybook.
@@ -109,6 +110,55 @@ export default meta;
 type Story = StoryObj<ResizableStoryProps>;
 
 /**
+ * Вспомогательная функция для эмуляции перетаскивания разделителя в Storybook Test Runner.
+ */
+async function dragHandle(
+  handle: HTMLElement,
+  delta: { x?: number; y?: number },
+) {
+  const rect = handle.getBoundingClientRect();
+  const startX = rect.left + (rect.width ? rect.width / 2 : 0);
+  const startY = rect.top + (rect.height ? rect.height / 2 : 0);
+  const endX = startX + (delta.x ?? 0);
+  const endY = startY + (delta.y ?? 0);
+
+  handle.focus();
+
+  fireEvent.pointerDown(handle, {
+    clientX: startX,
+    clientY: startY,
+    pointerId: 1,
+    bubbles: true,
+  });
+
+  fireEvent.pointerMove(document, {
+    clientX: endX,
+    clientY: endY,
+    pointerId: 1,
+    bubbles: true,
+  });
+
+  fireEvent.pointerUp(document, {
+    clientX: endX,
+    clientY: endY,
+    pointerId: 1,
+    bubbles: true,
+  });
+
+  if (delta.x && delta.x > 0) {
+    fireEvent.keyDown(handle, { key: "ArrowRight", code: "ArrowRight" });
+  } else if (delta.x && delta.x < 0) {
+    fireEvent.keyDown(handle, { key: "ArrowLeft", code: "ArrowLeft" });
+  }
+
+  if (delta.y && delta.y > 0) {
+    fireEvent.keyDown(handle, { key: "ArrowDown", code: "ArrowDown" });
+  } else if (delta.y && delta.y < 0) {
+    fireEvent.keyDown(handle, { key: "ArrowUp", code: "ArrowUp" });
+  }
+}
+
+/**
  * Интерактивный пример с переключением направления и плашки захвата через панель Controls.
  */
 export const Default: Story = {
@@ -157,6 +207,97 @@ export const Default: Story = {
       </Resizable>
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("separator");
+    const panels = canvasElement.querySelectorAll<HTMLElement>(
+      "[data-slot='resizable-panel']",
+    );
+    expect(panels.length).toBe(2);
+
+    const leftPanel = panels[0];
+    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
+
+    // Drag handle to the right
+    await dragHandle(handle, { x: 80 });
+
+    const updatedLeftStyle = leftPanel.getAttribute("style") ?? "";
+
+    expect(updatedLeftStyle).not.toBe(initialLeftStyle);
+    expect(handle).not.toHaveAttribute("data-separator", "disabled");
+  },
+};
+
+/**
+ * Вариант с заблокированным разделителем (disabled={true}).
+ * Проверяет, что перетаскивание заблокировано и пропорции панелей не изменяются.
+ */
+export const Disabled: Story = {
+  args: {
+    direction: "horizontal",
+    withHandle: true,
+    disabled: true,
+  },
+  render: (args) => (
+    <div className="w-[900px] max-w-full">
+      <Resizable
+        direction={args.direction}
+        className="h-[380px] rounded-xl border border-border bg-card shadow-lg opacity-90"
+      >
+        <Resizable.Panel defaultSize="35" minSize="20" maxSize="60">
+          <div className="flex h-full flex-col justify-center items-center p-8 bg-muted/20 text-center">
+            <div className="rounded-full bg-muted p-3 text-muted-foreground mb-3">
+              <FolderIcon className="size-6" />
+            </div>
+            <span className="text-base font-semibold text-foreground">
+              Заблокированная панель (35%)
+            </span>
+            <span className="text-xs text-muted-foreground mt-1 max-w-[220px]">
+              Разделитель отключен (disabled=true)
+            </span>
+          </div>
+        </Resizable.Panel>
+        <Resizable.Handle
+          withHandle={args.withHandle}
+          disabled={args.disabled}
+        />
+        <Resizable.Panel defaultSize="65">
+          <div className="flex h-full flex-col justify-center items-center p-8 text-center bg-card">
+            <div className="rounded-full bg-secondary p-3 text-foreground mb-3">
+              <CodeIcon className="size-6" />
+            </div>
+            <span className="text-base font-semibold text-foreground">
+              Основная область (65%)
+            </span>
+            <span className="text-xs text-muted-foreground mt-1 max-w-[320px]">
+              Попытка перетаскивания не изменяет размеры панелей.
+            </span>
+          </div>
+        </Resizable.Panel>
+      </Resizable>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("separator");
+    const panels = canvasElement.querySelectorAll<HTMLElement>(
+      "[data-slot='resizable-panel']",
+    );
+    expect(panels.length).toBe(2);
+
+    expect(handle).toHaveAttribute("data-separator", "disabled");
+
+    const leftPanel = panels[0];
+    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
+
+    // Attempt to drag disabled handle
+    await dragHandle(handle, { x: 80 });
+
+    const afterDragLeftStyle = leftPanel.getAttribute("style") ?? "";
+
+    // Dimensions must remain untouched
+    expect(afterDragLeftStyle).toBe(initialLeftStyle);
+  },
 };
 
 /**
@@ -414,6 +555,25 @@ export const Vertical: Story = {
       </Resizable>
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("separator");
+    const panels = canvasElement.querySelectorAll<HTMLElement>(
+      "[data-slot='resizable-panel']",
+    );
+    expect(panels.length).toBe(2);
+
+    expect(handle).toHaveAttribute("data-orientation", "vertical");
+
+    const topPanel = panels[0];
+    const initialTopStyle = topPanel.getAttribute("style") ?? "";
+
+    // Drag handle downwards
+    await dragHandle(handle, { y: 60 });
+
+    const updatedTopStyle = topPanel.getAttribute("style") ?? "";
+    expect(updatedTopStyle).not.toBe(initialTopStyle);
+  },
 };
 
 /**
