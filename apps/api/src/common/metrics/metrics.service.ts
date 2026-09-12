@@ -84,7 +84,8 @@ export class MetricsService implements OnModuleInit {
   requestFinished(labels: HttpRequestLabels, durationMs: number): void {
     this.activeRequests.dec();
     this.httpRequestsTotal.inc({
-      ...labels,
+      method: labels.method,
+      route: labels.route,
       status_code: String(labels.statusCode),
     });
     this.httpRequestDuration.observe(
