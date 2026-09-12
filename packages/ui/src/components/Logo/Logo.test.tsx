@@ -102,4 +102,24 @@ describe("Logo Component", () => {
     expect(link.getAttribute("tabindex")).toBe("0");
     expect(link.className).toContain("focus-visible:ring-violet-500");
   });
+
+  it("styles full logo text with adaptive semantic color tokens", () => {
+    render(<Logo />);
+
+    const title = screen.getByText("DEVSYNC");
+    expect(title.className).toContain("text-foreground");
+    expect(title.className).toContain("group-hover:text-primary");
+    expect(title.className).not.toContain("text-white");
+
+    const subtitle = screen.getByText("Interview AI");
+    expect(subtitle.className).toContain("text-muted-foreground");
+    expect(subtitle.className).not.toContain("text-slate-400");
+  });
+
+  it("does not render full-logo text styles for the icon-only boundary", () => {
+    render(<Logo variant="icon" />);
+
+    expect(screen.queryByText("DEVSYNC")).toBeNull();
+    expect(screen.queryByText("Interview AI")).toBeNull();
+  });
 });
