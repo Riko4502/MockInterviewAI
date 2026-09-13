@@ -52,7 +52,7 @@ GRAFANA_ADMIN_PASSWORD=
 
 ## 5. Redis-мониторинг (объём этапа)
 
-- Серверный уровень: контейнер `prom/redis-exporter` (порт 9121) + job `redis`.
+- Серверный уровень: контейнер `oliver006/redis_exporter` (порт 9121) + job `redis`.
 - Клиентский уровень (лёгкий): ioredis (статус/ошибки) в API, `PoolStats`
   go-redis в realtime; без гистограмм клиентской латентности.
 - Бизнесовый уровень: `realtime_ws_pubsub_lag_seconds` + контроль длины

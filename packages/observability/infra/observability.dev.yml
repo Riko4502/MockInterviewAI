@@ -23,7 +23,7 @@ services:
       - observability-dev
 
   redis_exporter:
-    image: prom/redis-exporter:v1.61.0
+    image: oliver006/redis_exporter:v1.61.0
     container_name: mock-interview-observability-dev-redis-exporter
     restart: unless-stopped
     environment:
@@ -50,7 +50,7 @@ services:
     volumes:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ../../dashboards:/var/lib/grafana/dashboards:ro
+      - ../dashboards:/var/lib/grafana/dashboards:ro
       - grafana_dev_data:/var/lib/grafana
     ports:
       - "127.0.0.1:3002:3000"
