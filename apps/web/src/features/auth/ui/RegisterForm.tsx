@@ -25,6 +25,8 @@ export function RegisterForm() {
     },
   });
 
+  console.log(registerMutation.error);
+
   const {
     register,
     handleSubmit,
@@ -94,11 +96,6 @@ export function RegisterForm() {
         {registerMutation.isPending ? "Регистрация..." : "Зарегистрироваться"}
       </Button>
 
-      {registerMutation.isError && (
-        <Typography.P className="text-sm text-destructive">
-          Ошибка регистрации. Попробуйте снова.
-        </Typography.P>
-      )}
       {registerMutation.isError && (
         <Typography.P className="text-sm text-destructive">
           {getErrorMessage(
