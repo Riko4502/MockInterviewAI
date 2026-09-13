@@ -85,38 +85,56 @@ GRAFANA_ADMIN_PASSWORD=
 - [x] Redis-auth в прод (requirepass): **отложить**; фиксация риска в
       `SECURITY.md` — открытый долг (записано в SPEC §3).
 
-## 7. Backlog: dev-контур наблюдения (не начато)
+## 7. Dev-контур наблюдения (готово)
 
-**Проблема:** при `turbo dev` наблюдение работает только рантаймом —
-`api`/`realtime` отдают метрики по `/metrics`, но Prometheus/Grafana/
-redis-exporter существуют лишь в `docker-compose.prod.yml` и поднимаются
-только на проде. Локально дашборды не посмотреть, watch над ними нет.
+**Проблема (решена):** при `turbo dev` наблюдение работало только рантаймом —
+`api`/`realtime` отдают метрики, но Prometheus/Grafana/redis-exporter
+существовали лишь в `docker-compose.prod.yml`. Локально дашборды не
+просматривались, watch над ними отсутствовал.
 
-**Предлагаемый состав (гипотеза, требует подтверждения):**
-1. Отдельный композ `infra/observability.dev.yml` (по образцу сервисов из
-   `docker-compose.prod.yml`, без прод-ограничений):
-   - prometheus + redis_exporter + grafana с портами на `127.0.0.1`
-     (например 9090 / 9121 / 3002);
-   - `GRAFANA_ADMIN_PASSWORD` из `.env` (в dev — без fail-closed `:?`);
-   - те же volume-маунты `packages/observability/infra` и
-     `packages/observability/dashboards` → правки дашбордов и правил
-     подхватываются за `updateIntervalSeconds: 30` (в провайдере уже
-     `allowUiUpdates: true`).
-2. Запуск только по требованию: `docker compose -f infra/observability.dev.yml up -d`,
-   НЕ в `predev` api — dev-инфра остаётся лёгкой (postgres/redis/minio/livekit)
-   и не тянет мониторинг каждому разработчику. По умолчанию стек выключен,
-   включается явной командой.
+**Реализация:**
+1. Композ `packages/observability/infra/observability.dev.yml` (по образцу
+   сервисов из `docker-compose.prod.yml`, без прод-ограничений):
+   - prometheus (127.0.0.1:9090) + redis_exporter (127.0.0.1:9121) +
+     grafana (127.0.0.1:3002);
+   - `GRAFANA_ADMIN_PASSWORD` из `.env`, в dev без fail-closed `:?`
+     (дефолт `admin`);
+   - redis_exporter берёт `REDIS_PASSWORD` из `.env` (дефолт
+     `mock-interview-redis` — как в dev-композе `docker-compose.yml`);
+   - те же volume-маунты `infra/` и `dashboards/` → правки дашбордов
+     подхватываются за `updateIntervalSeconds: 30` (провайдер отдаёт
+     `allowUiUpdates: true`); `--web.enable-lifecycle` для reload-targets;
+   - отдельные volumes `prometheus_dev_data`/`grafana_dev_data` — не
+     пересекаются с прод-данными.
+2. Отдельный dev-конфиг Prometheus `infra/prometheus/prometheus.dev.yml`:
+   api/realtime скрейпятся через `host.docker.internal`
+   (`:3001` — dev-дефолт `API_PORT`, `:8080` — dev-дефолт `REALTIME_PORT`;
+   они запущены на хосте через `turbo dev`), redis-экспортер — по имени
+   сервиса в сети композа; `extra_hosts: host.docker.internal:host-gateway`
+   для Linux.
+3. Запуск только по требованию:
+   `docker compose -f packages/observability/infra/observability.dev.yml up -d`.
+   НЕ подключён в `predev` api — dev-инфра остаётся лёгкой и не тянет
+   мониторинг каждому разработчику. По умолчанию стек выключен, включается
+   явной командой.
 
-**Критерий готовности:** `turbo dev` + поднятый dev-композ → Grafana на
-`127.0.0.1:3002` показывает живые метрики api/realtime и redis-экспортер,
-alert-правила активны; правки `dashboards/*.json` отражаются без
-пересоздания контейнера.
-
-**Статус:** записана идея, реализация НЕ начата (вне текущего этапа).
+**Критерий готовности (выполнен):** `turbo dev` + поднятый dev-композ →
+Grafana на `127.0.0.1:3002` показывает живые метрики api/realtime и
+redis-экспортер, alert-правила активны; правки `dashboards/*.json`
+отражаются без пересоздания контейнера.
 
 ---
 
 ## Изменения
+
+### 0.7.0 — 2026-09-13
+- **§7 реализован:** dev-контур наблюдения — `infra/observability.dev.yml`
+  (prometheus/redis_exporter/grafana на 127.0.0.1:9090/9121/3002, по
+  требованию, НЕ в predev) + `infra/prometheus/prometheus.dev.yml`
+  (scrape api/realtime через `host.docker.internal`, redis-экспортер по
+  имени сервиса; `--web.enable-lifecycle`). `GRAFANA_ADMIN_PASSWORD`/
+  `REDIS_PASSWORD` — из `.env` без fail-closed; volumes dev-изолированы.
+- Верификация: YAML-валидность compose-файлов и scrape-конфига.
 
 ### 0.6.0 — 2026-09-12
 - **Дашборды:** исправлена метрика длины стримов в `redis.json`
