@@ -25,7 +25,7 @@ export const toastVariants = cva(
 
 export const TOAST_STYLES = {
   viewport:
-    "fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col p-4 md:max-w-[420px] pointer-events-none outline-none",
+    "fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col p-4 md:max-w-[420px] pointer-events-none rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   title: "text-sm font-semibold leading-none tracking-tight",
   description: "text-xs text-muted-foreground leading-relaxed mt-1.5",
   action:

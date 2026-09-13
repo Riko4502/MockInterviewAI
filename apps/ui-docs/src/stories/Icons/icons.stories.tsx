@@ -180,8 +180,11 @@ function IconCardGrid({ icons, size = "md" }: IconCardGridProps) {
         textarea.style.opacity = "0";
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand("copy");
+        const successful = document.execCommand("copy");
         document.body.removeChild(textarea);
+        if (!successful) {
+          throw new Error("document.execCommand('copy') failed");
+        }
       }
 
       setCopiedName(name);

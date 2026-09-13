@@ -144,18 +144,6 @@ async function dragHandle(
     pointerId: 1,
     bubbles: true,
   });
-
-  if (delta.x && delta.x > 0) {
-    fireEvent.keyDown(handle, { key: "ArrowRight", code: "ArrowRight" });
-  } else if (delta.x && delta.x < 0) {
-    fireEvent.keyDown(handle, { key: "ArrowLeft", code: "ArrowLeft" });
-  }
-
-  if (delta.y && delta.y > 0) {
-    fireEvent.keyDown(handle, { key: "ArrowDown", code: "ArrowDown" });
-  } else if (delta.y && delta.y < 0) {
-    fireEvent.keyDown(handle, { key: "ArrowUp", code: "ArrowUp" });
-  }
 }
 
 /**
@@ -663,4 +651,51 @@ export const Collapsible: Story = {
       </Resizable>
     </div>
   ),
+};
+
+/**
+ * Управление размерами панелей с клавиатуры (клавиши-стрелки при фокусе на разделителе).
+ */
+export const KeyboardResize: Story = {
+  render: () => (
+    <div className="w-[900px] max-w-full">
+      <Resizable
+        direction="horizontal"
+        className="h-[380px] rounded-xl border border-border bg-card shadow-lg"
+      >
+        <Resizable.Panel defaultSize="35" minSize="20" maxSize="60">
+          <div className="flex h-full flex-col justify-center items-center p-8 bg-muted/20 text-center">
+            <span className="text-base font-semibold text-foreground">
+              Левая панель (35%)
+            </span>
+          </div>
+        </Resizable.Panel>
+        <Resizable.Handle withHandle />
+        <Resizable.Panel defaultSize="65">
+          <div className="flex h-full flex-col justify-center items-center p-8 text-center bg-card">
+            <span className="text-base font-semibold text-foreground">
+              Правая панель (65%)
+            </span>
+          </div>
+        </Resizable.Panel>
+      </Resizable>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("separator");
+    const panels = canvasElement.querySelectorAll<HTMLElement>(
+      "[data-slot='resizable-panel']",
+    );
+    expect(panels.length).toBe(2);
+
+    const leftPanel = panels[0];
+    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
+
+    handle.focus();
+    fireEvent.keyDown(handle, { key: "ArrowRight", code: "ArrowRight" });
+
+    const updatedLeftStyle = leftPanel.getAttribute("style") ?? "";
+    expect(updatedLeftStyle).not.toBe(initialLeftStyle);
+  },
 };

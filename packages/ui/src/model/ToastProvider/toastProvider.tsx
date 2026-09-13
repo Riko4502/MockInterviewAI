@@ -41,10 +41,13 @@ export function ToastProvider({ children }: PropsWithChildren) {
   const removeToast = useCallback((predicate: (item: ToastData) => boolean) => {
     const current = toastsRef.current;
     const closing: ToastData[] = [];
+    const remaining: ToastData[] = [];
 
     for (const item of current) {
       if (predicate(item)) {
         closing.push(item);
+      } else {
+        remaining.push(item);
       }
     }
 
@@ -52,7 +55,8 @@ export function ToastProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    setToasts((prev) => prev.filter((item) => !predicate(item)));
+    toastsRef.current = remaining;
+    setToasts(remaining);
 
     for (const item of closing) {
       item.onClose?.();
@@ -95,7 +99,12 @@ export function ToastProvider({ children }: PropsWithChildren) {
         onClose,
       };
 
-      setToasts((prev) => [...prev.filter((t) => t.id !== toastId), newToast]);
+      const next = [
+        ...toastsRef.current.filter((t) => t.id !== toastId),
+        newToast,
+      ];
+      toastsRef.current = next;
+      setToasts(next);
       return toastId;
     },
     [],
@@ -156,6 +165,8 @@ export function ToastProvider({ children }: PropsWithChildren) {
             }
           }
 
+          const isHidden = total > 1 && (isHovered ? offset >= 5 : offset >= 3);
+
           return (
             <Toast
               key={item.id}
@@ -163,6 +174,8 @@ export function ToastProvider({ children }: PropsWithChildren) {
               duration={item.duration}
               showCloseButton={item.showCloseButton}
               open={item.open}
+              inert={isHidden ? true : undefined}
+              aria-hidden={isHidden ? "true" : undefined}
               className="absolute bottom-4 right-4 left-4 md:left-auto md:w-[388px] max-w-[calc(100vw-2rem)] origin-bottom"
               style={{
                 position: "absolute",

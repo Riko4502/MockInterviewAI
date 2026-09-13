@@ -133,7 +133,7 @@ export function InterviewActionsWidget() {
     <>
       <Button onClick={handleOpenFeedback}>Посмотреть отзыв</Button>
       {/* Компонент загрузится в браузер только при открытии */}
-      <InterviewFeedbackDrawer />
+      {drawer.isOpen("feedback-drawer") && <InterviewFeedbackDrawer />}
     </>
   );
 }

@@ -40,7 +40,7 @@ describe("Attachment Component", () => {
     expect(handleRemove).toHaveBeenCalledTimes(1);
   });
 
-  it("renders progress bar when uploading", () => {
+  it("renders progress bar with progressbar accessibility semantics when uploading", () => {
     const { container } = render(
       <Attachment status="uploading">
         <Attachment.Info>
@@ -50,11 +50,18 @@ describe("Attachment Component", () => {
       </Attachment>,
     );
 
-    const progressBar = container.querySelector(
+    const progressbar = screen.getByRole("progressbar");
+    expect(progressbar).toBeDefined();
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("75");
+    expect(progressbar.getAttribute("aria-valuemin")).toBe("0");
+    expect(progressbar.getAttribute("aria-valuemax")).toBe("100");
+    expect(progressbar.getAttribute("aria-label")).toBe("Прогресс загрузки");
+
+    const progressBarInner = container.querySelector(
       "[data-slot='attachment-progress'] > div",
     ) as HTMLElement;
-    expect(progressBar).not.toBeNull();
-    expect(progressBar.style.width).toBe("75%");
+    expect(progressBarInner).not.toBeNull();
+    expect(progressBarInner.style.width).toBe("75%");
   });
 
   it("renders image preview when src is provided", () => {
@@ -70,5 +77,80 @@ describe("Attachment Component", () => {
     const img = screen.getByRole("img", { name: "Preview Image" });
     expect(img).toBeDefined();
     expect(img.getAttribute("src")).toBe("https://example.com/image.png");
+  });
+
+  describe("Attachment.Trigger", () => {
+    it("calls onFilesSelected with selected files when files are chosen", () => {
+      const handleFilesSelected = vi.fn();
+      const { container } = render(
+        <Attachment.Trigger onFilesSelected={handleFilesSelected} />,
+      );
+
+      const input = container.querySelector(
+        'input[type="file"]',
+      ) as HTMLInputElement;
+      expect(input).not.toBeNull();
+
+      const file = new File(["hello world"], "test.txt", {
+        type: "text/plain",
+      });
+
+      fireEvent.change(input, { target: { files: [file] } });
+
+      expect(handleFilesSelected).toHaveBeenCalledTimes(1);
+      expect(handleFilesSelected).toHaveBeenCalledWith([file]);
+    });
+
+    it("ignores empty file selection and does not call onFilesSelected", () => {
+      const handleFilesSelected = vi.fn();
+      const { container } = render(
+        <Attachment.Trigger onFilesSelected={handleFilesSelected} />,
+      );
+
+      const input = container.querySelector(
+        'input[type="file"]',
+      ) as HTMLInputElement;
+      expect(input).not.toBeNull();
+
+      fireEvent.change(input, { target: { files: [] } });
+
+      expect(handleFilesSelected).not.toHaveBeenCalled();
+    });
+
+    it("resets input.value to empty string after processing", () => {
+      const handleFilesSelected = vi.fn();
+      const { container } = render(
+        <Attachment.Trigger onFilesSelected={handleFilesSelected} />,
+      );
+
+      const input = container.querySelector(
+        'input[type="file"]',
+      ) as HTMLInputElement;
+      const file = new File(["content"], "example.pdf", {
+        type: "application/pdf",
+      });
+
+      fireEvent.change(input, { target: { files: [file] } });
+
+      expect(input.value).toBe("");
+    });
+
+    it("triggers file input click when trigger button is clicked", () => {
+      const handleClick = vi.fn();
+      const { container } = render(
+        <Attachment.Trigger onClick={handleClick} />,
+      );
+
+      const input = container.querySelector(
+        'input[type="file"]',
+      ) as HTMLInputElement;
+      const inputClickSpy = vi.spyOn(input, "click");
+
+      const button = screen.getByRole("button", { name: "Прикрепить файл" });
+      fireEvent.click(button);
+
+      expect(handleClick).toHaveBeenCalledTimes(1);
+      expect(inputClickSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });

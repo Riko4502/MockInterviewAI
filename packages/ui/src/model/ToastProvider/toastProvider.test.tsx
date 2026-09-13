@@ -331,4 +331,110 @@ describe("ToastProvider and useToast", () => {
 
     expect(onClose2).toHaveBeenCalledTimes(1);
   });
+
+  it("handles push and dismiss within the same batch without leaving toast open", () => {
+    let controller!: ReturnType<typeof useToast>;
+
+    render(
+      <ToastProvider>
+        <TestComponent
+          onInit={(c) => {
+            controller = c;
+          }}
+        />
+      </ToastProvider>,
+    );
+
+    act(() => {
+      const id = controller.push({
+        id: "batch-toast",
+        title: "Batch Toast",
+      });
+      controller.dismiss(id);
+    });
+
+    expect(screen.queryByText("Batch Toast")).toBeNull();
+  });
+
+  it("handles dismiss and allDismiss in the same batch without calling onClose twice", () => {
+    const onClose1 = vi.fn();
+    const onClose2 = vi.fn();
+    let controller!: ReturnType<typeof useToast>;
+
+    render(
+      <ToastProvider>
+        <TestComponent
+          onInit={(c) => {
+            controller = c;
+          }}
+        />
+      </ToastProvider>,
+    );
+
+    act(() => {
+      controller.push({ id: "t-1", title: "Toast 1", onClose: onClose1 });
+      controller.push({ id: "t-2", title: "Toast 2", onClose: onClose2 });
+    });
+
+    act(() => {
+      controller.dismiss("t-1");
+      controller.allDismiss();
+    });
+
+    expect(onClose1).toHaveBeenCalledTimes(1);
+    expect(onClose2).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Toast 1")).toBeNull();
+    expect(screen.queryByText("Toast 2")).toBeNull();
+  });
+
+  it("sets inert and aria-hidden on hidden toasts (offset >= 3) and removes them when visible", () => {
+    let controller!: ReturnType<typeof useToast>;
+
+    const { container } = render(
+      <ToastProvider>
+        <TestComponent
+          onInit={(c) => {
+            controller = c;
+          }}
+        />
+      </ToastProvider>,
+    );
+
+    act(() => {
+      controller.push({ id: "t1", title: "Toast 1", showCloseButton: true });
+      controller.push({ id: "t2", title: "Toast 2", showCloseButton: true });
+      controller.push({ id: "t3", title: "Toast 3", showCloseButton: true });
+      controller.push({ id: "t4", title: "Toast 4", showCloseButton: true });
+    });
+
+    const toastElements = container.querySelectorAll<HTMLElement>(
+      "[data-slot='toast']",
+    );
+    expect(toastElements.length).toBe(4);
+
+    const hiddenToast = toastElements[0]; // t1 (offset = 3)
+    const visibleToast3 = toastElements[1]; // t2 (offset = 2)
+    const visibleToast2 = toastElements[2]; // t3 (offset = 1)
+    const visibleToast1 = toastElements[3]; // t4 (offset = 0)
+
+    expect(hiddenToast.getAttribute("aria-hidden")).toBe("true");
+    expect(
+      hiddenToast.hasAttribute("inert") || hiddenToast.inert === true,
+    ).toBe(true);
+
+    expect(visibleToast1.getAttribute("aria-hidden")).toBeNull();
+    expect(visibleToast1.hasAttribute("inert")).toBe(false);
+    expect(visibleToast2.getAttribute("aria-hidden")).toBeNull();
+    expect(visibleToast2.hasAttribute("inert")).toBe(false);
+    expect(visibleToast3.getAttribute("aria-hidden")).toBeNull();
+    expect(visibleToast3.hasAttribute("inert")).toBe(false);
+
+    // Dismiss top toast so t1 becomes visible (offset = 2)
+    act(() => {
+      controller.dismiss("t4");
+    });
+
+    expect(hiddenToast.getAttribute("aria-hidden")).toBeNull();
+    expect(hiddenToast.hasAttribute("inert")).toBe(false);
+  });
 });
