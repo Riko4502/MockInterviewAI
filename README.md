@@ -191,6 +191,7 @@ pnpm dev
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
 * 🌍 **[i18n Localization](docs/I18N.md)** — архитектура и руководство по интернационализации (`@packages/i18n`).
+* 🤖 **[Telegram Bot Architecture](docs/TELEGRAM_BOT_ARCHITECTURE.md)** — архитектура и интеграция Telegram-бота (`apps/telegram-bot`).
 
 ---
 
