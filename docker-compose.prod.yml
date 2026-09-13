@@ -140,7 +140,7 @@ services:
       - monitoring
 
   redis_exporter:
-    image: prom/redis-exporter:v1.61.0
+    image: oliver006/redis_exporter:v1.61.0
     container_name: mock-interview-redis-exporter
     restart: unless-stopped
     environment:

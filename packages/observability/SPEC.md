@@ -36,7 +36,7 @@
 | Трассировка | **Minimal** — Sentry Performance, без OTel Collector / Tempo |
 | Логирование | **Errors only** — Sentry для ошибок, structured logs остаются в stdout |
 | Source Maps (frontend) | **Да** — upload в Sentry при билде |
-| Экспорт серверных метрик Redis | **Отдельный контейнер** `prom/redis-exporter` + job `redis` в Prometheus |
+| Экспорт серверных метрик Redis | **Отдельный контейнер** `oliver006/redis_exporter` + job `redis` в Prometheus |
 | Клиентская (in-app) инструментация Redis | **Лёгкая** — статус соединения, `PoolStats`, счётчики ошибок; без гистограмм латентности команд (берётся из exporter `commandstats`) |
 | Пароль прод-Redis (`requirepass`) | **Без изменений** в рамках этого этапа — только мониторинг |
 | Throttler API → Redis (`ThrottlerStorageRedis`) | **Отложено** (в открытых вопросах) |
@@ -157,7 +157,7 @@ packages/observability/
   Установлен Sentry Datasource plugin (`GF_INSTALL_PLUGINS=grafana-sentry-datasource`);
   `GRAFANA_ADMIN_PASSWORD` — **обязателен** (fail-closed, `:?` в compose),
   прокидывается через `secrets.GRAFANA_ADMIN_PASSWORD` в `deploy-server.yml`.
-- `redis_exporter` (image `prom/redis-exporter:v1.61.0`) + `REDIS_ADDR=redis://redis:6379`,
+- `redis_exporter` (image `oliver006/redis_exporter:v1.61.0`) + `REDIS_ADDR=redis://redis:6379`,
   `REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications`,
   `REDIS_EXPORTER_CHECK_KEYS=session:*:active`, порт `127.0.0.1:9121`.
 - сеть `monitoring` (bridge) для мониторинг-контейнеров.
