@@ -348,14 +348,18 @@ func (c *Client) Send(msg []byte) bool {
 
 // Close потокобезопасно завершает работу клиента и закрывает сокет.
 func (c *Client) Close(code websocket.StatusCode, reason string) {
-	c.closeOnce.Do(func() {
-		close(c.doneCh)
-		close(c.sendCh)
+    c.closeOnce.Do(func() {
+        close(c.doneCh)
 
-		// Закрываем соединение с кодом
-		if c.conn != nil {
-			_ = c.conn.Close(code, reason)
-		}
-		c.logger.Debug("client closed", slog.Int("code", int(code)), slog.String("reason", reason))
-	})
+        // Закрываем соединение с кодом
+        if c.conn != nil {
+            _ = c.conn.Close(code, reason)
+        }
+
+        c.logger.Debug(
+            "client closed",
+            slog.Int("code", int(code)),
+            slog.String("reason", reason),
+        )
+    })
 }

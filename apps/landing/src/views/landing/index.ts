@@ -1,1 +1,4 @@
-export { LandingPage } from "./ui/LandingPage";
+export {
+  LandingPage,
+  type LandingPageProps,
+} from "./ui/LandingPage";

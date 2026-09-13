@@ -51,6 +51,14 @@ on:
         type: string
         required: false
         default: ''
+      editor_result:
+        type: string
+        required: false
+        default: 'skipped'
+      editor_coverage:
+        type: string
+        required: false
+        default: ''
     secrets:
       TELEGRAM_BOT_TOKEN:
         required: false
@@ -80,6 +88,8 @@ jobs:
           API_COV: ${{ inputs.api_coverage }}
           SB_RES: ${{ inputs.storybook_result }}
           SB_COV: ${{ inputs.storybook_coverage }}
+          ED_RES: ${{ inputs.editor_result }}
+          ED_COV: ${{ inputs.editor_coverage }}
           SEC_RES: ${{ inputs.security_result }}
           RAW_COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
@@ -91,9 +101,9 @@ jobs:
             exit 0
           fi
 
-          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$LANDING_RES" = "failure" ]  || [ "$API_RES" = "failure" ] || [ "$SB_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
+          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$LANDING_RES" = "failure" ] || [ "$API_RES" = "failure" ] || [ "$SB_RES" = "failure" ] || [ "$ED_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
             STATUS_HEADER="❌ <b>CI: Найдены ошибки</b>"
-          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$LANDING_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SB_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
+          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$LANDING_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SB_RES" = "cancelled" ] || [ "$ED_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
             STATUS_HEADER="⚠️ <b>CI: Отменено</b>"
           else
             STATUS_HEADER="✅ <b>CI: Проверки успешно пройдены</b>"
@@ -127,6 +137,7 @@ jobs:
           STATUS_LANDING=$(format_status "$LANDING_RES" "$LANDING_COV")
           STATUS_API=$(format_status "$API_RES" "$API_COV")
           STATUS_SB=$(format_status "$SB_RES" "$SB_COV")
+          STATUS_ED=$(format_status "$ED_RES" "$ED_COV")
           STATUS_SEC=$(format_status "$SEC_RES" "")
 
           DURATION_STR=""
@@ -186,7 +197,7 @@ jobs:
               const avg = (sum / count).toFixed(1);
               console.log(avg + "%");
             }
-          ' "$RT_COV" "$WEB_COV" "$LANDING_COV" "$API_COV" "$SB_COV")
+          ' "$RT_COV" "$WEB_COV" "$LANDING_COV" "$API_COV" "$SB_COV" "$ED_COV")
 
           MESSAGE=$(
             echo "$STATUS_HEADER"
@@ -207,6 +218,7 @@ jobs:
             echo "• Landing (Next.js): $STATUS_LANDING"
             echo "• API (Nest.js): $STATUS_API"
             echo "• Storybook (UI): $STATUS_SB"
+            echo "• Editor (UI): $STATUS_ED"
             echo "• Безопасность (TruffleHog): $STATUS_SEC"
           )
 

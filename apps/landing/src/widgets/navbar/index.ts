@@ -1,1 +1,1 @@
-export { Navbar } from "./ui/Navbar";
+export { Navbar, type NavbarProps } from "./ui/Navbar";

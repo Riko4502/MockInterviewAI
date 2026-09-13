@@ -16,7 +16,7 @@ export * from "@packages/api";
 export { RefreshSessionError, refreshAccessToken } from "./auth-session";
 export { authToken } from "./auth-token";
 export { baseFetch, HttpError } from "./base";
-export { apiUrl, realtimeWsUrl } from "./endpoints";
+export { getApiUrl, realtimeWsUrl } from "./endpoints";
 export {
   createBaseFetchTransport,
   initApiTransport,

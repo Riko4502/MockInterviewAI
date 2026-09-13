@@ -3,12 +3,13 @@
 import { CheckIcon } from "@packages/icons";
 import { Button } from "@packages/ui";
 import { useState } from "react";
-import { useLandingTranslations } from "@/shared/lib";
+import { useTranslation } from "react-i18next";
+import { SIMULATION_TEST_STEPS } from "../constants";
 import { AiHintBanner } from "./AiHintBanner";
 import { StepHeader } from "./StepHeader";
 
 export function StepLiveCoding() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
   const [isRunning, setIsRunning] = useState(false);
   const [completedSteps, setCompletedSteps] = useState(4);
 
@@ -31,25 +32,25 @@ export function StepLiveCoding() {
       <div className="lg:col-span-6 flex flex-col items-start">
         <StepHeader
           stepNumber="03"
-          tag={landing.howItWorks.step3Tag}
-          title={landing.howItWorks.step3Title}
-          description={landing.howItWorks.step3Desc}
+          tag={t("howItWorks.step3Tag")}
+          title={t("howItWorks.step3Title")}
+          description={t("howItWorks.step3Desc")}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-xs">
           <div className="p-3.5 rounded-xl bg-sky-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-colors">
             <div className="font-bold text-sky-200 text-sm">
-              {landing.howItWorks.badgeLanguages}
+              {t("howItWorks.badgeLanguages")}
             </div>
             <div className="text-slate-400 mt-1">
-              {landing.howItWorks.badgeLanguagesDesc}
+              {t("howItWorks.badgeLanguagesDesc")}
             </div>
           </div>
           <div className="p-3.5 rounded-xl bg-sky-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-colors">
             <div className="font-bold text-sky-200 text-sm">
-              {landing.howItWorks.badgeTests}
+              {t("howItWorks.badgeTests")}
             </div>
             <div className="text-slate-400 mt-1">
-              {landing.howItWorks.badgeTestsDesc}
+              {t("howItWorks.badgeTestsDesc")}
             </div>
           </div>
         </div>
@@ -127,46 +128,36 @@ export function StepLiveCoding() {
               <span className="text-sky-300">TEST SUITE CONSOLE</span>
               <span>{isRunning ? "EXEC..." : "18/18 PASSED"}</span>
             </div>
-            {completedSteps >= 1 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_cache_initialization (2ms)</span>
-              </div>
-            )}
-            {completedSteps >= 2 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_lru_eviction_policy (5ms)</span>
-              </div>
-            )}
-            {completedSteps >= 3 && (
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_concurrent_writes (9ms)</span>
-              </div>
-            )}
-            {completedSteps >= 4 && (
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <CheckIcon className="w-3 h-3" />
-                <span>test_memory_benchmark &lt; 2.4MB (12ms)</span>
-              </div>
+            {SIMULATION_TEST_STEPS.map(
+              (item) =>
+                completedSteps >= item.step && (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-2 text-emerald-400 ${
+                      item.isHighlighted ? "font-semibold" : ""
+                    }`}
+                  >
+                    <CheckIcon className="w-3 h-3" />
+                    <span>{item.label}</span>
+                  </div>
+                ),
             )}
           </div>
 
           {/* AI Hint Notification Banner */}
           <AiHintBanner
-            title={landing.howItWorks.step3HintTitle}
-            badgeText={landing.howItWorks.step3HintBadge}
-            hintText={landing.howItWorks.step3HintText}
+            title={t("howItWorks.step3HintTitle")}
+            badgeText={t("howItWorks.step3HintBadge")}
+            hintText={t("howItWorks.step3HintText")}
           />
 
           <div className="mt-3 p-2.5 rounded-xl bg-slate-900/90 border border-white/10 flex items-center justify-between text-[11px] relative z-10">
             <div className="flex items-center gap-2 text-emerald-400 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{landing.howItWorks.allTestsPassed}</span>
+              <span>{t("howItWorks.allTestsPassed")}</span>
             </div>
             <div className="text-slate-300 font-mono">
-              {landing.howItWorks.runtimeBeats}
+              {t("howItWorks.runtimeBeats")}
             </div>
           </div>
         </div>

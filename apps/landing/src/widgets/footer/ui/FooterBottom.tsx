@@ -1,16 +1,16 @@
 "use client";
 
 import { GithubIcon } from "@packages/icons";
+import { useTranslation } from "react-i18next";
 import { navigationConfig } from "@/shared/config";
-import { useLandingTranslations } from "@/shared/lib";
 
 export function FooterBottom() {
-  const { landing } = useLandingTranslations();
+  const { t } = useTranslation("landing");
 
   return (
     <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
       <div>
-        © {new Date().getFullYear()} DEVSYNC, Inc. {landing.footer.rights}
+        © {new Date().getFullYear()} DEVSYNC, Inc. {t("footer.rights")}
       </div>
       <div className="flex items-center gap-4 text-slate-400">
         <a

@@ -3,16 +3,30 @@
 .github
 .vscode
 .husky
+
+# Dependencies & nested workspace node_modules (protects Windows NTFS Junctions)
 node_modules
+**/node_modules
+
+# Logs
 npm-debug.log
 yarn-error.log
 pnpm-debug.log
-.turbo
-.next
-dist
-build
-coverage
-*.md
 *.log
+
+# Build artifacts & caches
+.turbo
+**/.turbo
+.next
+**/.next
+dist
+**/dist
+build
+**/build
+coverage
+**/coverage
+
+# Documentation & Environment
+*.md
 .env*
 !.env.example

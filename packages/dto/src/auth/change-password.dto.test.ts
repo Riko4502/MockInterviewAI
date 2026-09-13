@@ -20,12 +20,8 @@ describe("changePasswordSchema", () => {
       expect(result).toEqual({
         currentPassword: "OldPassword123!",
         newPassword: VALID_PASSWORD,
+        newPasswordConfirmation: VALID_PASSWORD,
       });
-    });
-
-    it("newPasswordConfirmation удаляется из результата парсинга (§5)", () => {
-      const result = changePasswordSchema.parse(validInput());
-      expect(result).not.toHaveProperty("newPasswordConfirmation");
     });
 
     it("newPassword ровно MAX_LENGTH символов", () => {

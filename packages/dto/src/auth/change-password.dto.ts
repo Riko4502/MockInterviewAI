@@ -46,11 +46,7 @@ export const changePasswordSchema = z
   .refine((data) => data.newPassword === data.newPasswordConfirmation, {
     message: "Пароли не совпадают",
     path: ["newPasswordConfirmation"],
-  })
-  .transform((data) => ({
-    currentPassword: data.currentPassword,
-    newPassword: data.newPassword,
-  }));
+  });
 
 /** Типизированный DTO смены пароля: `newPasswordConfirmation` в результат не попадает. */
 export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;

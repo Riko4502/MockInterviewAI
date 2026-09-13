@@ -1,3 +1,4 @@
+import { Reflector } from "@nestjs/core";
 import { IS_PUBLIC_KEY, Public } from "./public.decorator";
 
 describe("@Public() decorator", () => {
@@ -11,7 +12,6 @@ describe("@Public() decorator", () => {
   });
 
   it("устанавливает метаданные через SetMetadata — проверка через Reflector", () => {
-    const { Reflector } = require("@nestjs/core");
     const reflector = new Reflector();
 
     class TestController {

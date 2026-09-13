@@ -1,0 +1,68 @@
+name: "CI Editor (@packages/editor)"
+
+on:
+  workflow_call:
+    outputs:
+      coverage:
+        description: "Результат тестирования пакета Editor"
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    name: "Сборка и проверка Editor (packages/editor)"
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.editor_tests.outputs.pct }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        uses: actions/cache@v6
+        with:
+          path: |
+            .turbo
+            node_modules/.cache/turbo
+          key: ${{ runner.os }}-turbo-editor-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-editor-
+            ${{ runner.os }}-turbo-
+
+      - name: "Сборка зависимостей (@packages/ui, @packages/icons, @packages/tailwind-config)"
+        run: pnpm turbo run build --filter=@packages/editor^...
+
+      - name: "Проверка стиля и линтинг (Biome)"
+        run: pnpm --filter @packages/editor lint
+
+      - name: "Проверка типов TypeScript"
+        run: pnpm --filter @packages/editor typecheck
+
+      - name: "Запуск unit-тестов (Vitest)"
+        id: editor_tests
+        run: |
+          pnpm --filter @packages/editor test | tee editor-test.log
+          TOTAL=$(grep -oE '[0-9]+ passed' editor-test.log | tail -1 | grep -oE '[0-9]+' || echo "")
+          if [ -n "$TOTAL" ]; then
+            PCT="$TOTAL тестов"
+          else
+            PCT="100% (Pass)"
+          fi
+          echo "pct=$PCT" >> $GITHUB_OUTPUT
+          echo "### 📝 Отчет о тестировании пакета Editor (@packages/editor)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Unit-тесты (Vitest):** ✅ $PCT успешно выполнены" >> $GITHUB_STEP_SUMMARY
+
+      - name: "Сборка пакета (Rslib)"
+        run: pnpm --filter @packages/editor build

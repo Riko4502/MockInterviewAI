@@ -1,3 +1,5 @@
+import { envConfig } from "./env";
+
 export interface NavigationConfig {
   appUrl: string;
   authUrl: string;
@@ -6,15 +8,10 @@ export interface NavigationConfig {
 }
 
 export const navigationConfig: NavigationConfig = {
-  appUrl: process.env.NEXT_PUBLIC_APP_URL || "https://app.mockinterviewai.com",
-  authUrl:
-    process.env.NEXT_PUBLIC_AUTH_URL || "https://app.mockinterviewai.com/login",
-  registerUrl:
-    process.env.NEXT_PUBLIC_REGISTER_URL ||
-    "https://app.mockinterviewai.com/register",
-  githubUrl:
-    process.env.NEXT_PUBLIC_GITHUB_URL ||
-    "https://github.com/Riko4502/MockInterviewAI",
+  appUrl: envConfig.appUrl,
+  authUrl: envConfig.authUrl,
+  registerUrl: envConfig.registerUrl,
+  githubUrl: envConfig.githubUrl,
 };
 
 export const getAuthUrl = () => navigationConfig.authUrl;

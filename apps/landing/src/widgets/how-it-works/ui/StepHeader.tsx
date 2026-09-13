@@ -1,3 +1,4 @@
+import { Typography } from "@packages/ui";
 import { cn } from "@packages/utils";
 
 interface StepHeaderProps {
@@ -26,12 +27,12 @@ export function StepHeader({
         </span>
       </div>
 
-      <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+      <Typography.H3 className="text-2xl sm:text-3xl font-bold text-white mb-4">
         {title}
-      </h3>
-      <p className="text-slate-300 text-base leading-relaxed mb-6">
+      </Typography.H3>
+      <Typography.Muted className="text-slate-300 text-base leading-relaxed mb-6">
         {description}
-      </p>
+      </Typography.Muted>
     </div>
   );
 }

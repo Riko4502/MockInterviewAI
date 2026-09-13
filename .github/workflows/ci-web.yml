@@ -7,6 +7,13 @@ on:
         type: boolean
         default: true
         description: "Флаг запуска сборки Docker"
+
+    secrets:
+      NEXT_PUBLIC_API_URL:
+        required: true
+
+      NEXT_PUBLIC_REALTIME_URL:
+        required: true
     outputs:
       coverage:
         description: "Процент покрытия тестами Web"
@@ -66,6 +73,9 @@ jobs:
           echo "✅ Unit-тесты и рендеринг компонентов успешно выполнены." >> $GITHUB_STEP_SUMMARY
 
       - name: "Проверка сборки Next.js"
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
         run: pnpm --filter web build
 
       - name: "Настройка Docker Buildx"
@@ -80,6 +90,9 @@ jobs:
           file: ./apps/web/Dockerfile
           push: false
           tags: mockinterviewai-web:test
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_REALTIME_URL=${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

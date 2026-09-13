@@ -15,13 +15,16 @@
 
 ### Пример тонкого роута:
 ```tsx
-// apps/web/src/app/(auth)/login/page.tsx
+// apps/web/src/app/(guest)/login/page.tsx
 import { LoginPage } from '@/pages/login';
 
 export default function Route() {
   return <LoginPage />;
 }
 ```
+
+Подробнее о защите маршрутов и `AuthBoundary` см. [Маршрутизация и защита маршрутов (AuthBoundary)](./auth-routing.md).
+
 
 ---
 

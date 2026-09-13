@@ -1,4 +1,9 @@
-import { defaultLocale, locales, messages } from "@packages/i18n";
+import {
+  defaultLocale,
+  locales,
+  messages,
+  translationNamespaces,
+} from "@packages/i18n";
 import i18n, { type Resource } from "i18next";
 import { initReactI18next } from "react-i18next";
 
@@ -9,7 +14,7 @@ if (!i18n.isInitialized) {
     fallbackLng: defaultLocale,
     supportedLngs: locales,
     defaultNS: "landing",
-    ns: ["landing", "common", "auth", "interview"],
+    ns: [...translationNamespaces],
     interpolation: {
       escapeValue: false,
     },

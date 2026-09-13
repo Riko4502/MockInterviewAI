@@ -20,12 +20,8 @@ describe("registerSchema", () => {
       expect(result).toEqual({
         email: "user@example.com",
         password: VALID_PASSWORD,
+        passwordConfirmation: VALID_PASSWORD,
       });
-    });
-
-    it("passwordConfirmation удаляется из результата парсинга (§5)", () => {
-      const result = registerSchema.parse(validInput());
-      expect(result).not.toHaveProperty("passwordConfirmation");
     });
 
     it("пароль ровно MAX_LENGTH символов", () => {

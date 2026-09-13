@@ -1,4 +1,4 @@
-import { Badge } from "@packages/ui";
+import { Badge, Typography } from "@packages/ui";
 import { cn } from "@packages/utils";
 
 interface SectionHeaderProps {
@@ -24,10 +24,12 @@ export function SectionHeader({
       >
         {badge}
       </Badge>
-      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4">
+      <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4">
         {title}
-      </h2>
-      <p className="text-base sm:text-lg text-slate-300">{subtitle}</p>
+      </Typography.H2>
+      <Typography.Lead className="text-base sm:text-lg text-slate-300">
+        {subtitle}
+      </Typography.Lead>
     </div>
   );
 }

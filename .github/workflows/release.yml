@@ -68,6 +68,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: "Сборка проектов (Turborepo build)"
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_REALTIME_URL: ${{ secrets.NEXT_PUBLIC_REALTIME_URL }}
         run: pnpm build
 
       - name: "Компиляция Go бинарника Realtime"

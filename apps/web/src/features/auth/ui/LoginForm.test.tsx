@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import { baseFetch } from "@/shared/api/base";
+import { paths } from "@/shared/config";
 import { LoginForm } from "./LoginForm";
 
 const replaceMock = vi.fn();
@@ -105,7 +106,7 @@ describe("LoginForm Integration Flow (T032)", () => {
       );
     });
 
-    expect(replaceMock).toHaveBeenCalledWith("/");
+    expect(replaceMock).toHaveBeenCalledWith(paths.dashboard);
   });
 
   it("error path: ошибка API в baseFetch пробрасывается в mutation и не запускает сессию", async () => {

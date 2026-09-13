@@ -50,8 +50,10 @@
 
 ### 3. [Деплой и Production](./deployment/production.md)
 * [Production стек (`docker-compose.prod.yml`)](./deployment/production.md)
+* [Развёртывание на Render Blueprint (`render.yaml`)](./deployment/render.md)
 * [Multi-stage Dockerfile паттерны](./deployment/production.md#dockerfiles)
 * [SSH Деплой на сервер и миграции БД](./deployment/production.md#процесс-деплоя)
+
 
 ### 4. [Мониторинг и Алерты](./monitoring/telegram-alerts.md)
 * [Telegram-бот и разделение по топикам чата](./monitoring/telegram-alerts.md)

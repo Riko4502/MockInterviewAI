@@ -1,1 +1,4 @@
-export { NavLanguageSwitcher } from "./ui/NavLanguageSwitcher";
+export {
+  NavLanguageSwitcher,
+  type NavLanguageSwitcherProps,
+} from "./ui/NavLanguageSwitcher";
