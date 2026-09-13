@@ -25,8 +25,6 @@ export function RegisterForm() {
     },
   });
 
-  console.log(registerMutation.error);
-
   const {
     register,
     handleSubmit,
