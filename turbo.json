@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "concurrency": "11",
+  "concurrency": "12",
   "globalPassThroughEnv": [
     "LOCALAPPDATA",
     "GOPATH",

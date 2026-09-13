@@ -233,7 +233,7 @@ packages/observability/
 нет `dependsOn` (`turbo.json`): persistent-таска не может зависеть от
 persistent, а `^build` вызывал гонку — одноразовая `build` (из `^build`
 консьюмеров) и `dev`/watch писали в один `dist/` одновременно (TS7016 вида
-«нет деклараций у `@packages/utils`»); `"concurrency": "11"` покрывает 10
+«нет деклараций у `@packages/utils`»); `"concurrency": "12"` покрывает 11
 persistent-тасок. По умолчанию Sentry выключен
 (пустые DSN), мониторинговая инфраструктура (Prometheus/Grafana/redis_exporter)
 в dev по умолчанию не запускается — она живёт в `docker-compose.prod.yml`
@@ -334,8 +334,8 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
   (таблица env), разработка самого пакета, наблюдение в dev (отсылка к PLAN §7).
 - Dev-цикл: у пакета `dev` — `predev: tsc` + `tsc --watch`; dev-таска turbo без
   `dependsOn` (persistent не может зависеть от persistent; `^build` давал гонку
-  одноразовой сборки и watch на одном `dist/`); для 10 persistent-тасок задан
-  `"concurrency": "11"`.
+  одноразовой сборки и watch на одном `dist/`); для 11 persistent-тасок задан
+  `"concurrency": "12"`.
 
 ### 0.7.0 — 2026-09-12
 - **Дашборды:** исправлено имя метрики в `redis.json` (`redis_streams_stream_length` →
