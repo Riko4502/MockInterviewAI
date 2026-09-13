@@ -236,8 +236,8 @@ persistent, а `^build` вызывал гонку — одноразовая `bu
 «нет деклараций у `@packages/utils`»); `"concurrency": "11"` покрывает 10
 persistent-тасок. По умолчанию Sentry выключен
 (пустые DSN), мониторинговая инфраструктура (Prometheus/Grafana/redis_exporter)
-в dev не запускается — она живёт в `docker-compose.prod.yml` и поднимается только
-на прод-сервере (см. PLAN §7 «Backlog: dev-контур наблюдения»).
+в dev по умолчанию не запускается — она живёт в `docker-compose.prod.yml`
+и в dev-композе `infra/observability.dev.yml` (по требованию, см. PLAN §7).
 
 Приложения поднимаются на:
 - `api` → `localhost:${API_PORT}` (NestJS; по умолчанию `API_PORT=3001`, см. `.env`)
@@ -300,11 +300,21 @@ plugin).
 
 ### 9.5 Наблюдение в dev
 
-Полноценный dev-контур (локально Prometheus + Grafana + redis_exporter) пока
-не реализован — открытая задача PLAN §7 (dev-compose
-`infra/observability.dev.yml`). До её появления источник правды — сырые
-`/api/v1/metrics` (api) и `/metrics` (realtime), см. §9.2; дашборды и
-alert-правила Grafana проверяются на проде.
+Dev-контур реализован (PLAN §7): композ
+`infra/observability.dev.yml` поднимает локально Prometheus
+(`127.0.0.1:9090`), redis_exporter (`127.0.0.1:9121`) и Grafana
+(`127.0.0.1:3002`) по команде:
+
+```bash
+docker compose -f packages/observability/infra/observability.dev.yml up -d
+```
+
+Запуск по требованию, в `predev` НЕ подключён. api/realtime скрейпятся через
+`host.docker.internal:3001` / `:8080` (dev-дефолты `API_PORT`/`REALTIME_PORT`),
+`GRAFANA_ADMIN_PASSWORD` в dev — без fail-closed (дефолт `admin`). Дашборды и
+alert-правила монтируются из `infra/` и `dashboards/` и подхватываются за
+`updateIntervalSeconds: 30`. Источник правды остаётся тем же — сырые
+`/api/v1/metrics` (api) и `/metrics` (realtime), см. §9.2; детали — PLAN §7.
 
 ---
 

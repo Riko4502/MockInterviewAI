@@ -78,3 +78,28 @@ pnpm --filter api test:e2e # e2e API (требует живой Redis)
 
 * Секрет `LIVEKIT_API_SECRET` и webhook-секрет должны быть **≥32 символов** (требование livekit-server). Dev-дефолт — `dev-local-secret-change-me-0123456789` (задан в `docker-compose.yml`, корневом `.env` и `.env.example`). `apps/api` подписывает join-токены этим же секретом — рассогласование (например, дефолт API «вручную» вместо значения `.env`) приведёт к отказу `JOIN` в LiveKit.
 * В dev-композе webhook-URL контейнеру не задаётся (нет публичного адреса до realtime). Для ручного e2e записи через `livekit-cli` прогон выполняется с `LIVEKIT_WEBHOOK_URL=http://host.docker.internal:8080/webhooks/livekit` — иначе события egress не дойдут до realtime. Шаги — в `apps/api/docs/plan-livekit-media.md` (Phase 5).
+
+---
+
+## 7. Наблюдение (опционально, по требованию)
+
+Dev-контур Prometheus/Grafana/redis-exporter не входит в `docker-compose.yml`
+и **не поднимается автоматически** — только явной командой (детали — в
+[`packages/observability/PLAN.md`](../../../packages/observability/PLAN.md) §7):
+
+```bash
+# Запуск dev-контура наблюдения (требует запущенные api/realtime через turbo dev)
+docker compose -f packages/observability/infra/observability.dev.yml up -d
+
+# Остановка (данные volumes сохраняются)
+docker compose -f packages/observability/infra/observability.dev.yml down
+```
+
+| Сервис | Порт хоста | Назначение |
+| :--- | :--- | :--- |
+| **Prometheus** | `127.0.0.1:9090` | Скрейп `host.docker.internal:3001/api/v1/metrics` (api), `host.docker.internal:8080/metrics` (realtime), `redis_exporter:9121` |
+| **Redis Exporter** | `127.0.0.1:9121` | Метрики Redis (пароль из `REDIS_PASSWORD`) |
+| **Grafana** | `127.0.0.1:3002` | Дашборды (`admin / ${GRAFANA_ADMIN_PASSWORD:-admin}`) |
+
+Правки `packages/observability/dashboards/*.json` подхватываются в Grafana без
+пересоздания контейнера (file-provisioning, `updateIntervalSeconds: 30`).

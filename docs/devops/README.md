@@ -30,6 +30,10 @@
 │   ├── SSH-деплой на сервер ──► .github/workflows/deploy-server.yml
 │   └── Прод Docker Compose ──► docker-compose.prod.yml
 │
+├── Наблюдение за приложением (Sentry / Prometheus / Grafana)?
+│   ├── Обзор всего стека наблюдаемости ──► docs/devops/monitoring/observability.md
+│   └── Поднять локально Prometheus/Grafana/redis_exporter ──► docs/devops/monitoring/observability.md#2-быстрый-старт
+│
 └── Настройка Telegram уведомлений и секретов?
     ├── Топики чата (CI, Deploy, Releases, Changelog) ──► docs/devops/monitoring/telegram-alerts.md
     └── Переменные и секреты ──► GitHub Settings -> Secrets and variables -> Actions
@@ -56,5 +60,6 @@
 
 
 ### 4. [Мониторинг и Алерты](./monitoring/telegram-alerts.md)
+* [Observability: Sentry, Prometheus и Grafana](./monitoring/observability.md)
 * [Telegram-бот и разделение по топикам чата](./monitoring/telegram-alerts.md)
 * [Спецификация GitHub Secrets](./monitoring/telegram-alerts.md#github-secrets)

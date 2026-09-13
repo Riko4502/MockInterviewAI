@@ -1,0 +1,68 @@
+# Dev-контур наблюдения (см. packages/observability/PLAN.md §7).
+# Запуск только по требованию, НЕ в predev:
+#   docker compose -f packages/observability/infra/observability.dev.yml up -d
+# api/realtime/redis работают на хосте -> scrape-таргеты через host.docker.internal.
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: mock-interview-observability-dev-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerting:/etc/prometheus/alerting:ro
+      - prometheus_dev_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - observability-dev
+
+  redis_exporter:
+    image: prom/redis-exporter:v1.61.0
+    container_name: mock-interview-observability-dev-redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis://host.docker.internal:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-mock-interview-redis}
+      - REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications
+      - REDIS_EXPORTER_CHECK_KEYS=session:*:active
+    ports:
+      - "127.0.0.1:9121:9121"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - observability-dev
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: mock-interview-observability-dev-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-sentry-datasource
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../../dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_dev_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - observability-dev
+
+volumes:
+  prometheus_dev_data:
+  grafana_dev_data:
+
+networks:
+  observability-dev:
+    driver: bridge
