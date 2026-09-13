@@ -20,7 +20,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   if (apiMessage && typeof apiMessage === "object") {
-    return Object.values(apiMessage).join(". ");
+    return Object.values(apiMessage).filter(Boolean).join(". ") || fallback;
   }
 
   return httpError.message || fallback;

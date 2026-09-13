@@ -49,4 +49,18 @@ describe("getErrorMessage", () => {
       "Запасное сообщение",
     );
   });
+
+  it("возвращает запасное сообщение, если объект data.message содержит только пустые значения", () => {
+    const error = {
+      data: {
+        message: {
+          email: "",
+        },
+      },
+    };
+
+    expect(getErrorMessage(error, "Запасное сообщение")).toBe(
+      "Запасное сообщение",
+    );
+  });
 });
