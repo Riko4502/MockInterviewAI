@@ -98,7 +98,7 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-mock-interview-storage}
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine@sha256:a62e0843472fa998a44ecb273767cbdd89da6d0cf9e782e44383aa6ea4c40b82
+    image: rabbitmq:3-management-alpine
     container_name: mock-interview-rabbitmq
     restart: unless-stopped
     environment:
