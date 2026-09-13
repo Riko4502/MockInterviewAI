@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
+import { getErrorMessage } from "../lib/getErrorMessage";
 import type { RegisterFormValues } from "../lib/schemas";
 
 export function RegisterForm() {
@@ -96,6 +97,14 @@ export function RegisterForm() {
       {registerMutation.isError && (
         <Typography.P className="text-sm text-destructive">
           Ошибка регистрации. Попробуйте снова.
+        </Typography.P>
+      )}
+      {registerMutation.isError && (
+        <Typography.P className="text-sm text-destructive">
+          {getErrorMessage(
+            registerMutation.error,
+            "Ошибка регистрации. Попробуйте снова.",
+          )}
         </Typography.P>
       )}
     </form>
