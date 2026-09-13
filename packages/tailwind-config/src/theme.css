@@ -1,4 +1,9 @@
-@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+@custom-variant dark (&:where(
+    .dark,
+    .dark *,
+    [data-theme="dark"],
+    [data-theme="dark"] *
+  ));
 
 @theme inline {
   --color-background: var(--background);
