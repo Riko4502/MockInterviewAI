@@ -70,7 +70,7 @@
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
 * **Go (Golang):** >= 1.26+ (необходим для полной сборки всех сервисов `pnpm build`, запуска всех тестов `pnpm test` и работы сервиса `apps/realtime`)
-* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis и MinIO
+* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis, RabbitMQ и MinIO
 
 ---
 
@@ -251,7 +251,7 @@ pnpm install
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env   # Windows: copy apps\api\.env.example apps\api\.env
 
-# 3. Запуск инфраструктуры (PostgreSQL, Redis, MinIO)
+# 3. Запуск инфраструктуры (PostgreSQL, Redis, RabbitMQ, MinIO)
 pnpm run infra:up
 
 # 4. Запуск сервисов в режиме разработки
