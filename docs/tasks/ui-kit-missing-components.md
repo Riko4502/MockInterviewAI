@@ -49,6 +49,11 @@ packages/
     │   ├── constants.ts
     │   ├── types.ts
     │   └── index.ts
+    ├── InputOTP/                         # Ввод PIN/OTP кодов
+    │   ├── input-otp.tsx
+    │   ├── constants.ts
+    │   ├── types.ts
+    │   └── index.ts
     └── index.ts                          # Публичные экспорты компонентов
 ```
 
@@ -57,29 +62,31 @@ packages/
 ## 3. Чеклист реализации
 
 ### 3.1. Пакет `@packages/icons`
-- [ ] **`TelegramIcon`**: векторная иконка Telegram в `icons/devops/` и экспорт.
-- [ ] **`EyeIcon` & `EyeOffIcon`**: векторные иконки глаза (показать/скрыть) в `icons/ui/`.
-- [ ] **`LogOutIcon`**: векторная иконка выхода из аккаунта в `icons/ui/`.
-- [ ] **`UserIcon`**: векторная иконка одиночного профиля пользователя в `icons/ui/`.
-- [ ] **`ZapIcon`**: векторная иконка молнии для срочных карточек в `icons/ui/`.
-- [ ] **`MessageSquareIcon`**: векторная иконка диалога/сообщения в `icons/ui/`.
-- [ ] Экспорт всех новых иконок в `packages/icons/src/index.ts`.
+- [x] **`TelegramIcon`**: векторная иконка Telegram в `icons/devops/` и экспорт.
+- [x] **`EyeIcon` & `EyeOffIcon`**: векторные иконки глаза (показать/скрыть) в `icons/ui/`.
+- [x] **`LogOutIcon`**: векторная иконка выхода из аккаунта в `icons/ui/`.
+- [x] **`UserIcon`**: векторная иконка одиночного профиля пользователя в `icons/ui/`.
+- [x] **`ZapIcon`**: векторная иконка молнии для срочных карточек в `icons/ui/`.
+- [x] **`MessageSquareIcon`**: векторная иконка диалога/сообщения в `icons/ui/`.
+- [x] Экспорт всех новых иконок в `packages/icons/src/index.ts`.
 
 ### 3.2. Пакет `@packages/ui`
-- [ ] **`Alert`** (`Alert`, `AlertTitle`, `AlertDescription`):
+- [x] **`Alert`** (`Alert`, `AlertTitle`, `AlertDescription`):
   - Варианты: `default`, `destructive`, `warning`, `info`, `success`.
   - Стилизация через `cva` и Tailwind CSS v4.
-- [ ] **`Popover`** (`Popover`, `PopoverTrigger`, `PopoverContent`, `PopoverAnchor`):
+- [x] **`Popover`** (`Popover`, `PopoverTrigger`, `PopoverContent`, `PopoverAnchor`, `PopoverClose`, `PopoverArrow`):
   - Headless-примитив `@radix-ui/react-popover`.
   - Стилизация всплывающего окна с анимациями (`fade-in`, `zoom-in-95`).
-- [ ] **`RadioGroup`** (`RadioGroup`, `RadioGroupItem`):
+- [x] **`RadioGroup`** (`RadioGroup`, `RadioGroupItem`):
   - Headless-примитив `@radix-ui/react-radio-group`.
   - Доступность с клавиатуры, фокусные кольца и кастомный индикатор выбора.
-- [ ] **`TagInput`**:
+- [x] **`TagInput`**:
   - Компонент для ввода и удаления массива тегов/навыков (`skills: string[]`).
   - Клавиатурная навигация (`Enter` для добавления, `Backspace` для удаления последнего тега, клик по крестику).
   - Лимит максимального количества тегов и длины тега.
-- [ ] Регистрация и экспорт новых компонентов в `packages/ui/src/components/index.ts` и `packages/ui/src/index.ts`.
+- [x] **`InputOTP`** (`InputOTP`, `InputOTP.Group`, `InputOTP.Slot`, `InputOTP.Separator`):
+  - Ввод одноразовых PIN/OTP кодов на базе `input-otp` с анимацией каретки и вставкой из буфера.
+- [x] Регистрация и экспорт новых компонентов в `packages/ui/src/components/index.ts` и `packages/ui/src/index.ts`.
 
 ---
 

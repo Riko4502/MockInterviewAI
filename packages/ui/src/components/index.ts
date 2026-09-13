@@ -21,6 +21,7 @@ export * from "./Empty";
 export * from "./Form";
 export * from "./Input";
 export * from "./InputGroup";
+export * from "./InputOTP";
 export * from "./Kbd";
 export * from "./Label";
 export * from "./Link";
