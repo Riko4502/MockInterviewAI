@@ -1,4 +1,9 @@
-@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+@custom-variant dark (&:where(
+    .dark,
+    .dark *,
+    [data-theme="dark"],
+    [data-theme="dark"] *
+  ));
 
 @theme inline {
   --color-background: var(--background);
@@ -66,7 +71,6 @@
   }
 }
 
-:root,
 .light {
   --radius: 0.75rem;
   --background: oklch(1 0 0);
@@ -104,8 +108,10 @@
   --success-foreground: oklch(0.985 0 0);
 }
 
+:root,
 .dark,
 [data-theme="dark"] {
+  --radius: 0.75rem;
   --background: oklch(0.155 0.002 286.152);
   --foreground: oklch(1 0 0);
   --card: oklch(0.184 0.008 285.577);

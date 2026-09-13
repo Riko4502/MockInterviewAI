@@ -2,7 +2,7 @@ import { cn } from "@packages/utils";
 import { iconVariants } from "../../constants";
 import type { IconProps } from "../../types";
 
-export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
+export function PaperclipIcon({ size, className, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -16,9 +16,7 @@ export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
       className={cn(iconVariants({ size, className }))}
       {...props}
     >
-      <path d="m18 8 4 4-4 4" />
-      <path d="M2 12h20" />
-      <path d="m6 8-4 4 4 4" />
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
     </svg>
   );
 }

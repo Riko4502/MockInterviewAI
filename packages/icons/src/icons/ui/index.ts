@@ -1,9 +1,12 @@
+export { AlertCircleIcon } from "./alert-circle-icon";
+export { AlertTriangleIcon, WarningIcon } from "./alert-triangle-icon";
 export { ArrowDownIcon } from "./arrow-down-icon";
 export { ArrowRightIcon } from "./arrow-right-icon";
 export { ArrowUpIcon } from "./arrow-up-icon";
 export { BellIcon } from "./bell-icon";
 export { BookIcon } from "./book-icon";
 export { BugIcon } from "./bug-icon";
+export { CalendarIcon } from "./calendar-icon";
 export { CheckIcon } from "./check-icon";
 export { ChevronRightIcon } from "./chevron-right-icon";
 export { ClockIcon } from "./clock-icon";
@@ -16,14 +19,25 @@ export { FileIcon } from "./file-icon";
 export { FolderIcon } from "./folder-icon";
 export { FolderOpenIcon } from "./folder-open-icon";
 export { GlobeIcon } from "./globe-icon";
+export { GripVerticalIcon } from "./grip-vertical-icon";
 export { HelpIcon } from "./help-icon";
 export { HubConnectionIcon } from "./hub-connection-icon";
+export { InfoIcon } from "./info-icon";
 export { LoginIcon } from "./login-icon";
 export { MaximizeIcon } from "./maximize-icon";
 export { MenuIcon } from "./menu-icon";
 export { MinimizeIcon } from "./minimize-icon";
-export { MoreHorizontalIcon } from "./move-horizontal-icon";
+export {
+  EllipsisIcon,
+  MoreHorizontalIcon,
+} from "./more-horizontal-icon";
+export {
+  EllipsisVerticalIcon,
+  MoreVerticalIcon,
+} from "./more-vertical-icon";
+export { MoveHorizontalIcon } from "./move-horizontal-icon";
 export { PackageIcon } from "./package-icon";
+export { PaperclipIcon } from "./paperclip-icon";
 export { PlayIcon } from "./play-icon";
 export { PlusIcon } from "./plus-icon";
 export { RedoIcon } from "./redo-icon";
@@ -35,5 +49,6 @@ export { SplitIcon } from "./split-icon";
 export { TrashIcon } from "./trash-icon";
 export { TrendUpIcon } from "./trend-up-icon";
 export { UndoIcon } from "./undo-icon";
+export { UploadIcon } from "./upload-icon";
 export { UsersIcon } from "./users-icon";
 export { WandIcon } from "./wand-icon";

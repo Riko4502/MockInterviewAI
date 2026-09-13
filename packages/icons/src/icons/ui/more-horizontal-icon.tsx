@@ -2,7 +2,7 @@ import { cn } from "@packages/utils";
 import { iconVariants } from "../../constants";
 import type { IconProps } from "../../types";
 
-export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
+export function MoreHorizontalIcon({ size, className, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -16,9 +16,11 @@ export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
       className={cn(iconVariants({ size, className }))}
       {...props}
     >
-      <path d="m18 8 4 4-4 4" />
-      <path d="M2 12h20" />
-      <path d="m6 8-4 4 4 4" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+      <circle cx="19" cy="12" r="1" fill="currentColor" />
+      <circle cx="5" cy="12" r="1" fill="currentColor" />
     </svg>
   );
 }
+
+export const EllipsisIcon = MoreHorizontalIcon;

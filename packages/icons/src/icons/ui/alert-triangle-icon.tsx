@@ -2,7 +2,7 @@ import { cn } from "@packages/utils";
 import { iconVariants } from "../../constants";
 import type { IconProps } from "../../types";
 
-export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
+export function AlertTriangleIcon({ size, className, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -16,9 +16,11 @@ export function MoveHorizontalIcon({ size, className, ...props }: IconProps) {
       className={cn(iconVariants({ size, className }))}
       {...props}
     >
-      <path d="m18 8 4 4-4 4" />
-      <path d="M2 12h20" />
-      <path d="m6 8-4 4 4 4" />
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   );
 }
+
+export const WarningIcon = AlertTriangleIcon;
