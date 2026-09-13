@@ -58,6 +58,7 @@
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
+* **Message Broker / Queues:** RabbitMQ (асинхронные задачи и уведомления)
 * **Object Storage:** S3-совместимое хранилище (MinIO для dev / Cloudflare R2 / AWS S3 в prod)
 * **Monorepo & Build Tooling:** Turborepo, pnpm workspaces, Biome, Docker
 
@@ -97,15 +98,16 @@ cp .env.example .env
 pnpm install
 ```
 
-### 4. Запуск локальной инфраструктуры (Postgres, Redis, MinIO)
+### 4. Запуск локальной инфраструктуры (Postgres, Redis, RabbitMQ, MinIO)
 ```bash
-# Поднять PostgreSQL, Redis и MinIO (S3)
+# Поднять PostgreSQL, Redis, RabbitMQ и MinIO (S3)
 pnpm run infra:up
 
 # Остановить контейнеры
 pnpm run infra:down
 ```
 
+* Веб-панель RabbitMQ Management доступна по адресу `http://localhost:15672` (логин: `guest`, пароль: `guest`).
 * Веб-консоль MinIO доступна по адресу `http://localhost:9001` (логин: `minioadmin`, пароль: `minioadmin`).
 * S3 API эндпоинт: `http://localhost:9000`.
 
