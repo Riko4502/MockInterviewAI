@@ -107,7 +107,7 @@ pnpm run infra:up
 pnpm run infra:down
 ```
 
-* Веб-панель RabbitMQ Management доступна по адресу `http://localhost:15672` (логин: `guest`, пароль: `guest`).
+* Веб-панель RabbitMQ Management доступна по адресу `http://localhost:15672` (логин: `mock_interview`, пароль: `mock_interview_pass`).
 * Веб-консоль MinIO доступна по адресу `http://localhost:9001` (логин: `minioadmin`, пароль: `minioadmin`).
 * S3 API эндпоинт: `http://localhost:9000`.
 

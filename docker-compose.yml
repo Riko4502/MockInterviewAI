@@ -98,15 +98,15 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-mock-interview-storage}
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3-management-alpine@sha256:a62e0843472fa998a44ecb273767cbdd89da6d0cf9e782e44383aa6ea4c40b82
     container_name: mock-interview-rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-mock_interview}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-mock_interview_pass}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
