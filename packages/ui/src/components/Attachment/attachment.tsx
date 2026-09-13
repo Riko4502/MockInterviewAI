@@ -166,6 +166,7 @@ function AttachmentProgress({
 
   return (
     <div
+      {...props}
       role="progressbar"
       aria-label={ariaLabel}
       aria-valuemin={0}
@@ -173,7 +174,6 @@ function AttachmentProgress({
       aria-valuenow={clampedValue}
       data-slot="attachment-progress"
       className={cn(ATTACHMENT_STYLES.progress, className)}
-      {...props}
     >
       <div
         className={ATTACHMENT_STYLES.progressBar}

@@ -654,6 +654,22 @@ export const Collapsible: Story = {
 };
 
 /**
+ * Вспомогательная функция для извлечения числового размера панели из стилей react-resizable-panels.
+ */
+function getPanelFlexSize(panel: HTMLElement): number {
+  const match = panel.getAttribute("style")?.match(/flex:\s*([0-9.]+)/i);
+  if (match) {
+    return Number.parseFloat(match[1]);
+  }
+  const flexGrow = panel.style.flexGrow || panel.style.flex;
+  if (flexGrow) {
+    const parsed = Number.parseFloat(flexGrow);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+/**
  * Управление размерами панелей с клавиатуры (клавиши-стрелки при фокусе на разделителе).
  */
 export const KeyboardResize: Story = {
@@ -690,12 +706,12 @@ export const KeyboardResize: Story = {
     expect(panels.length).toBe(2);
 
     const leftPanel = panels[0];
-    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
+    const initialLeftSize = getPanelFlexSize(leftPanel);
 
     handle.focus();
     fireEvent.keyDown(handle, { key: "ArrowRight", code: "ArrowRight" });
 
-    const updatedLeftStyle = leftPanel.getAttribute("style") ?? "";
-    expect(updatedLeftStyle).not.toBe(initialLeftStyle);
+    const updatedLeftSize = getPanelFlexSize(leftPanel);
+    expect(updatedLeftSize).toBeGreaterThan(initialLeftSize);
   },
 };

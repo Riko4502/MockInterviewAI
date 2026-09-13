@@ -64,6 +64,26 @@ describe("Attachment Component", () => {
     expect(progressBarInner.style.width).toBe("75%");
   });
 
+  it("does not allow custom props to override computed progressbar ARIA attributes", () => {
+    render(
+      <Attachment status="uploading">
+        <Attachment.Progress
+          value={75}
+          role="button"
+          aria-valuenow={200}
+          aria-valuemin={50}
+          aria-valuemax={500}
+        />
+      </Attachment>,
+    );
+
+    const progressbar = screen.getByRole("progressbar");
+    expect(progressbar).toBeDefined();
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("75");
+    expect(progressbar.getAttribute("aria-valuemin")).toBe("0");
+    expect(progressbar.getAttribute("aria-valuemax")).toBe("100");
+  });
+
   it("renders image preview when src is provided", () => {
     render(
       <Attachment>
@@ -126,13 +146,25 @@ describe("Attachment Component", () => {
       const input = container.querySelector(
         'input[type="file"]',
       ) as HTMLInputElement;
+
+      let valueSet = "initial";
+      const valueSetter = vi.fn((val: string) => {
+        valueSet = val;
+      });
+
+      Object.defineProperty(input, "value", {
+        set: valueSetter,
+        get: () => valueSet,
+        configurable: true,
+      });
+
       const file = new File(["content"], "example.pdf", {
         type: "application/pdf",
       });
 
       fireEvent.change(input, { target: { files: [file] } });
 
-      expect(input.value).toBe("");
+      expect(valueSetter).toHaveBeenCalledWith("");
     });
 
     it("triggers file input click when trigger button is clicked", () => {
