@@ -9,7 +9,7 @@
 ### 1. Системные требования
 * **Node.js:** `>= 20.x`
 * **pnpm:** `>= 9.x` (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Docker & Docker Compose** (для PostgreSQL, Redis и MinIO)
+* **Docker & Docker Compose** (для PostgreSQL, Redis, RabbitMQ и MinIO)
 * **Go (Golang):** `>= 1.26+` — **обязателен для полной сборки всех сервисов (`pnpm build`), запуска всех тестов (`pnpm test`) и WebSocket-сервиса `apps/realtime`**. *(Если Go не установлен, используйте точечную сборку фронтенда: `pnpm --filter web build`)*.
 
 ### 2. Клонирование и установка зависимостей
@@ -28,6 +28,9 @@ cp apps/api/.env.example apps/api/.env # при разработке бэкен�
 
 ### 4. Запуск окружения
 ```bash
+# Поднять локальную инфраструктуру (Postgres, Redis, RabbitMQ, MinIO)
+pnpm run infra:up
+
 # Запуск только Frontend приложения (Next.js)
 pnpm dev:web
 
@@ -46,6 +49,7 @@ pnpm dev
 | **Web** (Next.js) | [http://localhost:3000](http://localhost:3000) | Основное веб-приложение платформы |
 | **API** (NestJS) | [http://localhost:3001](http://localhost:3001) | REST API бэкенда ([Healthcheck](http://localhost:3001/api/v1/health)) |
 | **Swagger UI** | [http://localhost:3001/docs](http://localhost:3001/docs) | Интерактивная документация API (OpenAPI 3.0) |
+| **RabbitMQ UI** | [http://localhost:15672](http://localhost:15672) | Панель брокера сообщений (логин/пароль: `mock_interview` / `mock_interview_pass`) |
 | **Realtime** (Go) | `ws://localhost:8080` | Высоконагруженный WebSocket-сервис |
 | **Landing** (Next.js) | [http://localhost:4321](http://localhost:4321) | Публичный маркетинговый сайт и SEO |
 | **Storybook** | [http://localhost:6006](http://localhost:6006) | Изолированная витрина компонентов (`pnpm --filter @packages/ui storybook`) |
@@ -150,7 +154,7 @@ pnpm lint && pnpm test
 Вся документация по инфраструктуре, пайплайнам и деплою собрана в каталоге [`docs/devops/`](./docs/devops/README.md):
 
 ### 🐳 Инфраструктура и Пайплайны
-* [**Локальная инфраструктура**](./docs/devops/infrastructure/local-docker.md) — Docker Compose (PostgreSQL, Redis, MinIO S3), команды `infra:up` / `infra:down`.
+* [**Локальная инфраструктура**](./docs/devops/infrastructure/local-docker.md) — Docker Compose (PostgreSQL, Redis, RabbitMQ, MinIO S3), команды `infra:up` / `infra:down`.
 * [**CI/CD Пайплайны**](./docs/devops/ci-cd/pipelines.md) — Reusable workflows, paths-filter, кэширование Turborepo.
 * [**Релизы и Версионирование**](./docs/devops/ci-cd/releases.md) — сборка архивов по тегам, S3 хранилище, Release Drafter.
 * [**Production Деплой**](./docs/devops/deployment/production.md) — `docker-compose.prod.yml`, multi-stage Dockerfiles, SSH деплой.

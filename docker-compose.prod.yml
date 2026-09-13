@@ -30,6 +30,21 @@ services:
       timeout: 3s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mock-interview-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     image: ${API_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER}/mockinterviewai-api:latest}
     container_name: mock-interview-api
@@ -46,6 +61,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=${RABBITMQ_URL:?RABBITMQ_URL is required}
       - LIVEKIT_URL=${LIVEKIT_URL}
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
@@ -56,6 +72,8 @@ services:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   realtime:
@@ -103,4 +121,5 @@ services:
 volumes:
   redis_data:
   postgres_data:
+  rabbitmq_data:
 

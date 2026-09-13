@@ -58,6 +58,7 @@
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
+* **Message Broker / Queues:** RabbitMQ (асинхронные задачи и уведомления)
 * **Object Storage:** S3-совместимое хранилище (MinIO для dev / Cloudflare R2 / AWS S3 в prod)
 * **Monorepo & Build Tooling:** Turborepo, pnpm workspaces, Biome, Docker
 
@@ -69,7 +70,7 @@
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
 * **Go (Golang):** >= 1.26+ (необходим для полной сборки всех сервисов `pnpm build`, запуска всех тестов `pnpm test` и работы сервиса `apps/realtime`)
-* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis и MinIO
+* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis, RabbitMQ и MinIO
 
 ---
 
@@ -97,15 +98,16 @@ cp .env.example .env
 pnpm install
 ```
 
-### 4. Запуск локальной инфраструктуры (Postgres, Redis, MinIO)
+### 4. Запуск локальной инфраструктуры (Postgres, Redis, RabbitMQ, MinIO)
 ```bash
-# Поднять PostgreSQL, Redis и MinIO (S3)
+# Поднять PostgreSQL, Redis, RabbitMQ и MinIO (S3)
 pnpm run infra:up
 
 # Остановить контейнеры
 pnpm run infra:down
 ```
 
+* Веб-панель RabbitMQ Management доступна по адресу `http://localhost:15672` (логин: `mock_interview`, пароль: `mock_interview_pass`).
 * Веб-консоль MinIO доступна по адресу `http://localhost:9001` (логин: `minioadmin`, пароль: `minioadmin`).
 * S3 API эндпоинт: `http://localhost:9000`.
 
@@ -189,6 +191,7 @@ pnpm dev
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
 * 🌍 **[i18n Localization](docs/I18N.md)** — архитектура и руководство по интернационализации (`@packages/i18n`).
+* 🤖 **[Telegram Bot Architecture](docs/TELEGRAM_BOT_ARCHITECTURE.md)** — архитектура и интеграция Telegram-бота (`apps/telegram-bot`).
 
 ---
 
@@ -248,7 +251,7 @@ pnpm install
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env   # Windows: copy apps\api\.env.example apps\api\.env
 
-# 3. Запуск инфраструктуры (PostgreSQL, Redis, MinIO)
+# 3. Запуск инфраструктуры (PostgreSQL, Redis, RabbitMQ, MinIO)
 pnpm run infra:up
 
 # 4. Запуск сервисов в режиме разработки
