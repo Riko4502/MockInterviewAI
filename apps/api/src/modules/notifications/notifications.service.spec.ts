@@ -163,6 +163,7 @@ describe("NotificationsService", () => {
       redisMock.get.mockResolvedValue(null);
 
       prismaMock.notification.findMany.mockResolvedValue([]);
+
       prismaMock.notification.count.mockResolvedValue(45);
 
       const result = await service.getNotifications(userId, 2, 20);
@@ -185,35 +186,6 @@ describe("NotificationsService", () => {
         limit: 20,
         total: 45,
         totalPages: 3,
-      });
-    });
-
-    it("ограничивает limit значением 100", async () => {
-      redisMock.get.mockResolvedValue(null);
-
-      prismaMock.notification.findMany.mockResolvedValue([]);
-      prismaMock.notification.count.mockResolvedValue(0);
-
-      const result = await service.getNotifications(userId, 1, 500);
-
-      expect(prismaMock.notification.findMany).toHaveBeenCalledWith({
-        where: {
-          userId,
-          deletedAt: null,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip: 0,
-        take: 100,
-      });
-
-      expect(result).toEqual({
-        items: [],
-        page: 1,
-        limit: 100,
-        total: 0,
-        totalPages: 0,
       });
     });
   });
@@ -261,22 +233,15 @@ describe("NotificationsService", () => {
   });
 
   describe("markAsRead", () => {
-    it("помечает уведомление прочитанным, инвалидирует кэш и публикует badge", async () => {
+    it("помечает уведомление прочитанным", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({
         count: 1,
       });
 
-      redisMock.scanKeys.mockResolvedValue([
-        notificationsCacheKey,
-        `notifications:${userId}:page:2:limit:20`,
-      ]);
-
+      redisMock.scanKeys.mockResolvedValue([]);
       redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
       redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(0);
 
       const result = await service.markAsRead(userId, notificationId);
 
@@ -291,31 +256,23 @@ describe("NotificationsService", () => {
         },
       });
 
-      expect(redisMock.scanKeys).toHaveBeenCalledWith(
-        notificationsCachePattern,
-      );
-
-      expect(redisMock.delete).toHaveBeenCalledWith(notificationsCacheKey);
-
-      expect(redisMock.delete).toHaveBeenCalledWith(
-        `notifications:${userId}:page:2:limit:20`,
-      );
-
-      expect(redisMock.delete).toHaveBeenCalledWith(unreadCountCacheKey);
-
-      expect(redisMock.xadd).toHaveBeenCalledWith(
-        notificationStreamKey,
-        "notification.badge",
-        {
-          unreadCount: 0,
-        },
-        100,
-        604800,
-      );
-
       expect(result).toEqual({
         success: true,
       });
+    });
+
+    it("не возвращает ошибку клиенту если Redis недоступен после успешного обновления PostgreSQL", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      redisMock.scanKeys.mockRejectedValue(new Error("Redis unavailable"));
+
+      await expect(service.markAsRead(userId, notificationId)).resolves.toEqual(
+        {
+          success: true,
+        },
+      );
     });
 
     it("выбрасывает NotFoundException если уведомление не найдено", async () => {
@@ -335,19 +292,15 @@ describe("NotificationsService", () => {
   });
 
   describe("markAsDeleted", () => {
-    it("выполняет soft-delete, инвалидирует кэш и публикует badge", async () => {
+    it("выполняет soft-delete уведомления", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({
         count: 1,
       });
 
-      redisMock.scanKeys.mockResolvedValue([notificationsCacheKey]);
-
+      redisMock.scanKeys.mockResolvedValue([]);
       redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
       redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(0);
 
       const result = await service.markAsDeleted(userId, notificationId);
 
@@ -362,25 +315,21 @@ describe("NotificationsService", () => {
         },
       });
 
-      expect(redisMock.scanKeys).toHaveBeenCalledWith(
-        notificationsCachePattern,
-      );
-
-      expect(redisMock.delete).toHaveBeenCalledWith(notificationsCacheKey);
-
-      expect(redisMock.delete).toHaveBeenCalledWith(unreadCountCacheKey);
-
-      expect(redisMock.xadd).toHaveBeenCalledWith(
-        notificationStreamKey,
-        "notification.badge",
-        {
-          unreadCount: 0,
-        },
-        100,
-        604800,
-      );
-
       expect(result).toEqual({
+        success: true,
+      });
+    });
+
+    it("не возвращает ошибку клиенту если Redis недоступен после успешного soft-delete", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      redisMock.scanKeys.mockRejectedValue(new Error("Redis unavailable"));
+
+      await expect(
+        service.markAsDeleted(userId, notificationId),
+      ).resolves.toEqual({
         success: true,
       });
     });

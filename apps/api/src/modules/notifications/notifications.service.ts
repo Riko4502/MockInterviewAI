@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 
 import { NotificationType } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -6,11 +6,16 @@ import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   private readonly cacheTtlSeconds = 60;
 
   private readonly notificationStreamMaxLength = 100;
 
   private readonly notificationStreamTtlSeconds = 7 * 24 * 60 * 60;
+
+  private readonly redisRetryAttempts = 3;
+  private readonly redisRetryDelayMs = 200;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -18,10 +23,7 @@ export class NotificationsService {
   ) {}
 
   async getNotifications(userId: string, page = 1, limit = 20) {
-    const safePage = Math.max(page, 1);
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
-
-    const cacheKey = this.getNotificationsCacheKey(userId, safePage, safeLimit);
+    const cacheKey = this.getNotificationsCacheKey(userId, page, limit);
 
     const cached = await this.redis.get(cacheKey);
 
@@ -29,7 +31,7 @@ export class NotificationsService {
       return JSON.parse(cached);
     }
 
-    const skip = (safePage - 1) * safeLimit;
+    const skip = (page - 1) * limit;
 
     const [notifications, total] = await Promise.all([
       this.prisma.notification.findMany({
@@ -41,7 +43,7 @@ export class NotificationsService {
           createdAt: "desc",
         },
         skip,
-        take: safeLimit,
+        take: limit,
       }),
 
       this.prisma.notification.count({
@@ -54,10 +56,10 @@ export class NotificationsService {
 
     const result = {
       items: notifications,
-      page: safePage,
-      limit: safeLimit,
+      page,
+      limit,
       total,
-      totalPages: Math.ceil(total / safeLimit),
+      totalPages: Math.ceil(total / limit),
     };
 
     await this.redis.set(
@@ -109,9 +111,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    await this.invalidateCache(userId);
-
-    await this.publishUnreadCount(userId);
+    this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -134,9 +134,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    await this.invalidateCache(userId);
-
-    await this.publishUnreadCount(userId);
+    this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -175,6 +173,46 @@ export class NotificationsService {
     return notification;
   }
 
+  private scheduleNotificationSync(userId: string): void {
+    void this.retryRedisOperation(async () => {
+      await this.invalidateCache(userId);
+      await this.publishUnreadCount(userId);
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Failed to sync notification state for user ${userId}: ${message}`,
+      );
+    });
+  }
+
+  private async retryRedisOperation(
+    operation: () => Promise<void>,
+  ): Promise<void> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= this.redisRetryAttempts; attempt += 1) {
+      try {
+        await operation();
+        return;
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < this.redisRetryAttempts) {
+          await this.delay(this.redisRetryDelayMs * attempt);
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async delay(milliseconds: number): Promise<void> {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, milliseconds);
+    });
+  }
+
   private async publishUnreadCount(userId: string): Promise<void> {
     const { count } = await this.getUnreadCount(userId);
 
@@ -204,7 +242,6 @@ export class NotificationsService {
 
     await Promise.all([
       ...notificationKeys.map((key) => this.redis.delete(key)),
-
       this.redis.delete(this.getUnreadCountCacheKey(userId)),
     ]);
   }

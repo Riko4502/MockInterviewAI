@@ -1,3 +1,5 @@
+import { BadRequestException } from "@nestjs/common";
+
 import { NotificationsController } from "./notifications.controller";
 import type { NotificationsService } from "./notifications.service";
 
@@ -52,56 +54,126 @@ describe("NotificationsController", () => {
     );
   });
 
-  it("getNotifications возвращает пагинированные уведомления текущего пользователя", async () => {
-    const page = 1;
-    const limit = 20;
+  describe("getNotifications", () => {
+    it("возвращает пагинированные уведомления текущего пользователя", async () => {
+      const page = 1;
+      const limit = 20;
 
-    const result = await controller.getNotifications(userId, page, limit);
+      const result = await controller.getNotifications(userId, page, limit);
 
-    expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
-      userId,
-      page,
-      limit,
-    );
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        page,
+        limit,
+      );
 
-    expect(result).toEqual(paginatedNotifications);
-  });
+      expect(result).toEqual(paginatedNotifications);
+    });
 
-  it("getUnreadCount возвращает количество непрочитанных уведомлений", async () => {
-    const result = await controller.getUnreadCount(userId);
+    it("принимает минимально допустимое значение page", async () => {
+      await controller.getNotifications(userId, 1, 20);
 
-    expect(notificationsServiceMock.getUnreadCount).toHaveBeenCalledWith(
-      userId,
-    );
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        1,
+        20,
+      );
+    });
 
-    expect(result).toEqual({
-      count: 1,
+    it("принимает минимально допустимое значение limit", async () => {
+      await controller.getNotifications(userId, 1, 1);
+
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        1,
+        1,
+      );
+    });
+
+    it("принимает максимально допустимое значение limit", async () => {
+      await controller.getNotifications(userId, 1, 100);
+
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        1,
+        100,
+      );
+    });
+
+    it("выбрасывает BadRequestException если page равен 0", async () => {
+      await expect(controller.getNotifications(userId, 0, 20)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает BadRequestException если page меньше 0", async () => {
+      await expect(controller.getNotifications(userId, -1, 20)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает BadRequestException если limit равен 0", async () => {
+      await expect(controller.getNotifications(userId, 1, 0)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает BadRequestException если limit больше 100", async () => {
+      await expect(controller.getNotifications(userId, 1, 101)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
     });
   });
 
-  it("markAsRead помечает уведомление прочитанным", async () => {
-    const result = await controller.markAsRead(userId, notificationId);
+  describe("getUnreadCount", () => {
+    it("возвращает количество непрочитанных уведомлений", async () => {
+      const result = await controller.getUnreadCount(userId);
 
-    expect(notificationsServiceMock.markAsRead).toHaveBeenCalledWith(
-      userId,
-      notificationId,
-    );
+      expect(notificationsServiceMock.getUnreadCount).toHaveBeenCalledWith(
+        userId,
+      );
 
-    expect(result).toEqual({
-      success: true,
+      expect(result).toEqual({
+        count: 1,
+      });
     });
   });
 
-  it("markAsDeleted помечает уведомление удаленным", async () => {
-    const result = await controller.markAsDeleted(userId, notificationId);
+  describe("markAsRead", () => {
+    it("помечает уведомление прочитанным", async () => {
+      const result = await controller.markAsRead(userId, notificationId);
 
-    expect(notificationsServiceMock.markAsDeleted).toHaveBeenCalledWith(
-      userId,
-      notificationId,
-    );
+      expect(notificationsServiceMock.markAsRead).toHaveBeenCalledWith(
+        userId,
+        notificationId,
+      );
 
-    expect(result).toEqual({
-      success: true,
+      expect(result).toEqual({
+        success: true,
+      });
+    });
+  });
+
+  describe("markAsDeleted", () => {
+    it("помечает уведомление удаленным", async () => {
+      const result = await controller.markAsDeleted(userId, notificationId);
+
+      expect(notificationsServiceMock.markAsDeleted).toHaveBeenCalledWith(
+        userId,
+        notificationId,
+      );
+
+      expect(result).toEqual({
+        success: true,
+      });
     });
   });
 });
