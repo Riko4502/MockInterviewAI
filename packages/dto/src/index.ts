@@ -17,6 +17,17 @@ export {
 } from "./auth/password-policy";
 export { type RegisterDto, registerSchema } from "./auth/register.dto";
 export {
+  type NotificationActionResponseDto,
+  type NotificationDto,
+  type NotificationsListDto,
+  notificationActionResponseSchema,
+  notificationSchema,
+  notificationsListSchema,
+  notificationTypeSchema,
+  type UnreadNotificationsCountDto,
+  unreadNotificationsCountSchema,
+} from "./notifications/notification.dto";
+export {
   GIT_URL_REGEX,
   normalizeTelegramUsername,
   TELEGRAM_USERNAME_REGEX,

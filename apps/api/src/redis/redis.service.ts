@@ -14,7 +14,15 @@ import Redis from "ioredis";
  * без импорта модуля. Конфигурация берётся из секции `redis`
  * (`redis.host`, `redis.port`, `redis.password`).
  *
- * Предоставляет базовые операции: `set`, `get`, `delete`, `expire`, `ping`.
+ * Предоставляет операции для:
+ * - key-value (`set`, `get`, `delete`, `expire`);
+ * - distributed lock (`setNx`);
+ * - hash (`hset`, `hget`, `hdel`);
+ * - SCAN (`scanKeys`);
+ * - Pub/Sub (`publish`);
+ * - Redis Streams (`xadd`);
+ * - health-check (`ping`).
+ *
  * Все методы пробрасывают ошибки ioredis наверх для компенсации
  * на уровне вызывающего кода (§48 SPEC.md).
  */
@@ -31,7 +39,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /** Устанавливает соединение с Redis при инициализации модуля. */
   async onModuleInit(): Promise<void> {
     const host = this.configService.get<string>("redis.host") ?? "localhost";
+
     const port = this.configService.get<number>("redis.port") ?? 6379;
+
     const password = this.configService.get<string>("redis.password") ?? "";
 
     this.client = new Redis({
@@ -45,6 +55,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.client.connect();
+
     this.logger.log("Redis connection established");
   }
 
@@ -55,6 +66,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     } catch {
       this.client.disconnect();
     }
+
     this.logger.log("Redis connection closed");
   }
 
@@ -75,12 +87,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Устанавливает ключ только если он не существует (NX) с временем жизни (Distributed Lock).
+   * Устанавливает ключ только если он не существует (NX)
+   * с временем жизни (Distributed Lock).
    *
    * @param key - Имя ключа.
    * @param value - Значение.
    * @param ttlSeconds - Время жизни в секундах.
-   * @returns `true`, если ключ был успешно установлен (захвачен лок), иначе `false`.
+   * @returns `true`, если ключ был успешно установлен,
+   * иначе `false`.
    */
   async setNx(
     key: string,
@@ -88,6 +102,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     ttlSeconds: number,
   ): Promise<boolean> {
     const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+
     return result === "OK";
   }
 
@@ -135,8 +150,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Устанавливает поле в хеше (HSET) и, если задан TTL, продлевает время жизни
-   * самого ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий
+   * Устанавливает поле в хеше (HSET) и, если задан TTL,
+   * продлевает время жизни самого ключа (EXPIRE).
+   *
+   * Используется для Redis-зеркала интервью-сессий
    * (`session:{id}:members`).
    *
    * @param key - Имя ключа-хеша.
@@ -152,6 +169,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     ttlSeconds?: number,
   ): Promise<void> {
     await this.client.hset(key, field, value);
+
     if (ttlSeconds !== undefined) {
       await this.client.expire(key, ttlSeconds);
     }
@@ -162,7 +180,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    *
    * @param key - Имя ключа-хеша.
    * @param field - Поле хеша.
-   * @returns Значение поля или `null`, если поле/ключ не существует.
+   * @returns Значение поля или `null`,
+   * если поле/ключ не существует.
    * @throws {Error} При ошибке Redis.
    */
   async hget(key: string, field: string): Promise<string | null> {
@@ -170,8 +189,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Удаляет поле из хеша (HDEL) и, если задан TTL, продлевает время жизни
-   * ключа (EXPIRE). Используется для Redis-зеркала интервью-сессий.
+   * Удаляет поле из хеша (HDEL) и, если задан TTL,
+   * продлевает время жизни ключа (EXPIRE).
+   *
+   * Используется для Redis-зеркала интервью-сессий.
    *
    * @param key - Имя ключа-хеша.
    * @param field - Поле хеша.
@@ -180,27 +201,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async hdel(key: string, field: string, ttlSeconds?: number): Promise<void> {
     await this.client.hdel(key, field);
+
     if (ttlSeconds !== undefined) {
       await this.client.expire(key, ttlSeconds);
     }
   }
 
   /**
-   * Возвращает ключи, соответствующие шаблону, через SCAN-итерацию.
+   * Возвращает ключи, соответствующие шаблону,
+   * через SCAN-итерацию.
    *
-   * Итерация выполняется через `scanStream` (пагинация курсором скрыта),
-   * собранные ключи возвращаются массивом. Гарантирует неблокирующий обход
-   * по сравнению с `KEYS` и не требует выделения всех ключей в память разом
-   * (ключи собираются пачками из стрима).
+   * Итерация выполняется через `scanStream`
+   * (пагинация курсором скрыта),
+   * собранные ключи возвращаются массивом.
    *
-   * @param pattern - Redis-шаблон (например `auth:session:*`).
-   * @param count - Размер пачки SCAN (`COUNT`), опционально (дефолт 100).
-   * @returns Массив ключей, соответствовавших шаблону.
-   * @throws {Error} При ошибке Redis (в т.ч. ошибке эмиссии стрима).
+   * Гарантирует неблокирующий обход
+   * по сравнению с `KEYS`.
+   *
+   * @param pattern - Redis-шаблон
+   * (например `auth:session:*`).
+   * @param count - Размер пачки SCAN (`COUNT`),
+   * опционально (дефолт 100).
+   * @returns Массив ключей,
+   * соответствовавших шаблону.
+   * @throws {Error} При ошибке Redis.
    */
   scanKeys(pattern: string, count = 100): Promise<string[]> {
     return new Promise((resolve, reject) => {
-      const stream = this.client.scanStream({ match: pattern, count });
+      const stream = this.client.scanStream({
+        match: pattern,
+        count,
+      });
+
       const keys: string[] = [];
 
       stream.on("data", (chunk: string[]) => {
@@ -208,19 +240,77 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
           keys.push(...chunk);
         }
       });
-      stream.on("end", () => resolve(keys));
-      stream.on("error", (error: Error) => reject(error));
+
+      stream.on("end", () => {
+        resolve(keys);
+      });
+
+      stream.on("error", (error: Error) => {
+        reject(error);
+      });
     });
   }
 
   /**
    * Публикует сообщение в Redis-канал Pub/Sub.
    *
+   * Используется для fire-and-forget событий,
+   * которым не требуется хранение истории.
+   *
    * @param channel - Имя канала.
    * @param message - Текст сообщения (JSON).
+   * @throws {Error} При ошибке Redis.
    */
   async publish(channel: string, message: string): Promise<void> {
     await this.client.publish(channel, message);
+  }
+
+  /**
+   * Добавляет событие в Redis Stream.
+   *
+   * Событие сохраняется в формате:
+   *
+   * type: <event type>
+   * data: <JSON payload>
+   *
+   * Опционально ограничивает длину стрима через
+   * `MAXLEN ~` и выставляет TTL на ключ.
+   *
+   * Используется producer-сервисами для realtime-событий,
+   * которые затем читаются сервисом `apps/realtime`.
+   *
+   * @param stream - Имя Redis Stream.
+   * @param type - Тип события.
+   * @param data - Payload события.
+   * @param maxLength - Максимальная примерная длина стрима.
+   * @param ttlSeconds - TTL стрима в секундах (опционально).
+   * @returns ID созданной записи Redis Stream.
+   * @throws {Error} При ошибке Redis.
+   */
+  async xadd(
+    stream: string,
+    type: string,
+    data: unknown,
+    maxLength = 100,
+    ttlSeconds?: number,
+  ): Promise<string | null> {
+    const id = await this.client.xadd(
+      stream,
+      "MAXLEN",
+      "~",
+      maxLength,
+      "*",
+      "type",
+      type,
+      "data",
+      JSON.stringify(data),
+    );
+
+    if (ttlSeconds !== undefined) {
+      await this.client.expire(stream, ttlSeconds);
+    }
+
+    return id;
   }
 
   /**
