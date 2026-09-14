@@ -6,74 +6,28 @@ import type {
   CursorPosition,
   LanguageId,
 } from "@packages/editor";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import {
   connectWebSocket,
   type RealtimeConnection,
 } from "@/features/realtime/lib/ticket";
-import { authToken } from "@/shared/api";
-import type { RunResult } from "../model/types";
+import type {
+  PeerInfo,
+  RunResult,
+  SandboxRealtimeMessage,
+  WebRTCSignal,
+} from "../model/types";
 import {
   dispatchSandboxMessage,
   type SandboxCallbacks,
 } from "./dispatchSandboxMessage";
+import { getAuthUser } from "./getAuthUser";
 import {
   getColorForUser,
   mapPeerToCollaborator,
 } from "./mapPeerToCollaborator";
 import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
-import type { WebRTCSignal } from "./useWebRTC";
-
-function getAuthUser(): { id: string | null; name: string | null } {
-  const token = authToken.get();
-  if (!token) return { id: null, name: null };
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2) return { id: null, name: null };
-    const payload = JSON.parse(atob(parts[1]));
-    const id = typeof payload.sub === "string" ? payload.sub : null;
-    let name: string | null = null;
-    if (typeof payload.username === "string" && payload.username) {
-      name = payload.username;
-    } else if (typeof payload.email === "string" && payload.email) {
-      name = payload.email.split("@")[0];
-    }
-    return { id, name };
-  } catch {
-    return { id: null, name: null };
-  }
-}
-
-export interface SandboxRealtimeMessage {
-  type:
-    | "code-update"
-    | "task-change"
-    | "webrtc-signal"
-    | "presence-ping"
-    | "presence-leave"
-    | "cursor-move"
-    | "run-result";
-  roomId: string;
-  senderId: string;
-  senderName: string;
-  payload: {
-    code?: string;
-    language?: LanguageId;
-    taskId?: string;
-    signal?: WebRTCSignal;
-    cursor?: CursorPosition;
-    runResult?: RunResult;
-  };
-}
-
-export interface PeerInfo {
-  id: string;
-  name: string;
-  role?: string;
-  color: string;
-  cursor?: CursorPosition;
-  lastSeen: number;
-}
 
 interface UseSandboxRealtimeOptions {
   roomId: string;
@@ -92,18 +46,14 @@ export function useSandboxRealtime({
   onRemoteRunResult,
   onPeerJoined,
 }: UseSandboxRealtimeOptions) {
-  const reactId = useId();
-
-  // Уникальный ID участника (с приоритетом авторизованного sub)
-  const [userId] = useState(() => {
+  // Данные участника: уникальный идентификатор вкладки/клиента для корректной работы P2P и мультиплеера
+  const [{ userId, userName }] = useState(() => {
     const auth = getAuthUser();
-    if (auth.id) return auth.id;
-    return `usr_${Math.random().toString(36).slice(2, 8)}_${reactId.replace(/[:]/g, "")}`;
-  });
-
-  const [userName] = useState(() => {
-    const auth = getAuthUser();
-    return auth.name || "Участник";
+    const tabSuffix = uuidv4().substring(0, 8);
+    return {
+      userId: auth.id ? `${auth.id}_${tabSuffix}` : `usr_${tabSuffix}`,
+      userName: auth.name || "Участник",
+    };
   });
 
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
@@ -112,10 +62,7 @@ export function useSandboxRealtime({
   const isSelfPeer = useCallback(
     (peerId: string) => {
       if (!peerId) return true;
-      if (peerId === userId) return true;
-      const auth = getAuthUser();
-      if (auth.id && peerId === auth.id) return true;
-      return false;
+      return peerId === userId;
     },
     [userId],
   );
@@ -159,13 +106,14 @@ export function useSandboxRealtime({
       };
 
       // 1. Отправка в Go Realtime WebSocket сервис через типизированный маппер
-      if (wsConnRef.current?.socket?.readyState === WebSocket.OPEN) {
-        try {
+      try {
+        const socket = wsConnRef.current?.socket;
+        if (socket?.readyState === WebSocket.OPEN) {
           const envelope = mapSandboxMessageToEnvelope(msg, roomId);
-          wsConnRef.current.socket.send(JSON.stringify(envelope));
-        } catch {
-          // Игнорируем сетевые сбои
+          socket.send(JSON.stringify(envelope));
         }
+      } catch {
+        // Игнорируем сетевые сбои и неустановленное соединение
       }
 
       // 2. Отправка через BroadcastChannel (локально для вкладок одного браузера)

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SandboxRealtimeMessage } from "../model/types";
 import {
   dispatchSandboxMessage,
   type SandboxCallbacks,
 } from "./dispatchSandboxMessage";
-import type { SandboxRealtimeMessage } from "./useSandboxRealtime";
 
 describe("dispatchSandboxMessage", () => {
   it("should dispatch 'code-update' to onRemoteCodeUpdate callback", () => {

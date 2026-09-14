@@ -1,37 +1,21 @@
 "use client";
 
-import { CodeEditorLazy, type LanguageId } from "@packages/editor";
+import { sessionsControllerCreateSession } from "@packages/api";
+import { CodeEditorLazy } from "@packages/editor";
 import { Resizable } from "@packages/ui";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { validate as isValidUUID, v4 as uuidv4 } from "uuid";
 import { useLiveKitRoom } from "@/features/realtime";
+import { authToken } from "@/shared/api";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { useWebRTC } from "../lib/useWebRTC";
-import { useSandboxState } from "../model/useSandboxState";
+import { useSandboxTimer } from "../model/useSandboxState";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxConsolePanel } from "./SandboxConsolePanel";
 import { SandboxHeader } from "./SandboxHeader";
 import { SandboxTaskPanel } from "./SandboxTaskPanel";
 import { SandboxVideoWidget } from "./SandboxVideoWidget";
-
-function generateUUID(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-function isValidUUID(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    str,
-  );
-}
 
 export function SandboxRoom() {
   const searchParams = useSearchParams();
@@ -42,52 +26,42 @@ export function SandboxRoom() {
   const [roomId, setRoomId] = useState<string>(() => {
     const fromUrl = searchParams.get("room");
     if (fromUrl && isValidUUID(fromUrl)) return fromUrl;
-    return generateUUID();
+    return uuidv4();
   });
 
-  // Автоматическая синхронизация URL с room
+  // Автоматическое создание сессии на бэкенде для авторизованных пользователей
   useEffect(() => {
-    const currentRoom = searchParams.get("room");
-    if (!currentRoom || !isValidUUID(currentRoom)) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("room", roomId);
-      router.replace(`${pathname}?${params.toString()}`);
-    } else if (currentRoom !== roomId) {
-      setRoomId(currentRoom);
-    }
-  }, [searchParams, roomId, pathname, router]);
+    const fromUrl = searchParams.get("room");
+    const token = authToken.get();
 
-  const [isVideoOpen, setIsVideoOpen] = useState<boolean>(false);
+    if (!fromUrl && token) {
+      sessionsControllerCreateSession()
+        .then((res) => {
+          if (res?.sessionId) {
+            setRoomId(res.sessionId);
+            const params = new URLSearchParams(searchParams.toString());
+            params.set("room", res.sessionId);
+            router.replace(`${pathname}?${params.toString()}`);
+          }
+        })
+        .catch((err) => {
+          console.warn("[Sandbox] Auto-provision session failed:", err);
+        });
+    }
+  }, [searchParams, pathname, router]);
+
   const [isInviteCopied, setIsInviteCopied] = useState<boolean>(false);
 
-  const {
-    tasks,
-    currentTask,
-    currentTaskId,
-    setCurrentTaskId,
-    language,
-    setLanguage,
-    theme,
-    setTheme,
-    code,
-    setCode,
-    resetCode,
-    leftTab,
-    setLeftTab,
-    consoleTab,
-    setConsoleTab,
-    notes,
-    setNotes,
-    revealedHints,
-    revealNextHint,
-    timerSeconds,
-    isTimerRunning,
-    toggleTimer,
-    resetTimer,
-    isRunning,
-    runResult,
-    runCode,
-  } = useSandboxState();
+  const code = useSandboxStore((s) => s.code);
+  const setCode = useSandboxStore((s) => s.setCode);
+  const language = useSandboxStore((s) => s.language);
+  const setLanguage = useSandboxStore((s) => s.setLanguage);
+  const theme = useSandboxStore((s) => s.theme);
+  const setTaskId = useSandboxStore((s) => s.setTaskId);
+  const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
+  const setIsVideoOpen = useSandboxStore((s) => s.setIsVideoOpen);
+
+  useSandboxTimer();
 
   const webrtcRef = useRef<ReturnType<typeof useWebRTC> | null>(null);
   const livekitRef = useRef<ReturnType<typeof useLiveKitRoom> | null>(null);
@@ -102,7 +76,7 @@ export function SandboxRoom() {
       }
     },
     onRemoteTaskChange: (newTaskId) => {
-      setCurrentTaskId(newTaskId);
+      setTaskId(newTaskId);
     },
     onRemoteWebRTCSignal: (signal) => {
       // При входящем вызове автоматически открываем видеопанель
@@ -174,23 +148,6 @@ export function SandboxRoom() {
     [setCode, realtime, language],
   );
 
-  // Синхронизация выбора задачи
-  const handleTaskChange = useCallback(
-    (taskId: string) => {
-      setCurrentTaskId(taskId);
-      realtime.broadcastTaskChange(taskId);
-    },
-    [setCurrentTaskId, realtime],
-  );
-
-  // Синхронизация смены языка
-  const handleLanguageChange = useCallback(
-    (newLang: LanguageId) => {
-      setLanguage(newLang);
-    },
-    [setLanguage],
-  );
-
   // Копирование ссылки приглашения
   const handleCopyInvite = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -210,22 +167,6 @@ export function SandboxRoom() {
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Верхний тулбар управления */}
       <SandboxHeader
-        tasks={tasks}
-        currentTaskId={currentTaskId}
-        onTaskChange={handleTaskChange}
-        language={language}
-        onLanguageChange={handleLanguageChange}
-        theme={theme}
-        onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
-        timerSeconds={timerSeconds}
-        isTimerRunning={isTimerRunning}
-        onToggleTimer={toggleTimer}
-        onResetTimer={resetTimer}
-        onResetCode={resetCode}
-        onRunCode={runCode}
-        isRunning={isRunning}
-        isVideoOpen={isVideoOpen}
-        onToggleVideo={() => setIsVideoOpen((prev) => !prev)}
         peerCount={realtime.peerCount}
         isInCall={isInCall}
         onCopyInvite={handleCopyInvite}
@@ -242,15 +183,7 @@ export function SandboxRoom() {
             maxSize="15%"
             className="min-w-0 min-h-0"
           >
-            <SandboxTaskPanel
-              task={currentTask}
-              activeTab={leftTab}
-              onTabChange={setLeftTab}
-              notes={notes}
-              onNotesChange={setNotes}
-              revealedHints={revealedHints}
-              onRevealNextHint={revealNextHint}
-            />
+            <SandboxTaskPanel />
           </Resizable.Panel>
 
           <Resizable.Handle withHandle />
@@ -297,13 +230,7 @@ export function SandboxRoom() {
                 maxSize="80%"
                 className="min-w-0 min-h-0"
               >
-                <SandboxConsolePanel
-                  activeTab={consoleTab}
-                  onTabChange={setConsoleTab}
-                  runResult={runResult}
-                  isRunning={isRunning}
-                  onRunCode={runCode}
-                />
+                <SandboxConsolePanel />
               </Resizable.Panel>
             </Resizable.Group>
           </Resizable.Panel>
@@ -331,6 +258,16 @@ export function SandboxRoom() {
         }
         isVideoOff={
           livekit.isConnected ? !livekit.isCameraEnabled : webrtc.isVideoOff
+        }
+        isRemoteVideoOff={
+          livekit.isConnected
+            ? livekit.isRemoteVideoOff
+            : webrtc.isRemoteVideoOff
+        }
+        isRemoteAudioMuted={
+          livekit.isConnected
+            ? livekit.isRemoteAudioMuted
+            : webrtc.isRemoteAudioMuted
         }
         isScreenSharing={
           livekit.isConnected

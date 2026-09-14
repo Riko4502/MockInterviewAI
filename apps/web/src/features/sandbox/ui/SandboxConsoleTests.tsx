@@ -1,35 +1,20 @@
 "use client";
 
 import { CheckIcon, CloseIcon, PlayIcon } from "@packages/icons";
-import { Button, Typography } from "@packages/ui";
-import type { RunResult } from "../model/types";
+import { Typography } from "@packages/ui";
+import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxConsoleTestsProps {
-  runResult: RunResult | null;
-  isRunning: boolean;
-  onRunCode: () => void;
-}
+export function SandboxConsoleTests() {
+  const runResult = useSandboxStore((s) => s.runResult);
+  const isRunning = useSandboxStore((s) => s.isRunning);
 
-export function SandboxConsoleTests({
-  runResult,
-  isRunning,
-  onRunCode,
-}: SandboxConsoleTestsProps) {
   if (!runResult && !isRunning) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <PlayIcon className="mb-2 size-6 opacity-40" />
         <Typography.P className="text-xs">
-          Решение еще не запускалось.
+          Запуск кода временно недоступен.
         </Typography.P>
-        <Button
-          variant="link"
-          size="sm"
-          onClick={onRunCode}
-          className="mt-1 text-xs"
-        >
-          Запустить тесты (Run Code)
-        </Button>
       </div>
     );
   }
@@ -108,7 +93,7 @@ export function SandboxConsoleTests({
               </div>
               <div>
                 <span className="text-muted-foreground">Ожидалось: </span>
-                <span className="text-emerald-400">{res.expectedOutput}</span>
+                <span className="text-foreground">{res.expectedOutput}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Получено: </span>
@@ -120,6 +105,11 @@ export function SandboxConsoleTests({
                   {res.actualOutput}
                 </span>
               </div>
+              {res.error && (
+                <div className="mt-1 rounded bg-rose-500/10 p-2 text-[11px] text-rose-400">
+                  {res.error}
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -2,19 +2,13 @@
 
 import { WandIcon } from "@packages/icons";
 import { Button, Typography } from "@packages/ui";
-import type { InterviewTask } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxTaskHintsProps {
-  task: InterviewTask;
-  revealedHints: number;
-  onRevealNextHint: () => void;
-}
+export function SandboxTaskHints() {
+  const task = useSandboxStore((s) => s.getCurrentTask());
+  const revealedHints = useSandboxStore((s) => s.revealedHints);
+  const revealNextHint = useSandboxStore((s) => s.revealNextHint);
 
-export function SandboxTaskHints({
-  task,
-  revealedHints,
-  onRevealNextHint,
-}: SandboxTaskHintsProps) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4 text-xs text-purple-300">
@@ -62,7 +56,7 @@ export function SandboxTaskHints({
         <Button
           variant="outline"
           size="sm"
-          onClick={onRevealNextHint}
+          onClick={revealNextHint}
           className="w-full gap-2 border-purple-500/30 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
         >
           <WandIcon className="size-3.5 text-purple-400" />

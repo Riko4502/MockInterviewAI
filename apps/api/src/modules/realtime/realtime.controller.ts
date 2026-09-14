@@ -1,4 +1,10 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -14,11 +20,12 @@ import {
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { InterviewParticipantRole } from "../../generated/prisma/enums";
 import { RedisService } from "../../redis/redis.service";
-import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
 import { TokenService } from "../auth/services/token.service";
 import { sessionActiveKey, sessionMembersKey } from "../sessions/session-keys";
+import { SessionsService } from "../sessions/sessions.service";
 import { LivekitService } from "./livekit.service";
 
 /**
@@ -40,6 +47,7 @@ export class RealtimeController {
     private readonly tokenService: TokenService,
     private readonly livekitService: LivekitService,
     private readonly redisService: RedisService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   /**
@@ -72,6 +80,10 @@ export class RealtimeController {
   @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   @ApiResponse({
+    status: 403,
+    description: "Сессия не активна или пользователь не является участником",
+  })
+  @ApiResponse({
     status: 429,
     description: "Превышен лимит запросов (rate limit)",
   })
@@ -84,32 +96,28 @@ export class RealtimeController {
     const activeKey = sessionActiveKey(sessionId);
     const membersKey = sessionMembersKey(sessionId);
 
-    // Гарантируем активность комнаты в Redis и регистрацию участника (зеркало для Go WS)
+    // Проверяем активность сессии в Redis
     const active = await this.redisService.get(activeKey);
-    if (!active || active === "closed") {
-      await this.redisService.set(activeKey, "true", 7200);
-    }
-    const role = await this.redisService.hget(membersKey, userId);
-    if (!role) {
-      await this.redisService.hset(membersKey, userId, "CANDIDATE", 7200);
+    if (active !== "true") {
+      throw new ForbiddenException(
+        "Interview session is not active or does not exist",
+      );
     }
 
-    // Гарантируем активность auth-сессии в Redis для проверки в Go WS
-    if (sid) {
-      const authKey = `${REDIS_SESSION_PREFIX}${sid}`;
-      const authExists = await this.redisService.exists(authKey);
-      if (!authExists) {
-        const sessionPayload = {
+    // Проверяем, что пользователь является зарегистрированным участником сессии
+    let role = await this.redisService.hget(membersKey, userId);
+    if (!role) {
+      // Присоединение по ссылке: если сессия активна, регистрируем участника как кандидата
+      try {
+        await this.sessionsService.addParticipant(
+          sessionId,
           userId,
-          refreshTokenHash: "sandbox-active",
-          tokenFamilyId: sid,
-          createdAt: new Date().toISOString(),
-          lastUsedAt: new Date().toISOString(),
-        };
-        await this.redisService.set(
-          authKey,
-          JSON.stringify(sessionPayload),
-          604800,
+          InterviewParticipantRole.CANDIDATE,
+        );
+        role = InterviewParticipantRole.CANDIDATE;
+      } catch {
+        throw new ForbiddenException(
+          "User is not a participant of this interview session",
         );
       }
     }
@@ -175,14 +183,29 @@ export class RealtimeController {
     const activeKey = sessionActiveKey(sessionId);
     const membersKey = sessionMembersKey(sessionId);
 
-    // Гарантируем активность комнаты в Redis и регистрацию участника
+    // Проверяем активность сессии в Redis
     const active = await this.redisService.get(activeKey);
-    if (!active || active === "closed") {
-      await this.redisService.set(activeKey, "true", 7200);
+    if (active !== "true") {
+      throw new ForbiddenException(
+        "Interview session is not active or does not exist",
+      );
     }
-    const role = await this.redisService.hget(membersKey, userId);
+
+    // Проверяем, что пользователь является зарегистрированным участником сессии
+    let role = await this.redisService.hget(membersKey, userId);
     if (!role) {
-      await this.redisService.hset(membersKey, userId, "CANDIDATE", 7200);
+      try {
+        await this.sessionsService.addParticipant(
+          sessionId,
+          userId,
+          InterviewParticipantRole.CANDIDATE,
+        );
+        role = InterviewParticipantRole.CANDIDATE;
+      } catch {
+        throw new ForbiddenException(
+          "User is not a participant of this interview session",
+        );
+      }
     }
 
     return this.livekitService.generateMediaToken(userId, body.sessionId);

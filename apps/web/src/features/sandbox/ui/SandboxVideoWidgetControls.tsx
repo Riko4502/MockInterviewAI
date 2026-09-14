@@ -13,7 +13,6 @@ import type { ConnectionState } from "../lib/useWebRTC";
 
 interface SandboxVideoWidgetControlsProps {
   localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
   isInCall: boolean;
   isAudioMuted: boolean;
   isVideoOff: boolean;
@@ -29,7 +28,6 @@ interface SandboxVideoWidgetControlsProps {
 
 export function SandboxVideoWidgetControls({
   localStream,
-  remoteStream,
   isInCall,
   isAudioMuted,
   isVideoOff,
@@ -70,7 +68,7 @@ export function SandboxVideoWidgetControls({
           </Button>
         )}
 
-        {localStream && (
+        {(isInCall || localStream) && (
           <>
             <Button
               variant={isAudioMuted ? "destructive" : "outline"}
@@ -116,11 +114,7 @@ export function SandboxVideoWidgetControls({
       </div>
 
       <span className="text-[11px] font-medium text-muted-foreground">
-        {remoteStream
-          ? "🟢 В сети"
-          : hasPeerOnline
-            ? "Собеседник ждет"
-            : "Один"}
+        {isInCall ? "🟢 В звонке" : hasPeerOnline ? "Собеседник ждет" : "Один"}
       </span>
     </div>
   );

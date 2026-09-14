@@ -141,3 +141,4 @@ func TestSSEDefaultsAndOverrides(t *testing.T) {
 		t.Error("expected error for a malformed SSE_RETRY_MS, got nil")
 	}
 }
+

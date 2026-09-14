@@ -1,13 +1,11 @@
 "use client";
 
 import { Typography } from "@packages/ui";
-import type { RunResult } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxConsoleLogsProps {
-  runResult: RunResult | null;
-}
+export function SandboxConsoleLogs() {
+  const runResult = useSandboxStore((s) => s.runResult);
 
-export function SandboxConsoleLogs({ runResult }: SandboxConsoleLogsProps) {
   if (!runResult?.logs || runResult.logs.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center py-8 text-center text-muted-foreground">

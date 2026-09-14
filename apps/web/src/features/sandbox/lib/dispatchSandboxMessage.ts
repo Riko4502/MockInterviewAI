@@ -1,7 +1,9 @@
 import type { LanguageId } from "@packages/editor";
-import type { RunResult } from "../model/types";
-import type { SandboxRealtimeMessage } from "./useSandboxRealtime";
-import type { WebRTCSignal } from "./useWebRTC";
+import type {
+  RunResult,
+  SandboxRealtimeMessage,
+  WebRTCSignal,
+} from "../model/types";
 
 export interface SandboxCallbacks {
   onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;

@@ -1,31 +1,21 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { RunResult } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxConsolePanel } from "./SandboxConsolePanel";
 
 describe("SandboxConsolePanel", () => {
-  it("should render placeholder when solution was not run yet", () => {
-    const onRunCodeMock = vi.fn();
+  beforeEach(() => {
+    useSandboxStore.getState().resetStore();
+  });
 
-    render(
-      <SandboxConsolePanel
-        activeTab="tests"
-        onTabChange={vi.fn()}
-        runResult={null}
-        isRunning={false}
-        onRunCode={onRunCodeMock}
-      />,
-    );
+  it("should render placeholder when code execution is disabled", () => {
+    render(<SandboxConsolePanel />);
 
-    expect(screen.getByText(/Решение еще не запускалось/i)).toBeInTheDocument();
-
-    const runBtn = screen.getByRole("button", {
-      name: /Запустить тесты \(Run Code\)/i,
-    });
-    fireEvent.click(runBtn);
-
-    expect(onRunCodeMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(/Запуск кода временно недоступен/i),
+    ).toBeInTheDocument();
   });
 
   it("should render test results correctly", () => {
@@ -55,15 +45,9 @@ describe("SandboxConsolePanel", () => {
       ],
     };
 
-    render(
-      <SandboxConsolePanel
-        activeTab="tests"
-        onTabChange={vi.fn()}
-        runResult={mockResult}
-        isRunning={false}
-        onRunCode={vi.fn()}
-      />,
-    );
+    useSandboxStore.setState({ runResult: mockResult });
+
+    render(<SandboxConsolePanel />);
 
     expect(
       screen.getByText(/Все тест-кейсы успешно пройдены!/i),
@@ -83,15 +67,9 @@ describe("SandboxConsolePanel", () => {
       results: [],
     };
 
-    render(
-      <SandboxConsolePanel
-        activeTab="logs"
-        onTabChange={vi.fn()}
-        runResult={mockResult}
-        isRunning={false}
-        onRunCode={vi.fn()}
-      />,
-    );
+    useSandboxStore.setState({ consoleTab: "logs", runResult: mockResult });
+
+    render(<SandboxConsolePanel />);
 
     expect(screen.getByText(/\[ERROR\] Something failed/i)).toBeInTheDocument();
     expect(screen.getByText(/Regular log message/i)).toBeInTheDocument();

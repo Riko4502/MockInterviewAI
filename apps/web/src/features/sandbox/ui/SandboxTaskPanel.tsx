@@ -2,37 +2,22 @@
 
 import { BookIcon, EditIcon, WandIcon } from "@packages/icons";
 import { Tabs } from "@packages/ui";
-import type { InterviewTask } from "../model/types";
+import { type SandboxLeftTab, useSandboxStore } from "../model/useSandboxStore";
 import { SandboxTaskDescription } from "./SandboxTaskDescription";
 import { SandboxTaskHints } from "./SandboxTaskHints";
 import { SandboxTaskNotes } from "./SandboxTaskNotes";
 
-interface SandboxTaskPanelProps {
-  task: InterviewTask;
-  activeTab: "description" | "hints" | "notes";
-  onTabChange: (tab: "description" | "hints" | "notes") => void;
-  notes: string;
-  onNotesChange: (notes: string) => void;
-  revealedHints: number;
-  onRevealNextHint: () => void;
-}
+export function SandboxTaskPanel() {
+  const activeTab = useSandboxStore((s) => s.leftTab);
+  const setLeftTab = useSandboxStore((s) => s.setLeftTab);
+  const task = useSandboxStore((s) => s.getCurrentTask());
+  const revealedHints = useSandboxStore((s) => s.revealedHints);
 
-export function SandboxTaskPanel({
-  task,
-  activeTab,
-  onTabChange,
-  notes,
-  onNotesChange,
-  revealedHints,
-  onRevealNextHint,
-}: SandboxTaskPanelProps) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card/40">
       <Tabs
         value={activeTab}
-        onValueChange={(val) =>
-          onTabChange(val as "description" | "hints" | "notes")
-        }
+        onValueChange={(val) => setLeftTab(val as SandboxLeftTab)}
         className="flex h-full flex-col overflow-hidden"
       >
         <div className="flex h-11 shrink-0 items-center border-b border-border bg-card/70 px-3">
@@ -63,22 +48,18 @@ export function SandboxTaskPanel({
           value="description"
           className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed"
         >
-          <SandboxTaskDescription task={task} />
+          <SandboxTaskDescription />
         </Tabs.Content>
 
         <Tabs.Content
           value="hints"
           className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed"
         >
-          <SandboxTaskHints
-            task={task}
-            revealedHints={revealedHints}
-            onRevealNextHint={onRevealNextHint}
-          />
+          <SandboxTaskHints />
         </Tabs.Content>
 
         <Tabs.Content value="notes" className="flex-1 overflow-y-auto p-5">
-          <SandboxTaskNotes notes={notes} onNotesChange={onNotesChange} />
+          <SandboxTaskNotes />
         </Tabs.Content>
       </Tabs>
     </div>

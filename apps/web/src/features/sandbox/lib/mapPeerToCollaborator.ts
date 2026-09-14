@@ -1,5 +1,5 @@
 import type { Collaborator } from "@packages/editor";
-import type { PeerInfo } from "./useSandboxRealtime";
+import type { PeerInfo } from "../model/types";
 
 export const COLLABORATOR_COLORS = [
   "#10b981", // emerald

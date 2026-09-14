@@ -1,25 +1,18 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { MOCK_INTERVIEW_TASKS } from "../model/tasks";
+import { beforeEach, describe, expect, it } from "vitest";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxTaskPanel } from "./SandboxTaskPanel";
 
 describe("SandboxTaskPanel", () => {
-  const sampleTask = MOCK_INTERVIEW_TASKS[0]; // Two Sum
+  beforeEach(() => {
+    useSandboxStore.getState().resetStore();
+  });
 
   it("should render task description, difficulty, examples and constraints", () => {
-    render(
-      <SandboxTaskPanel
-        task={sampleTask}
-        activeTab="description"
-        onTabChange={vi.fn()}
-        notes=""
-        onNotesChange={vi.fn()}
-        revealedHints={0}
-        onRevealNextHint={vi.fn()}
-      />,
-    );
+    render(<SandboxTaskPanel />);
 
+    const sampleTask = useSandboxStore.getState().getCurrentTask();
     expect(screen.getByText(sampleTask.title)).toBeInTheDocument();
     expect(screen.getByText(sampleTask.difficulty)).toBeInTheDocument();
     expect(screen.getByText(/Категория:/i)).toBeInTheDocument();
@@ -30,19 +23,9 @@ describe("SandboxTaskPanel", () => {
   });
 
   it("should render AI hints tab and handle reveal button clicks", () => {
-    const onRevealMock = vi.fn();
+    useSandboxStore.setState({ leftTab: "hints", revealedHints: 1 });
 
-    render(
-      <SandboxTaskPanel
-        task={sampleTask}
-        activeTab="hints"
-        onTabChange={vi.fn()}
-        notes=""
-        onNotesChange={vi.fn()}
-        revealedHints={1}
-        onRevealNextHint={onRevealMock}
-      />,
-    );
+    render(<SandboxTaskPanel />);
 
     expect(screen.getByText(/Виртуальный AI-интервьюер/i)).toBeInTheDocument();
     expect(screen.getByText(/Подсказка #1/i)).toBeInTheDocument();
@@ -53,27 +36,17 @@ describe("SandboxTaskPanel", () => {
     });
     fireEvent.click(revealButton);
 
-    expect(onRevealMock).toHaveBeenCalledTimes(1);
+    expect(useSandboxStore.getState().revealedHints).toBe(2);
   });
 
   it("should render notes tab and handle textarea changes", () => {
-    const onNotesChangeMock = vi.fn();
+    useSandboxStore.setState({ leftTab: "notes", notes: "My test note" });
 
-    render(
-      <SandboxTaskPanel
-        task={sampleTask}
-        activeTab="notes"
-        onTabChange={vi.fn()}
-        notes="My test note"
-        onNotesChange={onNotesChangeMock}
-        revealedHints={0}
-        onRevealNextHint={vi.fn()}
-      />,
-    );
+    render(<SandboxTaskPanel />);
 
     const textarea = screen.getByDisplayValue("My test note");
     fireEvent.change(textarea, { target: { value: "Updated note" } });
 
-    expect(onNotesChangeMock).toHaveBeenCalledWith("Updated note");
+    expect(useSandboxStore.getState().notes).toBe("Updated note");
   });
 });

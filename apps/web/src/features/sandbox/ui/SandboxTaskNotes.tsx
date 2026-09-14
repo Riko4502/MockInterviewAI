@@ -1,16 +1,12 @@
 "use client";
 
 import { Textarea, Typography } from "@packages/ui";
+import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxTaskNotesProps {
-  notes: string;
-  onNotesChange: (notes: string) => void;
-}
+export function SandboxTaskNotes() {
+  const notes = useSandboxStore((s) => s.notes);
+  const setNotes = useSandboxStore((s) => s.setNotes);
 
-export function SandboxTaskNotes({
-  notes,
-  onNotesChange,
-}: SandboxTaskNotesProps) {
   return (
     <div className="flex h-full flex-col space-y-3">
       <Typography.Muted className="text-xs">
@@ -19,7 +15,7 @@ export function SandboxTaskNotes({
       </Typography.Muted>
       <Textarea
         value={notes}
-        onChange={(e) => onNotesChange(e.target.value)}
+        onChange={(e) => setNotes(e.target.value)}
         placeholder="Записывайте сюда:
 1. Алгоритмическая сложность (Time/Space O(...))
 2. Граничные случаи (пустой массив, дубликаты, переполнение)

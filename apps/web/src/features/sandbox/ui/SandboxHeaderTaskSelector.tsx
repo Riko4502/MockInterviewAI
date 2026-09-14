@@ -2,25 +2,23 @@
 
 import { UsersIcon } from "@packages/icons";
 import { Badge, Button, Select, Typography } from "@packages/ui";
-import type { InterviewTask } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 
 interface SandboxHeaderTaskSelectorProps {
-  tasks: InterviewTask[];
-  currentTaskId: string;
-  onTaskChange: (taskId: string) => void;
   peerCount: number;
   onCopyInvite: () => void;
   isInviteCopied: boolean;
 }
 
 export function SandboxHeaderTaskSelector({
-  tasks,
-  currentTaskId,
-  onTaskChange,
   peerCount,
   onCopyInvite,
   isInviteCopied,
 }: SandboxHeaderTaskSelectorProps) {
+  const tasks = useSandboxStore((s) => s.tasks);
+  const currentTaskId = useSandboxStore((s) => s.currentTaskId);
+  const setTaskId = useSandboxStore((s) => s.setTaskId);
+
   const currentTask = tasks.find((t) => t.id === currentTaskId);
 
   return (
@@ -29,7 +27,7 @@ export function SandboxHeaderTaskSelector({
         Задача:
       </Typography.Muted>
 
-      <Select value={currentTaskId} onValueChange={onTaskChange}>
+      <Select value={currentTaskId} onValueChange={setTaskId}>
         <Select.Trigger className="h-9 w-[260px]">
           <Select.Value placeholder="Выберите задачу" />
         </Select.Trigger>

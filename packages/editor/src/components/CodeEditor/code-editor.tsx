@@ -1,5 +1,6 @@
 import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import * as monaco from "monaco-editor";
 import type React from "react";
 
 import { useEffect, useRef, useState } from "react";
@@ -17,11 +18,8 @@ import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
 
-loader.config({
-  paths: {
-    vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs",
-  },
-});
+// Инициализация локального пакета monaco-editor вместо внешнего jsDelivr CDN
+loader.config({ monaco });
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   value = "",

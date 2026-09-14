@@ -32,8 +32,9 @@ export function useLiveKitRoom({
     RemoteParticipant[]
   >([]);
   const [activeSpeakers, setActiveSpeakers] = useState<Participant[]>([]);
-  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState<boolean>(true);
-  const [isCameraEnabled, setIsCameraEnabled] = useState<boolean>(true);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] =
+    useState<boolean>(false);
+  const [isCameraEnabled, setIsCameraEnabled] = useState<boolean>(false);
   const [isScreenShareEnabled, setIsScreenShareEnabled] =
     useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +98,11 @@ export function useLiveKitRoom({
         sessionId,
       });
 
+      // Соединение отменили (размонтирование/смена sessionId) во время запроса токена
+      if (!isConnectingRef.current) {
+        return;
+      }
+
       if (!token || !serverUrl) {
         throw new Error("Не удалось получить токен доступа к LiveKit");
       }
@@ -140,6 +146,32 @@ export function useLiveKitRoom({
         },
       );
 
+      newRoom.on(RoomEvent.LocalTrackPublished, () => {
+        updateLocalStream(newRoom);
+      });
+
+      newRoom.on(RoomEvent.LocalTrackUnpublished, () => {
+        updateLocalStream(newRoom);
+      });
+
+      newRoom.on(RoomEvent.TrackMuted, () => {
+        updateLocalStream(newRoom);
+        updateRemoteStream(newRoom);
+      });
+
+      newRoom.on(RoomEvent.TrackUnmuted, () => {
+        updateLocalStream(newRoom);
+        updateRemoteStream(newRoom);
+      });
+
+      newRoom.on(RoomEvent.TrackPublished, () => {
+        updateRemoteStream(newRoom);
+      });
+
+      newRoom.on(RoomEvent.TrackUnpublished, () => {
+        updateRemoteStream(newRoom);
+      });
+
       newRoom.on(
         RoomEvent.ParticipantConnected,
         (_participant: RemoteParticipant) => {
@@ -168,26 +200,19 @@ export function useLiveKitRoom({
       // 4. Устанавливаем соединение с сервером
       await newRoom.connect(serverUrl, token);
 
+      // Соединение отменили во время подключения
+      if (roomRef.current !== newRoom) {
+        await newRoom.disconnect();
+        return;
+      }
+
       // Синхронизируем уже подключенных участников и их треки
       updateRemoteStream(newRoom);
 
-      // 5. Включаем микрофон и камеру по умолчанию
-      try {
-        await newRoom.localParticipant.enableCameraAndMicrophone();
-        setIsCameraEnabled(newRoom.localParticipant.isCameraEnabled);
-        setIsMicrophoneEnabled(newRoom.localParticipant.isMicrophoneEnabled);
-        updateLocalStream(newRoom);
-      } catch (mediaErr) {
-        console.warn("[LiveKit] Camera/Mic access warning:", mediaErr);
-        try {
-          await newRoom.localParticipant.setMicrophoneEnabled(true);
-          setIsMicrophoneEnabled(true);
-          setIsCameraEnabled(false);
-          updateLocalStream(newRoom);
-        } catch {
-          // Игнорируем
-        }
-      }
+      // 5. Микрофон и камера по умолчанию выключены
+      setIsCameraEnabled(false);
+      setIsMicrophoneEnabled(false);
+      updateLocalStream(newRoom);
     } catch (err) {
       const msg =
         err instanceof Error
@@ -203,6 +228,7 @@ export function useLiveKitRoom({
 
   // Отключение от комнаты
   const disconnect = useCallback(async () => {
+    isConnectingRef.current = false;
     if (roomRef.current) {
       await roomRef.current.disconnect();
       roomRef.current = null;
@@ -213,6 +239,8 @@ export function useLiveKitRoom({
     setRemoteStream(null);
     setRemoteParticipants([]);
     setIsScreenShareEnabled(false);
+    setIsCameraEnabled(false);
+    setIsMicrophoneEnabled(false);
   }, []);
 
   // Переключение микрофона
@@ -220,9 +248,13 @@ export function useLiveKitRoom({
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
     const nextState = !isMicrophoneEnabled;
-    await currentRoom.localParticipant.setMicrophoneEnabled(nextState);
-    setIsMicrophoneEnabled(nextState);
-    updateLocalStream(currentRoom);
+    try {
+      await currentRoom.localParticipant.setMicrophoneEnabled(nextState);
+      setIsMicrophoneEnabled(nextState);
+      updateLocalStream(currentRoom);
+    } catch (err) {
+      console.error("[useLiveKitRoom] Failed to toggle microphone:", err);
+    }
   }, [isMicrophoneEnabled, updateLocalStream]);
 
   // Переключение камеры
@@ -230,9 +262,13 @@ export function useLiveKitRoom({
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
     const nextState = !isCameraEnabled;
-    await currentRoom.localParticipant.setCameraEnabled(nextState);
-    setIsCameraEnabled(nextState);
-    updateLocalStream(currentRoom);
+    try {
+      await currentRoom.localParticipant.setCameraEnabled(nextState);
+      setIsCameraEnabled(nextState);
+      updateLocalStream(currentRoom);
+    } catch (err) {
+      console.error("[useLiveKitRoom] Failed to toggle camera:", err);
+    }
   }, [isCameraEnabled, updateLocalStream]);
 
   // Переключение демонстрации экрана
@@ -240,14 +276,36 @@ export function useLiveKitRoom({
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
     const nextState = !isScreenShareEnabled;
-    await currentRoom.localParticipant.setScreenShareEnabled(nextState);
-    setIsScreenShareEnabled(nextState);
-    updateLocalStream(currentRoom);
+    try {
+      await currentRoom.localParticipant.setScreenShareEnabled(nextState);
+      setIsScreenShareEnabled(nextState);
+      updateLocalStream(currentRoom);
+    } catch (err) {
+      console.error("[useLiveKitRoom] Failed to toggle screen share:", err);
+    }
   }, [isScreenShareEnabled, updateLocalStream]);
+
+  const isRemoteVideoOff =
+    remoteParticipants.length === 0 ||
+    !remoteParticipants.some((p) =>
+      Array.from(p.videoTrackPublications.values()).some(
+        (pub) => pub.track && !pub.isMuted,
+      ),
+    );
+
+  const isRemoteAudioMuted =
+    remoteParticipants.length === 0 ||
+    !remoteParticipants.some((p) =>
+      Array.from(p.audioTrackPublications.values()).some(
+        (pub) => pub.track && !pub.isMuted,
+      ),
+    );
 
   useEffect(() => {
     if (autoConnect && sessionId) {
-      void connect();
+      connect().catch(() => {
+        // Ошибка уже отражена в состоянии error
+      });
     }
 
     return () => {
@@ -267,6 +325,8 @@ export function useLiveKitRoom({
     isMicrophoneEnabled,
     isCameraEnabled,
     isScreenShareEnabled,
+    isRemoteVideoOff,
+    isRemoteAudioMuted,
     error,
     connect,
     disconnect,

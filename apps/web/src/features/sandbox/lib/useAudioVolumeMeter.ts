@@ -32,15 +32,27 @@ export function useAudioVolumeMeter(
       source.connect(analyser);
 
       const data = new Uint8Array(analyser.frequencyBinCount);
+      let lastUpdate = 0;
+      let lastLevel = 0;
+
       const loop = () => {
+        animFrameRef.current = requestAnimationFrame(loop);
+        const now = performance.now();
+        if (now - lastUpdate < 80) return;
+        lastUpdate = now;
+
         analyser.getByteFrequencyData(data);
         let sum = 0;
         for (let i = 0; i < data.length; i++) sum += data[i];
         const avg = sum / data.length;
-        setLevel(Math.min(100, Math.round((avg / 128) * 100)));
-        animFrameRef.current = requestAnimationFrame(loop);
+
+        const next = Math.min(100, Math.round((avg / 128) * 100));
+        if (Math.abs(next - lastLevel) >= 2) {
+          lastLevel = next;
+          setLevel(next);
+        }
       };
-      loop();
+      animFrameRef.current = requestAnimationFrame(loop);
     } catch {
       // Игнорируем в средах без аудио API
     }

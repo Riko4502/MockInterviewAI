@@ -1,124 +1,72 @@
 "use client";
 
-import type { LanguageId, Theme } from "@packages/editor";
-import { useCallback, useEffect, useState } from "react";
-import { executeCodeInBrowser } from "../lib/code-runner";
-import { MOCK_INTERVIEW_TASKS } from "./tasks";
-import type { InterviewTask, RunResult } from "./types";
+import { useEffect } from "react";
+import { useSandboxStore } from "./useSandboxStore";
 
-const DEFAULT_TIMER_SECONDS = 45 * 60; // 45 минут
+/**
+ * Хук фонового тика таймера в Zustand сторе.
+ * Запускается на уровне SandboxRoom и не вызывает ререндер самого SandboxRoom.
+ */
+export function useSandboxTimer() {
+  const isTimerRunning = useSandboxStore((s) => s.isTimerRunning);
+  const timerSeconds = useSandboxStore((s) => s.timerSeconds);
 
-export function useSandboxState() {
-  const [tasks] = useState<InterviewTask[]>(MOCK_INTERVIEW_TASKS);
-  const [currentTaskId, setCurrentTaskId] = useState<string>("two-sum");
-  const [language, setLanguage] = useState<LanguageId>("typescript");
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [leftTab, setLeftTab] = useState<"description" | "hints" | "notes">(
-    "description",
-  );
-  const [consoleTab, setConsoleTab] = useState<"tests" | "logs">("tests");
-  const [notes, setNotes] = useState<string>("");
-  const [revealedHints, setRevealedHints] = useState<number>(0);
-
-  // Таймер
-  const [timerSeconds, setTimerSeconds] = useState<number>(
-    DEFAULT_TIMER_SECONDS,
-  );
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
-
-  // Выполнение кода
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [runResult, setRunResult] = useState<RunResult | null>(null);
-
-  const currentTask = tasks.find((t) => t.id === currentTaskId) ?? tasks[0];
-
-  // Код в редакторе
-  const [code, setCode] = useState<string>(() => {
-    return currentTask.starterCode[language] ?? "// Начните писать код здесь\n";
-  });
-
-  // Обновление шаблона кода при смене задачи или языка
-  const handleTaskChange = useCallback(
-    (taskId: string) => {
-      setCurrentTaskId(taskId);
-      const targetTask = tasks.find((t) => t.id === taskId) ?? tasks[0];
-      setCode(
-        targetTask.starterCode[language] ??
-          targetTask.starterCode.typescript ??
-          "",
-      );
-      setRunResult(null);
-      setRevealedHints(0);
-    },
-    [language, tasks],
-  );
-
-  const handleLanguageChange = useCallback(
-    (newLang: LanguageId) => {
-      setLanguage(newLang);
-      setCode(
-        currentTask.starterCode[newLang] ?? "// Код на выбранном языке\n",
-      );
-      setRunResult(null);
-    },
-    [currentTask],
-  );
-
-  const resetCode = useCallback(() => {
-    setCode(currentTask.starterCode[language] ?? "");
-    setRunResult(null);
-  }, [currentTask, language]);
-
-  // Управление таймером
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isTimerRunning && timerSeconds > 0) {
       interval = setInterval(() => {
-        setTimerSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+        useSandboxStore.getState().tickTimer();
       }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isTimerRunning, timerSeconds]);
+}
 
-  const toggleTimer = useCallback(() => {
-    setIsTimerRunning((prev) => !prev);
-  }, []);
+/**
+ * Адаптер состояния песочницы на базе Zustand.
+ * Предоставляет полный интерфейс для обратной совместимости.
+ */
+export function useSandboxState() {
+  const tasks = useSandboxStore((s) => s.tasks);
+  const currentTaskId = useSandboxStore((s) => s.currentTaskId);
+  const language = useSandboxStore((s) => s.language);
+  const theme = useSandboxStore((s) => s.theme);
+  const code = useSandboxStore((s) => s.code);
+  const leftTab = useSandboxStore((s) => s.leftTab);
+  const consoleTab = useSandboxStore((s) => s.consoleTab);
+  const notes = useSandboxStore((s) => s.notes);
+  const revealedHints = useSandboxStore((s) => s.revealedHints);
+  const timerSeconds = useSandboxStore((s) => s.timerSeconds);
+  const isTimerRunning = useSandboxStore((s) => s.isTimerRunning);
+  const isRunning = useSandboxStore((s) => s.isRunning);
+  const runResult = useSandboxStore((s) => s.runResult);
 
-  const resetTimer = useCallback(() => {
-    setIsTimerRunning(false);
-    setTimerSeconds(DEFAULT_TIMER_SECONDS);
-  }, []);
+  const getCurrentTask = useSandboxStore((s) => s.getCurrentTask);
+  const setTaskId = useSandboxStore((s) => s.setTaskId);
+  const setLanguage = useSandboxStore((s) => s.setLanguage);
+  const setTheme = useSandboxStore((s) => s.setTheme);
+  const setCode = useSandboxStore((s) => s.setCode);
+  const resetCode = useSandboxStore((s) => s.resetCode);
+  const setLeftTab = useSandboxStore((s) => s.setLeftTab);
+  const setConsoleTab = useSandboxStore((s) => s.setConsoleTab);
+  const setNotes = useSandboxStore((s) => s.setNotes);
+  const revealNextHint = useSandboxStore((s) => s.revealNextHint);
+  const toggleTimer = useSandboxStore((s) => s.toggleTimer);
+  const resetTimer = useSandboxStore((s) => s.resetTimer);
 
-  // Раскрытие подсказок
-  const revealNextHint = useCallback(() => {
-    if (revealedHints < currentTask.hints.length) {
-      setRevealedHints((prev) => prev + 1);
-    }
-  }, [currentTask.hints.length, revealedHints]);
+  useSandboxTimer();
 
-  // Запуск выполнения решения
-  const runCode = useCallback(async () => {
-    setIsRunning(true);
-    setConsoleTab("tests");
-    try {
-      const result = await executeCodeInBrowser(code, currentTask, language);
-      setRunResult(result);
-    } catch (err) {
-      console.error("Run error", err);
-    } finally {
-      setIsRunning(false);
-    }
-  }, [code, currentTask, language]);
+  const currentTask = getCurrentTask();
 
   return {
     tasks,
     currentTask,
     currentTaskId,
-    setCurrentTaskId: handleTaskChange,
+    setCurrentTaskId: setTaskId,
     language,
-    setLanguage: handleLanguageChange,
+    setLanguage,
     theme,
     setTheme,
     code,
@@ -138,6 +86,6 @@ export function useSandboxState() {
     resetTimer,
     isRunning,
     runResult,
-    runCode,
+    runCode: () => {},
   };
 }

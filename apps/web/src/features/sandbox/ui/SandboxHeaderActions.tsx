@@ -1,8 +1,9 @@
 "use client";
 
-import type { LanguageId, Theme } from "@packages/editor";
+import type { LanguageId } from "@packages/editor";
 import { CameraIcon, PlayIcon, SettingsIcon, UndoIcon } from "@packages/icons";
 import { Button, Select } from "@packages/ui";
+import { useSandboxStore } from "../model/useSandboxStore";
 
 const LANGUAGES: { id: LanguageId; label: string }[] = [
   { id: "typescript", label: "TypeScript" },
@@ -14,37 +15,25 @@ const LANGUAGES: { id: LanguageId; label: string }[] = [
 ];
 
 interface SandboxHeaderActionsProps {
-  language: LanguageId;
-  onLanguageChange: (lang: LanguageId) => void;
-  theme: Theme;
-  onThemeToggle: () => void;
-  onResetCode: () => void;
-  onRunCode: () => void;
-  isRunning: boolean;
-  isVideoOpen: boolean;
-  onToggleVideo: () => void;
   isInCall: boolean;
 }
 
-export function SandboxHeaderActions({
-  language,
-  onLanguageChange,
-  theme,
-  onThemeToggle,
-  onResetCode,
-  onRunCode,
-  isRunning,
-  isVideoOpen,
-  onToggleVideo,
-  isInCall,
-}: SandboxHeaderActionsProps) {
+export function SandboxHeaderActions({ isInCall }: SandboxHeaderActionsProps) {
+  const language = useSandboxStore((s) => s.language);
+  const setLanguage = useSandboxStore((s) => s.setLanguage);
+  const theme = useSandboxStore((s) => s.theme);
+  const toggleTheme = useSandboxStore((s) => s.toggleTheme);
+  const resetCode = useSandboxStore((s) => s.resetCode);
+  const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
+  const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
+
   return (
     <div className="flex items-center gap-2">
       {/* Кнопка открытия/закрытия видеовиджета */}
       <Button
         variant={isVideoOpen ? "primary" : "outline"}
         size="sm"
-        onClick={onToggleVideo}
+        onClick={toggleVideoOpen}
         className={`h-9 gap-1.5 px-3 text-xs transition-colors shadow-2xs ${
           isVideoOpen
             ? "bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -64,7 +53,7 @@ export function SandboxHeaderActions({
       {/* Выбор языка */}
       <Select
         value={language}
-        onValueChange={(val) => onLanguageChange(val as LanguageId)}
+        onValueChange={(val) => setLanguage(val as LanguageId)}
       >
         <Select.Trigger className="h-9 w-32">
           <Select.Value />
@@ -82,7 +71,7 @@ export function SandboxHeaderActions({
       <Button
         variant="ghost"
         size="icon"
-        onClick={onThemeToggle}
+        onClick={toggleTheme}
         className="size-9"
         title={`Текущая тема редактора: ${theme}. Нажмите для переключения`}
       >
@@ -93,7 +82,7 @@ export function SandboxHeaderActions({
       <Button
         variant="outline"
         size="sm"
-        onClick={onResetCode}
+        onClick={resetCode}
         className="h-9 gap-1.5 px-2.5 text-xs text-muted-foreground"
         title="Сбросить код к начальному шаблону"
       >
@@ -101,17 +90,16 @@ export function SandboxHeaderActions({
         Сброс
       </Button>
 
-      {/* Запуск кода */}
+      {/* Запуск кода (временно отключено) */}
       <Button
         variant="primary"
         size="sm"
-        onClick={onRunCode}
-        disabled={isRunning}
-        className="h-9 gap-1.5 bg-emerald-600 px-4 text-xs text-white hover:bg-emerald-700 shadow-xs"
-        title="Запустить решение на тест-кейсах (Ctrl+Enter)"
+        disabled={true}
+        className="h-9 gap-1.5 bg-emerald-600/50 px-4 text-xs text-white/70 cursor-not-allowed shadow-xs"
+        title="Запуск кода временно недоступен"
       >
         <PlayIcon className="size-3.5 fill-current" />
-        {isRunning ? "Запуск..." : "Run Code"}
+        Run Code
       </Button>
     </div>
   );

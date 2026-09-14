@@ -1,5 +1,6 @@
 import type { AnyWebSocketEnvelope } from "@packages/dto";
-import type { SandboxRealtimeMessage } from "./useSandboxRealtime";
+import { v4 as uuidv4 } from "uuid";
+import type { SandboxRealtimeMessage } from "../model/types";
 
 /**
  * Mapper: преобразует внутреннее сообщение песочницы в типизированный WebSocket конверт Go-сервиса.
@@ -50,6 +51,21 @@ export function mapSandboxMessageToEnvelope(
           userId: msg.senderId,
           username: msg.senderName,
           role: "candidate",
+        },
+      };
+
+    case "task-change":
+    case "webrtc-signal":
+    case "run-result":
+      return {
+        ...base,
+        type: "chat.message",
+        payload: {
+          messageId: `msg_${uuidv4()}`,
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          text: JSON.stringify(msg),
+          sentAt: base.timestamp,
         },
       };
 

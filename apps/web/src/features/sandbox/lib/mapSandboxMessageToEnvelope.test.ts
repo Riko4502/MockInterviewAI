@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { SandboxRealtimeMessage } from "../model/types";
 import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
-import type { SandboxRealtimeMessage } from "./useSandboxRealtime";
 
 describe("mapSandboxMessageToEnvelope", () => {
   const roomId = "test-room-123";
@@ -76,6 +76,79 @@ describe("mapSandboxMessageToEnvelope", () => {
       username: "Charlie",
       role: "candidate",
     });
+  });
+
+  it("should correctly map 'task-change' message to 'chat.message' WebSocket envelope with JSON payload", () => {
+    const msg: SandboxRealtimeMessage = {
+      type: "task-change",
+      roomId,
+      senderId: "user-1",
+      senderName: "Alice",
+      payload: {
+        taskId: "task-456",
+      },
+    };
+
+    const envelope = mapSandboxMessageToEnvelope(msg, roomId);
+
+    expect(envelope.type).toBe("chat.message");
+    expect(envelope.sessionId).toBe(roomId);
+    expect(envelope.payload).toHaveProperty("text");
+    expect(JSON.parse((envelope.payload as { text: string }).text)).toEqual(
+      msg,
+    );
+  });
+
+  it("should correctly map 'webrtc-signal' message to 'chat.message' WebSocket envelope with JSON payload", () => {
+    const msg: SandboxRealtimeMessage = {
+      type: "webrtc-signal",
+      roomId,
+      senderId: "user-1",
+      senderName: "Alice",
+      payload: {
+        signal: {
+          type: "call-started",
+          senderId: "user-1",
+        },
+      },
+    };
+
+    const envelope = mapSandboxMessageToEnvelope(msg, roomId);
+
+    expect(envelope.type).toBe("chat.message");
+    expect(envelope.sessionId).toBe(roomId);
+    expect(envelope.payload).toHaveProperty("text");
+    expect(JSON.parse((envelope.payload as { text: string }).text)).toEqual(
+      msg,
+    );
+  });
+
+  it("should correctly map 'run-result' message to 'chat.message' WebSocket envelope with JSON payload", () => {
+    const msg: SandboxRealtimeMessage = {
+      type: "run-result",
+      roomId,
+      senderId: "user-1",
+      senderName: "Alice",
+      payload: {
+        runResult: {
+          success: true,
+          totalTests: 1,
+          passedTests: 1,
+          results: [],
+          logs: ["Hello, World!"],
+          totalTimeMs: 42,
+        },
+      },
+    };
+
+    const envelope = mapSandboxMessageToEnvelope(msg, roomId);
+
+    expect(envelope.type).toBe("chat.message");
+    expect(envelope.sessionId).toBe(roomId);
+    expect(envelope.payload).toHaveProperty("text");
+    expect(JSON.parse((envelope.payload as { text: string }).text)).toEqual(
+      msg,
+    );
   });
 
   it("should throw an error for unsupported message types", () => {

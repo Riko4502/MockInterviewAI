@@ -1,13 +1,11 @@
 "use client";
 
 import { Badge, Typography } from "@packages/ui";
-import type { InterviewTask } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxTaskDescriptionProps {
-  task: InterviewTask;
-}
+export function SandboxTaskDescription() {
+  const task = useSandboxStore((s) => s.getCurrentTask());
 
-export function SandboxTaskDescription({ task }: SandboxTaskDescriptionProps) {
   return (
     <div className="space-y-6">
       <div>

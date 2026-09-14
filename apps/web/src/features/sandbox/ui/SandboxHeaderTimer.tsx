@@ -2,13 +2,7 @@
 
 import { ClockIcon, UndoIcon } from "@packages/icons";
 import { Button, Typography } from "@packages/ui";
-
-interface SandboxHeaderTimerProps {
-  timerSeconds: number;
-  isTimerRunning: boolean;
-  onToggleTimer: () => void;
-  onResetTimer: () => void;
-}
+import { useSandboxStore } from "../model/useSandboxStore";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -16,12 +10,12 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function SandboxHeaderTimer({
-  timerSeconds,
-  isTimerRunning,
-  onToggleTimer,
-  onResetTimer,
-}: SandboxHeaderTimerProps) {
+export function SandboxHeaderTimer() {
+  const timerSeconds = useSandboxStore((s) => s.timerSeconds);
+  const isTimerRunning = useSandboxStore((s) => s.isTimerRunning);
+  const toggleTimer = useSandboxStore((s) => s.toggleTimer);
+  const resetTimer = useSandboxStore((s) => s.resetTimer);
+
   const isTimerLow = timerSeconds < 5 * 60; // меньше 5 минут
 
   return (
@@ -45,7 +39,7 @@ export function SandboxHeaderTimer({
       <Button
         variant="ghost"
         size="sm"
-        onClick={onToggleTimer}
+        onClick={toggleTimer}
         className="h-6 px-1.5 text-[11px]"
       >
         {isTimerRunning ? "Пауза" : "Старт"}
@@ -53,7 +47,7 @@ export function SandboxHeaderTimer({
       <Button
         variant="ghost"
         size="sm"
-        onClick={onResetTimer}
+        onClick={resetTimer}
         className="h-6 px-1 text-[11px] text-muted-foreground"
         title="Сбросить таймер (45 мин)"
       >

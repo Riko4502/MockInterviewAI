@@ -27,6 +27,8 @@ interface SandboxVideoWidgetProps {
   hasPeerOnline: boolean;
   onCopyInvite?: () => void;
   isInviteCopied?: boolean;
+  isRemoteVideoOff?: boolean;
+  isRemoteAudioMuted?: boolean;
 }
 
 export function SandboxVideoWidget({
@@ -38,6 +40,8 @@ export function SandboxVideoWidget({
   isInCall,
   isAudioMuted,
   isVideoOff,
+  isRemoteVideoOff,
+  isRemoteAudioMuted,
   isScreenSharing,
   callError,
   onStartCall,
@@ -53,7 +57,10 @@ export function SandboxVideoWidget({
   const [isMinimized, setIsMinimized] = useState(false);
 
   const localAudioLevel = useAudioVolumeMeter(localStream, isAudioMuted);
-  const remoteAudioLevel = useAudioVolumeMeter(remoteStream, false);
+  const remoteAudioLevel = useAudioVolumeMeter(
+    remoteStream,
+    isRemoteAudioMuted,
+  );
 
   if (!isOpen) return null;
 
@@ -81,6 +88,8 @@ export function SandboxVideoWidget({
           isInCall={isInCall}
           isAudioMuted={isAudioMuted}
           isVideoOff={isVideoOff}
+          isRemoteVideoOff={isRemoteVideoOff}
+          isRemoteAudioMuted={isRemoteAudioMuted}
           callError={callError}
           peerName={peerName}
           hasPeerOnline={hasPeerOnline}
@@ -93,7 +102,6 @@ export function SandboxVideoWidget({
 
       <SandboxVideoWidgetControls
         localStream={localStream}
-        remoteStream={remoteStream}
         isInCall={isInCall}
         isAudioMuted={isAudioMuted}
         isVideoOff={isVideoOff}

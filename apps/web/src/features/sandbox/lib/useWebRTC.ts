@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
-export type WebRTCSignal =
-  | { type: "offer"; sdp: RTCSessionDescriptionInit; senderId: string }
-  | { type: "answer"; sdp: RTCSessionDescriptionInit; senderId: string }
-  | { type: "ice-candidate"; candidate: RTCIceCandidateInit; senderId: string }
-  | { type: "call-started"; senderId: string }
-  | { type: "call-ended"; senderId: string };
+import type { WebRTCSignal } from "../model/types";
 
 export type ConnectionState = "idle" | "calling" | "connected" | "ended";
 
@@ -19,7 +13,10 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
-function createSyntheticMediaStream(label: string): MediaStream {
+function createSyntheticMediaStream(label: string): {
+  stream: MediaStream;
+  audioCtx: AudioContext | null;
+} {
   const canvas = document.createElement("canvas");
   canvas.width = 640;
   canvas.height = 480;
@@ -44,13 +41,14 @@ function createSyntheticMediaStream(label: string): MediaStream {
     ? canvas.captureStream(20)
     : new MediaStream();
 
+  let audioCtx: AudioContext | null = null;
   try {
     const AudioCtx =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext;
     if (AudioCtx) {
-      const audioCtx = new AudioCtx();
+      audioCtx = new AudioCtx();
       const dest = audioCtx.createMediaStreamDestination();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -66,7 +64,7 @@ function createSyntheticMediaStream(label: string): MediaStream {
     // Игнорируем ошибки генерации аудио
   }
 
-  return stream;
+  return { stream, audioCtx };
 }
 
 interface UseWebRTCOptions {
@@ -79,13 +77,16 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("idle");
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(true);
+  const [isVideoOff, setIsVideoOff] = useState(true);
+  const [isRemoteAudioMuted, setIsRemoteAudioMuted] = useState(true);
+  const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const syntheticAudioCtxRef = useRef<AudioContext | null>(null);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
@@ -113,6 +114,14 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
           noiseSuppression: true,
         },
       });
+      // По умолчанию микрофон и камера выключены
+      for (const track of stream.getAudioTracks()) {
+        track.enabled = false;
+      }
+      for (const track of stream.getVideoTracks()) {
+        track.enabled = false;
+      }
+
       localStreamRef.current = stream;
       cameraTrackRef.current = stream.getVideoTracks()[0] ?? null;
       setLocalStream(stream);
@@ -123,15 +132,26 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
         const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
         });
-        const synthetic = createSyntheticMediaStream("Камера (Аудио)");
+        const { stream: synthetic, audioCtx } =
+          createSyntheticMediaStream("Камера (Аудио)");
+        syntheticAudioCtxRef.current = audioCtx;
         for (const track of audioStream.getAudioTracks()) {
+          track.enabled = false;
           synthetic.addTrack(track);
+        }
+        for (const track of synthetic.getVideoTracks()) {
+          track.enabled = false;
         }
         localStreamRef.current = synthetic;
         setLocalStream(synthetic);
         return synthetic;
       } catch {
-        const synthetic = createSyntheticMediaStream("Live Видео");
+        const { stream: synthetic, audioCtx } =
+          createSyntheticMediaStream("Live Видео");
+        syntheticAudioCtxRef.current = audioCtx;
+        for (const track of synthetic.getTracks()) {
+          track.enabled = false;
+        }
         localStreamRef.current = synthetic;
         setLocalStream(synthetic);
         return synthetic;
@@ -239,6 +259,11 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
       screenTrackRef.current = null;
     }
 
+    if (syntheticAudioCtxRef.current) {
+      syntheticAudioCtxRef.current.close().catch(() => {});
+      syntheticAudioCtxRef.current = null;
+    }
+
     if (localStreamRef.current) {
       for (const track of localStreamRef.current.getTracks()) {
         track.stop();
@@ -251,6 +276,8 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     setRemoteStream(null);
     setConnectionState("idle");
     setIsScreenSharing(false);
+    setIsRemoteAudioMuted(true);
+    setIsRemoteVideoOff(true);
     pendingCandidates.current = [];
   }, [connectionState, userId]);
 
@@ -261,6 +288,12 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
 
       try {
         switch (signal.type) {
+          case "media-state": {
+            setIsRemoteAudioMuted(signal.isAudioMuted);
+            setIsRemoteVideoOff(signal.isVideoOff);
+            break;
+          }
+
           case "offer": {
             setConnectionState("calling");
             const stream = await getLocalMedia();
@@ -311,6 +344,12 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
               sdp: answer,
               senderId: userId,
             });
+            onSendSignalRef.current({
+              type: "media-state",
+              isAudioMuted,
+              isVideoOff,
+              senderId: userId,
+            });
             setConnectionState("connected");
             break;
           }
@@ -357,6 +396,8 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
               pcRef.current = null;
             }
             setRemoteStream(null);
+            setIsRemoteAudioMuted(true);
+            setIsRemoteVideoOff(true);
             setConnectionState("ended");
             break;
           }
@@ -369,7 +410,7 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
         console.error("[useWebRTC] Error handling signal:", err);
       }
     },
-    [userId, getLocalMedia, createPeerConnection],
+    [userId, getLocalMedia, createPeerConnection, isAudioMuted, isVideoOff],
   );
 
   // Переключение микрофона
@@ -377,22 +418,38 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioMuted(!audioTrack.enabled);
+        const nextEnabled = !audioTrack.enabled;
+        audioTrack.enabled = nextEnabled;
+        const nextMuted = !nextEnabled;
+        setIsAudioMuted(nextMuted);
+        onSendSignalRef.current({
+          type: "media-state",
+          isAudioMuted: nextMuted,
+          isVideoOff,
+          senderId: userId,
+        });
       }
     }
-  }, []);
+  }, [isVideoOff, userId]);
 
   // Переключение камеры
   const toggleVideo = useCallback(() => {
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoOff(!videoTrack.enabled);
+        const nextEnabled = !videoTrack.enabled;
+        videoTrack.enabled = nextEnabled;
+        const nextOff = !nextEnabled;
+        setIsVideoOff(nextOff);
+        onSendSignalRef.current({
+          type: "media-state",
+          isAudioMuted,
+          isVideoOff: nextOff,
+          senderId: userId,
+        });
       }
     }
-  }, []);
+  }, [isAudioMuted, userId]);
 
   // Демонстрация экрана
   const toggleScreenShare = useCallback(async () => {
@@ -420,10 +477,18 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
         const screenTrack = screenStream.getVideoTracks()[0];
         if (!screenTrack) return;
 
-        screenTrackRef.current = screenTrack;
-
         screenTrack.onended = () => {
-          void toggleScreenShare();
+          void (async () => {
+            const pc = pcRef.current;
+            if (pc && cameraTrackRef.current) {
+              const videoSender = pc
+                .getSenders()
+                .find((s) => s.track?.kind === "video");
+              await videoSender?.replaceTrack(cameraTrackRef.current);
+            }
+            screenTrackRef.current = null;
+            setIsScreenSharing(false);
+          })();
         };
 
         const senders = pcRef.current.getSenders();
@@ -439,11 +504,16 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     }
   }, [isScreenSharing]);
 
+  const endCallRef = useRef(endCall);
+  useEffect(() => {
+    endCallRef.current = endCall;
+  }, [endCall]);
+
   useEffect(() => {
     return () => {
-      endCall();
+      endCallRef.current();
     };
-  }, [endCall]);
+  }, []);
 
   return {
     localStream,
@@ -452,6 +522,8 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     isInCall: connectionState === "connected" || connectionState === "calling",
     isAudioMuted,
     isVideoOff,
+    isRemoteAudioMuted,
+    isRemoteVideoOff,
     isScreenSharing,
     callError,
     startCall,

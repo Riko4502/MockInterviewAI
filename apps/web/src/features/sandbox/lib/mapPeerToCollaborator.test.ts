@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { PeerInfo } from "../model/types";
 import {
   COLLABORATOR_COLORS,
   getColorForUser,
   mapPeerToCollaborator,
 } from "./mapPeerToCollaborator";
-import type { PeerInfo } from "./useSandboxRealtime";
 
 describe("mapPeerToCollaborator", () => {
   it("should generate deterministic colors for the same user ID", () => {

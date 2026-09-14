@@ -1,30 +1,20 @@
 "use client";
 
 import { Tabs, Typography } from "@packages/ui";
-import type { RunResult } from "../model/types";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxConsoleLogs } from "./SandboxConsoleLogs";
 import { SandboxConsoleTests } from "./SandboxConsoleTests";
 
-interface SandboxConsolePanelProps {
-  activeTab: "tests" | "logs";
-  onTabChange: (tab: "tests" | "logs") => void;
-  runResult: RunResult | null;
-  isRunning: boolean;
-  onRunCode: () => void;
-}
+export function SandboxConsolePanel() {
+  const activeTab = useSandboxStore((s) => s.consoleTab);
+  const setConsoleTab = useSandboxStore((s) => s.setConsoleTab);
+  const runResult = useSandboxStore((s) => s.runResult);
 
-export function SandboxConsolePanel({
-  activeTab,
-  onTabChange,
-  runResult,
-  isRunning,
-  onRunCode,
-}: SandboxConsolePanelProps) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card/40">
       <Tabs
         value={activeTab}
-        onValueChange={(val) => onTabChange(val as "tests" | "logs")}
+        onValueChange={(val) => setConsoleTab(val as "tests" | "logs")}
         className="flex h-full flex-col overflow-hidden"
       >
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card/70 px-3">
@@ -65,18 +55,14 @@ export function SandboxConsolePanel({
           value="tests"
           className="flex-1 overflow-y-auto p-4 text-xs font-mono"
         >
-          <SandboxConsoleTests
-            runResult={runResult}
-            isRunning={isRunning}
-            onRunCode={onRunCode}
-          />
+          <SandboxConsoleTests />
         </Tabs.Content>
 
         <Tabs.Content
           value="logs"
           className="flex-1 overflow-y-auto p-4 text-xs font-mono"
         >
-          <SandboxConsoleLogs runResult={runResult} />
+          <SandboxConsoleLogs />
         </Tabs.Content>
       </Tabs>
     </div>
