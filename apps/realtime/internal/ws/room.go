@@ -30,6 +30,8 @@ type Room struct {
 	register      chan *Client
 	unregister    chan *Client
 	broadcast     chan broadcastMessage
+	pubQueue      chan []byte
+	codeSaveQueue chan CodeUpdatePayload
 	done          chan struct{}
 	closeOnce     sync.Once
 	mu            sync.RWMutex
@@ -49,16 +51,18 @@ func NewRoom(
 	onEmpty func(roomID string),
 ) *Room {
 	return &Room{
-		ID:           id,
-		clients:      make(map[string]*Client),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
-		broadcast:    make(chan broadcastMessage, 256),
-		done:         make(chan struct{}),
-		logger:       logger.With(slog.String("roomId", id)),
-		onEmpty:      onEmpty,
-		broadcaster:  broadcaster,
-		sessionStore: sessionStore,
+		ID:            id,
+		clients:       make(map[string]*Client),
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		broadcast:     make(chan broadcastMessage, 256),
+		pubQueue:      make(chan []byte, 512),
+		codeSaveQueue: make(chan CodeUpdatePayload, 128),
+		done:          make(chan struct{}),
+		logger:        logger.With(slog.String("roomId", id)),
+		onEmpty:       onEmpty,
+		broadcaster:   broadcaster,
+		sessionStore:  sessionStore,
 	}
 }
 
@@ -93,6 +97,13 @@ func (r *Room) Run(ctx context.Context) {
 		if err == nil && unsubscribe != nil {
 			defer unsubscribe()
 		}
+		// Последовательный воркер публикации сообщений в Redis Pub/Sub
+		go r.publishWorker(ctx)
+	}
+
+	// Последовательный воркер сохранения снимков кода в Redis
+	if r.sessionStore != nil {
+		go r.codeSaveWorker(ctx)
 	}
 
 	idleTimer := time.NewTimer(roomIdleReapTimeout)
@@ -256,25 +267,9 @@ func (r *Room) handleUnregister(client *Client) {
 	}
 }
 
-// handleBroadcast рассылает сообщение локальным клиентам и публикует в Redis для других реплик.
-func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
-	// Если это обновление кода, обновляем сохраненный снимок для будущих участников и сохраняем в Redis
-	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
-		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
-			r.mu.Lock()
-			r.lastCodeState = &codePayload
-			r.mu.Unlock()
-
-			// Сохраняем актуальный снимок кода в Redis
-			if r.sessionStore != nil {
-				if payloadBytes, marshalErr := json.Marshal(codePayload); marshalErr == nil {
-					_ = r.sessionStore.SaveCodeState(ctx, r.ID, payloadBytes)
-				}
-			}
-		}
-	}
-
-	// 1. Рассылка подключенным клиентам на текущем сервере
+// handleBroadcast рассылает сообщение локальным клиентам, ставит в очередь на сохранение и на публикацию в Redis.
+func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
+	// 1. Немедленная рассылка подключенным клиентам на текущем сервере (минимальная задержка)
 	r.mu.RLock()
 	for clientID, client := range r.clients {
 		if msg.senderID != "" && clientID == msg.senderID {
@@ -284,9 +279,103 @@ func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 	}
 	r.mu.RUnlock()
 
-	// 2. Если сообщение локальное — публикуем в Redis для участников на других репликах
+	// 2. Если это обновление кода, условно обновляем снимок в памяти и ставим в очередь упорядоченного сохранения
+	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
+		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
+			r.mu.Lock()
+			// Условное обновление снимка в памяти: более старая версия не перезаписывает новейшую
+			if r.lastCodeState == nil || codePayload.Version >= r.lastCodeState.Version {
+				r.lastCodeState = &codePayload
+			}
+			r.mu.Unlock()
+
+			if r.sessionStore != nil {
+				select {
+				case r.codeSaveQueue <- codePayload:
+				default:
+					r.logger.Warn("code save queue is full, dropping snapshot update",
+						slog.Int64("version", codePayload.Version),
+					)
+				}
+			}
+		}
+	}
+
+	// 3. Если сообщение локальное — ставим в последовательную очередь упорядоченной публикации в Redis Pub/Sub
 	if !msg.isRemote && r.broadcaster != nil {
-		_ = r.broadcaster.Publish(ctx, r.ID, msg.data)
+		select {
+		case r.pubQueue <- msg.data:
+		default:
+			r.logger.Warn("redis publish queue is full, dropping outbound message")
+		}
+	}
+}
+
+// publishWorker последовательно публикует события комнаты в Redis Pub/Sub в строгом порядке поступления (FIFO).
+func (r *Room) publishWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.done:
+			return
+		case data := <-r.pubQueue:
+			pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			if err := r.broadcaster.Publish(pubCtx, r.ID, data); err != nil {
+				r.logger.Warn("failed to publish message to redis",
+					slog.String("error", err.Error()),
+				)
+			}
+			cancel()
+		}
+	}
+}
+
+// codeSaveWorker последовательно и условно (по возрастанию Version) сохраняет снимки кода в Redis.
+func (r *Room) codeSaveWorker(ctx context.Context) {
+	var lastSavedVersion int64
+	r.mu.RLock()
+	if r.lastCodeState != nil {
+		lastSavedVersion = r.lastCodeState.Version
+	}
+	r.mu.RUnlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.done:
+			return
+		case payload := <-r.codeSaveQueue:
+			// Условная запись: если версия меньше уже сохраненной, пропускаем (защита от race conditions)
+			if payload.Version < lastSavedVersion {
+				r.logger.Debug("skipping out-of-order code save",
+					slog.Int64("version", payload.Version),
+					slog.Int64("lastSavedVersion", lastSavedVersion),
+				)
+				continue
+			}
+
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				r.logger.Warn("failed to marshal code payload for redis snapshot",
+					slog.String("error", err.Error()),
+					slog.Int64("version", payload.Version),
+				)
+				continue
+			}
+
+			saveCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			if err := r.sessionStore.SaveCodeState(saveCtx, r.ID, payloadBytes); err != nil {
+				r.logger.Warn("failed to save code state snapshot in redis",
+					slog.String("error", err.Error()),
+					slog.Int64("version", payload.Version),
+				)
+			} else {
+				lastSavedVersion = payload.Version
+			}
+			cancel()
+		}
 	}
 }
 

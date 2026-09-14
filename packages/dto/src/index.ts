@@ -55,6 +55,25 @@ export {
   mediaTokenRequestSchema,
 } from "./realtime/media-token.dto";
 export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
+export type {
+  AISuggestionPayload,
+  AnyWebSocketEnvelope,
+  BaseWebSocketEnvelope,
+  ChatMessagePayload,
+  CodeUpdatePayload,
+  CursorPayload,
+  MediaRecordingPayload,
+  MediaSpeakerPayload,
+  MediaStatePayload,
+  ParticipantInfo,
+  ParticipantRole,
+  PresenceJoinPayload,
+  PresenceLeavePayload,
+  RoomSyncPayload,
+  SupportedLanguage,
+  SystemAckPayload,
+  SystemErrorPayload,
+} from "./realtime/websocket-events.dto";
 export {
   type AddParticipantDto,
   addParticipantSchema,

@@ -390,11 +390,10 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 // использован впервые (ключ установлен), false — повторное использование.
 //
 // Отдельный namespace ticket:consumed:* (не смешивается с blacklist:token:*).
-// В disabled-режиме возвращает true (перимиссивно — не влияет, т.к.
-// fail-closed проверки активности/роли всё равно отклоняют подключение, P12).
+// Fail-closed: при выключенном Redis или пустом tokenID возвращает false.
 func (r *RedisStore) ConsumeTicket(ctx context.Context, tokenID string) (bool, error) {
 	if !r.enabled || r.client == nil || tokenID == "" {
-		return true, nil
+		return false, nil
 	}
 
 	key := fmt.Sprintf("ticket:consumed:%s", tokenID)

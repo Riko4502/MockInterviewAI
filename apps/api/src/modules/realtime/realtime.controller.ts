@@ -1,4 +1,10 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -14,8 +20,12 @@ import {
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { InterviewParticipantRole } from "../../generated/prisma/enums";
+import { RedisService } from "../../redis/redis.service";
 import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
 import { TokenService } from "../auth/services/token.service";
+import { sessionActiveKey, sessionMembersKey } from "../sessions/session-keys";
+import { SessionsService } from "../sessions/sessions.service";
 import { LivekitService } from "./livekit.service";
 
 /**
@@ -36,6 +46,8 @@ export class RealtimeController {
   constructor(
     private readonly tokenService: TokenService,
     private readonly livekitService: LivekitService,
+    private readonly redisService: RedisService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   /**
@@ -68,6 +80,10 @@ export class RealtimeController {
   @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   @ApiResponse({
+    status: 403,
+    description: "Сессия не активна или пользователь не является участником",
+  })
+  @ApiResponse({
     status: 429,
     description: "Превышен лимит запросов (rate limit)",
   })
@@ -76,6 +92,36 @@ export class RealtimeController {
     @CurrentUser("sub") userId: string,
     @CurrentUser("sid") sid: string,
   ): Promise<{ ticket: string }> {
+    const sessionId = body.sessionId;
+    const activeKey = sessionActiveKey(sessionId);
+    const membersKey = sessionMembersKey(sessionId);
+
+    // Проверяем активность сессии в Redis
+    const active = await this.redisService.get(activeKey);
+    if (active !== "true") {
+      throw new ForbiddenException(
+        "Interview session is not active or does not exist",
+      );
+    }
+
+    // Проверяем, что пользователь является зарегистрированным участником сессии
+    let role = await this.redisService.hget(membersKey, userId);
+    if (!role) {
+      // Присоединение по ссылке: если сессия активна, регистрируем участника как кандидата
+      try {
+        await this.sessionsService.addParticipant(
+          sessionId,
+          userId,
+          InterviewParticipantRole.CANDIDATE,
+        );
+        role = InterviewParticipantRole.CANDIDATE;
+      } catch {
+        throw new ForbiddenException(
+          "User is not a participant of this interview session",
+        );
+      }
+    }
+
     const ticket = this.tokenService.generateRealtimeTicket(
       userId,
       sid,
@@ -133,6 +179,35 @@ export class RealtimeController {
     body: MediaTokenRequestDto,
     @CurrentUser("sub") userId: string,
   ) {
+    const sessionId = body.sessionId;
+    const activeKey = sessionActiveKey(sessionId);
+    const membersKey = sessionMembersKey(sessionId);
+
+    // Проверяем активность сессии в Redis
+    const active = await this.redisService.get(activeKey);
+    if (active !== "true") {
+      throw new ForbiddenException(
+        "Interview session is not active or does not exist",
+      );
+    }
+
+    // Проверяем, что пользователь является зарегистрированным участником сессии
+    let role = await this.redisService.hget(membersKey, userId);
+    if (!role) {
+      try {
+        await this.sessionsService.addParticipant(
+          sessionId,
+          userId,
+          InterviewParticipantRole.CANDIDATE,
+        );
+        role = InterviewParticipantRole.CANDIDATE;
+      } catch {
+        throw new ForbiddenException(
+          "User is not a participant of this interview session",
+        );
+      }
+    }
+
     return this.livekitService.generateMediaToken(userId, body.sessionId);
   }
 }

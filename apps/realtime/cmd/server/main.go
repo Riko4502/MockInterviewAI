@@ -80,14 +80,20 @@ func run() error {
 	defer rootCancel()
 
 	redisStore := storage.NewRedisStore(cfg, logger)
+	var (
+		broadcaster       storage.Broadcaster       = redisStore
+		sessionStore      storage.SessionStore      = redisStore
+		notificationStore storage.NotificationStore = redisStore
+	)
+
 	tokenVerifier := auth.NewTokenVerifier(cfg.JWTAccessSecret)
-	hub := ws.NewHub(rootCtx, redisStore, redisStore, logger)
+	hub := ws.NewHub(rootCtx, broadcaster, sessionStore, logger)
 
 	// Подсистема Server-Sent Events: глобальный поток уведомлений пользователя
 	sseHub := sse.NewHub(
 		rootCtx,
-		redisStore,
-		redisStore,
+		notificationStore,
+		broadcaster,
 		sse.Options{
 			HeartbeatInterval:     cfg.SSEHeartbeatInterval,
 			StreamBlockInterval:   cfg.SSEStreamBlockInterval,
@@ -102,11 +108,11 @@ func run() error {
 		logger,
 	)
 
-	healthHandler := handler.NewHealthHandler(hub, sseHub, redisStore)
+	healthHandler := handler.NewHealthHandler(hub, sseHub, sessionStore)
 	wsHandler := handler.NewWebSocketHandler(
 		hub,
 		tokenVerifier,
-		redisStore,
+		sessionStore,
 		logger,
 		cfg.AllowedOrigins,
 		cfg.AccessTokenCookieName,
@@ -124,8 +130,8 @@ func run() error {
 	sseHandler := handler.NewSSEHandler(
 		sseHub,
 		tokenVerifier,
-		redisStore,
-		redisStore,
+		sessionStore,
+		notificationStore,
 		logger,
 		cfg.AccessTokenCookieName,
 		cfg.TrustProxyHeaders,
