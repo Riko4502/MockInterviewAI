@@ -321,6 +321,61 @@ paths:
         - bearer: []
       summary: Смена пароля (§67)
       tags: *a3
+  /api/v1/auth/forgot-password:
+    post:
+      operationId: AuthController_forgotPassword
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordDto"
+      responses:
+        "200":
+          description: Запрос на сброс пароля принят (единый ответ для защиты от
+            перечисления).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponseDto"
+        "400":
+          description: Ошибка валидации DTO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponseDto"
+      summary: Запрос ссылки на сброс пароля (Forgot Password)
+      tags: *a3
+  /api/v1/auth/reset-password:
+    post:
+      operationId: AuthController_resetPassword
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordDto"
+      responses:
+        "200":
+          description: Пароль успешно изменён, все сессии отозваны.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponseDto"
+        "400":
+          description: Недействительный или истекший токен / ошибка валидации.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponseDto"
+                  - $ref: "#/components/schemas/ErrorResponseDto"
+      summary: Установка нового пароля по токену сброса (Reset Password)
+      tags: *a3
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh
@@ -710,6 +765,7 @@ components:
       properties:
         message:
           type: string
+          example: Операция выполнена успешно
       required:
         - message
     RestoreProfileResponseDto:
@@ -842,6 +898,32 @@ components:
           minLength: 1
       required:
         - currentPassword
+        - newPassword
+        - newPasswordConfirmation
+    ForgotPasswordDto:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          format: email
+      required:
+        - email
+    ResetPasswordDto:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 128
+        newPasswordConfirmation:
+          type: string
+          minLength: 1
+      required:
+        - token
         - newPassword
         - newPasswordConfirmation
     HealthResponseDto:

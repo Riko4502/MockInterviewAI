@@ -47,6 +47,8 @@ describe("AuthController", () => {
   let logoutMock: jest.Mock;
   let logoutAllMock: jest.Mock;
   let changePasswordMock: jest.Mock;
+  let forgotPasswordMock: jest.Mock;
+  let resetPasswordMock: jest.Mock;
   let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
@@ -59,6 +61,12 @@ describe("AuthController", () => {
     logoutMock = jest.fn().mockResolvedValue(undefined);
     logoutAllMock = jest.fn().mockResolvedValue(undefined);
     changePasswordMock = jest.fn().mockResolvedValue(undefined);
+    forgotPasswordMock = jest
+      .fn()
+      .mockResolvedValue({ message: "Ссылка отправлена" });
+    resetPasswordMock = jest
+      .fn()
+      .mockResolvedValue({ message: "Пароль успешно изменен" });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
@@ -78,6 +86,8 @@ describe("AuthController", () => {
         logout: logoutMock,
         logoutAll: logoutAllMock,
         changePassword: changePasswordMock,
+        forgotPassword: forgotPasswordMock,
+        resetPassword: resetPasswordMock,
         refresh: refreshMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
@@ -360,6 +370,7 @@ describe("AuthController", () => {
     const CHANGE_PASSWORD_DTO = {
       currentPassword: "OldPassword123!",
       newPassword: "NewPassword123!",
+      newPasswordConfirmation: "NewPassword123!",
     };
 
     it("передаёт request.user.sub и dto сервису, очищает refresh cookie, возвращает void", async () => {
@@ -556,6 +567,95 @@ describe("AuthController", () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(refreshMock).toHaveBeenCalledWith(undefined);
       expect(clearCookieMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("POST /auth/forgot-password", () => {
+    it("200 OK при валидном email, возвращает сообщение сервиса", async () => {
+      const controller = createController();
+      const result = await controller.forgotPassword({
+        email: "user@example.com",
+      });
+
+      expect(forgotPasswordMock).toHaveBeenCalledWith({
+        email: "user@example.com",
+      });
+      expect(result).toEqual({ message: "Ссылка отправлена" });
+    });
+
+    it("HTTP статус 200 OK", () => {
+      const httpCode = Reflect.getMetadata(
+        "__httpCode__",
+        AuthController.prototype.forgotPassword,
+      );
+      expect(httpCode).toBe(HttpStatus.OK);
+    });
+
+    it("@Public() декоратор присутствует", () => {
+      const metadata = Reflect.getMetadata(
+        "isPublic",
+        AuthController.prototype.forgotPassword,
+      );
+      expect(metadata).toBe(true);
+    });
+
+    it("на маршруте применён AuthThrottlerGuard", () => {
+      const guards = Reflect.getMetadata(
+        "__guards__",
+        AuthController.prototype.forgotPassword,
+      ) as unknown[];
+      expect(guards).toContain(AuthThrottlerGuard);
+    });
+  });
+
+  describe("POST /auth/reset-password", () => {
+    it("200 OK при успешной смене пароля, сбрасывает refresh cookie", async () => {
+      const controller = createController();
+      const result = await controller.resetPassword(
+        {
+          token: "valid-token",
+          newPassword: "NewPassword123!",
+          newPasswordConfirmation: "NewPassword123!",
+        },
+        response,
+      );
+
+      expect(resetPasswordMock).toHaveBeenCalledWith({
+        token: "valid-token",
+        newPassword: "NewPassword123!",
+        newPasswordConfirmation: "NewPassword123!",
+      });
+      expect(clearCookieMock).toHaveBeenCalledWith("refresh_token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+      });
+      expect(result).toEqual({ message: "Пароль успешно изменен" });
+    });
+
+    it("HTTP статус 200 OK", () => {
+      const httpCode = Reflect.getMetadata(
+        "__httpCode__",
+        AuthController.prototype.resetPassword,
+      );
+      expect(httpCode).toBe(HttpStatus.OK);
+    });
+
+    it("@Public() декоратор присутствует", () => {
+      const metadata = Reflect.getMetadata(
+        "isPublic",
+        AuthController.prototype.resetPassword,
+      );
+      expect(metadata).toBe(true);
+    });
+
+    it("на маршруте применён AuthThrottlerGuard", () => {
+      const guards = Reflect.getMetadata(
+        "__guards__",
+        AuthController.prototype.resetPassword,
+      ) as unknown[];
+      expect(guards).toContain(AuthThrottlerGuard);
     });
   });
 });
