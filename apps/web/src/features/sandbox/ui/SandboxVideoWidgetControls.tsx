@@ -1,5 +1,3 @@
-"use client";
-
 import {
   CameraIcon,
   CloseIcon,
@@ -9,37 +7,23 @@ import {
   ScreenIcon,
 } from "@packages/icons";
 import { Button } from "@packages/ui";
-import type { ConnectionState } from "../lib/useWebRTC";
+import { useSandboxMedia } from "../model/SandboxMediaContext";
 
-interface SandboxVideoWidgetControlsProps {
-  localStream: MediaStream | null;
-  isInCall: boolean;
-  isAudioMuted: boolean;
-  isVideoOff: boolean;
-  isScreenSharing: boolean;
-  connectionState: ConnectionState;
-  hasPeerOnline: boolean;
-  onStartCall: () => void;
-  onEndCall: () => void;
-  onToggleAudio: () => void;
-  onToggleVideo: () => void;
-  onToggleScreenShare: () => void;
-}
-
-export function SandboxVideoWidgetControls({
-  localStream,
-  isInCall,
-  isAudioMuted,
-  isVideoOff,
-  isScreenSharing,
-  connectionState,
-  hasPeerOnline,
-  onStartCall,
-  onEndCall,
-  onToggleAudio,
-  onToggleVideo,
-  onToggleScreenShare,
-}: SandboxVideoWidgetControlsProps) {
+export function SandboxVideoWidgetControls() {
+  const {
+    localStream,
+    isInCall,
+    isAudioMuted,
+    isVideoOff,
+    isScreenSharing,
+    connectionState,
+    hasPeerOnline,
+    onStartCall,
+    onEndCall,
+    onToggleAudio,
+    onToggleVideo,
+    onToggleScreenShare,
+  } = useSandboxMedia();
   return (
     <div className="flex items-center justify-between border-t border-border/80 bg-muted/20 px-3 py-2.5">
       <div className="flex items-center gap-1.5">
@@ -114,7 +98,13 @@ export function SandboxVideoWidgetControls({
       </div>
 
       <span className="text-[11px] font-medium text-muted-foreground">
-        {isInCall ? "🟢 В звонке" : hasPeerOnline ? "Собеседник ждет" : "Один"}
+        {connectionState === "connected"
+          ? "🟢 В звонке"
+          : connectionState === "calling"
+            ? "🟡 Вызов..."
+            : hasPeerOnline
+              ? "Собеседник ждет"
+              : "Один"}
       </span>
     </div>
   );

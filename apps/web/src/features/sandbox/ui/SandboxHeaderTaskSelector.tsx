@@ -1,20 +1,10 @@
-"use client";
-
 import { UsersIcon } from "@packages/icons";
 import { Badge, Button, Select, Typography } from "@packages/ui";
+import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
 
-interface SandboxHeaderTaskSelectorProps {
-  peerCount: number;
-  onCopyInvite: () => void;
-  isInviteCopied: boolean;
-}
-
-export function SandboxHeaderTaskSelector({
-  peerCount,
-  onCopyInvite,
-  isInviteCopied,
-}: SandboxHeaderTaskSelectorProps) {
+export function SandboxHeaderTaskSelector() {
+  const { peerCount, onCopyInvite, isInviteCopied } = useSandboxMedia();
   const tasks = useSandboxStore((s) => s.tasks);
   const currentTaskId = useSandboxStore((s) => s.currentTaskId);
   const setTaskId = useSandboxStore((s) => s.setTaskId);

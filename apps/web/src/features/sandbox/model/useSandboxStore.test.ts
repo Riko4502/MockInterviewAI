@@ -28,12 +28,23 @@ describe("useSandboxStore", () => {
     expect(state.code).toContain("isPalindrome");
   });
 
-  it("should switch language and update starter code", () => {
+  it("should switch language, update starter code and return new code", () => {
     const { setLanguage } = useSandboxStore.getState();
-    setLanguage("python");
+    const newCode = setLanguage("python");
     const state = useSandboxStore.getState();
     expect(state.language).toBe("python");
     expect(state.code).toContain("def twoSum");
+    expect(newCode).toBe(state.code);
+  });
+
+  it("should apply remote code update with new language without resetting to starter code", () => {
+    const { applyRemoteCodeUpdate } = useSandboxStore.getState();
+    const customPythonCode = "def myCustomSolution():\n    return 42";
+
+    applyRemoteCodeUpdate(customPythonCode, "python");
+    const state = useSandboxStore.getState();
+    expect(state.language).toBe("python");
+    expect(state.code).toBe(customPythonCode);
   });
 
   it("should toggle timer and decrement on tick", () => {

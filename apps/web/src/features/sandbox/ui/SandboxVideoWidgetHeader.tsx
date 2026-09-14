@@ -1,30 +1,21 @@
-"use client";
-
 import { CloseIcon, MaximizeIcon, MinimizeIcon } from "@packages/icons";
 import { Badge } from "@packages/ui";
-import type { ConnectionState } from "../lib/useWebRTC";
+import { useSandboxMedia } from "../model/SandboxMediaContext";
 
 interface SandboxVideoWidgetHeaderProps {
-  isInCall: boolean;
-  hasPeerOnline: boolean;
-  remoteStream: MediaStream | null;
-  connectionState: ConnectionState;
   isMinimized: boolean;
   onToggleMinimize: () => void;
   onClose: () => void;
 }
 
 export function SandboxVideoWidgetHeader({
-  isInCall,
-  hasPeerOnline,
-  remoteStream,
-  connectionState,
   isMinimized,
   onToggleMinimize,
   onClose,
 }: SandboxVideoWidgetHeaderProps) {
-  const isConnected = Boolean(remoteStream || (isInCall && hasPeerOnline));
-  const isCalling = isInCall || connectionState === "calling";
+  const { hasPeerOnline, remoteStream, connectionState } = useSandboxMedia();
+  const isConnected = connectionState === "connected" || Boolean(remoteStream);
+  const isCalling = connectionState === "calling" && !isConnected;
 
   return (
     <div className="flex h-11 items-center justify-between border-b border-border/80 bg-muted/40 px-3.5">
@@ -60,13 +51,13 @@ export function SandboxVideoWidgetHeader({
 
       <div className="flex items-center gap-1.5">
         <Badge
-          variant={isConnected ? "success" : isInCall ? "neutral" : "outline"}
+          variant={isConnected ? "success" : isCalling ? "warning" : "outline"}
           className="text-[10px] px-1.5 py-0"
         >
           {isConnected
             ? "В звонке 🟢"
-            : isInCall
-              ? "Ожидание видео..."
+            : isCalling
+              ? "Соединение..."
               : hasPeerOnline
                 ? "Собеседник в сети"
                 : "Ожидание собеседника"}

@@ -1,44 +1,30 @@
-"use client";
-
 import { AlertCircleIcon, MicIcon, UserIcon } from "@packages/icons";
 import { useEffect, useRef } from "react";
-import type { ConnectionState } from "../lib/useWebRTC";
+import { useAudioVolumeMeter } from "../lib/useAudioVolumeMeter";
+import { useSandboxMedia } from "../model/SandboxMediaContext";
 
-interface SandboxVideoWidgetScreenProps {
-  localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
-  connectionState: ConnectionState;
-  isInCall: boolean;
-  isAudioMuted: boolean;
-  isVideoOff: boolean;
-  isRemoteVideoOff?: boolean;
-  isRemoteAudioMuted?: boolean;
-  callError: string | null;
-  peerName?: string;
-  hasPeerOnline: boolean;
-  localAudioLevel: number;
-  remoteAudioLevel: number;
-  onCopyInvite?: () => void;
-  isInviteCopied?: boolean;
-}
+export function SandboxVideoWidgetScreen() {
+  const {
+    localStream,
+    remoteStream,
+    connectionState,
+    isInCall,
+    isAudioMuted,
+    isVideoOff,
+    isRemoteVideoOff,
+    isRemoteAudioMuted,
+    callError,
+    peerName,
+    hasPeerOnline,
+    onCopyInvite,
+    isInviteCopied,
+  } = useSandboxMedia();
 
-export function SandboxVideoWidgetScreen({
-  localStream,
-  remoteStream,
-  connectionState,
-  isInCall,
-  isAudioMuted,
-  isVideoOff,
-  isRemoteVideoOff = true,
-  isRemoteAudioMuted = true,
-  callError,
-  peerName = "Собеседник",
-  hasPeerOnline,
-  localAudioLevel,
-  remoteAudioLevel,
-  onCopyInvite,
-  isInviteCopied,
-}: SandboxVideoWidgetScreenProps) {
+  const localAudioLevel = useAudioVolumeMeter(localStream, isAudioMuted);
+  const remoteAudioLevel = useAudioVolumeMeter(
+    remoteStream,
+    isRemoteAudioMuted,
+  );
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);

@@ -1,68 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useAudioVolumeMeter } from "../lib/useAudioVolumeMeter";
-import type { ConnectionState } from "../lib/useWebRTC";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxVideoWidgetControls } from "./SandboxVideoWidgetControls";
 import { SandboxVideoWidgetHeader } from "./SandboxVideoWidgetHeader";
 import { SandboxVideoWidgetScreen } from "./SandboxVideoWidgetScreen";
 
-interface SandboxVideoWidgetProps {
-  isOpen: boolean;
-  onClose: () => void;
-  localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
-  connectionState: ConnectionState;
-  isInCall: boolean;
-  isAudioMuted: boolean;
-  isVideoOff: boolean;
-  isScreenSharing: boolean;
-  callError: string | null;
-  onStartCall: () => void;
-  onEndCall: () => void;
-  onToggleAudio: () => void;
-  onToggleVideo: () => void;
-  onToggleScreenShare: () => void;
-  peerName?: string;
-  hasPeerOnline: boolean;
-  onCopyInvite?: () => void;
-  isInviteCopied?: boolean;
-  isRemoteVideoOff?: boolean;
-  isRemoteAudioMuted?: boolean;
-}
-
-export function SandboxVideoWidget({
-  isOpen,
-  onClose,
-  localStream,
-  remoteStream,
-  connectionState,
-  isInCall,
-  isAudioMuted,
-  isVideoOff,
-  isRemoteVideoOff,
-  isRemoteAudioMuted,
-  isScreenSharing,
-  callError,
-  onStartCall,
-  onEndCall,
-  onToggleAudio,
-  onToggleVideo,
-  onToggleScreenShare,
-  peerName = "Собеседник",
-  hasPeerOnline,
-  onCopyInvite,
-  isInviteCopied,
-}: SandboxVideoWidgetProps) {
+export function SandboxVideoWidget() {
+  const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
+  const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  const localAudioLevel = useAudioVolumeMeter(localStream, isAudioMuted);
-  const remoteAudioLevel = useAudioVolumeMeter(
-    remoteStream,
-    isRemoteAudioMuted,
-  );
-
-  if (!isOpen) return null;
+  if (!isVideoOpen) return null;
 
   return (
     <div
@@ -71,49 +20,14 @@ export function SandboxVideoWidget({
       }`}
     >
       <SandboxVideoWidgetHeader
-        isInCall={isInCall}
-        hasPeerOnline={hasPeerOnline}
-        remoteStream={remoteStream}
-        connectionState={connectionState}
         isMinimized={isMinimized}
         onToggleMinimize={() => setIsMinimized((prev) => !prev)}
-        onClose={onClose}
+        onClose={toggleVideoOpen}
       />
 
-      {!isMinimized && (
-        <SandboxVideoWidgetScreen
-          localStream={localStream}
-          remoteStream={remoteStream}
-          connectionState={connectionState}
-          isInCall={isInCall}
-          isAudioMuted={isAudioMuted}
-          isVideoOff={isVideoOff}
-          isRemoteVideoOff={isRemoteVideoOff}
-          isRemoteAudioMuted={isRemoteAudioMuted}
-          callError={callError}
-          peerName={peerName}
-          hasPeerOnline={hasPeerOnline}
-          localAudioLevel={localAudioLevel}
-          remoteAudioLevel={remoteAudioLevel}
-          onCopyInvite={onCopyInvite}
-          isInviteCopied={isInviteCopied}
-        />
-      )}
+      {!isMinimized && <SandboxVideoWidgetScreen />}
 
-      <SandboxVideoWidgetControls
-        localStream={localStream}
-        isInCall={isInCall}
-        isAudioMuted={isAudioMuted}
-        isVideoOff={isVideoOff}
-        isScreenSharing={isScreenSharing}
-        connectionState={connectionState}
-        hasPeerOnline={hasPeerOnline}
-        onStartCall={onStartCall}
-        onEndCall={onEndCall}
-        onToggleAudio={onToggleAudio}
-        onToggleVideo={onToggleVideo}
-        onToggleScreenShare={onToggleScreenShare}
-      />
+      <SandboxVideoWidgetControls />
     </div>
   );
 }

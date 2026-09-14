@@ -1,8 +1,7 @@
-"use client";
-
 import type { LanguageId } from "@packages/editor";
 import { CameraIcon, PlayIcon, SettingsIcon, UndoIcon } from "@packages/icons";
 import { Button, Select } from "@packages/ui";
+import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 const LANGUAGES: { id: LanguageId; label: string }[] = [
@@ -15,10 +14,15 @@ const LANGUAGES: { id: LanguageId; label: string }[] = [
 ];
 
 interface SandboxHeaderActionsProps {
-  isInCall: boolean;
+  onLanguageChange?: (lang: LanguageId) => void;
+  onResetCode?: () => void;
 }
 
-export function SandboxHeaderActions({ isInCall }: SandboxHeaderActionsProps) {
+export function SandboxHeaderActions({
+  onLanguageChange,
+  onResetCode,
+}: SandboxHeaderActionsProps) {
+  const { isCallConnected: isInCall } = useSandboxMedia();
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
   const theme = useSandboxStore((s) => s.theme);
@@ -26,6 +30,23 @@ export function SandboxHeaderActions({ isInCall }: SandboxHeaderActionsProps) {
   const resetCode = useSandboxStore((s) => s.resetCode);
   const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
   const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
+
+  const handleSelectLanguage = (val: string) => {
+    const nextLang = val as LanguageId;
+    if (onLanguageChange) {
+      onLanguageChange(nextLang);
+    } else {
+      setLanguage(nextLang);
+    }
+  };
+
+  const handleReset = () => {
+    if (onResetCode) {
+      onResetCode();
+    } else {
+      resetCode();
+    }
+  };
 
   return (
     <div className="flex items-center gap-2">
@@ -51,10 +72,7 @@ export function SandboxHeaderActions({ isInCall }: SandboxHeaderActionsProps) {
       </Button>
 
       {/* Выбор языка */}
-      <Select
-        value={language}
-        onValueChange={(val) => setLanguage(val as LanguageId)}
-      >
+      <Select value={language} onValueChange={handleSelectLanguage}>
         <Select.Trigger className="h-9 w-32">
           <Select.Value />
         </Select.Trigger>
@@ -82,7 +100,7 @@ export function SandboxHeaderActions({ isInCall }: SandboxHeaderActionsProps) {
       <Button
         variant="outline"
         size="sm"
-        onClick={resetCode}
+        onClick={handleReset}
         className="h-9 gap-1.5 px-2.5 text-xs text-muted-foreground"
         title="Сбросить код к начальному шаблону"
       >

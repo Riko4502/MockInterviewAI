@@ -1,33 +1,27 @@
-"use client";
-
+import type { LanguageId } from "@packages/editor";
 import { SandboxHeaderActions } from "./SandboxHeaderActions";
 import { SandboxHeaderTaskSelector } from "./SandboxHeaderTaskSelector";
 import { SandboxHeaderTimer } from "./SandboxHeaderTimer";
 
 export interface SandboxHeaderProps {
-  peerCount: number;
-  isInCall: boolean;
-  onCopyInvite: () => void;
-  isInviteCopied: boolean;
+  onLanguageChange?: (lang: LanguageId) => void;
+  onResetCode?: () => void;
 }
 
 export function SandboxHeader({
-  peerCount,
-  isInCall,
-  onCopyInvite,
-  isInviteCopied,
-}: SandboxHeaderProps) {
+  onLanguageChange,
+  onResetCode,
+}: SandboxHeaderProps = {}) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/60 px-4 backdrop-blur-md">
-      <SandboxHeaderTaskSelector
-        peerCount={peerCount}
-        onCopyInvite={onCopyInvite}
-        isInviteCopied={isInviteCopied}
-      />
+      <SandboxHeaderTaskSelector />
 
       <SandboxHeaderTimer />
 
-      <SandboxHeaderActions isInCall={isInCall} />
+      <SandboxHeaderActions
+        onLanguageChange={onLanguageChange}
+        onResetCode={onResetCode}
+      />
     </header>
   );
 }

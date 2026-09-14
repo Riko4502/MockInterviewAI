@@ -34,7 +34,8 @@ export interface SandboxStoreState {
   // Actions
   getCurrentTask: () => InterviewTask;
   setTaskId: (taskId: string) => void;
-  setLanguage: (lang: LanguageId) => void;
+  setLanguage: (lang: LanguageId) => string;
+  applyRemoteCodeUpdate: (code: string, language?: LanguageId) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   setCode: (code: string | ((prev: string) => string)) => void;
@@ -96,13 +97,22 @@ export const useSandboxStore = create<SandboxStoreState>((set, get) => {
 
     setLanguage: (newLang: LanguageId) => {
       const currentTask = get().getCurrentTask();
+      const newCode =
+        currentTask.starterCode[newLang] ??
+        currentTask.starterCode.typescript ??
+        "// Код на выбранном языке\n";
       set({
         language: newLang,
-        code:
-          currentTask.starterCode[newLang] ??
-          currentTask.starterCode.typescript ??
-          "// Код на выбранном языке\n",
+        code: newCode,
       });
+      return newCode;
+    },
+
+    applyRemoteCodeUpdate: (code: string, language?: LanguageId) => {
+      set((state) => ({
+        code,
+        ...(language && language !== state.language ? { language } : {}),
+      }));
     },
 
     setTheme: (theme: Theme) => set({ theme }),

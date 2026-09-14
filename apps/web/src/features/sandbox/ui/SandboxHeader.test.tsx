@@ -4,22 +4,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxHeader } from "./SandboxHeader";
 
+const onCopyInviteMock = vi.fn();
+
+vi.mock("../model/SandboxMediaContext", () => ({
+  useSandboxMedia: () => ({
+    peerCount: 2,
+    isCallConnected: false,
+    isInCall: false,
+    isInviteCopied: false,
+    onCopyInvite: onCopyInviteMock,
+  }),
+}));
+
 describe("SandboxHeader", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     useSandboxStore.getState().resetStore();
   });
 
   it("should render task selector, difficulty badge, invite button and timer", () => {
-    const onCopyInviteMock = vi.fn();
-
-    render(
-      <SandboxHeader
-        peerCount={2}
-        isInCall={false}
-        onCopyInvite={onCopyInviteMock}
-        isInviteCopied={false}
-      />,
-    );
+    render(<SandboxHeader />);
 
     const firstTask = useSandboxStore.getState().tasks[0];
     expect(screen.getByText(firstTask.title)).toBeInTheDocument();
