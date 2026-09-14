@@ -577,7 +577,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponseDto"
+                    }
+                  ]
                 }
               }
             }

@@ -371,7 +371,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponseDto"
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponseDto"
+                  - $ref: "#/components/schemas/ErrorResponseDto"
       summary: Установка нового пароля по токену сброса (Reset Password)
       tags: *a3
   /api/v1/auth/refresh:

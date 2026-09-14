@@ -437,7 +437,9 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: "Недействительный или истекший токен / ошибка валидации.",
-    schema: errorResponseRef,
+    schema: {
+      oneOf: [validationErrorResponseRef, errorResponseRef],
+    },
   })
   async resetPassword(
     @Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordDto,

@@ -971,13 +971,36 @@ describe("AuthService", () => {
       });
     });
 
-    it("ошибка Redis → 500 InternalServerErrorException", async () => {
+    it("ошибка Redis при forgotPassword → не выбрасывает ошибку (anti-enumeration), логирует и возвращает 200", async () => {
       findByEmail.mockResolvedValue(USER);
       redisSet.mockRejectedValue(new Error("Redis connection down"));
 
-      await expect(
-        service.forgotPassword({ email: DTO.email }),
-      ).rejects.toThrow(InternalServerErrorException);
+      const result = await service.forgotPassword({ email: DTO.email });
+
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to process forgotPassword background actions (Redis/Mail)",
+        "Redis connection down",
+      );
+    });
+
+    it("ошибка MailService при forgotPassword → не выбрасывает ошибку (anti-enumeration), логирует и возвращает 200", async () => {
+      findByEmail.mockResolvedValue(USER);
+      sendPasswordResetEmail.mockRejectedValue(new Error("SMTP down"));
+
+      const result = await service.forgotPassword({ email: DTO.email });
+
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to process forgotPassword background actions (Redis/Mail)",
+        "SMTP down",
+      );
     });
   });
 
@@ -1056,18 +1079,28 @@ describe("AuthService", () => {
       ).rejects.toThrow(InternalServerErrorException);
     });
 
-    it("сбой Redis при отзыве сессий → InternalServerErrorException", async () => {
+    it("сбой Redis при отзыве сессий → логирует ошибку, не выбрасывает 500 (пароль закоммичен)", async () => {
       redisGetdel.mockResolvedValue(USER.id);
       findById.mockResolvedValue(USER);
       revokeAllUserSessions.mockRejectedValue(new Error("Redis fail"));
 
-      await expect(
-        service.resetPassword({
-          token: RAW_TOKEN,
-          newPassword: NEW_PASS,
-          newPasswordConfirmation: NEW_PASS,
-        }),
-      ).rejects.toThrow(InternalServerErrorException);
+      const result = await service.resetPassword({
+        token: RAW_TOKEN,
+        newPassword: NEW_PASS,
+        newPasswordConfirmation: NEW_PASS,
+      });
+
+      expect(updatePassword).toHaveBeenCalledWith(
+        USER.id,
+        "$argon2id$test-hash",
+      );
+      expect(result).toEqual({
+        message: "Пароль успешно изменен",
+      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword after retries`,
+        "Redis fail",
+      );
     });
   });
 });

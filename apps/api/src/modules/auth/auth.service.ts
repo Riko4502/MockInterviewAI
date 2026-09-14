@@ -512,26 +512,29 @@ export class AuthService implements OnModuleInit {
     const user = await this.usersService.findByEmail(dto.email);
 
     if (user && !user.deletedAt) {
-      const rawToken = randomBytes(32).toString("hex");
-      const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-      const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
-
       try {
+        const rawToken = randomBytes(32).toString("hex");
+        const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+        const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
+
         await this.redisService.set(
           key,
           user.id,
           PASSWORD_RESET_TOKEN_TTL_SECONDS,
         );
+
+        // TODO: Заменить мок-отправку на продакшн MailService с react-email шаблонами после настройки SMTP
+        await this.mailService.sendPasswordResetEmail(user.email, rawToken);
       } catch (error) {
         this.logger.error(
-          "Redis unavailable during forgotPassword",
+          "Failed to process forgotPassword background actions (Redis/Mail)",
           error instanceof Error ? error.message : String(error),
         );
-        throw new InternalServerErrorException();
       }
-
-      // TODO: Заменить мок-отправку на продакшн MailService с react-email шаблонами после настройки SMTP
-      await this.mailService.sendPasswordResetEmail(user.email, rawToken);
+    } else {
+      // Выравнивание времени ответа (anti-enumeration / timing attack mitigation)
+      const dummyRawToken = randomBytes(32).toString("hex");
+      createHash("sha256").update(dummyRawToken).digest("hex");
     }
 
     return {
@@ -550,13 +553,13 @@ export class AuthService implements OnModuleInit {
    * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
    * 5. Хеширование нового пароля через Argon2id.
    * 6. Обновление `passwordHash` в БД.
-   * 7. Инвалидация всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
+   * 7. Отзыв всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление (с retry, ошибки логируются).
    * 8. Возврат `{ message: "Пароль успешно изменен" }`.
    *
    * @param dto - DTO с токеном и новым паролем.
    * @returns Сообщение об успешном сбросе пароля.
    * @throws {BadRequestException} Если токен недействителен или истек.
-   * @throws {InternalServerErrorException} При ошибке Redis.
+   * @throws {InternalServerErrorException} При ошибке Redis до потребления токена.
    */
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
     const { token, newPassword } = dto;
@@ -589,19 +592,39 @@ export class AuthService implements OnModuleInit {
     await this.usersService.updatePassword(userId, newPasswordHash);
 
     try {
-      await this.sessionService.revokeAllUserSessions(userId);
-      await publishUserRevocation(this.redisService, userId);
+      await this.revokeSessionsWithRetry(userId);
     } catch (error) {
       this.logger.error(
-        "Redis unavailable during resetPassword session revocation",
+        `Failed to revoke sessions / publish revocation for user ${userId} during resetPassword after retries`,
         error instanceof Error ? error.message : String(error),
       );
-      throw new InternalServerErrorException();
     }
 
     return {
       message: "Пароль успешно изменен",
     };
+  }
+
+  /**
+   * Отзывает все активные сессии пользователя с повторными попытками.
+   */
+  private async revokeSessionsWithRetry(
+    userId: string,
+    retries = 3,
+    delayMs = 50,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.sessionService.revokeAllUserSessions(userId);
+        await publishUserRevocation(this.redisService, userId);
+        return;
+      } catch (error) {
+        if (attempt === retries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
   }
 
   /**

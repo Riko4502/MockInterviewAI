@@ -538,7 +538,7 @@ return customInstance<MessageResponseDto>(getAuthControllerResetPasswordUrl(),
 
 export const getAuthControllerResetPasswordMutationKey = () => ['authControllerResetPassword'] as const;
 
-export const getAuthControllerResetPasswordMutationOptions = <TError = ErrorResponseDto,
+export const getAuthControllerResetPasswordMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerResetPassword>>, TError,AuthControllerResetPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
 ): UseMutationOptions<Awaited<ReturnType<typeof authControllerResetPassword>>, TError,AuthControllerResetPasswordMutationVariables, TContext> => {
 
@@ -567,13 +567,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AuthControllerResetPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerResetPassword>>>
     export type AuthControllerResetPasswordMutationBody = ResetPasswordDto
-    export type AuthControllerResetPasswordMutationError = ErrorResponseDto
+    export type AuthControllerResetPasswordMutationError = ValidationErrorResponseDto | ErrorResponseDto
     export type AuthControllerResetPasswordMutationVariables = {data: ResetPasswordDto}
 
     /**
  * @summary Установка нового пароля по токену сброса (Reset Password)
  */
-export const useAuthControllerResetPassword = <TError = ErrorResponseDto,
+export const useAuthControllerResetPassword = <TError = ValidationErrorResponseDto | ErrorResponseDto,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerResetPassword>>, TError,AuthControllerResetPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof authControllerResetPassword>>,
