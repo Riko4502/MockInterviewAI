@@ -16,10 +16,12 @@ export const publicUserProfileSchema = z.object({
 export type PublicUserProfileDto = z.infer<typeof publicUserProfileSchema>;
 
 /**
- * Zod-схема полного профиля текущего пользователя (с email).
+ * Zod-схема полного профиля текущего пользователя (с email и role).
  */
 export const userProfileSchema = publicUserProfileSchema.extend({
   email: z.string().email(),
+  role: z.string(),
+  permissions: z.string(),
   updatedAt: z.date().or(z.string()),
 });
 

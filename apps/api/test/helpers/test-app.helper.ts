@@ -21,9 +21,12 @@ export interface StartedApp {
  *
  * @returns Дескриптор приложения для последующего `stopTestApp`.
  */
-export async function startTestApp(): Promise<StartedApp> {
+export async function startTestApp(
+  controllers?: (new (...args: unknown[]) => unknown)[],
+): Promise<StartedApp> {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
+    controllers: controllers || [],
   }).compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);

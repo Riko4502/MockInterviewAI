@@ -10,8 +10,9 @@ import type {
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
+import { SystemPermission, SystemRole } from "@packages/types";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
-import type { User } from "../../generated/prisma/client";
+import type { Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { StorageService } from "../storage/storage.service";
@@ -22,6 +23,11 @@ const UUID_REGEX =
 
 /** 30 дней в миллисекундах (период на восстановление аккаунта) */
 const GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Пользователь со связанной ролью */
+export type UserWithRoleAndPermissions = User & {
+  role: Role | null;
+};
 
 /** Селектор полей для полного профиля пользователя (без passwordHash) */
 const USER_PROFILE_SELECT = {
@@ -34,6 +40,12 @@ const USER_PROFILE_SELECT = {
   gitUrl: true,
   createdAt: true,
   updatedAt: true,
+  role: {
+    select: {
+      slug: true,
+      permissions: true,
+    },
+  },
 } as const;
 
 /** Селектор полей для публичного профиля (без email и updatedAt) */
@@ -50,7 +62,7 @@ const PUBLIC_PROFILE_SELECT = {
 /**
  * Сервис управления пользователями и профилями (§9, §10 SPEC.md).
  *
- * Предоставляет поиск по email, id и username, создание пользователя,
+ * Предоставляет поиск по email, id и username, создание пользователя с дефолтной ролью USER,
  * обновление хеша пароля и управление профилями (§9, §10 SPEC.md).
  * Работает уже с захешированным паролем — хеширование
  * является ответственностью вызывающего модуля (AuthService).
@@ -74,6 +86,23 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по ID с подгрузкой роли и прав.
+   *
+   * @param id - UUID пользователя.
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleById(
+    id: string,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  /**
    * Ищет пользователя по email.
    *
    * @param email - Нормализованный email (lowercase).
@@ -81,6 +110,23 @@ export class UsersService {
    */
   async findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  /**
+   * Ищет пользователя по email с подгрузкой роли и прав.
+   *
+   * @param email - Нормализованный email (lowercase).
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleByEmail(
+    email: string,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        role: true,
+      },
+    });
   }
 
   /**
@@ -94,13 +140,28 @@ export class UsersService {
   }
 
   /**
-   * Создаёт нового пользователя.
+   * Создаёт нового пользователя с назначением дефолтной роли USER.
    *
-   * @param data - Обязательные поля: `email` (нормализованный), `passwordHash` (Argon2id).
+   * @param data - Обязательные поля: `email` (нормализованный), `passwordHash` (Argon2id), опционально `roleSlug`.
    * @returns Созданный объект пользователя.
    */
-  async create(data: { email: string; passwordHash: string }): Promise<User> {
-    return this.prisma.user.create({ data });
+  async create(data: {
+    email: string;
+    passwordHash: string;
+    roleSlug?: string;
+  }): Promise<User> {
+    const roleSlug = data.roleSlug ?? SystemRole.USER;
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { slug: roleSlug },
+    });
+
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        roleId: defaultRole?.id,
+      },
+    });
   }
 
   /**
@@ -135,7 +196,21 @@ export class UsersService {
       throw new NotFoundException("User profile not found");
     }
 
-    return profile;
+    return {
+      id: profile.id,
+      email: profile.email,
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+      telegramUsername: profile.telegramUsername,
+      gitUrl: profile.gitUrl,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+      role: profile.role?.slug ?? SystemRole.USER,
+      permissions: (
+        profile.role?.permissions ?? SystemPermission.NONE
+      ).toString(),
+    };
   }
 
   /**
@@ -179,7 +254,21 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
-    return updated;
+    return {
+      id: updated.id,
+      email: updated.email,
+      displayName: updated.displayName,
+      username: updated.username,
+      avatarUrl: updated.avatarUrl,
+      telegramUsername: updated.telegramUsername,
+      gitUrl: updated.gitUrl,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+      role: updated.role?.slug ?? SystemRole.USER,
+      permissions: (
+        updated.role?.permissions ?? SystemPermission.NONE
+      ).toString(),
+    };
   }
 
   /**
@@ -291,7 +380,21 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
-    return updated;
+    return {
+      id: updated.id,
+      email: updated.email,
+      displayName: updated.displayName,
+      username: updated.username,
+      avatarUrl: updated.avatarUrl,
+      telegramUsername: updated.telegramUsername,
+      gitUrl: updated.gitUrl,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+      role: updated.role?.slug ?? SystemRole.USER,
+      permissions: (
+        updated.role?.permissions ?? SystemPermission.NONE
+      ).toString(),
+    };
   }
 
   /**

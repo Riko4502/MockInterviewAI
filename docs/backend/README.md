@@ -54,11 +54,13 @@
 * [Redis: Сессии, Блэклисты и Pub/Sub](./data/redis-caching.md)
 * [S3 Объектное хранилище (MinIO / R2)](./data/storage-s3.md)
 
-### 3. [Безопасность и Аутентификация](./security/auth-jwt.md)
+### 3. [Безопасность и Авторизация](./security/auth-jwt.md)
 * [JWT-аутентификация, HttpOnly Cookies и Argon2id](./security/auth-jwt.md)
+* [Динамическая ролевая модель доступа (RBAC & PBAC)](./security/rbac.md)
 * [Rate-limiting (Throttling) и CORS политики](./security/auth-jwt.md#rate-limiting-и-безопасность)
 
 ### 4. [Стандарты разработки и Качество](./development/guidelines.md)
+* [CLI и утилиты управления (Prisma, Seed Admin, Codegen)](./development/cli.md)
 * [Стандарты кодирования (NestJS & Go)](./development/guidelines.md)
 * [Обработка ошибок и логирование](./development/guidelines.md#обработка-ошибок)
 * [Тестирование (Unit, E2E, Go test)](./development/guidelines.md#тестирование)
