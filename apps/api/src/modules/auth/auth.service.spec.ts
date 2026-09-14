@@ -10,7 +10,9 @@ import type { ConfigService } from "@nestjs/config";
 import argon2 from "argon2";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { MailService } from "../mail/mail.service";
 import type { UsersService } from "../users/users.service";
+import { PASSWORD_RESET_TOKEN_TTL_SECONDS } from "./auth.constants";
 import { AuthService } from "./auth.service";
 import type { AuthSessionService } from "./services/auth-session.service";
 import type { TokenService } from "./services/token.service";
@@ -76,6 +78,9 @@ describe("AuthService", () => {
   let revokeAllUserSessions: jest.Mock;
   let deleteUser: jest.Mock;
   let publish: jest.Mock;
+  let redisSet: jest.Mock;
+  let redisGetdel: jest.Mock;
+  let sendPasswordResetEmail: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
@@ -115,7 +120,10 @@ describe("AuthService", () => {
     });
     revokeSession = jest.fn().mockResolvedValue(undefined);
     publish = jest.fn().mockResolvedValue(undefined);
+    redisSet = jest.fn().mockResolvedValue(undefined);
+    redisGetdel = jest.fn().mockResolvedValue(USER.id);
     revokeAllUserSessions = jest.fn().mockResolvedValue(undefined);
+    sendPasswordResetEmail = jest.fn().mockResolvedValue(undefined);
 
     (randomUUID as unknown as jest.Mock)
       .mockReturnValueOnce(SESSION_ID)
@@ -142,7 +150,14 @@ describe("AuthService", () => {
       } as unknown as AuthSessionService,
       { user: { delete: deleteUser } } as unknown as PrismaService,
       createConfigService(),
-      { publish } as unknown as RedisService,
+      {
+        publish,
+        set: redisSet,
+        getdel: redisGetdel,
+      } as unknown as RedisService,
+      {
+        sendPasswordResetEmail,
+      } as unknown as MailService,
     );
 
     await service.onModuleInit();
@@ -788,6 +803,7 @@ describe("AuthService", () => {
     const DTO = {
       currentPassword: CURRENT_PASSWORD,
       newPassword: NEW_PASSWORD,
+      newPasswordConfirmation: NEW_PASSWORD,
     };
 
     beforeEach(() => {
@@ -860,6 +876,7 @@ describe("AuthService", () => {
         .changePassword(USER.id, {
           currentPassword: NEW_PASSWORD,
           newPassword: NEW_PASSWORD,
+          newPasswordConfirmation: NEW_PASSWORD,
         })
         .catch((e) => e);
 
@@ -897,6 +914,160 @@ describe("AuthService", () => {
       expect(logged).not.toContain(NEW_PASSWORD);
       expect(logged).not.toContain(USER_PASSWORD_HASH);
       expect(logged).not.toContain("$argon2id$test-hash");
+    });
+  });
+
+  describe("forgotPassword", () => {
+    it("существующий пользователь: генерирует токен, сохраняет SHA-256 в Redis и вызывает MailService", async () => {
+      findByEmail.mockResolvedValue(USER);
+
+      const result = await service.forgotPassword({ email: DTO.email });
+
+      expect(findByEmail).toHaveBeenCalledWith(DTO.email);
+      expect(redisSet).toHaveBeenCalledWith(
+        expect.stringMatching(/^auth:password-reset:[a-f0-9]{64}$/),
+        USER.id,
+        PASSWORD_RESET_TOKEN_TTL_SECONDS,
+      );
+      expect(sendPasswordResetEmail).toHaveBeenCalledWith(
+        USER.email,
+        expect.any(String),
+      );
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+    });
+
+    it("несуществующий пользователь (anti-enumeration): возвращает 200 OK, не пишет в Redis и не отправляет письмо", async () => {
+      findByEmail.mockResolvedValue(null);
+
+      const result = await service.forgotPassword({
+        email: "nonexistent@example.com",
+      });
+
+      expect(findByEmail).toHaveBeenCalledWith("nonexistent@example.com");
+      expect(redisSet).not.toHaveBeenCalled();
+      expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+    });
+
+    it("удаленный пользователь (deletedAt): не отправляет письмо и не пишет в Redis", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        deletedAt: new Date(),
+      });
+
+      const result = await service.forgotPassword({ email: DTO.email });
+
+      expect(redisSet).not.toHaveBeenCalled();
+      expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+    });
+
+    it("ошибка Redis → 500 InternalServerErrorException", async () => {
+      findByEmail.mockResolvedValue(USER);
+      redisSet.mockRejectedValue(new Error("Redis connection down"));
+
+      await expect(
+        service.forgotPassword({ email: DTO.email }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe("resetPassword", () => {
+    const RAW_TOKEN = "test-raw-token-12345678901234567890";
+    const NEW_PASS = "BrandNewPassword123!";
+
+    it("успешный сброс: атомарный getdel, хеширование пароля, обновление в БД и отзыв всех сессий", async () => {
+      redisGetdel.mockResolvedValue(USER.id);
+      findById.mockResolvedValue(USER);
+
+      const result = await service.resetPassword({
+        token: RAW_TOKEN,
+        newPassword: NEW_PASS,
+        newPasswordConfirmation: NEW_PASS,
+      });
+
+      expect(redisGetdel).toHaveBeenCalledWith(
+        expect.stringMatching(/^auth:password-reset:[a-f0-9]{64}$/),
+      );
+      expect(findById).toHaveBeenCalledWith(USER.id);
+      expect(argon2.hash).toHaveBeenCalledWith(NEW_PASS, expect.any(Object));
+      expect(updatePassword).toHaveBeenCalledWith(
+        USER.id,
+        "$argon2id$test-hash",
+      );
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER.id),
+      );
+      expect(result).toEqual({
+        message: "Пароль успешно изменен",
+      });
+    });
+
+    it("невалидный или просроченный токен (getdel вернул null) → BadRequestException", async () => {
+      redisGetdel.mockResolvedValue(null);
+
+      await expect(
+        service.resetPassword({
+          token: "invalid-or-expired-token",
+          newPassword: NEW_PASS,
+          newPasswordConfirmation: NEW_PASS,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(updatePassword).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
+    it("пользователь из токена не найден в БД → BadRequestException", async () => {
+      redisGetdel.mockResolvedValue("unknown-user-id");
+      findById.mockResolvedValue(null);
+
+      await expect(
+        service.resetPassword({
+          token: RAW_TOKEN,
+          newPassword: NEW_PASS,
+          newPasswordConfirmation: NEW_PASS,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(updatePassword).not.toHaveBeenCalled();
+    });
+
+    it("сбой Redis при getdel → InternalServerErrorException", async () => {
+      redisGetdel.mockRejectedValue(new Error("Redis timeout"));
+
+      await expect(
+        service.resetPassword({
+          token: RAW_TOKEN,
+          newPassword: NEW_PASS,
+          newPasswordConfirmation: NEW_PASS,
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it("сбой Redis при отзыве сессий → InternalServerErrorException", async () => {
+      redisGetdel.mockResolvedValue(USER.id);
+      findById.mockResolvedValue(USER);
+      revokeAllUserSessions.mockRejectedValue(new Error("Redis fail"));
+
+      await expect(
+        service.resetPassword({
+          token: RAW_TOKEN,
+          newPassword: NEW_PASS,
+          newPasswordConfirmation: NEW_PASS,
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 });

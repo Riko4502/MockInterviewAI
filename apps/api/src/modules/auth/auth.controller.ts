@@ -20,10 +20,14 @@ import {
 import {
   type ChangePasswordDto,
   changePasswordSchema,
+  type ForgotPasswordDto,
+  forgotPasswordSchema,
   type LoginDto,
   loginSchema,
   type RegisterDto,
+  type ResetPasswordDto,
   registerSchema,
+  resetPasswordSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
 import { Public } from "../../common/decorators/public.decorator";
@@ -61,6 +65,14 @@ const ACCESS_TOKEN_RESPONSE_SCHEMA: SchemaObject = {
   required: ["accessToken"],
 };
 
+const MESSAGE_RESPONSE_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    message: { type: "string", example: "Операция выполнена успешно" },
+  },
+  required: ["message"],
+};
+
 const VALIDATION_ERROR_SCHEMA: SchemaObject = {
   type: "object",
   properties: {
@@ -88,6 +100,10 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
 const accessTokenResponseRef = registerOpenApiSchema(
   "AccessTokenResponseDto",
   ACCESS_TOKEN_RESPONSE_SCHEMA,
+);
+const messageResponseRef = registerOpenApiSchema(
+  "MessageResponseDto",
+  MESSAGE_RESPONSE_SCHEMA,
 );
 const validationErrorResponseRef = registerOpenApiSchema(
   "ValidationErrorResponseDto",
@@ -354,6 +370,82 @@ export class AuthController {
   ): Promise<void> {
     await this.authService.changePassword(request.user.sub, dto);
     this.clearRefreshTokenCookie(response);
+  }
+
+  /**
+   * Инициирует процедуру сброса пароля (Forgot Password).
+   *
+   * Принимает `{ email }`, валидирует через `ZodValidationPipe`,
+   * вызывает `AuthService.forgotPassword()`.
+   * Ответ всегда 200 OK (anti-enumeration).
+   *
+   * Rate limiting: `AuthThrottlerGuard` с tracker `ip + body.email`.
+   *
+   * @param dto - Валидированный DTO сброса пароля.
+   * @returns `{ message }` об отправке ссылки.
+   */
+  @Post("forgot-password")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(forgotPasswordSchema, "ForgotPasswordDto")
+  @ApiOperation({
+    summary: "Запрос ссылки на сброс пароля (Forgot Password)",
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Запрос на сброс пароля принят (единый ответ для защиты от перечисления).",
+    schema: messageResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: validationErrorResponseRef,
+  })
+  async forgotPassword(
+    @Body(new ZodValidationPipe(forgotPasswordSchema)) dto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.forgotPassword(dto);
+  }
+
+  /**
+   * Устанавливает новый пароль по одноразовому токену сброса (Reset Password).
+   *
+   * Принимает `{ token, newPassword, newPasswordConfirmation }`, валидирует через `ZodValidationPipe`,
+   * вызывает `AuthService.resetPassword()`, сбрасывает refresh cookie в случае успешной смены.
+   *
+   * Rate limiting: `AuthThrottlerGuard`.
+   *
+   * @param dto - Валидированный DTO установки нового пароля.
+   * @param response - HTTP-ответ Express для сброса cookie.
+   * @returns `{ message }` об успешной смене пароля.
+   */
+  @Post("reset-password")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(resetPasswordSchema, "ResetPasswordDto")
+  @ApiOperation({
+    summary: "Установка нового пароля по токену сброса (Reset Password)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Пароль успешно изменён, все сессии отозваны.",
+    schema: messageResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Недействительный или истекший токен / ошибка валидации.",
+    schema: errorResponseRef,
+  })
+  async resetPassword(
+    @Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ message: string }> {
+    const result = await this.authService.resetPassword(dto);
+    this.clearRefreshTokenCookie(response);
+    return result;
   }
 
   /**

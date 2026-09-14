@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -10,12 +10,23 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { ChangePasswordDto, LoginDto, RegisterDto } from "@packages/dto";
+import type {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RegisterDto,
+  ResetPasswordDto,
+} from "@packages/dto";
 import argon2 from "argon2";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { MailService } from "../mail/mail.service";
 import { UsersService } from "../users/users.service";
+import {
+  PASSWORD_RESET_TOKEN_TTL_SECONDS,
+  REDIS_PASSWORD_RESET_PREFIX,
+} from "./auth.constants";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
 
@@ -69,6 +80,7 @@ export class AuthService implements OnModuleInit {
    * @param prisma - Глобальный `PrismaService` для компенсации (§48 SPEC.md).
    * @param configService - Конфигурация приложения (секция `argon2`).
    * @param redisService - Глобальный `RedisService` для публикации ревокаций.
+   * @param mailService - Сервис отправки почтовых сообщений.
    */
   constructor(
     private readonly usersService: UsersService,
@@ -77,6 +89,7 @@ export class AuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -477,6 +490,118 @@ export class AuthService implements OnModuleInit {
       );
       throw new InternalServerErrorException();
     }
+  }
+
+  /**
+   * Инициирует процедуру сброса пароля (Forgot Password).
+   *
+   * Алгоритм:
+   * 1. Поиск пользователя по email.
+   * 2. Если пользователь найден (и активен):
+   *    a. Генерация криптографически стойкого случайного raw токена (32 байта, hex).
+   *    b. Вычисление SHA-256 хеша токена.
+   *    c. Сохранение `auth:password-reset:{tokenHash}` = `userId` в Redis с TTL 15 минут.
+   *    d. Отправка письма со ссылкой для восстановления через `MailService`.
+   * 3. Если пользователь не найден — намеренно не выбрасывается ошибка (anti-enumeration).
+   * 4. Возвращается единый 200 OK ответ с сообщением.
+   *
+   * @param dto - DTO с email пользователя.
+   * @returns Сообщение о подтверждении отправки письма.
+   */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (user && !user.deletedAt) {
+      const rawToken = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+      const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
+
+      try {
+        await this.redisService.set(
+          key,
+          user.id,
+          PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        );
+      } catch (error) {
+        this.logger.error(
+          "Redis unavailable during forgotPassword",
+          error instanceof Error ? error.message : String(error),
+        );
+        throw new InternalServerErrorException();
+      }
+
+      // TODO: Заменить мок-отправку на продакшн MailService с react-email шаблонами после настройки SMTP
+      await this.mailService.sendPasswordResetEmail(user.email, rawToken);
+    }
+
+    return {
+      message:
+        "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+    };
+  }
+
+  /**
+   * Устанавливает новый пароль по токену сброса (Reset Password).
+   *
+   * Алгоритм:
+   * 1. Вычисление SHA-256 хеша переданного raw токена.
+   * 2. Атомарное чтение и удаление ключа из Redis (`getdel`).
+   * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
+   * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
+   * 5. Хеширование нового пароля через Argon2id.
+   * 6. Обновление `passwordHash` в БД.
+   * 7. Инвалидация всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
+   * 8. Возврат `{ message: "Пароль успешно изменен" }`.
+   *
+   * @param dto - DTO с токеном и новым паролем.
+   * @returns Сообщение об успешном сбросе пароля.
+   * @throws {BadRequestException} Если токен недействителен или истек.
+   * @throws {InternalServerErrorException} При ошибке Redis.
+   */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword } = dto;
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
+
+    let userId: string | null;
+    try {
+      userId = await this.redisService.getdel(key);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during resetPassword",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    if (!userId) {
+      throw new BadRequestException(
+        "Недействительный или истекший токен сброса пароля",
+      );
+    }
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new BadRequestException("Пользователь не найден");
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+    await this.usersService.updatePassword(userId, newPasswordHash);
+
+    try {
+      await this.sessionService.revokeAllUserSessions(userId);
+      await publishUserRevocation(this.redisService, userId);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during resetPassword session revocation",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    return {
+      message: "Пароль успешно изменен",
+    };
   }
 
   /**
