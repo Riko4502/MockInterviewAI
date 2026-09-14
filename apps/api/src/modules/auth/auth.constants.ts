@@ -19,5 +19,8 @@ export const TOKEN_TYP_REALTIME = "realtime";
 /** Префикс ключа Redis для сброса пароля. Формат: `auth:password-reset:{tokenHash}`. */
 export const REDIS_PASSWORD_RESET_PREFIX = "auth:password-reset:";
 
+/** Префикс фиктивного ключа Redis для выравнивания времени (timing mitigation). Формат: `dummy:password-reset:{tokenHash}`. */
+export const REDIS_DUMMY_PASSWORD_RESET_PREFIX = "dummy:password-reset:";
+
 /** TTL токена сброса пароля в секундах (15 минут). */
 export const PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60;

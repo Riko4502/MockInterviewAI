@@ -12,7 +12,10 @@ import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import type { MailService } from "../mail/mail.service";
 import type { UsersService } from "../users/users.service";
-import { PASSWORD_RESET_TOKEN_TTL_SECONDS } from "./auth.constants";
+import {
+  PASSWORD_RESET_TOKEN_TTL_SECONDS,
+  REDIS_DUMMY_PASSWORD_RESET_PREFIX,
+} from "./auth.constants";
 import { AuthService } from "./auth.service";
 import type { AuthSessionService } from "./services/auth-session.service";
 import type { TokenService } from "./services/token.service";
@@ -80,7 +83,13 @@ describe("AuthService", () => {
   let publish: jest.Mock;
   let redisSet: jest.Mock;
   let redisGetdel: jest.Mock;
+  let redisDelete: jest.Mock;
   let sendPasswordResetEmail: jest.Mock;
+  let prismaMock: {
+    user: { delete: jest.Mock; update: jest.Mock };
+    authRevocationTask: { create: jest.Mock; delete: jest.Mock };
+    $transaction: jest.Mock;
+  };
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
@@ -122,8 +131,27 @@ describe("AuthService", () => {
     publish = jest.fn().mockResolvedValue(undefined);
     redisSet = jest.fn().mockResolvedValue(undefined);
     redisGetdel = jest.fn().mockResolvedValue(USER.id);
+    redisDelete = jest.fn().mockResolvedValue(1);
     revokeAllUserSessions = jest.fn().mockResolvedValue(undefined);
     sendPasswordResetEmail = jest.fn().mockResolvedValue(undefined);
+
+    prismaMock = {
+      user: {
+        delete: deleteUser,
+        update: jest.fn().mockResolvedValue(USER),
+      },
+      authRevocationTask: {
+        create: jest
+          .fn()
+          .mockResolvedValue({ id: "task-uuid-1", userId: USER.id }),
+        delete: jest.fn().mockResolvedValue(undefined),
+      },
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (cb: (tx: unknown) => unknown) =>
+          cb(prismaMock),
+        ),
+    };
 
     (randomUUID as unknown as jest.Mock)
       .mockReturnValueOnce(SESSION_ID)
@@ -148,12 +176,13 @@ describe("AuthService", () => {
         revokeSession,
         revokeAllUserSessions,
       } as unknown as AuthSessionService,
-      { user: { delete: deleteUser } } as unknown as PrismaService,
+      prismaMock as unknown as PrismaService,
       createConfigService(),
       {
         publish,
         set: redisSet,
         getdel: redisGetdel,
+        delete: redisDelete,
       } as unknown as RedisService,
       {
         sendPasswordResetEmail,
@@ -939,7 +968,7 @@ describe("AuthService", () => {
       });
     });
 
-    it("несуществующий пользователь (anti-enumeration): возвращает 200 OK, не пишет в Redis и не отправляет письмо", async () => {
+    it("несуществующий пользователь (anti-enumeration): возвращает 200 OK, выполняет безопасный Redis round-trip и не отправляет письмо", async () => {
       findByEmail.mockResolvedValue(null);
 
       const result = await service.forgotPassword({
@@ -947,7 +976,18 @@ describe("AuthService", () => {
       });
 
       expect(findByEmail).toHaveBeenCalledWith("nonexistent@example.com");
-      expect(redisSet).not.toHaveBeenCalled();
+      expect(redisSet).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
+        ),
+        "0",
+        1,
+      );
+      expect(redisDelete).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
+        ),
+      );
       expect(sendPasswordResetEmail).not.toHaveBeenCalled();
       expect(result).toEqual({
         message:
@@ -955,7 +995,7 @@ describe("AuthService", () => {
       });
     });
 
-    it("удаленный пользователь (deletedAt): не отправляет письмо и не пишет в Redis", async () => {
+    it("удаленный пользователь (deletedAt): выполняет безопасный Redis round-trip и не отправляет письмо", async () => {
       findByEmail.mockResolvedValue({
         ...USER,
         deletedAt: new Date(),
@@ -963,7 +1003,18 @@ describe("AuthService", () => {
 
       const result = await service.forgotPassword({ email: DTO.email });
 
-      expect(redisSet).not.toHaveBeenCalled();
+      expect(redisSet).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
+        ),
+        "0",
+        1,
+      );
+      expect(redisDelete).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
+        ),
+      );
       expect(sendPasswordResetEmail).not.toHaveBeenCalled();
       expect(result).toEqual({
         message:
@@ -984,6 +1035,24 @@ describe("AuthService", () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Failed to process forgotPassword background actions (Redis/Mail)",
         "Redis connection down",
+      );
+    });
+
+    it("ошибка Redis при dummy round-trip → не выбрасывает ошибку (anti-enumeration), логирует и возвращает 200", async () => {
+      findByEmail.mockResolvedValue(null);
+      redisSet.mockRejectedValue(new Error("Redis dummy connection down"));
+
+      const result = await service.forgotPassword({
+        email: "nonexistent@example.com",
+      });
+
+      expect(result).toEqual({
+        message:
+          "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Failed to process forgotPassword dummy background actions (Redis)",
+        "Redis dummy connection down",
       );
     });
 
@@ -1008,7 +1077,7 @@ describe("AuthService", () => {
     const RAW_TOKEN = "test-raw-token-12345678901234567890";
     const NEW_PASS = "BrandNewPassword123!";
 
-    it("успешный сброс: атомарный getdel, хеширование пароля, обновление в БД и отзыв всех сессий", async () => {
+    it("успешный сброс: атомарный getdel, хеширование пароля, транзакция с задачей ревокации и отзыв всех сессий", async () => {
       redisGetdel.mockResolvedValue(USER.id);
       findById.mockResolvedValue(USER);
 
@@ -1023,15 +1092,22 @@ describe("AuthService", () => {
       );
       expect(findById).toHaveBeenCalledWith(USER.id);
       expect(argon2.hash).toHaveBeenCalledWith(NEW_PASS, expect.any(Object));
-      expect(updatePassword).toHaveBeenCalledWith(
-        USER.id,
-        "$argon2id$test-hash",
-      );
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: USER.id },
+        data: { passwordHash: "$argon2id$test-hash" },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: USER.id },
+      });
       expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
       expect(publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(USER.id),
       );
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-uuid-1" },
+      });
       expect(result).toEqual({
         message: "Пароль успешно изменен",
       });
@@ -1048,7 +1124,7 @@ describe("AuthService", () => {
         }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(updatePassword).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
@@ -1064,7 +1140,7 @@ describe("AuthService", () => {
         }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(updatePassword).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
 
     it("сбой Redis при getdel → InternalServerErrorException", async () => {
@@ -1079,7 +1155,7 @@ describe("AuthService", () => {
       ).rejects.toThrow(InternalServerErrorException);
     });
 
-    it("сбой Redis при отзыве сессий → логирует ошибку, не выбрасывает 500 (пароль закоммичен)", async () => {
+    it("сбой Redis при отзыве сессий → логирует ошибку, не выбрасывает 500 (пароль и задача закоммичены)", async () => {
       redisGetdel.mockResolvedValue(USER.id);
       findById.mockResolvedValue(USER);
       revokeAllUserSessions.mockRejectedValue(new Error("Redis fail"));
@@ -1090,15 +1166,19 @@ describe("AuthService", () => {
         newPasswordConfirmation: NEW_PASS,
       });
 
-      expect(updatePassword).toHaveBeenCalledWith(
-        USER.id,
-        "$argon2id$test-hash",
-      );
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: USER.id },
+        data: { passwordHash: "$argon2id$test-hash" },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: USER.id },
+      });
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
       expect(result).toEqual({
         message: "Пароль успешно изменен",
       });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
-        `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword after retries`,
+        `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword (persisted for worker retry)`,
         "Redis fail",
       );
     });

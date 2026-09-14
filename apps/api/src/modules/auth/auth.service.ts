@@ -25,6 +25,7 @@ import { MailService } from "../mail/mail.service";
 import { UsersService } from "../users/users.service";
 import {
   PASSWORD_RESET_TOKEN_TTL_SECONDS,
+  REDIS_DUMMY_PASSWORD_RESET_PREFIX,
   REDIS_PASSWORD_RESET_PREFIX,
 } from "./auth.constants";
 import { AuthSessionService } from "./services/auth-session.service";
@@ -510,11 +511,11 @@ export class AuthService implements OnModuleInit {
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
     const user = await this.usersService.findByEmail(dto.email);
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
 
     if (user && !user.deletedAt) {
       try {
-        const rawToken = randomBytes(32).toString("hex");
-        const tokenHash = createHash("sha256").update(rawToken).digest("hex");
         const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
 
         await this.redisService.set(
@@ -532,9 +533,17 @@ export class AuthService implements OnModuleInit {
         );
       }
     } else {
-      // Выравнивание времени ответа (anti-enumeration / timing attack mitigation)
-      const dummyRawToken = randomBytes(32).toString("hex");
-      createHash("sha256").update(dummyRawToken).digest("hex");
+      // Безопасная неперсистентная Redis round-trip операция со случайным временным ключом (anti-enumeration / timing attack mitigation)
+      try {
+        const dummyKey = `${REDIS_DUMMY_PASSWORD_RESET_PREFIX}${tokenHash}`;
+        await this.redisService.set(dummyKey, "0", 1);
+        await this.redisService.delete(dummyKey);
+      } catch (error) {
+        this.logger.error(
+          "Failed to process forgotPassword dummy background actions (Redis)",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
 
     return {
@@ -552,8 +561,10 @@ export class AuthService implements OnModuleInit {
    * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
    * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
    * 5. Хеширование нового пароля через Argon2id.
-   * 6. Обновление `passwordHash` в БД.
-   * 7. Отзыв всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление (с retry, ошибки логируются).
+   * 6. В единой транзакции PostgreSQL: обновление `passwordHash` и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
+   * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
+   *    - При успехе: удаление durable-задачи из PostgreSQL.
+   *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
    * 8. Возврат `{ message: "Пароль успешно изменен" }`.
    *
    * @param dto - DTO с токеном и новым паролем.
@@ -589,13 +600,35 @@ export class AuthService implements OnModuleInit {
     }
 
     const newPasswordHash = await this.hashPassword(newPassword);
-    await this.usersService.updatePassword(userId, newPasswordHash);
+
+    // Создаем durable-задачу в той же транзакции PostgreSQL, что и изменение пароля
+    let taskId: string | undefined;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash: newPasswordHash },
+      });
+      const task = await tx.authRevocationTask.create({
+        data: { userId },
+      });
+      taskId = task.id;
+    });
 
     try {
       await this.revokeSessionsWithRetry(userId);
+
+      // При успешной ревокации удаляем durable задачу
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({
+            where: { id: taskId },
+          })
+          .catch(() => undefined);
+      }
     } catch (error) {
+      // При сбое Redis задача остаётся в PostgreSQL и будет обработана воркером повторно
       this.logger.error(
-        `Failed to revoke sessions / publish revocation for user ${userId} during resetPassword after retries`,
+        `Failed to revoke sessions / publish revocation for user ${userId} during resetPassword (persisted for worker retry)`,
         error instanceof Error ? error.message : String(error),
       );
     }
