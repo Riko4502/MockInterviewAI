@@ -5,6 +5,7 @@
  * схема регистрации, схема входа, password policy, нормализация email.
  */
 
+export * from "./admin";
 export {
   type ChangePasswordDto,
   changePasswordSchema,

@@ -41,6 +41,8 @@ model User {
   passwordHash     String
   roleId           String?   @db.Uuid
   role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  isActive         Boolean   @default(true)
+  deactivatedAt    DateTime?
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
@@ -57,7 +59,9 @@ model User {
   @@map("users")
   @@index([username])
   @@index([roleId])
+  @@index([isActive])
   @@index([deletedAt])
+  @@index([createdAt])
 }
 
 enum InterviewSessionStatus {
