@@ -22,6 +22,6 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.0.0"
+    "@tanstack/react-query": "^5.102.8"
   }
 }

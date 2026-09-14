@@ -33,10 +33,10 @@
     "@monaco-editor/react": "^4.6.0",
     "@packages/types": "workspace:*",
     "@packages/ui": "workspace:*",
-    "monaco-editor": "^0.50.0"
+    "monaco-editor": "^0.56.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
+    "@biomejs/biome": "2.5.13",
     "@rsbuild/plugin-react": "^1.1.0",
     "@rslib/core": "^0.23.2",
     "@types/node": "^20",
