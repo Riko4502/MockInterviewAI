@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
@@ -67,6 +68,8 @@ function createConfigService(): ConfigService {
 
 describe("AuthService", () => {
   let service: AuthService;
+  let findUserWithRoleByEmail: jest.Mock;
+  let findUserWithRoleById: jest.Mock;
   let findByEmail: jest.Mock;
   let findById: jest.Mock;
   let createUser: jest.Mock;
@@ -101,6 +104,30 @@ describe("AuthService", () => {
     findById = jest.fn().mockResolvedValue({
       ...USER,
       passwordHash: USER_PASSWORD_HASH,
+    });
+    findUserWithRoleByEmail = jest
+      .fn()
+      .mockImplementation(async (email: string) => {
+        const user = await findByEmail(email);
+        if (!user) return null;
+        return {
+          ...user,
+          role: user.role ?? {
+            slug: "USER",
+            permissions: SystemPermission.USERS_READ,
+          },
+        };
+      });
+    findUserWithRoleById = jest.fn().mockImplementation(async (id: string) => {
+      const user = await findById(id);
+      if (!user) return null;
+      return {
+        ...user,
+        role: user.role ?? {
+          slug: "USER",
+          permissions: SystemPermission.USERS_READ,
+        },
+      };
     });
     createUser = jest.fn().mockResolvedValue(USER);
     updatePassword = jest.fn().mockResolvedValue({
@@ -161,6 +188,8 @@ describe("AuthService", () => {
       {
         findByEmail,
         findById,
+        findUserWithRoleByEmail,
+        findUserWithRoleById,
         create: createUser,
         updatePassword,
       } as unknown as UsersService,
@@ -218,7 +247,11 @@ describe("AuthService", () => {
         email: DTO.email,
         passwordHash: "$argon2id$test-hash",
       });
-      expect(generateAccessToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(generateAccessToken).toHaveBeenCalledWith(
+        USER.id,
+        SESSION_ID,
+        SystemPermission.USERS_READ,
+      );
       expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
       expect(createSession).toHaveBeenCalledWith(
@@ -308,7 +341,11 @@ describe("AuthService", () => {
       expect(findByEmail).toHaveBeenCalledWith(DTO.email);
       expect(verify).toHaveBeenCalledTimes(1);
       expect(verify).toHaveBeenCalledWith(USER_PASSWORD_HASH, DTO.password);
-      expect(generateAccessToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(generateAccessToken).toHaveBeenCalledWith(
+        USER.id,
+        SESSION_ID,
+        SystemPermission.USERS_READ,
+      );
       expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
       expect(createSession).toHaveBeenCalledWith(
@@ -677,7 +714,11 @@ describe("AuthService", () => {
         "new.stored.hmac.hash",
         NEW_TOKEN_FAMILY_ID,
       );
-      expect(generateAccessToken).toHaveBeenCalledWith(USER.id, NEW_SESSION_ID);
+      expect(generateAccessToken).toHaveBeenCalledWith(
+        USER.id,
+        NEW_SESSION_ID,
+        SystemPermission.USERS_READ,
+      );
       expect(generateRefreshToken).toHaveBeenCalledWith(
         USER.id,
         NEW_SESSION_ID,

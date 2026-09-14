@@ -2,22 +2,23 @@
   "name": "@packages/utils",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/index.mjs",
+  "types": "./src/index.ts",
   "files": [
     "dist"
   ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
+      "types": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js",
+      "types": "./src/*.ts",
+      "import": "./dist/*.mjs",
+      "require": "./dist/*.js",
       "default": "./dist/*.js"
     }
   },
@@ -30,6 +31,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@packages/types": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.6.0"

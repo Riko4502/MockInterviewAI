@@ -17,6 +17,7 @@ import type {
   RegisterDto,
   ResetPasswordDto,
 } from "@packages/dto";
+import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -100,10 +101,11 @@ export class AuthService implements OnModuleInit {
    * 1. Нормализация email (выполнена DTO-схемой).
    * 2. Проверка существования пользователя → `409 Conflict`.
    * 3. Хеширование пароля через Argon2id.
-   * 4. Создание пользователя в PostgreSQL (catch `P2002` → `409`).
-   * 5. Генерация access и refresh JWT.
-   * 6. Создание Redis session с HMAC-хешем refresh token.
-   * 7. Возврат `{ accessToken, refreshToken }`.
+   * 4. Создание пользователя в PostgreSQL с дефолтной ролью USER (catch `P2002` → `409`).
+   * 5. Извлечение роли и прав пользователя.
+   * 6. Генерация access и refresh JWT.
+   * 7. Создание Redis session с HMAC-хешем refresh token.
+   * 8. Возврат `{ accessToken, refreshToken }`.
    *
    * Компенсация (§48 SPEC.md): при ошибке Redis после создания user —
    * best-effort удаление user, `500` без внутренних деталей.
@@ -134,12 +136,17 @@ export class AuthService implements OnModuleInit {
       throw error;
     }
 
+    const userWithRole = await this.usersService.findUserWithRoleById(userId);
+    const permissions =
+      userWithRole?.role?.permissions ?? SystemPermission.NONE;
+
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
     const accessToken = this.tokenService.generateAccessToken(
       userId,
       sessionId,
+      permissions,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
       userId,
@@ -171,13 +178,13 @@ export class AuthService implements OnModuleInit {
    * Выполняет вход пользователя (§58 SPEC.md).
    *
    * Алгоритм:
-   * 1. Поиск пользователя по email → не найден → фиктивная argon2-проверка
+   * 1. Поиск пользователя по email (с ролью и правами) → не найден → фиктивная argon2-проверка
    *    против `DUMMY_PASSWORD_HASH` (выравнивание времени ответа) → generic `401`.
    * 2. Проверка пароля через `argon2.verify()` → не совпал → тот же generic `401`
    *    (§59 SPEC.md: тела ответов байт-в-байт совпадают, причина не раскрывается).
    * 3. Успех: новая authentication session — каждый логин порождает новый
    *    `sessionId` и новый `tokenFamilyId` (§13–17 SPEC.md); генерация access +
-   *    refresh JWT; запись session в Redis с HMAC-хешем refresh token.
+   *    refresh JWT с актуальной ролью и правами; запись session в Redis с HMAC-хешем refresh token.
    *
    * При ошибке Redis компенсация не требуется — пользователь не создаётся.
    *
@@ -190,7 +197,7 @@ export class AuthService implements OnModuleInit {
   async login(dto: LoginDto): Promise<LoginResult> {
     const { email, password } = dto;
 
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findUserWithRoleByEmail(email);
 
     // Единый кодовый путь: ровно одна argon2-проверка против хеша реального
     // пользователя либо против dummy-хеша — идентичный ответ и время для
@@ -217,9 +224,12 @@ export class AuthService implements OnModuleInit {
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
+    const permissions = user.role?.permissions ?? SystemPermission.NONE;
+
     const accessToken = this.tokenService.generateAccessToken(
       user.id,
       sessionId,
+      permissions,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
       user.id,
@@ -414,8 +424,8 @@ export class AuthService implements OnModuleInit {
    * 7. Hash не совпадает → replay detected → `revokeSession(sid)` → `401`,
    *    clear cookie.
    * 8. Успех: `revokeSession(sid)`, создать новую сессию (новый `sessionId`,
-   *    `tokenFamilyId`), новые access/refresh JWT, запись в Redis,
-   *    Set-Cookie с новым refresh token.
+   *    `tokenFamilyId`), извлечь актуальную роль и права пользователя из БД,
+   *    новые access/refresh JWT, запись в Redis, Set-Cookie с новым refresh token.
    *
    * Ошибки Redis → `500 Internal Server Error`, cookie не сбрасывается (§60).
    *
@@ -456,14 +466,23 @@ export class AuthService implements OnModuleInit {
         throw new UnauthorizedException("Invalid credentials");
       }
 
+      const user = await this.usersService.findUserWithRoleById(session.userId);
+      if (!user || user.deletedAt) {
+        await this.sessionService.revokeSession(payload.sid);
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
       await this.sessionService.revokeSession(payload.sid);
 
       const newSessionId = randomUUID();
       const newTokenFamilyId = randomUUID();
 
+      const permissions = user.role?.permissions ?? SystemPermission.NONE;
+
       const newAccessToken = this.tokenService.generateAccessToken(
         session.userId,
         newSessionId,
+        permissions,
       );
       const newRefreshToken = this.tokenService.generateRefreshToken(
         session.userId,
