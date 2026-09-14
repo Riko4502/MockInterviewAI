@@ -4,6 +4,7 @@ import {
   BookIcon,
   CodeIcon,
   HelpIcon,
+  PlayIcon,
   TrendUpIcon,
   UsersIcon,
 } from "@packages/icons";
@@ -16,6 +17,11 @@ import "@/shared/lib/i18n";
 
 const NAV_ITEMS = [
   { labelKey: "navigation.dashboard", href: paths.dashboard, icon: HelpIcon },
+  {
+    labelKey: "navigation.sandbox",
+    href: paths.sandbox,
+    icon: PlayIcon,
+  },
   {
     labelKey: "navigation.interviews",
     href: paths.interviews,

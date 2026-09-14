@@ -788,6 +788,7 @@ describe("AuthService", () => {
     const DTO = {
       currentPassword: CURRENT_PASSWORD,
       newPassword: NEW_PASSWORD,
+      newPasswordConfirmation: NEW_PASSWORD,
     };
 
     beforeEach(() => {
@@ -860,6 +861,7 @@ describe("AuthService", () => {
         .changePassword(USER.id, {
           currentPassword: NEW_PASSWORD,
           newPassword: NEW_PASSWORD,
+          newPasswordConfirmation: NEW_PASSWORD,
         })
         .catch((e) => e);
 

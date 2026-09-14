@@ -257,24 +257,8 @@ func (r *Room) handleUnregister(client *Client) {
 }
 
 // handleBroadcast рассылает сообщение локальным клиентам и публикует в Redis для других реплик.
-func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
-	// Если это обновление кода, обновляем сохраненный снимок для будущих участников и сохраняем в Redis
-	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
-		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
-			r.mu.Lock()
-			r.lastCodeState = &codePayload
-			r.mu.Unlock()
-
-			// Сохраняем актуальный снимок кода в Redis
-			if r.sessionStore != nil {
-				if payloadBytes, marshalErr := json.Marshal(codePayload); marshalErr == nil {
-					_ = r.sessionStore.SaveCodeState(ctx, r.ID, payloadBytes)
-				}
-			}
-		}
-	}
-
-	// 1. Рассылка подключенным клиентам на текущем сервере
+func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
+	// 1. Немедленная рассылка подключенным клиентам на текущем сервере (минимальная задержка)
 	r.mu.RLock()
 	for clientID, client := range r.clients {
 		if msg.senderID != "" && clientID == msg.senderID {
@@ -284,9 +268,32 @@ func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 	}
 	r.mu.RUnlock()
 
-	// 2. Если сообщение локальное — публикуем в Redis для участников на других репликах
+	// 2. Если это обновление кода, обновляем сохраненный снимок в памяти и асинхронно сохраняем в Redis
+	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
+		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
+			r.mu.Lock()
+			r.lastCodeState = &codePayload
+			r.mu.Unlock()
+
+			if r.sessionStore != nil {
+				go func(p CodeUpdatePayload) {
+					saveCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					defer cancel()
+					if payloadBytes, marshalErr := json.Marshal(p); marshalErr == nil {
+						_ = r.sessionStore.SaveCodeState(saveCtx, r.ID, payloadBytes)
+					}
+				}(codePayload)
+			}
+		}
+	}
+
+	// 3. Если сообщение локальное — публикуем в Redis для участников на других репликах асинхронно
 	if !msg.isRemote && r.broadcaster != nil {
-		_ = r.broadcaster.Publish(ctx, r.ID, msg.data)
+		go func(data []byte) {
+			pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = r.broadcaster.Publish(pubCtx, r.ID, data)
+		}(msg.data)
 	}
 }
 

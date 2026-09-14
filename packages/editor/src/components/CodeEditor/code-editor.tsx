@@ -1,6 +1,7 @@
-import Editor, { type Monaco } from "@monaco-editor/react";
+import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
+
 import { useEffect, useRef, useState } from "react";
 import {
   registerCppCompletion,
@@ -15,6 +16,12 @@ import { useRemoteCursors } from "@/multiplayer";
 import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
+
+loader.config({
+  paths: {
+    vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs",
+  },
+});
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   value = "",

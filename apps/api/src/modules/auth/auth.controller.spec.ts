@@ -360,6 +360,7 @@ describe("AuthController", () => {
     const CHANGE_PASSWORD_DTO = {
       currentPassword: "OldPassword123!",
       newPassword: "NewPassword123!",
+      newPasswordConfirmation: "NewPassword123!",
     };
 
     it("передаёт request.user.sub и dto сервису, очищает refresh cookie, возвращает void", async () => {

@@ -14,8 +14,11 @@ import {
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { RedisService } from "../../redis/redis.service";
+import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
 import { TokenService } from "../auth/services/token.service";
+import { sessionActiveKey, sessionMembersKey } from "../sessions/session-keys";
 import { LivekitService } from "./livekit.service";
 
 /**
@@ -36,6 +39,7 @@ export class RealtimeController {
   constructor(
     private readonly tokenService: TokenService,
     private readonly livekitService: LivekitService,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -76,6 +80,40 @@ export class RealtimeController {
     @CurrentUser("sub") userId: string,
     @CurrentUser("sid") sid: string,
   ): Promise<{ ticket: string }> {
+    const sessionId = body.sessionId;
+    const activeKey = sessionActiveKey(sessionId);
+    const membersKey = sessionMembersKey(sessionId);
+
+    // Гарантируем активность комнаты в Redis и регистрацию участника (зеркало для Go WS)
+    const active = await this.redisService.get(activeKey);
+    if (!active || active === "closed") {
+      await this.redisService.set(activeKey, "true", 7200);
+    }
+    const role = await this.redisService.hget(membersKey, userId);
+    if (!role) {
+      await this.redisService.hset(membersKey, userId, "CANDIDATE", 7200);
+    }
+
+    // Гарантируем активность auth-сессии в Redis для проверки в Go WS
+    if (sid) {
+      const authKey = `${REDIS_SESSION_PREFIX}${sid}`;
+      const authExists = await this.redisService.exists(authKey);
+      if (!authExists) {
+        const sessionPayload = {
+          userId,
+          refreshTokenHash: "sandbox-active",
+          tokenFamilyId: sid,
+          createdAt: new Date().toISOString(),
+          lastUsedAt: new Date().toISOString(),
+        };
+        await this.redisService.set(
+          authKey,
+          JSON.stringify(sessionPayload),
+          604800,
+        );
+      }
+    }
+
     const ticket = this.tokenService.generateRealtimeTicket(
       userId,
       sid,
@@ -133,6 +171,20 @@ export class RealtimeController {
     body: MediaTokenRequestDto,
     @CurrentUser("sub") userId: string,
   ) {
+    const sessionId = body.sessionId;
+    const activeKey = sessionActiveKey(sessionId);
+    const membersKey = sessionMembersKey(sessionId);
+
+    // Гарантируем активность комнаты в Redis и регистрацию участника
+    const active = await this.redisService.get(activeKey);
+    if (!active || active === "closed") {
+      await this.redisService.set(activeKey, "true", 7200);
+    }
+    const role = await this.redisService.hget(membersKey, userId);
+    if (!role) {
+      await this.redisService.hset(membersKey, userId, "CANDIDATE", 7200);
+    }
+
     return this.livekitService.generateMediaToken(userId, body.sessionId);
   }
 }

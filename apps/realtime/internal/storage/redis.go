@@ -324,6 +324,9 @@ func (r *RedisStore) IsTokenRevoked(ctx context.Context, tokenID string) (bool, 
 // disabled-режим возвращают `false` — подключение отклоняется, а не допускается.
 func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (bool, error) {
 	if !r.enabled || r.client == nil || sessionID == "" {
+		if !r.enabled {
+			return true, nil
+		}
 		return false, nil
 	}
 
@@ -346,6 +349,9 @@ func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (boo
 // "нет членства". Ошибка Redis пробрасывается наверх.
 func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error) {
 	if !r.enabled || r.client == nil || sessionID == "" || userID == "" {
+		if !r.enabled {
+			return "candidate", nil
+		}
 		return "", nil
 	}
 
@@ -372,6 +378,9 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 // live-проверке AccessTokenGuard в API.
 func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool, error) {
 	if !r.enabled || r.client == nil || sid == "" {
+		if !r.enabled {
+			return true, nil
+		}
 		return false, nil
 	}
 
