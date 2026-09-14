@@ -58,6 +58,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       className,
       onKeyDown,
       onPaste,
+      onBlur,
       ...props
     },
     ref,
@@ -84,9 +85,11 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       const trimmed = rawText.trim();
       if (!trimmed) return false;
 
-      if (minTagLength && trimmed.length < minTagLength) return false;
-      if (maxTagLength && trimmed.length > maxTagLength) return false;
-      if (maxTags && tags.length >= maxTags) return false;
+      if (minTagLength !== undefined && trimmed.length < minTagLength)
+        return false;
+      if (maxTagLength !== undefined && trimmed.length > maxTagLength)
+        return false;
+      if (maxTags !== undefined && tags.length >= maxTags) return false;
       if (!allowDuplicates && tags.includes(trimmed)) return false;
 
       const nextTags = [...tags, trimmed];
@@ -100,9 +103,11 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       for (const item of rawList) {
         const trimmed = item.trim();
         if (!trimmed) continue;
-        if (minTagLength && trimmed.length < minTagLength) continue;
-        if (maxTagLength && trimmed.length > maxTagLength) continue;
-        if (maxTags && currentTags.length >= maxTags) break;
+        if (minTagLength !== undefined && trimmed.length < minTagLength)
+          continue;
+        if (maxTagLength !== undefined && trimmed.length > maxTagLength)
+          continue;
+        if (maxTags !== undefined && currentTags.length >= maxTags) break;
         if (!allowDuplicates && currentTags.includes(trimmed)) continue;
 
         currentTags = [...currentTags, trimmed];
@@ -169,11 +174,22 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       }
     };
 
+    const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      onBlur?.(e);
+      if (e.defaultPrevented) return;
+
+      if (addOnBlur && inputValue.trim() && !isMaxReached) {
+        const success = handleAddSingleTag(inputValue);
+        if (success) {
+          setInputValue("");
+        }
+      }
+    };
+
     return (
       <div
         data-slot="tag-input"
         data-invalid={invalid}
-        aria-invalid={invalid}
         className={cn(
           tagInputContainerVariants({ size }),
           disabled && "cursor-not-allowed opacity-50",
@@ -207,7 +223,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               {!disabled && (
                 <button
                   type="button"
-                  tabIndex={-1}
                   aria-label={`Удалить тег ${tag}`}
                   className={TAG_INPUT_STYLES.tagRemoveButton}
                   onClick={(e) => {
@@ -234,14 +249,8 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
           }}
           onKeyDown={handleInputKeyDown}
           onPaste={handleInputPaste}
-          onBlur={() => {
-            if (addOnBlur && inputValue.trim() && !isMaxReached) {
-              const success = handleAddSingleTag(inputValue);
-              if (success) {
-                setInputValue("");
-              }
-            }
-          }}
+          onBlur={handleInputBlur}
+          aria-invalid={invalid}
           disabled={disabled}
           readOnly={isMaxReached}
           placeholder={
@@ -268,7 +277,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
         {clearable && tags.length > 0 && !disabled && (
           <button
             type="button"
-            tabIndex={-1}
             aria-label="Очистить все теги"
             className={TAG_INPUT_STYLES.clearButton}
             onClick={handleClearAll}

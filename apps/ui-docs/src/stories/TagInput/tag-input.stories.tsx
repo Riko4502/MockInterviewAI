@@ -217,24 +217,33 @@ export const Sizes: Story = {
   render: () => (
     <div className="w-[450px] space-y-4">
       <div className="space-y-1">
-        <Label className="text-xs">Размер Small (`sm`)</Label>
+        <Label htmlFor="tag-input-sm" className="text-xs">
+          Размер Small (`sm`)
+        </Label>
         <TagInput
+          id="tag-input-sm"
           size="sm"
           defaultValue={["Go", "Docker"]}
           placeholder="Добавить..."
         />
       </div>
       <div className="space-y-1">
-        <Label className="text-sm">Размер Medium (`md`, по умолчанию)</Label>
+        <Label htmlFor="tag-input-md" className="text-sm">
+          Размер Medium (`md`, по умолчанию)
+        </Label>
         <TagInput
+          id="tag-input-md"
           size="md"
           defaultValue={["Node.js", "Express", "Prisma"]}
           placeholder="Добавить..."
         />
       </div>
       <div className="space-y-1">
-        <Label className="text-base">Размер Large (`lg`)</Label>
+        <Label htmlFor="tag-input-lg" className="text-base">
+          Размер Large (`lg`)
+        </Label>
         <TagInput
+          id="tag-input-lg"
           size="lg"
           defaultValue={["PostgreSQL", "Redis", "Kafka"]}
           placeholder="Добавить..."
@@ -251,23 +260,44 @@ export const TagVariants: Story = {
   render: () => (
     <div className="w-[450px] space-y-4">
       <div className="space-y-1">
-        <Label className="text-xs">Secondary (по умолчанию)</Label>
-        <TagInput tagVariant="secondary" defaultValue={["React", "Next.js"]} />
+        <Label htmlFor="tag-input-variant-secondary" className="text-xs">
+          Secondary (по умолчанию)
+        </Label>
+        <TagInput
+          id="tag-input-variant-secondary"
+          tagVariant="secondary"
+          defaultValue={["React", "Next.js"]}
+        />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Primary Accent (`default`)</Label>
+        <Label htmlFor="tag-input-variant-default" className="text-xs">
+          Primary Accent (`default`)
+        </Label>
         <TagInput
+          id="tag-input-variant-default"
           tagVariant="default"
           defaultValue={["TypeScript", "Tailwind CSS"]}
         />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Outline (`outline`)</Label>
-        <TagInput tagVariant="outline" defaultValue={["GraphQL", "Apollo"]} />
+        <Label htmlFor="tag-input-variant-outline" className="text-xs">
+          Outline (`outline`)
+        </Label>
+        <TagInput
+          id="tag-input-variant-outline"
+          tagVariant="outline"
+          defaultValue={["GraphQL", "Apollo"]}
+        />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Muted Tag (`tag`)</Label>
-        <TagInput tagVariant="tag" defaultValue={["Jest", "Vitest"]} />
+        <Label htmlFor="tag-input-variant-tag" className="text-xs">
+          Muted Tag (`tag`)
+        </Label>
+        <TagInput
+          id="tag-input-variant-tag"
+          tagVariant="tag"
+          defaultValue={["Jest", "Vitest"]}
+        />
       </div>
     </div>
   ),

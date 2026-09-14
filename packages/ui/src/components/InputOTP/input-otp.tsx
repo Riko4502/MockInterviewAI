@@ -42,7 +42,12 @@ function InputOTPGroup({ className, ...props }: InputOTPGroupProps) {
   );
 }
 
-function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
+function InputOTPSlot({
+  index,
+  className,
+  children,
+  ...props
+}: InputOTPSlotProps) {
   const inputOTPContext = useContext(OTPInputContext);
   const slot = inputOTPContext.slots[index];
 
@@ -59,7 +64,7 @@ function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
       className={cn(INPUT_OTP_STYLES.slot, className)}
       {...props}
     >
-      {char}
+      {children ?? char}
       {hasFakeCaret && (
         <div className={INPUT_OTP_STYLES.caret}>
           <div className={INPUT_OTP_STYLES.caretLine} />
@@ -69,7 +74,11 @@ function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
   );
 }
 
-function InputOTPSeparator({ className, ...props }: InputOTPSeparatorProps) {
+function InputOTPSeparator({
+  className,
+  children,
+  ...props
+}: InputOTPSeparatorProps) {
   return (
     <div
       data-slot="input-otp-separator"
@@ -77,7 +86,7 @@ function InputOTPSeparator({ className, ...props }: InputOTPSeparatorProps) {
       className={cn(INPUT_OTP_STYLES.separator, className)}
       {...props}
     >
-      <span>&ndash;</span>
+      {children ?? <span>&ndash;</span>}
     </div>
   );
 }

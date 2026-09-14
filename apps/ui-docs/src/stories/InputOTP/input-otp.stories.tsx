@@ -220,43 +220,57 @@ export const Default: Story = {
     defaultValue,
     onChange,
     onComplete,
-  }) => (
-    <div className="flex flex-col items-center gap-3">
-      <Label htmlFor="otp-input" className="text-sm font-medium">
-        Код подтверждения из письма
-      </Label>
-      <InputOTP
-        id="otp-input"
-        maxLength={maxLength}
-        disabled={disabled}
-        readOnly={readOnly}
-        autoFocus={autoFocus}
-        textAlign={textAlign}
-        pattern={pattern}
-        inputMode={inputMode}
-        pushPasswordManagerStrategy={pushPasswordManagerStrategy}
-        containerClassName={containerClassName}
-        defaultValue={defaultValue}
-        onChange={onChange}
-        onComplete={onComplete}
-      >
-        <InputOTP.Group>
-          <InputOTP.Slot index={0} />
-          <InputOTP.Slot index={1} />
-          <InputOTP.Slot index={2} />
-        </InputOTP.Group>
-        <InputOTP.Separator />
-        <InputOTP.Group>
-          <InputOTP.Slot index={3} />
-          <InputOTP.Slot index={4} />
-          <InputOTP.Slot index={5} />
-        </InputOTP.Group>
-      </InputOTP>
-      <p className="text-xs text-muted-foreground">
-        Введите 6-значный код или вставьте его через Ctrl+V
-      </p>
-    </div>
-  ),
+  }) => {
+    const mid = Math.ceil(maxLength / 2);
+
+    return (
+      <div className="flex flex-col items-center gap-3">
+        <Label htmlFor="otp-input-default" className="text-sm font-medium">
+          Код подтверждения из письма
+        </Label>
+        <InputOTP
+          id="otp-input-default"
+          maxLength={maxLength}
+          disabled={disabled}
+          readOnly={readOnly}
+          autoFocus={autoFocus}
+          textAlign={textAlign}
+          pattern={pattern}
+          inputMode={inputMode}
+          pushPasswordManagerStrategy={pushPasswordManagerStrategy}
+          containerClassName={containerClassName}
+          defaultValue={defaultValue}
+          onChange={onChange}
+          onComplete={onComplete}
+        >
+          {maxLength > 3 ? (
+            <>
+              <InputOTP.Group>
+                {Array.from({ length: mid }, (_, i) => (
+                  <InputOTP.Slot key={crypto.randomUUID()} index={i} />
+                ))}
+              </InputOTP.Group>
+              <InputOTP.Separator />
+              <InputOTP.Group>
+                {Array.from({ length: maxLength - mid }, (_, i) => (
+                  <InputOTP.Slot key={crypto.randomUUID()} index={mid + i} />
+                ))}
+              </InputOTP.Group>
+            </>
+          ) : (
+            <InputOTP.Group>
+              {Array.from({ length: maxLength }, (_, i) => (
+                <InputOTP.Slot key={crypto.randomUUID()} index={i} />
+              ))}
+            </InputOTP.Group>
+          )}
+        </InputOTP>
+        <p className="text-xs text-muted-foreground">
+          Введите {maxLength}-значный код или вставьте его через Ctrl+V
+        </p>
+      </div>
+    );
+  },
 };
 
 /**
@@ -265,8 +279,10 @@ export const Default: Story = {
 export const FourDigits: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-3">
-      <Label className="text-sm font-medium">Введите 4-значный PIN-код</Label>
-      <InputOTP maxLength={4}>
+      <Label htmlFor="otp-four-digits" className="text-sm font-medium">
+        Введите 4-значный PIN-код
+      </Label>
+      <InputOTP id="otp-four-digits" maxLength={4}>
         <InputOTP.Group>
           <InputOTP.Slot index={0} />
           <InputOTP.Slot index={1} />
@@ -288,13 +304,24 @@ export const Controlled: Story = {
     return (
       <div className="flex flex-col items-center gap-4 w-80 p-6 rounded-xl border border-border bg-card shadow-sm text-center">
         <div className="space-y-1">
-          <h4 className="font-semibold text-base">Подтверждение Email</h4>
+          <Label
+            htmlFor="otp-controlled"
+            className="font-semibold text-base block cursor-pointer"
+          >
+            Подтверждение Email
+          </Label>
           <p className="text-xs text-muted-foreground">
             Мы отправили код на почту <strong>user@example.com</strong>
           </p>
         </div>
 
-        <InputOTP maxLength={6} value={value} onChange={setValue} autoFocus>
+        <InputOTP
+          id="otp-controlled"
+          maxLength={6}
+          value={value}
+          onChange={setValue}
+          autoFocus
+        >
           <InputOTP.Group>
             <InputOTP.Slot index={0} />
             <InputOTP.Slot index={1} />
@@ -334,10 +361,18 @@ export const Controlled: Story = {
 export const WithErrorState: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-2">
-      <Label className="text-sm font-medium text-destructive">
+      <Label
+        htmlFor="otp-error-state"
+        className="text-sm font-medium text-destructive"
+      >
         Неверный код подтверждения
       </Label>
-      <InputOTP maxLength={6} defaultValue="123456" aria-invalid="true">
+      <InputOTP
+        id="otp-error-state"
+        maxLength={6}
+        defaultValue="123456"
+        aria-invalid="true"
+      >
         <InputOTP.Group>
           <InputOTP.Slot index={0} data-invalid="true" />
           <InputOTP.Slot index={1} data-invalid="true" />
@@ -363,10 +398,13 @@ export const WithErrorState: Story = {
 export const Disabled: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-3">
-      <Label className="text-sm font-medium text-muted-foreground">
+      <Label
+        htmlFor="otp-disabled"
+        className="text-sm font-medium text-muted-foreground"
+      >
         Поле заблокировано (таймаут 60 сек)
       </Label>
-      <InputOTP maxLength={6} defaultValue="987654" disabled>
+      <InputOTP id="otp-disabled" maxLength={6} defaultValue="987654" disabled>
         <InputOTP.Group>
           <InputOTP.Slot index={0} />
           <InputOTP.Slot index={1} />

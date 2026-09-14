@@ -274,10 +274,16 @@ export const NotificationsPreview: Story = {
   render: () => (
     <Popover>
       <Popover.Trigger asChild>
-        <Button variant="outline" size="icon" className="relative">
+        <Button
+          variant="outline"
+          size="icon"
+          className="relative"
+          aria-label="Уведомления: 2 непрочитанных"
+        >
           <BellIcon size="md" />
           <Badge
             variant="statusDanger"
+            aria-hidden="true"
             className="absolute -top-1.5 -right-1.5 size-4 p-0 text-[10px] flex items-center justify-center font-bold"
           >
             2
