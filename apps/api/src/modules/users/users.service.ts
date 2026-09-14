@@ -3,6 +3,7 @@ import {
   ConflictException,
   GoneException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 import type {
@@ -38,14 +39,15 @@ const USER_PROFILE_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
-  createdAt: true,
-  updatedAt: true,
   role: {
     select: {
       slug: true,
       permissions: true,
     },
   },
+  deletedAt: true,
+  createdAt: true,
+  updatedAt: true,
 } as const;
 
 /** Селектор полей для публичного профиля (без email и updatedAt) */
@@ -155,11 +157,17 @@ export class UsersService {
       where: { slug: roleSlug },
     });
 
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Default role '${roleSlug}' not found in database.`,
+      );
+    }
+
     return this.prisma.user.create({
       data: {
         email: data.email,
         passwordHash: data.passwordHash,
-        roleId: defaultRole?.id,
+        roleId: defaultRole.id,
       },
     });
   }

@@ -9,7 +9,8 @@ CREATE TABLE "roles" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "roles_permissions_check" CHECK ("permissions" >= 0)
 );
 
 -- CreateTable: permissions dictionary
@@ -21,7 +22,8 @@ CREATE TABLE "permissions" (
     "bitValue" BIGINT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "permissions_bit_value_check" CHECK ("bitValue" >= 0)
 );
 
 -- AlterTable: users add roleId

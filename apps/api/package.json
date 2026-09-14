@@ -11,7 +11,7 @@
     "test:cov": "jest --coverage --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "generate:openapi": "ts-node scripts/generate-openapi.ts",
-    "seed:admin": "ts-node scripts/seed-admin.ts",
+    "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

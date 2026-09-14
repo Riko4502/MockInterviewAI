@@ -1,9 +1,10 @@
 import {
   ConflictException,
   GoneException,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { SystemRole } from "@packages/types";
+import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import type { StorageService } from "../storage/storage.service";
@@ -34,7 +35,7 @@ describe("UsersService", () => {
     avatarUrl: "https://example.com/avatar.webp",
     telegramUsername: "ivan_tg",
     gitUrl: "https://github.com/ivan_dev",
-    role: { slug: SystemRole.USER },
+    role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
@@ -52,6 +53,7 @@ describe("UsersService", () => {
         findUnique: jest.fn().mockResolvedValue({
           id: "00000000-0000-4000-a000-000000000002",
           slug: SystemRole.USER,
+          permissions: SystemPermission.USERS_READ,
         }),
       },
     };
@@ -73,8 +75,48 @@ describe("UsersService", () => {
     );
   });
 
+  describe("create", () => {
+    it("создаёт нового пользователя с ID найденной роли", async () => {
+      prismaMock.user.create.mockResolvedValue({
+        id: mockUser.id,
+        email: mockUser.email,
+        passwordHash: mockUser.passwordHash,
+        roleId: "00000000-0000-4000-a000-000000000002",
+      });
+
+      const result = await service.create({
+        email: mockUser.email,
+        passwordHash: mockUser.passwordHash,
+      });
+
+      expect(prismaMock.role.findUnique).toHaveBeenCalledWith({
+        where: { slug: SystemRole.USER },
+      });
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: mockUser.email,
+          passwordHash: mockUser.passwordHash,
+          roleId: "00000000-0000-4000-a000-000000000002",
+        },
+      });
+      expect(result.id).toBe(mockUser.id);
+    });
+
+    it("выбрасывает InternalServerErrorException если роль не найдена", async () => {
+      prismaMock.role.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          email: "test@example.com",
+          passwordHash: "hash",
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(prismaMock.user.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getProfile", () => {
-    it("возвращает профиль пользователя без passwordHash с ролью", async () => {
+    it("возвращает профиль пользователя без passwordHash с ролью и ненулевой маской", async () => {
       const { passwordHash: _, deletedAt: __, ...safeProfile } = mockUser;
       prismaMock.user.findUnique.mockResolvedValue(safeProfile);
 
@@ -87,7 +129,7 @@ describe("UsersService", () => {
       expect(result).toEqual({
         ...safeProfile,
         role: SystemRole.USER,
-        permissions: "0",
+        permissions: "2",
       });
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
@@ -122,7 +164,7 @@ describe("UsersService", () => {
       expect(result.displayName).toBe("New Name");
       expect(result.gitUrl).toBe("https://gitlab.com/new_user");
       expect(result.role).toBe(SystemRole.USER);
-      expect(result.permissions).toBe("0");
+      expect(result.permissions).toBe("2");
       expect(prismaMock.user.update).toHaveBeenCalled();
     });
 
@@ -226,7 +268,7 @@ describe("UsersService", () => {
       expect(result.id).toBe(mockUser.id);
       expect(result.email).toBe(mockUser.email);
       expect(result.role).toBe(SystemRole.USER);
-      expect(result.permissions).toBe("0");
+      expect(result.permissions).toBe("2");
     });
 
     it("выбрасывает GoneException если прошло более 30 дней", async () => {

@@ -100,7 +100,7 @@ describe("AuthService", () => {
           ...user,
           role: user.role ?? {
             slug: "USER",
-            permissions: SystemPermission.NONE,
+            permissions: SystemPermission.USERS_READ,
           },
         };
       });
@@ -109,7 +109,10 @@ describe("AuthService", () => {
       if (!user) return null;
       return {
         ...user,
-        role: user.role ?? { slug: "USER", permissions: SystemPermission.NONE },
+        role: user.role ?? {
+          slug: "USER",
+          permissions: SystemPermission.USERS_READ,
+        },
       };
     });
     createUser = jest.fn().mockResolvedValue(USER);
@@ -203,7 +206,7 @@ describe("AuthService", () => {
       expect(generateAccessToken).toHaveBeenCalledWith(
         USER.id,
         SESSION_ID,
-        SystemPermission.NONE,
+        SystemPermission.USERS_READ,
       );
       expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
@@ -297,7 +300,7 @@ describe("AuthService", () => {
       expect(generateAccessToken).toHaveBeenCalledWith(
         USER.id,
         SESSION_ID,
-        SystemPermission.NONE,
+        SystemPermission.USERS_READ,
       );
       expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
@@ -670,7 +673,7 @@ describe("AuthService", () => {
       expect(generateAccessToken).toHaveBeenCalledWith(
         USER.id,
         NEW_SESSION_ID,
-        SystemPermission.NONE,
+        SystemPermission.USERS_READ,
       );
       expect(generateRefreshToken).toHaveBeenCalledWith(
         USER.id,

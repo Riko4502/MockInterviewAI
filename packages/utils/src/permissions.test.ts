@@ -19,6 +19,15 @@ describe("Permissions Utilities (@packages/utils)", () => {
       expect(toBigIntBitmask(15)).toBe(15n);
       expect(toBigIntBitmask("31")).toBe(31n);
       expect(toBigIntBitmask(100n)).toBe(100n);
+      expect(toBigIntBitmask(-1)).toBe(SystemPermission.NONE);
+      expect(toBigIntBitmask("-1")).toBe(SystemPermission.NONE);
+      expect(toBigIntBitmask(-100n)).toBe(SystemPermission.NONE);
+    });
+
+    it("отрицательные значения маски не дают прав и не распознаются как ADMINISTRATOR", () => {
+      expect(hasPermission(-1, SystemPermission.USERS_READ)).toBe(false);
+      expect(hasAllPermissions("-1", SystemPermission.USERS_READ)).toBe(false);
+      expect(hasAnyPermission(-1n, SystemPermission.USERS_READ)).toBe(false);
     });
   });
 

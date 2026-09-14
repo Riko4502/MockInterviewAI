@@ -5,11 +5,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import {
-  type PermissionBitmask,
-  SystemPermission,
-  SystemRole,
-} from "@packages/types";
+import { type PermissionBitmask, SystemPermission } from "@packages/types";
 import { hasAllPermissions, hasPermission } from "@packages/utils";
 import type { TokenPayload } from "../../modules/auth/services/token.service";
 import { PERMISSIONS_KEY } from "../decorators/permissions.decorator";
@@ -82,13 +78,12 @@ export class RolesGuard implements CanActivate {
 
     // 2. Проверка ролей (для обратной совместимости декоратора @Roles)
     if (requiredRoles && requiredRoles.length > 0) {
-      const isAdminRequired = requiredRoles.includes(SystemRole.ADMIN);
       const isUserAdmin = hasPermission(
         userPermissions,
         SystemPermission.ADMINISTRATOR,
       );
 
-      if (isAdminRequired && !isUserAdmin) {
+      if (!isUserAdmin) {
         throw new ForbiddenException("Access denied: Insufficient permissions");
       }
     }
