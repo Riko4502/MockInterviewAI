@@ -63,6 +63,7 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   PostgresIcon: ICON_CATEGORIES.DEVOPS,
   PrismaIcon: ICON_CATEGORIES.DEVOPS,
   RedisIcon: ICON_CATEGORIES.DEVOPS,
+  TelegramIcon: ICON_CATEGORIES.DEVOPS,
   TerminalIcon: ICON_CATEGORIES.DEVOPS,
 
   // Медиа и устройства
@@ -94,6 +95,8 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   CodeIcon: ICON_CATEGORIES.UI,
   CopyIcon: ICON_CATEGORIES.UI,
   EditIcon: ICON_CATEGORIES.UI,
+  EyeIcon: ICON_CATEGORIES.UI,
+  EyeOffIcon: ICON_CATEGORIES.UI,
   FileCodeIcon: ICON_CATEGORIES.UI,
   FileIcon: ICON_CATEGORIES.UI,
   FolderIcon: ICON_CATEGORIES.UI,
@@ -104,8 +107,10 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   HubConnectionIcon: ICON_CATEGORIES.UI,
   InfoIcon: ICON_CATEGORIES.UI,
   LoginIcon: ICON_CATEGORIES.UI,
+  LogOutIcon: ICON_CATEGORIES.UI,
   MaximizeIcon: ICON_CATEGORIES.UI,
   MenuIcon: ICON_CATEGORIES.UI,
+  MessageSquareIcon: ICON_CATEGORIES.UI,
   MinimizeIcon: ICON_CATEGORIES.UI,
   PackageIcon: ICON_CATEGORIES.UI,
   PaperclipIcon: ICON_CATEGORIES.UI,
@@ -121,8 +126,10 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   TrendUpIcon: ICON_CATEGORIES.UI,
   UndoIcon: ICON_CATEGORIES.UI,
   UploadIcon: ICON_CATEGORIES.UI,
+  UserIcon: ICON_CATEGORIES.UI,
   UsersIcon: ICON_CATEGORIES.UI,
   WandIcon: ICON_CATEGORIES.UI,
+  ZapIcon: ICON_CATEGORIES.UI,
 };
 
 // Извлекаем все экспортированные иконки

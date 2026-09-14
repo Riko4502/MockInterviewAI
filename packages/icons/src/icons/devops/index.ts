@@ -9,4 +9,5 @@ export { MongodbIcon } from "./mongodb-icon";
 export { PostgresIcon } from "./postgres-icon";
 export { PrismaIcon } from "./prisma-icon";
 export { RedisIcon } from "./redis-icon";
+export { TelegramIcon } from "./telegram-icon";
 export { TerminalIcon } from "./terminal-icon";
