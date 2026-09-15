@@ -6,6 +6,7 @@ import { Button, Logo } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
+import { ThemeToggle } from "@/features/theme-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
@@ -28,7 +29,7 @@ export function Navbar({ locale: propLocale }: NavbarProps = {}) {
   const registerUrl = getRegisterUrl();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/[0.06] bg-[#07080e]/35 backdrop-blur-2xl transition-all shadow-[0_4px_30px_rgba(0,0,0,0.15)]">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200/70 dark:border-white/[0.06] bg-white/60 dark:bg-[#07080e]/40 backdrop-blur-2xl transition-all shadow-[0_4px_25px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_30px_rgba(0,0,0,0.15)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand Logo */}
         <Logo href={homeUrl} />
@@ -37,13 +38,14 @@ export function Navbar({ locale: propLocale }: NavbarProps = {}) {
         <NavLinks />
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <NavLanguageSwitcher locale={locale} />
+          <ThemeToggle />
 
           <Button
             asChild
             variant="ghost"
-            className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
+            className="hidden sm:inline-flex text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/60"
           >
             <a href={authUrl}>{t("nav.signIn")}</a>
           </Button>
@@ -60,7 +62,7 @@ export function Navbar({ locale: propLocale }: NavbarProps = {}) {
             variant="outline"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden rounded-xl text-slate-400 hover:text-white hover:bg-white/5 border-white/10"
+            className="md:hidden rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent/60 border-border dark:border-white/10"
             aria-label="Toggle navigation menu"
             aria-expanded={mobileMenuOpen}
           >

@@ -20,14 +20,14 @@ export function SectionHeader({
     >
       <Badge
         variant="statusInfo"
-        className="mb-4 bg-violet-500/10 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase shadow-sm shadow-violet-500/20"
+        className="mb-4 bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-300 font-semibold tracking-wider uppercase shadow-sm shadow-violet-500/20"
       >
         {badge}
       </Badge>
-      <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4">
+      <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-foreground mb-4">
         {title}
       </Typography.H2>
-      <Typography.Lead className="text-base sm:text-lg text-slate-300">
+      <Typography.Lead className="text-base sm:text-lg text-muted-foreground">
         {subtitle}
       </Typography.Lead>
     </div>

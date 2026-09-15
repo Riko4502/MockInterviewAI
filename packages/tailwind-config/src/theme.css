@@ -71,7 +71,9 @@
   }
 }
 
-.light {
+:root,
+.light,
+[data-theme="light"] {
   --radius: 0.75rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -108,7 +110,6 @@
   --success-foreground: oklch(0.985 0 0);
 }
 
-:root,
 .dark,
 [data-theme="dark"] {
   --radius: 0.75rem;

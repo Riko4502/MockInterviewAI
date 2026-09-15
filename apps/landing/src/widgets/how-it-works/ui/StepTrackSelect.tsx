@@ -20,32 +20,32 @@ export function StepTrackSelect() {
           description={t("howItWorks.step1Desc")}
         />
         <div className="flex flex-wrap gap-2 text-xs font-medium">
-          <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
+          <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-200 hover:border-purple-500/50 transition-colors">
             {t("howItWorks.trackTagFrontend")}
           </span>
-          <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
+          <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-200 hover:border-purple-500/50 transition-colors">
             {t("howItWorks.trackTagBackend")}
           </span>
-          <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
+          <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-200 hover:border-purple-500/50 transition-colors">
             {t("howItWorks.trackTagSystemDesign")}
           </span>
-          <span className="px-3 py-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20 text-purple-200 hover:border-purple-500/50 transition-colors">
+          <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-200 hover:border-purple-500/50 transition-colors">
             {t("howItWorks.trackTagAlgo")}
           </span>
         </div>
       </div>
 
       <div className="lg:col-span-6">
-        <div className="glass-panel rounded-2xl p-6 border border-purple-500/30 shadow-xl glow-card relative overflow-hidden bg-gradient-to-b from-purple-950/20 to-[#0a0c16]/90">
+        <div className="glass-panel rounded-2xl p-6 border border-purple-500/30 shadow-xl glow-card relative overflow-hidden bg-card/80 dark:bg-gradient-to-b dark:from-purple-950/20 dark:to-[#0a0c16]/90">
           {/* Ambient Glow */}
           <div className="absolute top-0 right-0 w-44 h-44 bg-purple-600/15 blur-3xl pointer-events-none rounded-full" />
 
-          <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10 relative z-10">
-            <span className="text-sm font-semibold text-white flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-border dark:border-white/10 relative z-10">
+            <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
               {t("howItWorks.step1SelectTitle")}
             </span>
-            <span className="text-xs text-purple-400 font-medium font-mono">
+            <span className="text-xs text-purple-600 dark:text-purple-400 font-medium font-mono">
               {t("howItWorks.step1Customizable")}
             </span>
           </div>

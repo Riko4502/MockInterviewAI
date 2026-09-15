@@ -29,10 +29,10 @@ export function StepAiInterview() {
           title={t("howItWorks.step2Title")}
           description={t("howItWorks.step2Desc")}
         />
-        <ul className="space-y-3 text-sm text-slate-200">
+        <ul className="space-y-3 text-sm text-foreground">
           {AI_INTERVIEW_CHECKLIST.map((key) => (
             <li key={key} className="flex items-center gap-3">
-              <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xs font-bold shrink-0">
+              <div className="w-5 h-5 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 text-xs font-bold shrink-0">
                 ✓
               </div>
               <span>{t(key)}</span>
@@ -42,12 +42,12 @@ export function StepAiInterview() {
       </div>
 
       <div className="lg:col-span-6 lg:order-1">
-        <div className="glass-panel rounded-2xl p-4 border border-rose-500/30 shadow-xl glow-card overflow-hidden bg-gradient-to-b from-rose-950/20 to-[#0a0c16]/90 relative">
+        <div className="glass-panel rounded-2xl p-4 border border-rose-500/30 shadow-xl glow-card overflow-hidden bg-card/80 dark:bg-gradient-to-b dark:from-rose-950/20 dark:to-[#0a0c16]/90 relative">
           {/* Ambient Glow */}
           <div className="absolute top-0 right-0 w-44 h-44 bg-rose-600/15 blur-3xl pointer-events-none rounded-full" />
 
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/10 text-xs relative z-10">
-            <span className="font-mono text-rose-300 text-[11px] flex items-center gap-1.5">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border dark:border-white/10 text-xs relative z-10">
+            <span className="font-mono text-rose-600 dark:text-rose-300 text-[11px] flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               LIVE AUDIO STREAM
             </span>
@@ -56,7 +56,7 @@ export function StepAiInterview() {
               variant="ghost"
               size="xs"
               onClick={() => setIsPlaying(!isPlaying)}
-              className="text-[10px] font-mono text-rose-300 hover:text-white px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20"
+              className="text-[10px] font-mono text-rose-600 dark:text-rose-300 hover:text-foreground px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20"
             >
               {isPlaying ? "Pause Simulation ⏸" : "Resume Simulation ▶"}
             </Button>
@@ -67,7 +67,7 @@ export function StepAiInterview() {
             <div
               className={`rounded-xl transition-all duration-300 ${
                 activeSpeaker === "ai"
-                  ? "ring-2 ring-rose-500 shadow-lg shadow-rose-950/60"
+                  ? "ring-2 ring-rose-500 shadow-lg shadow-rose-500/10 dark:shadow-rose-950/60"
                   : "opacity-80"
               }`}
             >
@@ -85,7 +85,7 @@ export function StepAiInterview() {
             <div
               className={`rounded-xl transition-all duration-300 ${
                 activeSpeaker === "candidate"
-                  ? "ring-2 ring-emerald-500 shadow-lg shadow-emerald-950/60"
+                  ? "ring-2 ring-emerald-500 shadow-lg shadow-emerald-500/10 dark:shadow-emerald-950/60"
                   : "opacity-80"
               }`}
             >
@@ -105,17 +105,17 @@ export function StepAiInterview() {
           </div>
 
           {/* Dialogue bubble */}
-          <div className="p-3.5 rounded-xl bg-[#0a0c16]/95 border border-rose-500/20 text-xs text-slate-300 leading-relaxed shadow-sm relative z-10">
+          <div className="p-3.5 rounded-xl bg-accent/40 dark:bg-[#0a0c16]/95 border border-border dark:border-rose-500/20 text-xs text-foreground leading-relaxed shadow-sm relative z-10">
             {activeSpeaker === "ai" ? (
               <div>
-                <span className="text-rose-400 font-semibold">
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">
                   {t("howItWorks.dialogueSpeaker")}:
                 </span>{" "}
                 <span>{t("howItWorks.dialogueText")}</span>
               </div>
             ) : (
               <div>
-                <span className="text-emerald-400 font-semibold">
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                   {t("howItWorks.candidateYou")}:
                 </span>{" "}
                 <span>{t("howItWorks.candidateDialogueText")}:</span>

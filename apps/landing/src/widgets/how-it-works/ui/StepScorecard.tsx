@@ -28,18 +28,18 @@ export function StepScorecard() {
         />
         <div className="space-y-4 w-full">
           {/* Interactive Slider 1: Algo */}
-          <div className="space-y-2 p-3.5 rounded-2xl bg-violet-950/20 border border-violet-500/30 hover:border-violet-500/60 transition-all shadow-md">
+          <div className="space-y-2 p-3.5 rounded-2xl bg-accent/40 dark:bg-violet-950/20 border border-border dark:border-violet-500/30 hover:border-violet-500/60 transition-all shadow-sm">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-white flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
                 {t("howItWorks.skillAlgo")}
               </span>
-              <span className="font-mono font-bold text-violet-300">
+              <span className="font-mono font-bold text-violet-600 dark:text-violet-300">
                 {algoScore} / 100
               </span>
             </div>
             {/* Custom Glowing Bar */}
-            <div className="relative h-2.5 rounded-full bg-slate-900 overflow-hidden border border-white/10">
+            <div className="relative h-2.5 rounded-full bg-accent dark:bg-slate-900 overflow-hidden border border-border dark:border-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-400 shadow-[0_0_12px_rgba(139,92,246,0.8)] transition-all duration-150"
                 style={{ width: `${algoScore}%` }}
@@ -51,24 +51,24 @@ export function StepScorecard() {
               max="100"
               value={algoScore}
               onChange={(e) => setAlgoScore(Number(e.target.value))}
-              className="w-full accent-violet-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
+              className="w-full accent-violet-500 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
               aria-label={t("howItWorks.skillAlgo")}
             />
           </div>
 
           {/* Interactive Slider 2: Arch */}
-          <div className="space-y-2 p-3.5 rounded-2xl bg-sky-950/20 border border-sky-500/30 hover:border-sky-500/60 transition-all shadow-md">
+          <div className="space-y-2 p-3.5 rounded-2xl bg-accent/40 dark:bg-sky-950/20 border border-border dark:border-sky-500/30 hover:border-sky-500/60 transition-all shadow-sm">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-white flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
                 {t("howItWorks.skillArch")}
               </span>
-              <span className="font-mono font-bold text-sky-300">
+              <span className="font-mono font-bold text-sky-600 dark:text-sky-300">
                 {archScore} / 100
               </span>
             </div>
             {/* Custom Glowing Bar */}
-            <div className="relative h-2.5 rounded-full bg-slate-900 overflow-hidden border border-white/10">
+            <div className="relative h-2.5 rounded-full bg-accent dark:bg-slate-900 overflow-hidden border border-border dark:border-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-sky-600 via-blue-500 to-cyan-400 shadow-[0_0_12px_rgba(56,189,248,0.8)] transition-all duration-150"
                 style={{ width: `${archScore}%` }}
@@ -80,24 +80,24 @@ export function StepScorecard() {
               max="100"
               value={archScore}
               onChange={(e) => setArchScore(Number(e.target.value))}
-              className="w-full accent-sky-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
+              className="w-full accent-sky-500 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
               aria-label={t("howItWorks.skillArch")}
             />
           </div>
 
           {/* Interactive Slider 3: Comm */}
-          <div className="space-y-2 p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 hover:border-emerald-500/60 transition-all shadow-md">
+          <div className="space-y-2 p-3.5 rounded-2xl bg-accent/40 dark:bg-emerald-950/20 border border-border dark:border-emerald-500/30 hover:border-emerald-500/60 transition-all shadow-sm">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-white flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 {t("howItWorks.skillComm")}
               </span>
-              <span className="font-mono font-bold text-emerald-300">
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-300">
                 {commScore} / 100
               </span>
             </div>
             {/* Custom Glowing Bar */}
-            <div className="relative h-2.5 rounded-full bg-slate-900 overflow-hidden border border-white/10">
+            <div className="relative h-2.5 rounded-full bg-accent dark:bg-slate-900 overflow-hidden border border-border dark:border-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)] transition-all duration-150"
                 style={{ width: `${commScore}%` }}
@@ -109,7 +109,7 @@ export function StepScorecard() {
               max="100"
               value={commScore}
               onChange={(e) => setCommScore(Number(e.target.value))}
-              className="w-full accent-emerald-400 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
+              className="w-full accent-emerald-500 cursor-pointer h-1 bg-transparent opacity-60 hover:opacity-100 transition-opacity"
               aria-label={t("howItWorks.skillComm")}
             />
           </div>
@@ -117,16 +117,16 @@ export function StepScorecard() {
       </div>
 
       <div className="lg:col-span-6 lg:order-1">
-        <div className="glass-panel rounded-2xl p-6 border border-emerald-500/30 shadow-xl glow-card relative overflow-hidden">
+        <div className="glass-panel rounded-2xl p-6 border border-emerald-500/30 shadow-xl glow-card relative overflow-hidden bg-card/80 dark:bg-transparent">
           {/* Ambient Glow */}
           <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-600/15 blur-2xl pointer-events-none rounded-full" />
 
-          <div className="flex items-center justify-between pb-4 border-b border-white/10 relative z-10">
+          <div className="flex items-center justify-between pb-4 border-b border-border dark:border-white/10 relative z-10">
             <div>
-              <div className="text-xs font-mono text-slate-400">
+              <div className="text-xs font-mono text-muted-foreground">
                 {t("howItWorks.sessionReport")}
               </div>
-              <div className="text-base font-bold text-white">
+              <div className="text-base font-bold text-foreground">
                 {t("howItWorks.reportRole")}
               </div>
             </div>
@@ -137,7 +137,7 @@ export function StepScorecard() {
               >
                 {verdict.text}
               </Badge>
-              <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono">
+              <div className="text-xl sm:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
                 {averageScore} / 100
               </div>
             </div>
@@ -155,12 +155,12 @@ export function StepScorecard() {
             <ScoreMetricCard
               value={verdict.percentile}
               label={t("howItWorks.globalPercentile")}
-              valueColor="text-emerald-400"
+              valueColor="text-emerald-600 dark:text-emerald-400"
             />
           </div>
 
-          <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-slate-300 leading-relaxed shadow-sm relative z-10">
-            <span className="font-semibold text-emerald-300">
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 text-xs text-foreground dark:text-slate-300 leading-relaxed shadow-sm relative z-10">
+            <span className="font-semibold text-emerald-700 dark:text-emerald-300">
               {t("howItWorks.keyRecommendation")}
             </span>{" "}
             {t("howItWorks.recommendationText")}

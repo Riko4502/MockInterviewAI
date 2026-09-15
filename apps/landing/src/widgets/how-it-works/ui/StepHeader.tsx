@@ -19,18 +19,18 @@ export function StepHeader({
   return (
     <div className={cn("flex flex-col items-start", className)}>
       <div className="flex items-center gap-3 mb-4">
-        <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-400 font-mono font-bold text-xs">
+        <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-violet-600/15 border border-violet-500/30 text-violet-600 dark:text-violet-400 font-mono font-bold text-xs">
           {stepNumber}
         </span>
-        <span className="text-xs font-mono font-semibold text-violet-400 tracking-wider">
+        <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400 tracking-wider">
           {tag}
         </span>
       </div>
 
-      <Typography.H3 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+      <Typography.H3 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">
         {title}
       </Typography.H3>
-      <Typography.Muted className="text-slate-300 text-base leading-relaxed mb-6">
+      <Typography.Muted className="text-muted-foreground text-base leading-relaxed mb-6">
         {description}
       </Typography.Muted>
     </div>

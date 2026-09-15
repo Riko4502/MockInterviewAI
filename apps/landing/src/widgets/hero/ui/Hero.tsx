@@ -20,19 +20,19 @@ export function Hero() {
           <div className="lg:col-span-7 flex flex-col items-start text-left">
             <Badge
               variant="statusInfo"
-              className="mb-6 bg-violet-500/15 border-violet-500/30 text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
+              className="mb-6 bg-violet-500/15 border-violet-500/30 text-violet-600 dark:text-violet-300 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
             >
               {t("hero.badge")}
             </Badge>
 
             {/* Headline */}
-            <Typography.H1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12] mb-6">
+            <Typography.H1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-[1.12] mb-6">
               {t("hero.title1")} <br className="hidden sm:inline" />
               <span className="text-gradient-purple">{t("hero.title2")}</span>
             </Typography.H1>
 
             {/* Subtitle */}
-            <Typography.Lead className="text-lg sm:text-xl text-slate-300 font-normal leading-relaxed mb-8 max-w-xl">
+            <Typography.Lead className="text-lg sm:text-xl text-muted-foreground font-normal leading-relaxed mb-8 max-w-xl">
               {t("hero.subtitle")}
             </Typography.Lead>
 
@@ -53,7 +53,7 @@ export function Hero() {
                 asChild
                 variant="outline"
                 size="lg"
-                className="w-full sm:w-auto rounded-full bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white px-7 py-3.5 h-auto text-base font-semibold backdrop-blur-md"
+                className="w-full sm:w-auto rounded-full bg-accent/40 hover:bg-accent/70 border-border dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 text-foreground px-7 py-3.5 h-auto text-base font-semibold backdrop-blur-md"
               >
                 <NextLink href="#how-it-works">{t("hero.ctaExplore")}</NextLink>
               </Button>

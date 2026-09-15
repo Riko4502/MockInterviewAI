@@ -31,6 +31,7 @@ export { MaximizeIcon } from "./maximize-icon";
 export { MenuIcon } from "./menu-icon";
 export { MessageSquareIcon } from "./message-square-icon";
 export { MinimizeIcon } from "./minimize-icon";
+export { MoonIcon } from "./moon-icon";
 export {
   EllipsisIcon,
   MoreHorizontalIcon,
@@ -50,6 +51,7 @@ export { SettingsIcon } from "./settings-icon";
 export { SlidersIcon } from "./sliders-icon";
 export { SpinnerIcon } from "./spinner-icon";
 export { SplitIcon } from "./split-icon";
+export { SunIcon } from "./sun-icon";
 export { TrashIcon } from "./trash-icon";
 export { TrendUpIcon } from "./trend-up-icon";
 export { UndoIcon } from "./undo-icon";

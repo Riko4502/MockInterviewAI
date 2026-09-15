@@ -1,4 +1,4 @@
-import Editor, { type Monaco } from "@monaco-editor/react";
+import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +16,14 @@ import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
 
+// Используем локальный пакет monaco-editor в браузере (безопасно для SSR)
+if (typeof window !== "undefined") {
+  import("monaco-editor").then((monaco) => {
+    loader.config({ monaco });
+    registerThemes(monaco);
+  });
+}
+
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   value = "",
   onChange,
@@ -32,27 +40,36 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     useState<editor.IStandaloneCodeEditor | null>(null);
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Синхронизируем тему при смене theme пропса в браузере
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("monaco-editor").then((monaco) => {
+        monaco.editor.setTheme(theme);
+      });
+    }
+  }, [theme]);
+
   // Этот хук автоматически рисует чужие курсоры поверх кода
   useRemoteCursors(editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
   // Регистрируем темы и базовые сниппеты/ключевые слова для языков
-  const handleBeforeMount = (monaco: Monaco) => {
-    registerThemes(monaco);
-    registerSqlCompletion(monaco);
-    registerPythonCompletion(monaco);
-    registerGoCompletion(monaco);
-    registerJavaCompletion(monaco);
-    registerCppCompletion(monaco);
-    registerRustCompletion(monaco);
+  const handleBeforeMount = (monacoInstance: Monaco) => {
+    registerThemes(monacoInstance);
+    registerSqlCompletion(monacoInstance);
+    registerPythonCompletion(monacoInstance);
+    registerGoCompletion(monacoInstance);
+    registerJavaCompletion(monacoInstance);
+    registerCppCompletion(monacoInstance);
+    registerRustCompletion(monacoInstance);
 
     // Поддержка современного стандарта ESNext
-    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ESNext,
+    monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
       allowNonTextExtensions: true,
     });
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ESNext,
+    monacoInstance.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
       allowNonTextExtensions: true,
     });
   };
@@ -117,6 +134,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         onChange={(val) => onChange?.(val ?? "")}
         beforeMount={handleBeforeMount}
         onMount={handleEditorDidMount}
+        loading={<div className="size-full animate-pulse bg-muted/20" />}
         options={mergedOptions}
       />
     </div>

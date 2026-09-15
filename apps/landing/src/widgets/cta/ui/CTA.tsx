@@ -17,28 +17,28 @@ export function CTA() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* CTA Card Box with Aurora Theme */}
-        <Card className="relative rounded-3xl p-8 sm:p-12 md:p-16 border border-violet-500/40 overflow-hidden shadow-2xl glow-card text-center bg-gradient-to-b from-[#141226]/80 via-[#0d1022]/80 to-[#070914]/90 backdrop-blur-xl">
+        <Card className="relative rounded-3xl p-8 sm:p-12 md:p-16 border border-violet-500/30 dark:border-violet-500/40 overflow-hidden shadow-2xl glow-card text-center bg-card/85 dark:bg-gradient-to-b dark:from-[#141226]/80 dark:via-[#0d1022]/80 dark:to-[#070914]/90 backdrop-blur-xl">
           {/* Ambient Multi-Color Aurora Glow */}
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[750px] h-[350px] bg-gradient-to-r from-violet-600/30 via-fuchsia-600/25 to-cyan-500/30 blur-[130px] pointer-events-none -z-10" />
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[750px] h-[350px] bg-gradient-to-r from-violet-600/20 via-fuchsia-600/15 to-cyan-500/20 dark:from-violet-600/30 dark:via-fuchsia-600/25 dark:to-cyan-500/30 blur-[130px] pointer-events-none -z-10" />
 
           <Card.Header className="p-0 text-center">
             {/* Badge */}
             <div className="flex justify-center">
               <Badge
                 variant="statusInfo"
-                className="mb-6 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border-violet-500/40 text-violet-200 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
+                className="mb-6 bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border-violet-500/30 text-violet-700 dark:text-violet-200 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
               >
                 {t("cta.badge")}
               </Badge>
             </div>
 
             {/* Title */}
-            <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
+            <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
               {t("cta.title")}
             </Typography.H2>
 
             {/* Subtitle */}
-            <Typography.Lead className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+            <Typography.Lead className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
               {t("cta.subtitle")}
             </Typography.Lead>
           </Card.Header>
