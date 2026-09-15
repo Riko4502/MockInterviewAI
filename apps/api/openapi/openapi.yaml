@@ -231,6 +231,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
+        "403":
+          description: Аккаунт деактивирован.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDto"
       summary: Вход пользователя (§58)
       tags: *a3
   /api/v1/auth/logout:
@@ -405,6 +411,203 @@ paths:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Обновление токенов — refresh token rotation (§65)
       tags: *a3
+  /api/v1/admin/users:
+    get:
+      operationId: AdminUsersController_getUsersList
+      parameters:
+        - name: sortOrder
+          required: false
+          in: query
+          description: Направление сортировки (по умолчанию desc)
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Поле сортировки (по умолчанию createdAt)
+          schema:
+            enum:
+              - createdAt
+              - email
+              - username
+              - displayName
+              - role
+              - updatedAt
+            type: string
+        - name: isActive
+          required: false
+          in: query
+          description: Фильтр по статусу активности
+          schema:
+            type: boolean
+        - name: role
+          required: false
+          in: query
+          description: Фильтр по роли пользователя (например, USER или ADMIN)
+          schema:
+            type: string
+        - name: search
+          required: false
+          in: query
+          description: Поиск по email, username или displayName
+          schema:
+            type: string
+        - name: limit
+          required: false
+          in: query
+          description: Количество записей на страницу (по умолчанию 20, макс. 100)
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          description: Номер страницы (по умолчанию 1)
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Пагинированный список пользователей
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedUsersAdminResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен (недостаточно прав)
+      security: &a4
+        - bearer: []
+      summary: Получить пагинированный список пользователей с фильтрами и поиском
+      tags: &a5
+        - Admin / Users
+    post:
+      operationId: AdminUsersController_createUser
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserAdminDto"
+      responses:
+        "201":
+          description: Пользователь успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Некорректные входные данные или роль не найдена
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "409":
+          description: Email или username уже заняты
+      security: *a4
+      summary: Создать нового пользователя администратором
+      tags: *a5
+  /api/v1/admin/users/{id}:
+    get:
+      operationId: AdminUsersController_getUserById
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Детальная информация о пользователе
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminDetailResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Получить детальную информацию о пользователе со статистикой
+      tags: *a5
+    patch:
+      operationId: AdminUsersController_updateUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserAdminDto"
+      responses:
+        "200":
+          description: Данные пользователя успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Некорректные входные данные
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+        "409":
+          description: Email или username уже заняты
+      security: *a4
+      summary: Обновить данные и/или роль пользователя
+      tags: *a5
+  /api/v1/admin/users/{id}/status:
+    patch:
+      operationId: AdminUsersController_updateStatus
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserStatusAdminDto"
+      responses:
+        "200":
+          description: Статус активности пользователя успешно изменен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Попытка деактивировать собственный аккаунт администратора
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Активировать или деактивировать аккаунт пользователя
+      tags: *a5
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession
@@ -418,10 +621,10 @@ paths:
                 $ref: "#/components/schemas/CreateSessionResponseDto"
         "401":
           description: Не авторизован
-      security: &a4
+      security: &a6
         - bearer: []
       summary: Создать новую интервью-сессию
-      tags: &a5
+      tags: &a7
         - Sessions
   /api/v1/sessions/{id}/participants:
     post:
@@ -452,9 +655,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a4
+      security: *a6
       summary: Добавить участника в сессию
-      tags: *a5
+      tags: *a7
   /api/v1/sessions/{id}/participants/{userId}:
     delete:
       operationId: SessionsController_removeParticipant
@@ -482,9 +685,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия или участник не найдены
-      security: *a4
+      security: *a6
       summary: Удалить участника из сессии
-      tags: *a5
+      tags: *a7
   /api/v1/sessions/{id}/close:
     post:
       operationId: SessionsController_closeSession
@@ -505,9 +708,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a4
+      security: *a6
       summary: Закрыть интервью-сессию
-      tags: *a5
+      tags: *a7
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -532,10 +735,10 @@ paths:
           description: Не авторизован
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: &a6
+      security: &a8
         - bearer: []
       summary: Выдать одноразовый тикет для подключения к WebSocket комнате
-      tags: &a7
+      tags: &a9
         - Realtime
   /api/v1/realtime/media-token:
     post:
@@ -563,9 +766,9 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: *a6
+      security: *a8
       summary: Выдать LiveKit join-токен для WebRTC медиа
-      tags: *a7
+      tags: *a9
   /api/v1/notifications:
     get:
       operationId: NotificationsController_getNotifications
@@ -596,10 +799,10 @@ paths:
                 $ref: "#/components/schemas/NotificationsListDto"
         "400":
           description: Invalid pagination parameters
-      security: &a8
+      security: &a10
         - bearer: []
       summary: Get user notifications
-      tags: &a9
+      tags: &a11
         - Notifications
   /api/v1/notifications/unread-count:
     get:
@@ -612,9 +815,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadNotificationsCountDto"
-      security: *a8
+      security: *a10
       summary: Get unread notifications count
-      tags: *a9
+      tags: *a11
   /api/v1/notifications/{id}/read:
     patch:
       operationId: NotificationsController_markAsRead
@@ -634,9 +837,9 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a8
+      security: *a10
       summary: Mark notification as read
-      tags: *a9
+      tags: *a11
   /api/v1/notifications/{id}:
     delete:
       operationId: NotificationsController_markAsDeleted
@@ -656,9 +859,9 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a8
+      security: *a10
       summary: Delete notification
-      tags: *a9
+      tags: *a11
 info:
   title: Mock Interview AI API
   description: |-
@@ -932,6 +1135,288 @@ components:
         - token
         - newPassword
         - newPasswordConfirmation
+    PaginatedUsersAdminResponseDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              email:
+                type: string
+                format: email
+                pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+              username:
+                nullable: true
+                type: string
+              displayName:
+                nullable: true
+                type: string
+              role:
+                type: string
+              isActive:
+                type: boolean
+              deactivatedAt:
+                nullable: true
+                anyOf:
+                  - {}
+                  - type: string
+              avatarUrl:
+                nullable: true
+                type: string
+              telegramUsername:
+                nullable: true
+                type: string
+              gitUrl:
+                nullable: true
+                type: string
+              createdAt:
+                anyOf:
+                  - {}
+                  - type: string
+              updatedAt:
+                anyOf:
+                  - {}
+                  - type: string
+            required:
+              - id
+              - email
+              - username
+              - displayName
+              - role
+              - isActive
+              - deactivatedAt
+              - avatarUrl
+              - telegramUsername
+              - gitUrl
+              - createdAt
+              - updatedAt
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            page:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            limit:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            totalPages:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            hasNextPage:
+              type: boolean
+            hasPreviousPage:
+              type: boolean
+          required:
+            - total
+            - page
+            - limit
+            - totalPages
+            - hasNextPage
+            - hasPreviousPage
+      required:
+        - items
+        - meta
+    UserAdminDetailResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        email:
+          type: string
+          format: email
+          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        username:
+          nullable: true
+          type: string
+        displayName:
+          nullable: true
+          type: string
+        role:
+          type: string
+        isActive:
+          type: boolean
+        deactivatedAt:
+          nullable: true
+          anyOf:
+            - {}
+            - type: string
+        avatarUrl:
+          nullable: true
+          type: string
+        telegramUsername:
+          nullable: true
+          type: string
+        gitUrl:
+          nullable: true
+          type: string
+        createdAt:
+          anyOf:
+            - {}
+            - type: string
+        updatedAt:
+          anyOf:
+            - {}
+            - type: string
+        sessionsCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        participationsCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - id
+        - email
+        - username
+        - displayName
+        - role
+        - isActive
+        - deactivatedAt
+        - avatarUrl
+        - telegramUsername
+        - gitUrl
+        - createdAt
+        - updatedAt
+        - sessionsCount
+        - participationsCount
+    CreateUserAdminDto:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        role:
+          default: USER
+          type: string
+        username:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{3,30}$
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        isActive:
+          default: true
+          type: boolean
+      required:
+        - email
+        - password
+    UserAdminResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        email:
+          type: string
+          format: email
+          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        username:
+          nullable: true
+          type: string
+        displayName:
+          nullable: true
+          type: string
+        role:
+          type: string
+        isActive:
+          type: boolean
+        deactivatedAt:
+          nullable: true
+          anyOf:
+            - {}
+            - type: string
+        avatarUrl:
+          nullable: true
+          type: string
+        telegramUsername:
+          nullable: true
+          type: string
+        gitUrl:
+          nullable: true
+          type: string
+        createdAt:
+          anyOf:
+            - {}
+            - type: string
+        updatedAt:
+          anyOf:
+            - {}
+            - type: string
+      required:
+        - id
+        - email
+        - username
+        - displayName
+        - role
+        - isActive
+        - deactivatedAt
+        - avatarUrl
+        - telegramUsername
+        - gitUrl
+        - createdAt
+        - updatedAt
+    UpdateUserAdminDto:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        displayName:
+          nullable: true
+          type: string
+          minLength: 1
+          maxLength: 100
+        username:
+          nullable: true
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{3,30}$
+        role:
+          type: string
+        avatarUrl:
+          nullable: true
+          type: string
+          format: uri
+        telegramUsername:
+          nullable: true
+          type: string
+          pattern: ^@?[a-zA-Z0-9_]{5,32}$
+        gitUrl:
+          nullable: true
+          type: string
+          pattern: ^https?:\/\/(www\.)?(github|gitlab)\.com\/[a-zA-Z0-9_.-]+\/?$
+    UserStatusAdminDto:
+      type: object
+      properties:
+        isActive:
+          type: boolean
+      required:
+        - isActive
     HealthResponseDto:
       type: object
       properties:

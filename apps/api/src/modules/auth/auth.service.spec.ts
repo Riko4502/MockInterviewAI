@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
@@ -424,6 +425,17 @@ describe("AuthService", () => {
       expect(serialized).not.toContain(USER_PASSWORD_HASH);
       expect(serialized).not.toContain("stored.hmac.hash");
     });
+
+    it("отклоняет вход с 403 Forbidden если аккаунт деактивирован (isActive: false)", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+        isActive: false,
+      });
+      (argon2.verify as jest.Mock).mockResolvedValue(true);
+
+      await expect(service.login(DTO)).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe("login: unknown email (§59 account enumeration)", () => {
@@ -795,6 +807,20 @@ describe("AuthService", () => {
         "auth:revocations",
         expect.stringContaining(USER.id),
       );
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("деактивированный пользователь (isActive: false) → 401, сессия отозвана", async () => {
+      findUserWithRoleById.mockResolvedValue({
+        ...USER,
+        isActive: false,
+      });
+
+      const error = await service.refresh("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
       expect(createSession).not.toHaveBeenCalled();
     });
   });

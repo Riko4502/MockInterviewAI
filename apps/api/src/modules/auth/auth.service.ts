@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -207,6 +208,12 @@ export class AuthService implements OnModuleInit {
 
     if (!user || !passwordValid) {
       throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (user.isActive === false) {
+      throw new ForbiddenException(
+        "Account has been deactivated. Please contact an administrator",
+      );
     }
 
     if (user.deletedAt) {
@@ -467,7 +474,7 @@ export class AuthService implements OnModuleInit {
       }
 
       const user = await this.usersService.findUserWithRoleById(session.userId);
-      if (!user || user.deletedAt) {
+      if (!user || user.deletedAt || user.isActive === false) {
         await this.sessionService.revokeSession(payload.sid);
         throw new UnauthorizedException("Invalid credentials");
       }

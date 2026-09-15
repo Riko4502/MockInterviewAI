@@ -106,7 +106,6 @@ describe("RolesGuard", () => {
         "Access denied: Insufficient permissions",
       );
     });
-
     it("выбрасывает ForbiddenException (403) для не-ADMIN ролей (например SystemRole.USER), если пользователь не ADMIN", () => {
       jest.spyOn(reflector, "getAllAndOverride").mockImplementation((key) => {
         if (key === "roles") return [SystemRole.USER];
