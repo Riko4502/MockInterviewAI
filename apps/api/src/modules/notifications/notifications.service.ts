@@ -95,6 +95,25 @@ export class NotificationsService {
     return { count };
   }
 
+  async markAllAsRead(userId: string): Promise<{ success: true }> {
+    await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        deletedAt: null,
+      },
+      data: {
+        readAt: new Date(),
+      },
+    });
+
+    this.scheduleNotificationSync(userId);
+
+    return {
+      success: true,
+    };
+  }
+
   async markAsRead(userId: string, id: string): Promise<{ success: true }> {
     const result = await this.prisma.notification.updateMany({
       where: {

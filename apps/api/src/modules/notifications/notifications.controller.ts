@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
 } from "@nestjs/common";
 import {
@@ -111,6 +112,22 @@ export class NotificationsController {
   })
   async getUnreadCount(@CurrentUser("sub") userId: string) {
     return this.notificationsService.getUnreadCount(userId);
+  }
+
+  @Post("read-all")
+  @ApiOperation({
+    summary: "Mark all notifications as read",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "All notifications marked as read",
+    schema: registerSchema(
+      "NotificationActionResponseDto",
+      notificationActionResponseSchema,
+    ),
+  })
+  async markAllAsRead(@CurrentUser("sub") userId: string) {
+    return this.notificationsService.markAllAsRead(userId);
   }
 
   @Patch(":id/read")

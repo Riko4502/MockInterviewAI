@@ -7,6 +7,7 @@ describe("NotificationsController", () => {
   let notificationsServiceMock: {
     getNotifications: jest.Mock;
     getUnreadCount: jest.Mock;
+    markAllAsRead: jest.Mock;
     markAsRead: jest.Mock;
     markAsDeleted: jest.Mock;
   };
@@ -43,6 +44,8 @@ describe("NotificationsController", () => {
       getNotifications: jest.fn().mockResolvedValue(paginatedNotifications),
 
       getUnreadCount: jest.fn().mockResolvedValue({ count: 1 }),
+
+      markAllAsRead: jest.fn().mockResolvedValue({ success: true }),
 
       markAsRead: jest.fn().mockResolvedValue({ success: true }),
 
@@ -143,6 +146,20 @@ describe("NotificationsController", () => {
 
       expect(result).toEqual({
         count: 1,
+      });
+    });
+  });
+
+  describe("markAllAsRead", () => {
+    it("помечает все непрочитанные уведомления пользователя прочитанными", async () => {
+      const result = await controller.markAllAsRead(userId);
+
+      expect(notificationsServiceMock.markAllAsRead).toHaveBeenCalledWith(
+        userId,
+      );
+
+      expect(result).toEqual({
+        success: true,
       });
     });
   });

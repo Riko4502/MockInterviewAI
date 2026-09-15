@@ -232,6 +232,63 @@ describe("NotificationsService", () => {
     });
   });
 
+  describe("markAllAsRead", () => {
+    it("помечает все непрочитанные уведомления пользователя прочитанными", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 3,
+      });
+
+      redisMock.scanKeys.mockResolvedValue([]);
+      redisMock.delete.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
+      redisMock.xadd.mockResolvedValue("1724500000000-0");
+
+      const result = await service.markAllAsRead(userId);
+
+      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId,
+          readAt: null,
+          deletedAt: null,
+        },
+        data: {
+          readAt: expect.any(Date),
+        },
+      });
+
+      expect(result).toEqual({
+        success: true,
+      });
+    });
+
+    it("возвращает success если непрочитанных уведомлений нет", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      redisMock.scanKeys.mockResolvedValue([]);
+      redisMock.delete.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
+      redisMock.xadd.mockResolvedValue("1724500000000-0");
+
+      await expect(service.markAllAsRead(userId)).resolves.toEqual({
+        success: true,
+      });
+    });
+
+    it("не возвращает ошибку клиенту если Redis недоступен после успешного обновления PostgreSQL", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 3,
+      });
+
+      redisMock.scanKeys.mockRejectedValue(new Error("Redis unavailable"));
+
+      await expect(service.markAllAsRead(userId)).resolves.toEqual({
+        success: true,
+      });
+    });
+  });
+
   describe("markAsRead", () => {
     it("помечает уведомление прочитанным", async () => {
       prismaMock.notification.updateMany.mockResolvedValue({
