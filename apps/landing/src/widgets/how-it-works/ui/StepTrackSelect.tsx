@@ -18,7 +18,7 @@ import {
   Tabs,
 } from "@packages/ui";
 import { cn } from "@packages/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   GRADE_DEFINITIONS,
@@ -34,6 +34,8 @@ export function StepTrackSelect() {
   const [selectedGrade, setSelectedGrade] = useState<GradeId>("senior");
   const [isGenerated, setIsGenerated] = useState(false);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+
+  const generateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeTrack =
     TRACK_DEFINITIONS[selectedTrackIndex] ?? TRACK_DEFINITIONS[0];
@@ -63,7 +65,11 @@ export function StepTrackSelect() {
 
   const handleGenerate = () => {
     setIsGenerated(true);
-    setTimeout(() => {
+    if (generateTimerRef.current) {
+      clearTimeout(generateTimerRef.current);
+    }
+
+    generateTimerRef.current = setTimeout(() => {
       setIsGenerated(false);
     }, 3000);
   };
@@ -88,6 +94,7 @@ export function StepTrackSelect() {
                 type="button"
                 key={track.id}
                 onClick={() => handleSelectTrack(idx)}
+                aria-pressed={isSelected}
                 className={cn(
                   "px-3.5 py-1.5 rounded-xl border text-xs transition-colors duration-200 cursor-pointer select-none",
                   isSelected
@@ -156,26 +163,30 @@ export function StepTrackSelect() {
             </div>
 
             <Carousel.Content className="-ml-3">
-              {TRACK_DEFINITIONS.map((track, idx) => (
-                <Carousel.Item
-                  key={track.id}
-                  className="pl-3 basis-full sm:basis-1/2"
-                >
-                  <TrackCard
-                    title={t(track.titleKey)}
-                    description={t(track.descriptionKey)}
-                    duration={track.duration}
-                    icon={TRACK_ICONS[idx]}
-                    statusText={
-                      selectedTrackIndex === idx
-                        ? t("howItWorks.track1Status")
-                        : t("howItWorks.selectAction")
-                    }
-                    selected={selectedTrackIndex === idx}
-                    onClick={() => handleSelectTrack(idx)}
-                  />
-                </Carousel.Item>
-              ))}
+              {TRACK_DEFINITIONS.map((track, idx) => {
+                const isSelected = selectedTrackIndex === idx;
+                return (
+                  <Carousel.Item
+                    key={track.id}
+                    className="pl-3 basis-full sm:basis-1/2"
+                  >
+                    <TrackCard
+                      title={t(track.titleKey)}
+                      description={t(track.descriptionKey)}
+                      duration={track.duration}
+                      icon={TRACK_ICONS[idx]}
+                      statusText={
+                        selectedTrackIndex === idx
+                          ? t("howItWorks.track1Status")
+                          : t("howItWorks.selectAction")
+                      }
+                      selected={selectedTrackIndex === idx}
+                      aria-pressed={isSelected}
+                      onClick={() => handleSelectTrack(idx)}
+                    />
+                  </Carousel.Item>
+                );
+              })}
             </Carousel.Content>
           </Carousel>
 

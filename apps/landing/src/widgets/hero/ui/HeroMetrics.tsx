@@ -13,7 +13,7 @@ export function HeroMetrics() {
           <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-mono">
             {t(metric.valueKey)}
           </div>
-          <div className="text-xs font-medium text-muted-foreground/80 tracking-wide">
+          <div className="text-xs font-medium text-muted-foreground dark:text-muted-foreground/80 tracking-wide">
             {t(metric.labelKey)}
           </div>
         </div>

@@ -33,6 +33,7 @@ export function FeatureSandbox() {
             <button
               type="button"
               key={reg.id}
+              aria-pressed={activeRegion === reg.id}
               onClick={() => setActiveRegion(reg.id)}
               className={`p-3 rounded-2xl border text-center cursor-pointer transition-all duration-200 ${
                 activeRegion === reg.id
