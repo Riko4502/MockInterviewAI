@@ -7,9 +7,10 @@ import {
   TrendUpIcon,
   UsersIcon,
 } from "@packages/icons";
-import { Logo } from "@packages/ui";
+import { Logo, Sidebar as UiSidebar, useSidebar } from "@packages/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
@@ -38,39 +39,79 @@ const NAV_ITEMS = [
   },
 ] as const;
 
-export function Sidebar() {
+function isNavItemActive(pathname: string, href: string) {
+  return (
+    pathname === href || (href !== paths.dashboard && pathname.startsWith(href))
+  );
+}
+
+function SidebarBrand() {
+  const { state, isMobile } = useSidebar();
+  const collapsed = state === "collapsed" && !isMobile;
+
+  return (
+    <Logo
+      href={paths.dashboard}
+      variant={collapsed ? "icon" : "full"}
+      size={collapsed ? "sm" : "md"}
+      className={collapsed ? "mx-auto" : undefined}
+    />
+  );
+}
+
+function SidebarPanel() {
   const pathname = usePathname();
   const { t } = useTranslation("common");
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-2 px-6">
-        <Logo href={paths.dashboard} variant="full" size="md" />
-      </div>
+    <UiSidebar collapsible="icon">
+      <UiSidebar.Header>
+        <SidebarBrand />
+      </UiSidebar.Header>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+      <UiSidebar.Content>
+        <UiSidebar.Group>
+          <UiSidebar.GroupContent>
+            <UiSidebar.Menu>
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const label = t(item.labelKey);
+                const isActive = isNavItemActive(pathname, item.href);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              }`}
-            >
-              <Icon className="size-5 shrink-0" />
-              {t(item.labelKey)}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+                return (
+                  <UiSidebar.MenuItem key={item.href}>
+                    <UiSidebar.MenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={label}
+                    >
+                      <Link href={item.href}>
+                        <Icon />
+                        <span>{label}</span>
+                      </Link>
+                    </UiSidebar.MenuButton>
+                  </UiSidebar.MenuItem>
+                );
+              })}
+            </UiSidebar.Menu>
+          </UiSidebar.GroupContent>
+        </UiSidebar.Group>
+      </UiSidebar.Content>
+      <UiSidebar.Rail />
+    </UiSidebar>
+  );
+}
+
+export function Sidebar({ children }: { children: ReactNode }) {
+  return (
+    <UiSidebar.Provider>
+      <SidebarPanel />
+      <UiSidebar.Inset>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <UiSidebar.Trigger />
+        </header>
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+      </UiSidebar.Inset>
+    </UiSidebar.Provider>
   );
 }
