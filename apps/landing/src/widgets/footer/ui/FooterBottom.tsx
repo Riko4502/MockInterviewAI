@@ -8,7 +8,7 @@ export function FooterBottom() {
   const { t } = useTranslation("landing");
 
   return (
-    <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+    <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-4">
       <div>
         © {new Date().getFullYear()} DEVSYNC, Inc. {t("footer.rights")}
       </div>

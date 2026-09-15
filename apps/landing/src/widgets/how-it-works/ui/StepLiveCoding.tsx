@@ -1,17 +1,48 @@
 "use client";
 
-import { CheckIcon } from "@packages/icons";
-import { Button } from "@packages/ui";
-import { useState } from "react";
+import { CodeEditorLazy } from "@packages/editor";
+import {
+  CheckIcon,
+  CodeIcon,
+  DotIcon,
+  PlayIcon,
+  SpinnerIcon,
+  TypescriptIcon,
+  ZapIcon,
+} from "@packages/icons";
+import { Button, Card, WindowHeader } from "@packages/ui";
+import { cn } from "@packages/utils";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SIMULATION_TEST_STEPS } from "../constants";
 import { AiHintBanner } from "./AiHintBanner";
 import { StepHeader } from "./StepHeader";
 
+const LRU_CACHE_CODE = `class LRUCache<K, V> {
+  private capacity: number;
+  private cache = new Map<K, V>();
+
+  get(key: K): V | undefined {
+    if (!this.cache.has(key)) return undefined;
+    const val = this.cache.get(key)!;
+    this.cache.delete(key); this.cache.set(key, val);
+    return val;
+  }
+}`;
+
 export function StepLiveCoding() {
   const { t } = useTranslation("landing");
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [completedSteps, setCompletedSteps] = useState(4);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const editorTheme = mounted && resolvedTheme === "light" ? "light" : "dark";
 
   const runTestSimulation = () => {
     if (isRunning) return;
@@ -29,6 +60,7 @@ export function StepLiveCoding() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      {/* Left Column: Clear Educational Explanation & 3 Takeaways */}
       <div className="lg:col-span-6 flex flex-col items-start">
         <StepHeader
           stepNumber="03"
@@ -36,113 +68,164 @@ export function StepLiveCoding() {
           title={t("howItWorks.step3Title")}
           description={t("howItWorks.step3Desc")}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-xs">
-          <div className="p-3.5 rounded-xl bg-sky-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-colors">
-            <div className="font-bold text-sky-200 text-sm">
-              {t("howItWorks.badgeLanguages")}
+
+        {/* 3 Clear Feature Takeaways matching Step 4 design */}
+        <div className="space-y-3.5 w-full mt-2">
+          <Card className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#07070c]/90 border border-black/[0.06] dark:border-white/[0.08] flex flex-row items-start gap-3.5 backdrop-blur-xl shadow-none ring-0">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/25 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0 mt-0.5">
+              <CodeIcon className="w-4 h-4" />
             </div>
-            <div className="text-slate-400 mt-1">
-              {t("howItWorks.badgeLanguagesDesc")}
+            <div className="space-y-0.5">
+              <div className="text-sm font-semibold text-foreground">
+                {t("howItWorks.step3Benefit1Title")}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {t("howItWorks.step3Benefit1Desc")}
+              </div>
             </div>
-          </div>
-          <div className="p-3.5 rounded-xl bg-sky-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-colors">
-            <div className="font-bold text-sky-200 text-sm">
-              {t("howItWorks.badgeTests")}
+          </Card>
+
+          <Card className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#07070c]/90 border border-black/[0.06] dark:border-white/[0.08] flex flex-row items-start gap-3.5 backdrop-blur-xl shadow-none ring-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+              <CheckIcon className="w-4 h-4" />
             </div>
-            <div className="text-slate-400 mt-1">
-              {t("howItWorks.badgeTestsDesc")}
+            <div className="space-y-0.5">
+              <div className="text-sm font-semibold text-foreground">
+                {t("howItWorks.step3Benefit2Title")}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {t("howItWorks.step3Benefit2Desc")}
+              </div>
             </div>
-          </div>
+          </Card>
+
+          <Card className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#07070c]/90 border border-black/[0.06] dark:border-white/[0.08] flex flex-row items-start gap-3.5 backdrop-blur-xl shadow-none ring-0">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0 mt-0.5">
+              <ZapIcon className="w-4 h-4" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="text-sm font-semibold text-foreground">
+                {t("howItWorks.step3Benefit3Title")}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {t("howItWorks.step3Benefit3Desc")}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
+      {/* Right Column: Apple Studio Collaborative IDE Card */}
       <div className="lg:col-span-6">
-        <div className="glass-panel rounded-2xl p-4 border border-sky-500/30 shadow-xl glow-card font-mono text-xs relative overflow-hidden">
+        <Card className="apple-glass rounded-[28px] p-5 sm:p-6 border border-black/[0.08] dark:border-white/[0.08] shadow-2xl relative overflow-hidden backdrop-blur-2xl ring-0">
           {/* Ambient Glow */}
-          <div className="absolute top-0 right-0 w-36 h-36 bg-sky-600/10 blur-2xl pointer-events-none rounded-full" />
+          <div className="absolute top-0 right-0 w-48 h-48 bg-sky-600/10 dark:bg-sky-600/15 blur-3xl pointer-events-none rounded-full" />
 
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/10 text-slate-400 text-[11px] relative z-10">
-            <div className="flex items-center gap-2">
-              <span className="text-white font-semibold flex items-center gap-1.5">
-                <span className="text-sky-400 font-bold">TS</span>
+          {/* Top Window Bar: Traffic Light Dots + Active File Tab + Run Tests Button */}
+          <WindowHeader
+            className="pb-3 mb-3"
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={runTestSimulation}
+                disabled={isRunning}
+                className="rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border-sky-500/30 text-sky-700 dark:text-sky-300 text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 transition-all shadow-sm active:scale-95 flex items-center gap-1.5 shrink-0"
+              >
+                {isRunning ? (
+                  <>
+                    <SpinnerIcon className="w-3.5 h-3.5 animate-spin text-sky-500" />
+                    <span>{t("howItWorks.runningTests")}</span>
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className="w-3.5 h-3.5 fill-current" />
+                    <span>{t("howItWorks.runTests")}</span>
+                  </>
+                )}
+              </Button>
+            }
+          >
+            {/* Active Tab */}
+            <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-[10px] sm:text-[11px] font-mono min-w-0">
+              <TypescriptIcon className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span className="font-semibold text-foreground truncate">
                 lru_cache.ts
               </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-slate-400">TypeScript 5.7</span>
+              <span className="hidden xs:inline text-muted-foreground/60 text-[10px] shrink-0">
+                • TS 5.7
+              </span>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={runTestSimulation}
-              disabled={isRunning}
-              className="rounded-lg bg-sky-500/15 border-sky-500/30 text-sky-300 hover:bg-sky-500/25 text-[11px] font-mono gap-1.5"
-            >
-              <span>{isRunning ? "Running..." : "Run Tests ▶"}</span>
-            </Button>
+          </WindowHeader>
+
+          {/* Monaco Editor Container */}
+          <div className="h-[210px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-background dark:bg-[#06070d]/95 relative z-10 shadow-inner">
+            <CodeEditorLazy
+              value={LRU_CACHE_CODE}
+              language="typescript"
+              theme={editorTheme}
+              readOnly
+              options={{
+                fontSize: 13,
+                lineNumbers: "off",
+                lineNumbersMinChars: 0,
+                glyphMargin: false,
+                folding: false,
+                lineDecorationsWidth: 10,
+                padding: { top: 12, bottom: 12 },
+                scrollBeyondLastLine: false,
+                scrollbar: {
+                  vertical: "hidden",
+                  horizontal: "hidden",
+                },
+              }}
+            />
           </div>
 
-          <div className="space-y-1.5 text-slate-300 py-2 leading-relaxed bg-[#0a0c16]/90 p-3 rounded-xl border border-sky-500/20 font-mono relative z-10">
-            <div>
-              <span className="text-sky-400 font-semibold">class</span>{" "}
-              <span className="text-amber-300">LRUCache</span>&lt;
-              <span className="text-emerald-300">K, V</span>&gt; &#123;
+          {/* Test Suite Console Output Drawer */}
+          <Card className="mt-3.5 p-3 rounded-2xl bg-black/[0.03] dark:bg-[#07070c]/90 border border-black/[0.06] dark:border-white/[0.08] space-y-2 text-[11px] font-mono relative z-10 backdrop-blur-xl shadow-none ring-0 min-h-[114px]">
+            <div className="flex items-center justify-between text-[10px] pb-1.5 border-b border-black/[0.04] dark:border-white/[0.06]">
+              <span className="text-sky-600 dark:text-sky-400 font-bold uppercase tracking-wider">
+                {t("howItWorks.testSuiteConsole")}
+              </span>
+              <span className="font-semibold text-muted-foreground">
+                {isRunning
+                  ? t("howItWorks.executing")
+                  : t("howItWorks.passedCount")}
+              </span>
             </div>
-            <div className="pl-4">
-              <span className="text-sky-400">private</span> capacity:{" "}
-              <span className="text-amber-300">number</span>
-              <span className="text-slate-400">;</span>
-            </div>
-            <div className="pl-4">
-              <span className="text-sky-400">private</span> cache ={" "}
-              <span className="text-sky-400">new</span>{" "}
-              <span className="text-amber-300">Map</span>&lt;
-              <span className="text-emerald-300">K, V</span>&gt;();
-            </div>
-            <div className="pl-4">
-              <span className="text-sky-400">get</span>(key:{" "}
-              <span className="text-emerald-300">K</span>):{" "}
-              <span className="text-emerald-300">V</span> |{" "}
-              <span className="text-sky-400">undefined</span> &#123;
-            </div>
-            <div className="pl-8 text-slate-400">
-              <span className="text-sky-400">if</span> (!
-              <span className="text-sky-400">this</span>.cache.has(key)){" "}
-              <span className="text-sky-400">return undefined</span>
-              <span>;</span>
-            </div>
-            <div className="pl-8 text-sky-300">
-              const val = this.cache.get(key)!;
-            </div>
-            <div className="pl-8 text-emerald-400">
-              this.cache.delete(key); this.cache.set(key, val);
-            </div>
-            <div className="pl-8 text-sky-400">return val;</div>
-            <div className="pl-4">&#125;</div>
-            <div>&#125;</div>
-          </div>
+            <div className="space-y-1 min-h-[76px]">
+              {SIMULATION_TEST_STEPS.map((item) => {
+                const isPassed = completedSteps >= item.step;
+                const isCurrent = isRunning && completedSteps === item.step - 1;
 
-          {/* Dynamic Test Execution Output Console */}
-          <div className="mt-3 p-3 rounded-xl bg-[#060810]/95 border border-sky-500/20 space-y-1.5 text-[11px] font-mono relative z-10">
-            <div className="flex items-center justify-between text-slate-400 text-[10px] pb-1 border-b border-white/5">
-              <span className="text-sky-300">TEST SUITE CONSOLE</span>
-              <span>{isRunning ? "EXEC..." : "18/18 PASSED"}</span>
-            </div>
-            {SIMULATION_TEST_STEPS.map(
-              (item) =>
-                completedSteps >= item.step && (
+                return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-2 text-emerald-400 ${
-                      item.isHighlighted ? "font-semibold" : ""
-                    }`}
+                    className={cn(
+                      "flex items-center gap-2 text-[11px] font-mono leading-tight transition-colors duration-200",
+                      isPassed
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : isCurrent
+                          ? "text-sky-600 dark:text-sky-400"
+                          : "text-muted-foreground/40",
+                      item.isHighlighted && isPassed && "font-semibold",
+                    )}
                   >
-                    <CheckIcon className="w-3 h-3" />
+                    {isPassed ? (
+                      <CheckIcon className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                    ) : isCurrent ? (
+                      <SpinnerIcon className="w-3.5 h-3.5 shrink-0 animate-spin text-sky-500" />
+                    ) : (
+                      <DotIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground/30" />
+                    )}
                     <span>{item.label}</span>
                   </div>
-                ),
-            )}
-          </div>
+                );
+              })}
+            </div>
+          </Card>
 
           {/* AI Hint Notification Banner */}
           <AiHintBanner
@@ -151,16 +234,17 @@ export function StepLiveCoding() {
             hintText={t("howItWorks.step3HintText")}
           />
 
-          <div className="mt-3 p-2.5 rounded-xl bg-slate-900/90 border border-white/10 flex items-center justify-between text-[11px] relative z-10">
-            <div className="flex items-center gap-2 text-emerald-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          {/* Bottom Execution Status Strip */}
+          <Card className="mt-3.5 p-2.5 sm:p-3 rounded-2xl bg-emerald-500/10 dark:bg-emerald-950/30 border border-emerald-500/20 dark:border-emerald-500/30 flex flex-col xs:flex-row items-start xs:items-center justify-between gap-1 sm:gap-2 text-xs relative z-10 shadow-none ring-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px] sm:text-xs shrink-0">
+              <DotIcon className="w-4 h-4 text-emerald-500 animate-pulse shrink-0" />
               <span>{t("howItWorks.allTestsPassed")}</span>
             </div>
-            <div className="text-slate-300 font-mono">
+            <div className="text-muted-foreground font-mono text-[10px] sm:text-[11px] pl-5 xs:pl-0">
               {t("howItWorks.runtimeBeats")}
             </div>
-          </div>
-        </div>
+          </Card>
+        </Card>
       </div>
     </div>
   );
