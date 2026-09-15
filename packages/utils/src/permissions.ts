@@ -13,12 +13,17 @@ export function toBigIntBitmask(
   val: PermissionBitmask | null | undefined,
 ): bigint {
   if (val === null || val === undefined) return SystemPermission.NONE;
-  if (typeof val === "bigint") return val;
-  try {
-    return BigInt(val);
-  } catch {
-    return SystemPermission.NONE;
+  let parsed: bigint;
+  if (typeof val === "bigint") {
+    parsed = val;
+  } else {
+    try {
+      parsed = BigInt(val);
+    } catch {
+      return SystemPermission.NONE;
+    }
   }
+  return parsed >= 0n ? parsed : SystemPermission.NONE;
 }
 
 /**

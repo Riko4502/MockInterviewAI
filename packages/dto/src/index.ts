@@ -11,12 +11,20 @@ export {
   changePasswordSchema,
 } from "./auth/change-password.dto";
 export { normalizeEmail } from "./auth/email";
+export {
+  type ForgotPasswordDto,
+  forgotPasswordSchema,
+} from "./auth/forgot-password.dto";
 export { type LoginDto, loginSchema } from "./auth/login.dto";
 export {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "./auth/password-policy";
 export { type RegisterDto, registerSchema } from "./auth/register.dto";
+export {
+  type ResetPasswordDto,
+  resetPasswordSchema,
+} from "./auth/reset-password.dto";
 export {
   type NotificationActionResponseDto,
   type NotificationDto,

@@ -1,8 +1,8 @@
 "use client";
 
-import { GithubIcon } from "@packages/icons";
+// import { GithubIcon } from "@packages/icons";
 import { useTranslation } from "react-i18next";
-import { navigationConfig } from "@/shared/config";
+// import { navigationConfig } from "@/shared/config";
 
 export function FooterBottom() {
   const { t } = useTranslation("landing");
@@ -12,7 +12,7 @@ export function FooterBottom() {
       <div>
         © {new Date().getFullYear()} DEVSYNC, Inc. {t("footer.rights")}
       </div>
-      <div className="flex items-center gap-4 text-slate-400">
+      {/* <div className="flex items-center gap-4 text-slate-400">
         <a
           href={navigationConfig.githubUrl}
           target="_blank"
@@ -23,7 +23,7 @@ export function FooterBottom() {
           <GithubIcon className="w-4 h-4" />
           <span className="sr-only">GitHub</span>
         </a>
-      </div>
+      </div> */}
     </div>
   );
 }

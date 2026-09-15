@@ -55,12 +55,24 @@ model User {
   notifications  Notification[]
   sessions       InterviewSession[]
   participations InterviewParticipant[]
+  revocationTasks  AuthRevocationTask[]
 
   @@map("users")
   @@index([username])
   @@index([roleId])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([createdAt])
+}
+
+model AuthRevocationTask {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("auth_revocation_tasks")
+  @@index([userId])
   @@index([createdAt])
 }
 

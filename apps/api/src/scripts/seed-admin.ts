@@ -38,9 +38,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const connectionString =
-    process.env.DATABASE_URL ||
-    "postgresql://postgres:postgres@localhost:5432/mockinterview";
+  if (!process.env.DATABASE_URL) {
+    console.error(
+      "Error: DATABASE_URL environment variable is not set.\n" +
+        "Please provide a valid DATABASE_URL before running seed-admin.",
+    );
+    process.exit(1);
+  }
+
+  const connectionString = process.env.DATABASE_URL;
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });
@@ -96,7 +102,10 @@ async function main(): Promise<void> {
       where: { email },
     });
 
+    let targetUserId: string;
+
     if (existingUser) {
+      targetUserId = existingUser.id;
       await prisma.user.update({
         where: { id: existingUser.id },
         data: { roleId: adminRole.id },
@@ -105,7 +114,12 @@ async function main(): Promise<void> {
         `[seed-admin] Пользователь ${email} (id: ${existingUser.id}) успешно повышен до роли ${SystemRole.ADMIN}!`,
       );
     } else {
-      const userPassword = password ?? "AdminPassword123!";
+      if (!password) {
+        throw new Error(
+          "Password is required to create a new administrator (--password)",
+        );
+      }
+      const userPassword = password;
       const passwordHash = await argon2.hash(userPassword, {
         type: argon2.argon2id,
         memoryCost: 19456,
@@ -120,14 +134,16 @@ async function main(): Promise<void> {
           roleId: adminRole.id,
         },
       });
+      targetUserId = newUser.id;
       console.log(
         `[seed-admin] Создан новый администратор: ${email} (id: ${newUser.id})`,
       );
     }
 
     // 4. Инвалидируем сессии в Redis для мгновенного обновления JWT claims
+    let redis: Redis | null = null;
     try {
-      const redis = new Redis({
+      redis = new Redis({
         host: process.env.REDIS_HOST || "localhost",
         port: Number(process.env.REDIS_PORT) || 6379,
         password: process.env.REDIS_PASSWORD || undefined,
@@ -135,24 +151,44 @@ async function main(): Promise<void> {
       });
       await redis.connect();
 
-      const userTargetId = existingUser?.id;
-      if (userTargetId) {
-        const keys = await redis.keys("auth:session:*");
-        for (const key of keys) {
-          const val = await redis.get(key);
-          if (val && JSON.parse(val).userId === userTargetId) {
-            await redis.del(key);
+      if (targetUserId) {
+        const stream = redis.scanStream({
+          match: "auth:session:*",
+          count: 100,
+        });
+
+        for await (const chunk of stream) {
+          const keys = chunk as string[];
+          for (const key of keys) {
+            const val = await redis.get(key);
+            if (val) {
+              try {
+                const session = JSON.parse(val);
+                if (session.userId === targetUserId) {
+                  await redis.del(key);
+                }
+              } catch {
+                // Ignore malformed session JSON
+              }
+            }
           }
         }
         console.log(
           `[seed-admin] Активные сессии пользователя сброшены для немедленного перелогина.`,
         );
       }
-      await redis.quit();
     } catch {
       console.warn(
         `[seed-admin] Redis недоступен для сброса сессий, обновление применится при следующем логине.`,
       );
+    } finally {
+      if (redis) {
+        try {
+          await redis.quit();
+        } catch {
+          redis.disconnect();
+        }
+      }
     }
 
     console.log("[seed-admin] Готово!");
