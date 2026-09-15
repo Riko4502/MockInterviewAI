@@ -615,6 +615,20 @@ paths:
       security: *a8
       summary: Get unread notifications count
       tags: *a9
+  /api/v1/notifications/read-all:
+    post:
+      operationId: NotificationsController_markAllAsRead
+      parameters: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationActionResponseDto"
+      security: *a8
+      summary: Mark all notifications as read
+      tags: *a9
   /api/v1/notifications/{id}/read:
     patch:
       operationId: NotificationsController_markAsRead

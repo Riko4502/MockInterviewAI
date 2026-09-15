@@ -970,6 +970,31 @@
         "tags": ["Notifications"]
       }
     },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "operationId": "NotificationsController_markAllAsRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All notifications marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationActionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark all notifications as read",
+        "tags": ["Notifications"]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "patch": {
         "operationId": "NotificationsController_markAsRead",
