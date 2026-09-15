@@ -231,6 +231,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
+        "403":
+          description: Аккаунт деактивирован.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDto"
       summary: Вход пользователя (§58)
       tags: *a3
   /api/v1/auth/logout:

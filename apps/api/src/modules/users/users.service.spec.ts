@@ -7,6 +7,7 @@ import {
 import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { AuthSessionService } from "../auth/services/auth-session.service";
 import type { StorageService } from "../storage/storage.service";
 import { UsersService } from "./users.service";
 
@@ -21,9 +22,17 @@ describe("UsersService", () => {
     role: {
       findUnique: jest.Mock;
     };
+    authRevocationTask: {
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let storageServiceMock: jest.Mocked<Partial<StorageService>>;
   let redisServiceMock: jest.Mocked<Partial<RedisService>>;
+  let authSessionServiceMock: {
+    revokeAllUserSessions: jest.Mock;
+  };
   let service: UsersService;
 
   const mockUser = {
@@ -56,6 +65,16 @@ describe("UsersService", () => {
           permissions: SystemPermission.USERS_READ,
         }),
       },
+      authRevocationTask: {
+        create: jest.fn().mockResolvedValue({ id: "task-1" }),
+        delete: jest.fn().mockResolvedValue({ id: "task-1" }),
+      },
+      $transaction: jest.fn().mockImplementation((arg) => {
+        if (typeof arg === "function") {
+          return arg(prismaMock);
+        }
+        return Promise.all(arg);
+      }),
     };
     storageServiceMock = {
       uploadAvatar: jest
@@ -67,11 +86,15 @@ describe("UsersService", () => {
       delete: jest.fn().mockResolvedValue(undefined),
       publish: jest.fn().mockResolvedValue(undefined),
     };
+    authSessionServiceMock = {
+      revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new UsersService(
       prismaMock as unknown as PrismaService,
       storageServiceMock as StorageService,
       redisServiceMock as RedisService,
+      authSessionServiceMock as unknown as AuthSessionService,
     );
   });
 
@@ -238,8 +261,17 @@ describe("UsersService", () => {
         where: { id: mockUser.id },
         data: { deletedAt: expect.any(Date) },
       });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: mockUser.id },
+      });
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         "auth:session:session-123",
+      );
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUser.id,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledWith(
         "auth:revocations",

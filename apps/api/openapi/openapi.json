@@ -364,6 +364,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Аккаунт деактивирован.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Вход пользователя (§58)",

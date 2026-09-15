@@ -34,6 +34,10 @@ describe("AdminUsersService", () => {
     role: {
       findUnique: jest.Mock;
     };
+    authRevocationTask: {
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let configServiceMock: {
@@ -79,7 +83,16 @@ describe("AdminUsersService", () => {
       role: {
         findUnique: jest.fn(),
       },
-      $transaction: jest.fn(),
+      authRevocationTask: {
+        create: jest.fn().mockResolvedValue({ id: "task-1" }),
+        delete: jest.fn().mockResolvedValue({ id: "task-1" }),
+      },
+      $transaction: jest.fn().mockImplementation((arg) => {
+        if (typeof arg === "function") {
+          return arg(prismaMock);
+        }
+        return Promise.all(arg);
+      }),
     };
 
     configServiceMock = {
@@ -269,6 +282,21 @@ describe("AdminUsersService", () => {
         service.createUser({ ...createDto, role: "NON_EXISTENT_ROLE" }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it("выбрасывает ConflictException при P2002 (race condition при создании пользователя)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.role.findUnique.mockResolvedValue({
+        id: "role-user-id",
+        slug: "USER",
+      });
+      const p2002Error = new Error("Unique constraint failed");
+      Object.assign(p2002Error, { code: "P2002", meta: { target: ["email"] } });
+      prismaMock.user.create.mockRejectedValue(p2002Error);
+
+      await expect(service.createUser(createDto)).rejects.toThrow(
+        ConflictException,
+      );
+    });
   });
 
   describe("updateUser", () => {
@@ -324,6 +352,20 @@ describe("AdminUsersService", () => {
           id: "other-user-id",
           username: "taken_username",
         }); // collision check
+
+      await expect(
+        service.updateUser(mockUserRecord.id, { username: "taken_username" }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("выбрасывает ConflictException при P2002 (race condition при обновлении пользователя)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      const p2002Error = new Error("Unique constraint failed");
+      Object.assign(p2002Error, {
+        code: "P2002",
+        meta: { target: ["username"] },
+      });
+      prismaMock.user.update.mockRejectedValue(p2002Error);
 
       await expect(
         service.updateUser(mockUserRecord.id, { username: "taken_username" }),

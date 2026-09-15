@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -32,6 +33,8 @@ import { AuthSessionService } from "../../auth/services/auth-session.service";
  */
 @Injectable()
 export class AdminUsersService {
+  private readonly logger = new Logger(AdminUsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
@@ -208,32 +211,65 @@ export class AdminUsersService {
 
     const passwordHash = await this.hashPassword(dto.password);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        roleId: role.id,
-        username: dto.username,
-        displayName: dto.displayName,
-        isActive: dto.isActive ?? true,
-      },
-      select: USER_ADMIN_SELECT,
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          roleId: role.id,
+          username: dto.username,
+          displayName: dto.displayName,
+          isActive: dto.isActive ?? true,
+        },
+        select: USER_ADMIN_SELECT,
+      });
 
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role?.slug ?? SystemRole.USER,
-      isActive: user.isActive,
-      deactivatedAt: user.deactivatedAt,
-      avatarUrl: user.avatarUrl,
-      telegramUsername: user.telegramUsername,
-      gitUrl: user.gitUrl,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+      return {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role?.slug ?? SystemRole.USER,
+        isActive: user.isActive,
+        deactivatedAt: user.deactivatedAt,
+        avatarUrl: user.avatarUrl,
+        telegramUsername: user.telegramUsername,
+        gitUrl: user.gitUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    } catch (error) {
+      // TODO улучшить проверку
+      if (
+        (error instanceof Error && "code" in error && error.code === "P2002") ||
+        (typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { code: unknown }).code === "P2002")
+      ) {
+        const target = (error as { meta?: { target?: string[] | string } }).meta
+          ?.target;
+
+        const targetStr = Array.isArray(target)
+          ? target.join(",")
+          : (target ?? "");
+
+        if (targetStr.includes("username")) {
+          throw new ConflictException(
+            dto.username
+              ? `Username "${dto.username}" is already taken`
+              : "Username is already taken",
+          );
+        }
+
+        if (targetStr.includes("email")) {
+          throw new ConflictException("Email already registered");
+        }
+
+        throw new ConflictException("Email or username already registered");
+      }
+      throw error;
+    }
   }
 
   /**
@@ -301,41 +337,94 @@ export class AdminUsersService {
       }
     }
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        ...(dto.email !== undefined && { email: dto.email }),
-        ...(dto.displayName !== undefined && { displayName: dto.displayName }),
-        ...(dto.username !== undefined && { username: dto.username }),
-        ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
-        ...(dto.telegramUsername !== undefined && {
-          telegramUsername: dto.telegramUsername,
-        }),
-        ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
-        ...(newRoleId !== undefined && { roleId: newRoleId }),
-      },
-      select: USER_ADMIN_SELECT,
-    });
+    let taskId: string | undefined;
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id },
+          data: {
+            ...(dto.email !== undefined && { email: dto.email }),
+            ...(dto.displayName !== undefined && {
+              displayName: dto.displayName,
+            }),
+            ...(dto.username !== undefined && { username: dto.username }),
+            ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+            ...(dto.telegramUsername !== undefined && {
+              telegramUsername: dto.telegramUsername,
+            }),
+            ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+            ...(newRoleId !== undefined && { roleId: newRoleId }),
+          },
+          select: USER_ADMIN_SELECT,
+        });
 
-    if (roleChanged) {
-      await this.authSessionService.revokeAllUserSessions(id);
-      await publishUserRevocation(this.redisService, id);
+        if (roleChanged) {
+          const task = await tx.authRevocationTask.create({
+            data: { userId: id },
+          });
+          taskId = task.id;
+        }
+
+        return user;
+      });
+
+      if (roleChanged) {
+        try {
+          await this.revokeSessionsWithRetry(id);
+          if (taskId) {
+            await this.prisma.authRevocationTask
+              .delete({ where: { id: taskId } })
+              .catch(() => undefined);
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to revoke sessions / publish revocation for user ${id} during updateUser (persisted for worker retry)`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+
+      return {
+        id: updated.id,
+        email: updated.email,
+        username: updated.username,
+        displayName: updated.displayName,
+        role: updated.role?.slug ?? SystemRole.USER,
+        isActive: updated.isActive,
+        deactivatedAt: updated.deactivatedAt,
+        avatarUrl: updated.avatarUrl,
+        telegramUsername: updated.telegramUsername,
+        gitUrl: updated.gitUrl,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
+    } catch (error) {
+      if (
+        (error instanceof Error && "code" in error && error.code === "P2002") ||
+        (typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { code: unknown }).code === "P2002")
+      ) {
+        const target = (error as { meta?: { target?: string[] | string } }).meta
+          ?.target;
+        const targetStr = Array.isArray(target)
+          ? target.join(",")
+          : (target ?? "");
+        if (targetStr.includes("username")) {
+          throw new ConflictException(
+            dto.username
+              ? `Username "${dto.username}" is already taken`
+              : "Username is already taken",
+          );
+        }
+        if (targetStr.includes("email")) {
+          throw new ConflictException("Email already registered");
+        }
+        throw new ConflictException("Email or username already registered");
+      }
+      throw error;
     }
-
-    return {
-      id: updated.id,
-      email: updated.email,
-      username: updated.username,
-      displayName: updated.displayName,
-      role: updated.role?.slug ?? SystemRole.USER,
-      isActive: updated.isActive,
-      deactivatedAt: updated.deactivatedAt,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-    };
   }
 
   /**
@@ -371,18 +460,41 @@ export class AdminUsersService {
 
     const deactivatedAt = dto.isActive ? null : new Date();
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        isActive: dto.isActive,
-        deactivatedAt,
-      },
-      select: USER_ADMIN_SELECT,
+    let taskId: string | undefined;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: {
+          isActive: dto.isActive,
+          deactivatedAt,
+        },
+        select: USER_ADMIN_SELECT,
+      });
+
+      if (!dto.isActive) {
+        const task = await tx.authRevocationTask.create({
+          data: { userId: id },
+        });
+        taskId = task.id;
+      }
+
+      return user;
     });
 
     if (!dto.isActive) {
-      await this.authSessionService.revokeAllUserSessions(id);
-      await publishUserRevocation(this.redisService, id);
+      try {
+        await this.revokeSessionsWithRetry(id);
+        if (taskId) {
+          await this.prisma.authRevocationTask
+            .delete({ where: { id: taskId } })
+            .catch(() => undefined);
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to revoke sessions / publish revocation for user ${id} during updateStatus (persisted for worker retry)`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
 
     return {
@@ -399,6 +511,28 @@ export class AdminUsersService {
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
+  }
+
+  /**
+   * Отзывает все активные сессии пользователя с повторными попытками.
+   */
+  private async revokeSessionsWithRetry(
+    userId: string,
+    retries = 3,
+    delayMs = 50,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.authSessionService.revokeAllUserSessions(userId);
+        await publishUserRevocation(this.redisService, userId);
+        return;
+      } catch (error) {
+        if (attempt === retries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
   }
 
   /**

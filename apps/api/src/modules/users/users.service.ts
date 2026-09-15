@@ -1,9 +1,12 @@
 import "multer";
 import {
   ConflictException,
+  forwardRef,
   GoneException,
+  Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import type {
@@ -16,6 +19,7 @@ import { publishUserRevocation } from "../../common/pubsub/revocation";
 import type { Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { AuthSessionService } from "../auth/services/auth-session.service";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -71,10 +75,14 @@ const PUBLIC_PROFILE_SELECT = {
  */
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => AuthSessionService))
+    private readonly authSessionService: AuthSessionService,
   ) {}
 
   /**
@@ -343,18 +351,59 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: new Date() },
+    let taskId: string | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { deletedAt: new Date() },
+      });
+      const task = await tx.authRevocationTask.create({
+        data: { userId },
+      });
+      taskId = task.id;
     });
 
-    // Отзываем текущую сессию в Redis
-    if (sessionId) {
-      await this.redisService.delete(`auth:session:${sessionId}`);
+    try {
+      if (sessionId) {
+        await this.redisService
+          .delete(`auth:session:${sessionId}`)
+          .catch(() => undefined);
+      }
+      await this.revokeSessionsWithRetry(userId);
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${userId} during deactivateAccount (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
+  }
 
-    // Оповещаем Realtime WebSocket сервис через Pub/Sub о блокировке/деактивации
-    await publishUserRevocation(this.redisService, userId);
+  /**
+   * Отзывает все активные сессии пользователя с повторными попытками.
+   */
+  private async revokeSessionsWithRetry(
+    userId: string,
+    retries = 3,
+    delayMs = 50,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.authSessionService.revokeAllUserSessions(userId);
+        await publishUserRevocation(this.redisService, userId);
+        return;
+      } catch (error) {
+        if (attempt === retries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
   }
 
   /**
