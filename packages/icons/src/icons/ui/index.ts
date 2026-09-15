@@ -14,6 +14,8 @@ export { CloseIcon } from "./close-icon";
 export { CodeIcon } from "./code-icon";
 export { CopyIcon } from "./copy-icon";
 export { EditIcon } from "./edit-icon";
+export { EyeIcon } from "./eye-icon";
+export { EyeOffIcon } from "./eye-off-icon";
 export { FileCodeIcon } from "./file-code-icon";
 export { FileIcon } from "./file-icon";
 export { FolderIcon } from "./folder-icon";
@@ -24,8 +26,10 @@ export { HelpIcon } from "./help-icon";
 export { HubConnectionIcon } from "./hub-connection-icon";
 export { InfoIcon } from "./info-icon";
 export { LoginIcon } from "./login-icon";
+export { LogOutIcon } from "./logout-icon";
 export { MaximizeIcon } from "./maximize-icon";
 export { MenuIcon } from "./menu-icon";
+export { MessageSquareIcon } from "./message-square-icon";
 export { MinimizeIcon } from "./minimize-icon";
 export {
   EllipsisIcon,
@@ -50,5 +54,7 @@ export { TrashIcon } from "./trash-icon";
 export { TrendUpIcon } from "./trend-up-icon";
 export { UndoIcon } from "./undo-icon";
 export { UploadIcon } from "./upload-icon";
+export { UserIcon } from "./user-icon";
 export { UsersIcon } from "./users-icon";
 export { WandIcon } from "./wand-icon";
+export { ZapIcon } from "./zap-icon";

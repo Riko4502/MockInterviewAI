@@ -22,7 +22,7 @@
     "build:ui": "turbo build --filter=@packages/ui",
     "build:i18n": "pnpm --filter=@packages/i18n build",
     "build:dto": "pnpm --filter=@packages/dto build",
-    "build:icon": "pnpm --filter=@packages/icon build",
+    "build:icons": "pnpm --filter=@packages/icons build",
     "build:utils": "pnpm --filter=@packages/utils build",
     "build:tailwind-config": "pnpm --filter=@packages/tailwind-config build",
     "lint": "biome check --no-errors-on-unmatched",

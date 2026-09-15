@@ -127,7 +127,18 @@ pnpm run db:generate
 # или: pnpm --filter api db:generate
 ```
 
-### 6. Генерация Swagger / OpenAPI и типизированного API-клиента
+### 6. Назначение роли Администратора (CLI)
+
+Для начальной настройки и получения прав администратора на платформе:
+```bash
+# Назначить роль ADMIN существующему пользователю:
+pnpm --filter api seed:admin -- --email admin@mockinterview.tech
+
+# Или создать нового пользователя с ролью ADMIN:
+pnpm --filter api seed:admin -- --email newadmin@mockinterview.tech --password "SuperSecret123!"
+```
+
+### 7. Генерация Swagger / OpenAPI и типизированного API-клиента
 
 Для синхронизации контрактов между бэкендом и фронтендом:
 ```bash
@@ -145,7 +156,7 @@ pnpm run codegen
 pnpm run codegen:check
 ```
 
-### 7. Запуск сервисов в режиме разработки
+### 8. Запуск сервисов в режиме разработки
 
 #### Запуск всех сервисов одновременно (Turborepo):
 ```bash
@@ -184,6 +195,8 @@ pnpm dev
 
 * 🎨 **[Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)** — дизайн-макеты интерфейса и UI-кита.
 * 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
+* 🛡️ **[Ролевая модель доступа (RBAC & PBAC)](docs/backend/security/rbac.md)** — динамические роли, права, декораторы и JWT claims.
+* 💻 **[CLI и утилиты управления](docs/backend/development/cli.md)** — руководство по работе с CLI-командами, seed:admin и Prisma.
 * 🔌 **[API Contracts & OpenAPI / Swagger](docs/frontend/data/api-contracts.md)** — workflow обновления OpenAPI-схемы и генерации типов.
 * 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
 * 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.

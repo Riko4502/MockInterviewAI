@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import { SystemPermission } from "@packages/types";
 import jwt from "jsonwebtoken";
 import { TokenService } from "./token.service";
 
@@ -62,14 +63,19 @@ describe("TokenService", () => {
   });
 
   describe("generateAccessToken", () => {
-    it("генерирует JWT с claims sub, sid, typ=access, iss, aud, jti, iat, exp=15m", () => {
+    it("генерирует JWT с claims sub, sid, permissions, typ=access, iss, aud, jti, iat, exp=15m", () => {
       const before = Math.floor(Date.now() / 1000);
-      const token = service.generateAccessToken(USER_ID, SESSION_ID);
+      const token = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        SystemPermission.ADMINISTRATOR,
+      );
       const decoded = jwt.decode(token) as jwt.JwtPayload;
 
       expect(typeof token).toBe("string");
       expect(decoded.sub).toBe(USER_ID);
       expect(decoded.sid).toBe(SESSION_ID);
+      expect(decoded.permissions).toBe(1);
       expect(decoded.typ).toBe("access");
       expect(decoded.iss).toBe(ISSUER);
       expect(decoded.aud).toBe(AUDIENCE);
@@ -82,6 +88,13 @@ describe("TokenService", () => {
         issuer: ISSUER,
         audience: AUDIENCE,
       });
+    });
+
+    it("использует 0 permissions при отсутствии аргумента", () => {
+      const token = service.generateAccessToken(USER_ID, SESSION_ID);
+      const decoded = jwt.decode(token) as jwt.JwtPayload;
+
+      expect(decoded.permissions).toBe(0);
     });
   });
 
@@ -151,11 +164,16 @@ describe("TokenService", () => {
     });
 
     it("verifyAccessToken принимает HS256 и возвращает payload", () => {
-      const token = service.generateAccessToken(USER_ID, SESSION_ID);
+      const token = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        SystemPermission.USERS_READ,
+      );
       const payload = service.verifyAccessToken(token);
 
       expect(payload.sub).toBe(USER_ID);
       expect(payload.sid).toBe(SESSION_ID);
+      expect(payload.permissions).toBe(Number(SystemPermission.USERS_READ));
       expect(payload.typ).toBe("access");
     });
 
