@@ -1,10 +1,20 @@
 import { useNotificationsControllerGetNotifications } from "@packages/api";
 
-export const useNotificationsQuery = (enabled: boolean) => {
+type UseNotificationsQueryParams = {
+  page: number;
+  limit: number;
+  enabled?: boolean;
+};
+
+export const useNotificationsQuery = ({
+  page,
+  limit,
+  enabled = true,
+}: UseNotificationsQueryParams) => {
   return useNotificationsControllerGetNotifications(
     {
-      page: 1,
-      limit: 5,
+      page,
+      limit,
     },
     {
       query: {

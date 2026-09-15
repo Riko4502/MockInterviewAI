@@ -11,10 +11,16 @@ import {
   useUnreadCountQuery,
 } from "@/entities/notification";
 
+const NOTIFICATIONS_PREVIEW_LIMIT = 5;
+
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: notificationsData } = useNotificationsQuery(isOpen);
+  const { data: notificationsData } = useNotificationsQuery({
+    page: 1,
+    limit: NOTIFICATIONS_PREVIEW_LIMIT,
+    enabled: isOpen,
+  });
   const { data: unreadCountData } = useUnreadCountQuery();
   const { mutate: markAllAsRead, isPending: isMarkingAllAsRead } =
     useMarkAllAsReadMutation();
