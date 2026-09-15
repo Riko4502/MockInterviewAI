@@ -1,4 +1,4 @@
-import { Badge, Typography } from "@packages/ui";
+import { Typography } from "@packages/ui";
 import { cn } from "@packages/utils";
 
 interface SectionHeaderProps {
@@ -18,16 +18,16 @@ export function SectionHeader({
     <div
       className={cn("text-center max-w-3xl mx-auto mb-16 md:mb-24", className)}
     >
-      <Badge
-        variant="statusInfo"
-        className="mb-4 bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-300 font-semibold tracking-wider uppercase shadow-sm shadow-violet-500/20"
-      >
-        {badge}
-      </Badge>
-      <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-foreground mb-4">
-        {title}
+      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full apple-badge-intelligence backdrop-blur-md mb-5 group transition-transform hover:scale-[1.02]">
+        <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 animate-pulse" />
+        <span className="text-xs font-semibold text-gradient-intelligence tracking-wider uppercase">
+          {badge}
+        </span>
+      </div>
+      <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] text-foreground mb-4">
+        <span className="text-gradient-titanium">{title}</span>
       </Typography.H2>
-      <Typography.Lead className="text-base sm:text-lg text-muted-foreground">
+      <Typography.Lead className="text-base sm:text-lg text-muted-foreground font-normal max-w-2xl mx-auto leading-relaxed">
         {subtitle}
       </Typography.Lead>
     </div>

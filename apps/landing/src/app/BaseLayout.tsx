@@ -1,6 +1,7 @@
+import { SmoothScrollProvider } from "@/shared/providers/SmoothScrollProvider";
+import { ThemeProvider } from "@/shared/providers/ThemeProvider";
 import "@/shared/styles/globals.css";
 import type { ReactNode } from "react";
-import { ThemeProvider } from "@/shared/providers/ThemeProvider";
 
 export function BaseLayout({
   children,
@@ -10,15 +11,10 @@ export function BaseLayout({
   lang: string;
 }) {
   return (
-    <html lang={lang} className="scroll-smooth" suppressHydrationWarning>
-      <body className="bg-background text-foreground font-sans antialiased selection:bg-primary selection:text-primary-foreground min-h-screen flex flex-col justify-between">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
+    <html lang={lang} suppressHydrationWarning>
+      <body className="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground min-h-screen flex flex-col justify-between">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <SmoothScrollProvider>{children}</SmoothScrollProvider>
         </ThemeProvider>
       </body>
     </html>

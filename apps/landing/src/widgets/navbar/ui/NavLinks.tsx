@@ -15,7 +15,7 @@ export function NavLinks({ className }: NavLinksProps) {
   return (
     <nav
       className={cn(
-        "hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground",
+        "hidden md:flex items-center gap-1 text-xs font-medium text-muted-foreground",
         className,
       )}
     >
@@ -23,7 +23,7 @@ export function NavLinks({ className }: NavLinksProps) {
         <NextLink
           key={link.href}
           href={link.href}
-          className="hover:text-foreground transition-colors py-1 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-violet-500 hover:after:w-full after:transition-all text-muted-foreground"
+          className="px-3 py-1.5 rounded-full hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all text-muted-foreground"
         >
           {t(link.labelKey)}
         </NextLink>

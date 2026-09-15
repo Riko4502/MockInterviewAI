@@ -44,26 +44,6 @@ export const HERO_METRICS = [
 
 export type HeroMetric = (typeof HERO_METRICS)[number];
 
-export interface MockupTabItem {
-  readonly id: "solution" | "test";
-  readonly filename: string;
-  readonly badge?: string;
-}
-
-export const MOCKUP_TABS: readonly MockupTabItem[] = [
-  {
-    id: "solution",
-    filename: "solution.ts",
-    badge: "TS",
-  },
-  {
-    id: "test",
-    filename: "test.spec.ts",
-  },
-] as const;
-
-export type MockupTab = (typeof MOCKUP_TABS)[number]["id"];
-
 export interface CodeToken {
   readonly text: string;
   readonly className?: string;

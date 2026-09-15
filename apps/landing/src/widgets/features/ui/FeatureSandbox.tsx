@@ -11,45 +11,45 @@ export function FeatureSandbox() {
   const [activeRegion, setActiveRegion] = useState("eu");
 
   return (
-    <Card className="w-full h-full relative rounded-3xl p-8 border border-slate-200/80 dark:border-sky-500/20 bg-white/70 dark:bg-gradient-to-b dark:from-sky-950/20 dark:via-[#0c0e1a]/80 dark:to-[#07080e]/90 backdrop-blur-xl flex flex-col justify-between group hover:border-sky-500/40 hover:shadow-2xl hover:shadow-sky-500/10 dark:hover:shadow-sky-950/50 transition-all duration-300 overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none">
+    <Card className="w-full h-full relative rounded-[28px] sm:rounded-[32px] p-5 sm:p-8 md:p-10 apple-glass border border-black/[0.08] dark:border-white/[0.08] flex flex-col justify-between group hover:border-cyan-500/30 dark:hover:border-cyan-400/30 transition-all duration-500 overflow-hidden ring-0">
       {/* Corner Ambient Glow */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-sky-600/10 dark:bg-sky-600/15 blur-3xl pointer-events-none rounded-full" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-600/10 dark:bg-cyan-600/15 blur-3xl pointer-events-none rounded-full transition-opacity group-hover:opacity-100 opacity-60" />
 
-      <Card.Header className="p-0 relative z-10">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 border border-sky-400/40 flex items-center justify-center text-white mb-6 shadow-lg shadow-sky-600/30 group-hover:scale-110 group-hover:shadow-sky-500/50 transition-all">
+      <div className="mb-8 relative z-10">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center text-white mb-6 shadow-lg shadow-cyan-600/25 group-hover:scale-105 transition-transform duration-300">
           <GlobeIcon className="w-6 h-6" />
         </div>
-        <Typography.H3 className="text-xl sm:text-2xl font-bold text-foreground mb-3">
+        <Typography.H3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-3">
           {t("features.card3Title")}
         </Typography.H3>
-        <Card.Description className="text-muted-foreground text-sm leading-relaxed mb-6">
+        <Typography.Lead className="text-muted-foreground text-sm sm:text-base font-normal leading-relaxed">
           {t("features.card3Desc")}
-        </Card.Description>
-      </Card.Header>
+        </Typography.Lead>
+      </div>
 
-      <Card.Content className="p-0 relative z-10">
-        <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+      <div className="relative z-10">
+        <div className="grid grid-cols-3 gap-2.5 text-xs font-mono">
           {SANDBOX_REGIONS.map((reg) => (
             <button
               type="button"
               key={reg.id}
               onClick={() => setActiveRegion(reg.id)}
-              className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
+              className={`p-3 rounded-2xl border text-center cursor-pointer transition-all duration-200 ${
                 activeRegion === reg.id
-                  ? "bg-sky-50 dark:bg-sky-950/60 border-sky-400 shadow-md shadow-sky-500/10 dark:shadow-sky-950/50"
-                  : "bg-slate-50/90 dark:bg-[#0a0c16]/90 border-slate-200/80 dark:border-white/10 hover:border-sky-400/50"
+                  ? "bg-white dark:bg-[#12131e] border-cyan-500/50 shadow-lg shadow-cyan-500/10"
+                  : "bg-black/[0.03] dark:bg-[#07070c]/80 border-black/[0.06] dark:border-white/[0.08] hover:border-cyan-500/30"
               }`}
             >
-              <div className="text-[10px] text-sky-700 dark:text-sky-200 font-medium">
+              <div className="text-[11px] text-muted-foreground font-medium">
                 {reg.name}
               </div>
-              <div className="text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">
+              <div className="text-sm text-emerald-600 dark:text-emerald-400 font-bold mt-1">
                 {reg.ping}
               </div>
               {activeRegion === reg.id && (
                 <Badge
                   variant="statusSuccess"
-                  className="mt-1 text-[9px] px-1 py-0 bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
+                  className="mt-1 text-[9px] px-1.5 py-0 bg-cyan-500/15 border-cyan-500/30 text-cyan-700 dark:text-cyan-300"
                 >
                   {reg.status}
                 </Badge>
@@ -57,7 +57,7 @@ export function FeatureSandbox() {
             </button>
           ))}
         </div>
-      </Card.Content>
+      </div>
     </Card>
   );
 }
