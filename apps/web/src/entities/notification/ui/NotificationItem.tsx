@@ -1,7 +1,7 @@
 import type { NotificationsListDtoItemsItem } from "@packages/api";
 import { Typography } from "@packages/ui";
 
-import { formatRelativeTime } from "../lib/formatRelativeTime";
+import { formatRelativeTime } from "../../../widgets/header/lib/formatRelativeTime";
 
 type NotificationItemProps = {
   notification: NotificationsListDtoItemsItem;

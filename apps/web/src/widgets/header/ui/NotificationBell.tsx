@@ -4,14 +4,23 @@ import { BellIcon } from "@packages/icons";
 import { Badge, Button, Popover, Typography } from "@packages/ui";
 import Link from "next/link";
 import { useState } from "react";
-import { useNotifications } from "../lib/useNotifications";
-import { NotificationItem } from "./NotificationItem";
+import {
+  NotificationItem,
+  useMarkAllAsReadMutation,
+  useNotificationsQuery,
+  useUnreadCountQuery,
+} from "@/entities/notification";
 
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { notifications, unreadCount, markAllAsRead, isMarkingAllAsRead } =
-    useNotifications(isOpen);
+  const { data: notificationsData } = useNotificationsQuery(isOpen);
+  const { data: unreadCountData } = useUnreadCountQuery();
+  const { mutate: markAllAsRead, isPending: isMarkingAllAsRead } =
+    useMarkAllAsReadMutation();
+
+  const notifications = notificationsData?.items ?? [];
+  const unreadCount = unreadCountData?.count ?? 0;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
