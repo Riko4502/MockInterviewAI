@@ -1103,6 +1103,32 @@ components:
         - currentPassword
         - newPassword
         - newPasswordConfirmation
+    ForgotPasswordDto:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          format: email
+      required:
+        - email
+    ResetPasswordDto:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 128
+        newPasswordConfirmation:
+          type: string
+          minLength: 1
+      required:
+        - token
+        - newPassword
+        - newPasswordConfirmation
     PaginatedUsersAdminResponseDto:
       type: object
       properties:
