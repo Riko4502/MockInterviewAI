@@ -341,9 +341,7 @@ async function main() {
   try {
     await redis.connect();
   } catch (err) {
-    console.error(
-      `❌ Не удалось подключиться к Redis (${redisHost}:${redisPort}): ${err.message}`,
-    );
+    console.error(`❌ Не удалось подключиться к Redis: ${err.message}`);
     console.error(
       "💡 Убедитесь, что запущен Docker контейнер Redis: pnpm infra:up",
     );
