@@ -24,9 +24,11 @@ vi.mock("@/entities/user", () => ({
   UserAvatar: () => <span>avatar</span>,
 }));
 
+const logoutMock = vi.fn();
+
 vi.mock("@/features/auth", () => ({
   useLogout: () => ({
-    logout: vi.fn(),
+    logout: logoutMock,
     isPending: false,
   }),
 }));
@@ -34,6 +36,7 @@ vi.mock("@/features/auth", () => ({
 describe("Sidebar", () => {
   beforeEach(() => {
     usePathnameMock.mockReturnValue(paths.dashboard);
+    logoutMock.mockClear();
 
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -113,5 +116,8 @@ describe("Sidebar", () => {
       paths.profile,
     );
     expect(screen.getByRole("menuitem", { name: "Выйти" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitem", { name: "Выйти" }));
+    expect(logoutMock).toHaveBeenCalledTimes(1);
   });
 });

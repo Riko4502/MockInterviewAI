@@ -1,13 +1,13 @@
 "use client";
 
-import { Avatar } from "@packages/ui";
+import { Avatar, type AvatarProps } from "@packages/ui";
 import { getUserInitials } from "../lib/get-user-initials";
 
 type UserAvatarProps = {
   src?: string | null;
   name?: string | null;
   email?: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: AvatarProps["size"];
 };
 
 export function UserAvatar({ src, name, email, size = "md" }: UserAvatarProps) {

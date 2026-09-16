@@ -43,6 +43,7 @@ export function AvatarUploadField({
           accept="image/jpeg,image/png,image/webp"
           className="sr-only"
           aria-label={t("profile.uploadAvatar")}
+          disabled={uploadAvatar.isPending}
           onChange={onFileChange}
         />
         <Button
