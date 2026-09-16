@@ -407,7 +407,7 @@ async function main() {
       `\n❌ Ошибка безопасности (CWE-319: Cleartext Transmission of Sensitive Information):`,
     );
     console.error(
-      `  Попытка незашифрованного подключения к удалённому Redis хосту "${redisHost}".`,
+      `  Попытка незашифрованного подключения к удалённому Redis хосту (значение скрыто).`,
     );
     console.error(
       `  Передача пароля и SSE payload через открытую сеть без TLS запрещена.`,
