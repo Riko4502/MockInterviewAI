@@ -23,5 +23,28 @@
     "login": "Войти",
     "register": "Зарегистрироваться",
     "logout": "Выйти"
+  },
+  "profile": {
+    "title": "Профиль",
+    "subtitle": "Здесь можно изменить данные аккаунта.",
+    "email": "Email",
+    "displayName": "Имя",
+    "username": "Имя пользователя",
+    "telegram": "Telegram",
+    "gitUrl": "GitHub / GitLab",
+    "avatar": "Аватар",
+    "uploadAvatar": "Загрузить фото",
+    "saving": "Сохранение...",
+    "loadError": "Не удалось загрузить профиль.",
+    "saveError": "Не удалось сохранить профиль.",
+    "saveSuccess": "Профиль сохранён.",
+    "avatarError": "Не удалось загрузить аватар.",
+    "errors": {
+      "displayNameMin": "Имя должно содержать минимум 2 символа",
+      "displayNameMax": "Имя должно содержать максимум 50 символов",
+      "username": "Имя пользователя: 3–30 символов, латиница, цифры, _ и -",
+      "telegram": "Telegram: 5–32 символа, латиница, цифры и _",
+      "gitUrl": "Укажите ссылку на профиль GitHub или GitLab"
+    }
   }
 }

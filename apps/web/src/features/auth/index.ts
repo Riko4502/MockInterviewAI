@@ -1,4 +1,5 @@
 export type { LoginFormValues, RegisterFormValues } from "./lib/schemas";
+export { useLogout } from "./model/use-logout";
 export type {
   AuthBoundaryMode,
   AuthBoundaryProps,

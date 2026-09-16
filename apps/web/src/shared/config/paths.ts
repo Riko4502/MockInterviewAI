@@ -7,6 +7,7 @@ export const paths = {
   partners: "/dashboard/partners",
   statistics: "/dashboard/statistics",
   resources: "/dashboard/resources",
+  profile: "/dashboard/profile",
 } as const;
 
 export const ROUTES = paths;

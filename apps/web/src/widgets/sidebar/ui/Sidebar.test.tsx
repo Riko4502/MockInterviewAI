@@ -11,6 +11,26 @@ vi.mock("next/navigation", () => ({
   usePathname: () => usePathnameMock(),
 }));
 
+vi.mock("@/entities/user", () => ({
+  useCurrentUser: () => ({
+    data: {
+      displayName: "Sarah Jenkins",
+      email: "sarah@example.com",
+      avatarUrl: null,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  UserAvatar: () => <span>avatar</span>,
+}));
+
+vi.mock("@/features/auth", () => ({
+  useLogout: () => ({
+    logout: vi.fn(),
+    isPending: false,
+  }),
+}));
+
 describe("Sidebar", () => {
   beforeEach(() => {
     usePathnameMock.mockReturnValue(paths.dashboard);
@@ -47,6 +67,7 @@ describe("Sidebar", () => {
       "href",
       paths.notifications,
     );
+    expect(screen.getByText("Sarah Jenkins")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Контент дашборда" }),
     ).toBeInTheDocument();
@@ -74,5 +95,23 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("link", { name: "DEVSYNC Interview AI" }),
     ).toHaveAttribute("href", paths.dashboard);
+  });
+
+  it("открывает меню пользователя с профилем и выходом", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Sidebar>
+        <h1>Контент дашборда</h1>
+      </Sidebar>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Sarah Jenkins/i }));
+
+    expect(screen.getByRole("menuitem", { name: "Профиль" })).toHaveAttribute(
+      "href",
+      paths.profile,
+    );
+    expect(screen.getByRole("menuitem", { name: "Выйти" })).toBeInTheDocument();
   });
 });
