@@ -1,4 +1,8 @@
+export type { ForgotPasswordFormValues } from "./forgot-password";
+export { ForgotPasswordForm } from "./forgot-password";
 export type { LoginFormValues, RegisterFormValues } from "./lib/schemas";
+export type { ResetPasswordFormValues } from "./reset-password";
+export { InvalidTokenAlert, ResetPasswordForm } from "./reset-password";
 export type {
   AuthBoundaryMode,
   AuthBoundaryProps,

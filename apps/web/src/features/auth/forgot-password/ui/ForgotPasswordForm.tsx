@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuthControllerForgotPassword } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -8,11 +9,10 @@ import {
   type ForgotPasswordFormValues,
   forgotPasswordSchema,
 } from "../../lib/schemas";
-import { useForgotPassword } from "../model/useForgotPassword";
 import { ForgotPasswordSuccess } from "./ForgotPasswordSuccess.tsx";
 
 export function ForgotPasswordForm() {
-  const forgotPasswordMutation = useForgotPassword();
+  const forgotPasswordMutation = useAuthControllerForgotPassword();
 
   const {
     register,
@@ -24,7 +24,7 @@ export function ForgotPasswordForm() {
   });
 
   const onSubmit = (data: ForgotPasswordFormValues) => {
-    forgotPasswordMutation.mutate(data);
+    forgotPasswordMutation.mutate({ data });
   };
 
   if (forgotPasswordMutation.isSuccess) {
@@ -32,7 +32,7 @@ export function ForgotPasswordForm() {
       <ForgotPasswordSuccess
         email={getValues("email")}
         isResending={forgotPasswordMutation.isPending}
-        onResend={() => forgotPasswordMutation.mutate(getValues())}
+        onResend={() => forgotPasswordMutation.mutate({ data: getValues() })}
       />
     );
   }

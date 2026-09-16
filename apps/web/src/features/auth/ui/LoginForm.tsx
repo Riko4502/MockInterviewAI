@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerLogin } from "@packages/api";
 import { loginSchema } from "@packages/dto";
 import { Button, Field, Input, Typography } from "@packages/ui";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
@@ -83,6 +84,12 @@ export function LoginForm() {
           )}
         </Typography.P>
       )}
+      <Link
+        href="/forgot-password"
+        className="text-sm text-center text-muted-foreground hover:text-foreground hover:underline"
+      >
+        Забыли пароль?
+      </Link>
     </form>
   );
 }
