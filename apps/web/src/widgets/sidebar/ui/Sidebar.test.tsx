@@ -43,6 +43,10 @@ describe("Sidebar", () => {
       "href",
       paths.interviews,
     );
+    expect(screen.getByRole("link", { name: "Уведомления" })).toHaveAttribute(
+      "href",
+      paths.notifications,
+    );
     expect(
       screen.getByRole("heading", { name: "Контент дашборда" }),
     ).toBeInTheDocument();
