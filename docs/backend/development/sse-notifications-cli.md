@@ -74,7 +74,9 @@ pnpm sse:send -i
 | `--message <text>`| `-m` | `...` | Текст сообщения уведомления. |
 | `--action-url <url>`| `-a` | `null` | URL перехода при клике на уведомление (например, `/sessions/session-123`). |
 | `--badge <count>` | | `null` | Отправить обновление счетчика (автоматически выставляет `--type notification.badge`). |
-| `--broadcast` | `-b` | `false` | Опубликовать в глобальный Pub/Sub канал `notifications:broadcast` вместо персонального стрима. |
+| `--broadcast` | `-b` | `false` | Опубликовать в глобальный Pub/Sub канал `notifications:broadcast` (автоматически выставляет `--type system.broadcast`). |
+| `--tls` | | `false` | Использовать TLS-шифрование при подключении к Redis (`rediss://` / `REDIS_TLS=true`). |
+| `--insecure` | | `false` | Разрешить подключение к удаленному Redis без TLS (отключение проверки CWE-319, не рекомендуется). |
 | `--raw <json>` | | `null` | Передать собственный кастомный JSON payload. |
 | `--interactive` | `-i` | `false` | Пошаговый консольный мастер с подсказками. |
 | `--help` | `-h` | | Вывести справку по командам. |
@@ -119,6 +121,15 @@ pnpm sse:send --user user-42 --ai-report --action-url "/reports/dev-session-1"
 ### 4. Тестирование с произвольным JSON payload
 ```bash
 pnpm sse:send --user user-42 --type custom.event --raw '{"codeState":{"lines":150},"status":"passed"}'
+```
+
+### 5. Отправка общесистемного алерта (Broadcast)
+```bash
+# Быстрая команда (автоматически использует --type system.broadcast):
+pnpm sse:broadcast --message "Технические работы через 10 минут"
+
+# Или через sse:send с явным указанием флага:
+pnpm sse:send --broadcast --type system.broadcast --message "Сервер будет перезагружен через 10 минут"
 ```
 
 ---

@@ -44,7 +44,7 @@
     "realtime:logs": "docker compose --env-file .env --profile realtime logs -f realtime",
     "realtime:restart": "docker compose --env-file .env --profile realtime restart realtime",
     "sse:send": "node scripts/send-sse.mjs",
-    "sse:broadcast": "node scripts/send-sse.mjs --broadcast",
+    "sse:broadcast": "node scripts/send-sse.mjs --broadcast --type system.broadcast",
     "db:migrate": "pnpm --filter api db:migrate:dev",
     "db:migrate:deploy": "pnpm --filter api db:migrate:deploy",
     "db:generate": "pnpm --filter api db:generate",

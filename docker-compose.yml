@@ -129,13 +129,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379/0
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-mock-interview-redis}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       REDIS_ENABLED: "true"
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-at-least-32-characters}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-at-least-32-chars}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080}
-      LIVEKIT_WEBHOOK_API_KEY: ${LIVEKIT_WEBHOOK_API_KEY:-devkey}
-      LIVEKIT_WEBHOOK_API_SECRET: ${LIVEKIT_WEBHOOK_API_SECRET:-dev-local-secret-change-me-0123456789}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      LIVEKIT_WEBHOOK_API_KEY: ${LIVEKIT_WEBHOOK_API_KEY:?LIVEKIT_WEBHOOK_API_KEY is required}
+      LIVEKIT_WEBHOOK_API_SECRET: ${LIVEKIT_WEBHOOK_API_SECRET:?LIVEKIT_WEBHOOK_API_SECRET is required}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     ports:
       - "${REALTIME_PORT:-8080}:8080"

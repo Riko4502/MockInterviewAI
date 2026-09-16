@@ -12,7 +12,7 @@
  *   # Быстрые пресеты:
  *   pnpm sse:send --interview
  *   pnpm sse:send --system
- *   pnpm sse:send --message
+ *   pnpm sse:send --message-preset
  *   pnpm sse:send --badge 5
  *   pnpm sse:broadcast --message "Технические работы"
  *
@@ -108,6 +108,40 @@ const PRESETS = {
   },
 };
 
+// Проверка на локальный или внутренний адрес хоста (Docker, Render, k8s, RFC 1918)
+function isLocalOrInternalHost(host) {
+  if (!host) return true;
+  const normalized = host.toLowerCase().trim();
+  if (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "redis" ||
+    normalized === "mock-interview-redis" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal") ||
+    normalized.endsWith(".docker.internal") ||
+    !normalized.includes(".")
+  ) {
+    return true;
+  }
+
+  // Проверка приватных диапазонов IPv4 (RFC 1918 и loopback)
+  const ipv4Match = normalized.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
+  );
+  if (ipv4Match) {
+    const a = Number(ipv4Match[1]);
+    const b = Number(ipv4Match[2]);
+    if (a === 127) return true;
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+  }
+
+  return false;
+}
+
 function parseArgs(args) {
   const result = {
     user: "dev-user-1",
@@ -119,6 +153,8 @@ function parseArgs(args) {
     broadcast: false,
     raw: null,
     unreadCount: null,
+    tls: false,
+    insecure: false,
     interactive: false,
     help: false,
   };
@@ -146,6 +182,10 @@ function parseArgs(args) {
       result.actionUrl = args[++i];
     } else if (arg === "--raw") {
       result.raw = args[++i];
+    } else if (arg === "--tls") {
+      result.tls = true;
+    } else if (arg === "--insecure") {
+      result.insecure = true;
     } else if (arg === "--badge") {
       result.type = "notification.badge";
       result.unreadCount = parseInt(args[++i], 10) || 1;
@@ -199,6 +239,8 @@ function printHelp() {
   --action-url, -a <url>   Ссылка для перехода при клике (напр. /sessions/123)
   --badge <count>          Отправить обновление счетчика непрочитанных (notification.badge)
   --broadcast, -b          Отправить как общесистемный бродкаст (Redis Pub/Sub)
+  --tls                    Использовать TLS-шифрование для подключения к Redis
+  --insecure               Разрешить незашифрованное подключение к внешнему Redis (не рекомендуется)
   --raw <json>             Передать собственный JSON payload
   --interactive, -i        Запустить интерактивный пошаговый мастер
   --help, -h               Показать эту справку
@@ -226,7 +268,10 @@ function printHelp() {
   # 5. Общесистемный бродкаст:
   pnpm sse:broadcast --message "Технические работы через 10 минут"
 
-  # 6. Интерактивный режим:
+  # 6. Подключение к удаленному защищенному Redis с TLS:
+  pnpm sse:send --tls --user user-123 --interview
+
+  # 7. Интерактивный режим:
   pnpm sse:send -i
 `);
 }
@@ -325,18 +370,77 @@ async function main() {
   }
 
   const env = loadEnv();
-  const redisHost = env.REDIS_HOST || "localhost";
-  const redisPort = parseInt(env.REDIS_PORT || "6379", 10);
-  const redisPassword = env.REDIS_PASSWORD || undefined;
+  let redisHost = env.REDIS_HOST || "localhost";
+  let redisPort = parseInt(env.REDIS_PORT || "6379", 10);
+  let redisPassword = env.REDIS_PASSWORD || undefined;
+  let useTls = args.tls || env.REDIS_TLS === "true" || env.REDIS_TLS === "1";
 
-  const redis = new Redis({
+  if (env.REDIS_URL) {
+    try {
+      const parsedUrl = new URL(env.REDIS_URL);
+      if (parsedUrl.protocol === "rediss:") {
+        useTls = true;
+      }
+      if (parsedUrl.hostname) {
+        redisHost = parsedUrl.hostname;
+      }
+      if (parsedUrl.port) {
+        redisPort = parseInt(parsedUrl.port, 10);
+      }
+      if (parsedUrl.password) {
+        redisPassword = decodeURIComponent(parsedUrl.password);
+      }
+    } catch {
+      // Игнорируем ошибку парсинга некорректного REDIS_URL
+    }
+  }
+
+  const isInternal = isLocalOrInternalHost(redisHost);
+
+  if (
+    !isInternal &&
+    !useTls &&
+    !args.insecure &&
+    env.ALLOW_INSECURE_REDIS !== "true"
+  ) {
+    console.error(
+      `\n❌ Ошибка безопасности (CWE-319: Cleartext Transmission of Sensitive Information):`,
+    );
+    console.error(
+      `  Попытка незашифрованного подключения к удалённому Redis хосту "${redisHost}".`,
+    );
+    console.error(
+      `  Передача пароля и SSE payload через открытую сеть без TLS запрещена.`,
+    );
+    console.error(`\n💡 Решение:`);
+    console.error(
+      `  1. Используйте флаг --tls или переменную REDIS_TLS=true (или схему rediss://).`,
+    );
+    console.error(
+      `  2. Для локального/внутреннего Docker подключения используйте localhost или внутреннюю сеть.`,
+    );
+    console.error(
+      `  3. Для принудительного отключения проверки: флаг --insecure (не рекомендуется).\n`,
+    );
+    process.exit(1);
+  }
+
+  const redisOptions = {
     host: redisHost,
     port: redisPort,
     password: redisPassword || undefined,
     lazyConnect: true,
     maxRetriesPerRequest: 2,
     connectTimeout: 3000,
-  });
+  };
+
+  if (useTls) {
+    redisOptions.tls = {
+      rejectUnauthorized: env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+    };
+  }
+
+  const redis = new Redis(redisOptions);
 
   try {
     await redis.connect();
