@@ -81,7 +81,11 @@ GRAFANA_ADMIN_PASSWORD=
       расходятся с фактической in-memory реализацией.
 - [x] Добавлять ли `--maxmemory-policy allkeys-lru` для прод-Redis вместе с
       alert'ами на эвикцию?
-      **Решение:** отложить до анализа usage-паттернов (записано в SPEC §3).
+      **Решение:** НЕ использовать `allkeys-lru` — эвикция молча удаляла бы
+      `blacklist:token:*` (security-регрессия: токен после logout снова
+      валиден) и notification-стримы (потеря уведомлений). Установлен
+      `noeviction` с cap (dev 128mb / prod `${REDIS_MAXMEMORY:-512mb}`);
+      оценка `volatile-lru` / отдельного cache-инстанса отложена (SPEC §3).
 - [x] Redis-auth в прод (requirepass): **отложить**; фиксация риска в
       `SECURITY.md` — открытый долг (записано в SPEC §3).
 
@@ -126,6 +130,13 @@ redis-экспортер, alert-правила активны; правки `das
 ---
 
 ## Изменения
+
+### 0.7.1 — 2026-09-17
+- **Закрыт вопрос `maxmemory-policy` (§6):** вместо `allkeys-lru` выбран
+  `noeviction` (dev 128mb / prod cap `${REDIS_MAXMEMORY:-512mb}`) — эвикция
+  удаляла бы blacklist токенов (security-регрессия) и notification-стримы.
+  В `redis.yml` добавлен alert `RedisMemoryHigh` (used_memory ≥ 80% cap);
+  SPEC §3 обновлён.
 
 ### 0.7.0 — 2026-09-13
 - **§7 реализован:** dev-контур наблюдения — `infra/observability.dev.yml`

@@ -42,7 +42,7 @@
 | Throttler API → Redis (`ThrottlerStorageRedis`) | **Отложено** (в открытых вопросах) |
 | Sentry Datasource plugin в Grafana | **Да** — ставим для корреляции ошибок с метриками |
 | Распространение dashboards | **Копировать при деплое** — scp-шаг `deploy-server.yml` копирует `infra` + `dashboards` на сервер; compose монтирует их томом (read-only, перечитывание раз в 30 c) |
-| Прод-Redis `maxmemory-policy` | **Отложено** до анализа usage-паттернов (alert на эвикцию всё равно ставим) |
+| Прод-Redis `maxmemory-policy` | **`noeviction`** (cap `${REDIS_MAXMEMORY:-512mb}`) до анализа usage-паттернов; `allkeys-lru` **НЕ используется** — эвикция молча удаляла бы blacklist-токены и notification-стримы. Оценка `volatile-lru` / отдельного cache-инстанса отложена; alert на эвикцию стоит |
 | Redis-auth в прод | **Отложено**; фиксация риска в `SECURITY.md` — открытый долг |
 
 ## 4. Структура
@@ -326,6 +326,15 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.3 — 2026-09-17
+- **`maxmemory-policy` для Redis:** `allkeys-lru` заменён на `noeviction`
+  (dev 128mb / prod `${REDIS_MAXMEMORY:-512mb}`) — эвикция молча удаляла бы
+  `blacklist:token:*` (токен после logout/смены пароля снова валиден) и
+  notification-стримы (потеря уведомлений). Решение зафиксировано в §3;
+  оценка `volatile-lru` / отдельного cache-инстанса отложена.
+- Добавлен alert `RedisMemoryHigh` (used_memory ≥ 80% maxmemory) — срабатывает
+  до исчерпания, в отличие от `RedisEvictions` (после).
 
 ### 0.7.2 — 2026-09-12
 - **Контракт Prometheus → api:** job `api` скрейпит `metrics_path: /api/v1/metrics`
