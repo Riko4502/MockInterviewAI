@@ -131,6 +131,12 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.4 — 2026-09-17
+- **`redis.json` «Command Latency»:** вместо голого counter'а
+  `redis_commands_duration_seconds_total` панель считает среднюю латентность
+  `rate(duration[5m]) / rate(redis_commands_total[5m])` (prиказ: avg by command);
+  SPEC §8 обновлён.
+
 ### 0.7.3 — 2026-09-17
 - **`api-http.json` «Redis Connection Status»:** value mappings переведены на
   числовые per-series overrides (`1` → текст/цвет, `0` → пусто); строковые

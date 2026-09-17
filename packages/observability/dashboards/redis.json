@@ -158,13 +158,13 @@
       }
     },
     {
-      "title": "Command Latency (p95 by command)",
+      "title": "Command Latency (avg by command)",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
-          "expr": "redis_commands_duration_seconds_total",
+          "expr": "rate(redis_commands_duration_seconds_total[5m]) / rate(redis_commands_total[5m])",
           "legendFormat": "{{cmd}}",
           "refId": "A"
         }

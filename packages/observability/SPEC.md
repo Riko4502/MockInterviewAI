@@ -227,7 +227,7 @@ packages/observability/
 ### Серверный Redis (redis_exporter, шаг 7 PLAN)
 - `used_memory` vs `maxmemory`, `connected_clients` vs `maxclients`
 - `blocked_clients` (блокирующие XREAD из SSE-ридеров)
-- `evicted_keys`, `keyspace_hits/misses`, `commandstats` (латентность p50/p95)
+- `evicted_keys`, `keyspace_hits/misses`, `commandstats` (avg latency по команде: `rate(redis_commands_duration_seconds_total[5m]) / rate(redis_commands_total[5m])`)
 - `slowlog`, репликационный offset, длина стримов `user:*:notifications`
 
 ---
@@ -328,6 +328,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.6 — 2026-09-17
+- **`redis.json` «Command Latency»:** expr `redis_commands_duration_seconds_total`
+  (кумулятивный counter) заменён на среднюю латентность
+  `rate(duration[5m]) / rate(redis_commands_total[5m])`; заголовок —
+  «Command Latency (avg by command)». Гистограмм команд у exporter нет —
+  histogram_quantile неприменим (см. §3, §8).
 
 ### 0.7.5 — 2026-09-17
 - **`api-http.json` «Redis Connection Status»:** строковые value mappings
