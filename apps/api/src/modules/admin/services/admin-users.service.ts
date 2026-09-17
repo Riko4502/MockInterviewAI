@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -716,11 +716,11 @@ export class AdminUsersService {
   private generateTemporaryPassword(): string {
     const chars =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    const bytes = randomBytes(16);
     let password = "";
     // TODO вынести в константу 16
     for (let i = 0; i < 16; i++) {
-      password += chars[bytes[i] % chars.length];
+      const index = randomInt(0, chars.length);
+      password += chars[index];
     }
     return password;
   }
