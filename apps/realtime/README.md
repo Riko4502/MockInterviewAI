@@ -338,3 +338,53 @@ location /sse/ {
 ```
 
 Сервис дополнительно выставляет заголовок `X-Accel-Buffering: no` на каждый SSE-ответ.
+
+---
+
+## 🚀 6. Локальный запуск и тестирование
+
+### 6.1. Запуск через Docker (без установки Go)
+Если на вашей машине не установлен Golang (например, для фронтенд-разработчиков):
+
+```bash
+# Запуск сервиса в Docker:
+pnpm realtime:up
+
+# Просмотр логов в реальном времени:
+pnpm realtime:logs
+
+# Остановка контейнера:
+pnpm realtime:down
+```
+
+### 6.2. Нативный запуск через Go
+```bash
+# Запуск сервера из корня монорепозитория:
+pnpm dev:realtime
+
+# Или напрямую из директории apps/realtime:
+go run ./cmd/server
+```
+
+### 6.3. Эмуляция и тестирование SSE-уведомлений (CLI)
+Для отправки тестовых уведомлений в SSE-поток используется утилита `scripts/send-sse.mjs`:
+
+```bash
+# Персональное уведомление:
+pnpm sse:send --user dev-user-1 --title "Инвайт" --message "Вас ждут на интервью"
+
+# Быстрый шаблон приглашения на интервью:
+pnpm sse:send --user dev-user-1 --interview
+
+# Обновление счетчика на колокольчике:
+pnpm sse:send --user dev-user-1 --badge 5
+
+# Общесистемный broadcast (Redis Pub/Sub):
+pnpm sse:broadcast --message "Технические работы через 10 минут"
+
+# Интерактивный режим с мастером подсказок:
+pnpm sse:send -i
+```
+
+*Полная документация по CLI-утилите: [docs/backend/development/sse-notifications-cli.md](../../docs/backend/development/sse-notifications-cli.md).*
+

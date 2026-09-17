@@ -16,7 +16,7 @@ export interface LandingPageProps {
 export function LandingPage({ locale = "ru" }: LandingPageProps) {
   return (
     <I18nClientProvider locale={locale}>
-      <div className="min-h-screen text-slate-100 selection:bg-violet-500/30 selection:text-white flex flex-col font-sans relative">
+      <div className="min-h-screen text-foreground selection:bg-violet-500/20 selection:text-violet-600 dark:selection:text-violet-300 flex flex-col font-sans relative">
         {/* Dynamic Cosmic Animated Background */}
         <DynamicBackground />
 

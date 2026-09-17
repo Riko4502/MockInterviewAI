@@ -29,7 +29,13 @@
       "style": "./src/styles/globals.css",
       "import": "./src/styles/globals.css",
       "default": "./src/styles/globals.css"
-    }
+    },
+    "./fonts.css": {
+      "style": "./src/styles/fonts.css",
+      "import": "./src/styles/fonts.css",
+      "default": "./src/styles/fonts.css"
+    },
+    "./fonts/*": "./fonts/*"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -55,6 +61,7 @@
     "@packages/tailwind-config": "workspace:*",
     "@packages/utils": "workspace:*",
     "@radix-ui/react-label": "^2.1.15",
+    "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.5.0",
     "radix-ui": "^1.6.7",
     "react-resizable-panels": "^4.12.4"

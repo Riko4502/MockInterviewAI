@@ -4,5 +4,8 @@ export const MOCKINTERVIEW_LIGHT_THEME: editor.IStandaloneThemeData = {
   base: "vs",
   inherit: true,
   rules: [],
-  colors: {},
+  colors: {
+    "editor.background": "#ffffff",
+    "editorGutter.background": "#ffffff",
+  },
 };

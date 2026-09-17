@@ -26,7 +26,7 @@ function NotFoundContent({ locale }: { locale: Locale }) {
   const codeErrorText = t("notFound.codeError", dict.notFound.codeError);
 
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col font-sans relative selection:bg-violet-500/30 selection:text-white bg-[#06070d] overflow-x-hidden">
+    <div className="min-h-screen text-foreground flex flex-col font-sans relative selection:bg-violet-500/20 selection:text-violet-600 dark:selection:text-violet-300 bg-background overflow-x-hidden transition-colors">
       {/* Dynamic Animated Background with Neon Orbs & Cyber Grid */}
       <DynamicBackground />
       {/* Interactive Cursor Spotlight */}
@@ -42,7 +42,7 @@ function NotFoundContent({ locale }: { locale: Locale }) {
 
         <div className="text-center max-w-2xl mx-auto space-y-6">
           {/* Cyber Status Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 backdrop-blur-md text-xs font-semibold tracking-wider text-violet-400 uppercase">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 backdrop-blur-md text-xs font-semibold tracking-wider text-violet-600 dark:text-violet-400 uppercase">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
@@ -58,18 +58,18 @@ function NotFoundContent({ locale }: { locale: Locale }) {
           </div>
 
           {/* Heading */}
-          <Typography.H1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">
+          <Typography.H1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground">
             {titleText}
           </Typography.H1>
 
           {/* Description */}
-          <p className="text-slate-400 text-sm sm:text-base md:text-lg max-w-lg mx-auto leading-relaxed">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-lg mx-auto leading-relaxed">
             {descText}
           </p>
 
           {/* Terminal / Code Log Card */}
-          <div className="mt-8 mx-auto max-w-lg rounded-2xl glass-panel border border-white/10 p-5 text-left font-mono text-xs sm:text-sm shadow-2xl relative overflow-hidden group">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3 text-slate-400">
+          <div className="mt-8 mx-auto max-w-lg rounded-2xl glass-panel border border-border dark:border-white/10 p-5 text-left font-mono text-xs sm:text-sm shadow-2xl relative overflow-hidden group bg-card/85 dark:bg-transparent">
+            <div className="flex items-center justify-between pb-3 border-b border-border dark:border-white/10 mb-3 text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
                 <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />

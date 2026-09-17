@@ -118,6 +118,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Атомарно возвращает и удаляет ключ (GETDEL).
+   *
+   * @param key - Имя ключа.
+   * @returns Значение или `null`, если ключ не существовал.
+   * @throws {Error} При ошибке Redis.
+   */
+  async getdel(key: string): Promise<string | null> {
+    return this.client.getdel(key);
+  }
+
+  /**
    * Проверяет существование ключа (EXISTS).
    *
    * @param key - Имя ключа.

@@ -20,9 +20,10 @@
 1. **Access Token (короткоживущий, 15 мин)**:
    - Передается в теле JSON ответа при логине/регистрации/обновлении.
    - Клиент прикрепляет его в заголовок `Authorization: Bearer <token>` для доступа к защищенным эндпоинтам.
-   - Содержит claims: `jti` (уникальный ID токена), `sid` (ID активной сессии), `typ: "access"`, `iss`, `aud`, `exp`.
-   - `jti` в Redis не сохраняется: статический блэклист access-токенов не ведется. Живая ревокация обеспечивается ключом сессии — каждый защищенный запрос проходит через глобальный `AccessTokenGuard` с live-проверкой `EXISTS auth:session:{sid}` (сессия активна; A8/P5).
-   - Logout/смена пароля/logoutAll: `auth:session:{sid}` удаляется, публикуется `{instanceId, data: userId, sessionId?}` в канал `auth:revocations` (realtime разрывает активные WS через `EvictUser`; при `sessionId` — room-scoped `EvictFromRoom`).
+   - Содержит claims: `sub` (ID пользователя), `sid` (ID активной сессии), `permissions` (числовая битовая маска прав, например `0` или `1`), `typ: "access"`, `iss`, `aud`, `exp`.
+   - Поле `role` в JWT отсутствует для максимальной легковесности токена — авторизация выполняется строго по атомарным битовым правам (`RolesGuard`), а название роли передается в ответе `GET /api/v1/profile/me` ([подробнее о RBAC & PBAC](./rbac.md)).
+   - `jti` в Redis не сохраняется: статический блэклист access-токенов не ведется. Живая ревокация обеспечивается ключом сессии — каждый защищенный запрос проходит через глобальный `AccessTokenGuard` с live-проверкой `EXISTS auth:session:{sid}` (сессия активна; A8/P5), а затем через `RolesGuard` для проверки битовых прав.
+   - Logout/смена пароля/logoutAll/смена роли: `auth:session:{sid}` удаляется, публикуется `{instanceId, data: userId, sessionId?}` в канал `auth:revocations` (realtime разрывает активные WS через `EvictUser`; при `sessionId` — room-scoped `EvictFromRoom`).
 2. **Refresh Token (долгоживущий, 7 дней)**:
    - Передается **только** в `HttpOnly`, `Secure` (в prod), `SameSite=Lax` Cookie.
    - JavaScript в браузере не имеет к нему доступа, что защищает от XSS атак.

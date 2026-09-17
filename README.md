@@ -69,8 +69,8 @@
 Перед началом работы убедитесь, что у вас установлены:
 * **Node.js:** >= 20.x
 * **pnpm:** >= 9.x (`corepack enable && corepack prepare pnpm@latest --activate`)
-* **Go (Golang):** >= 1.26+ (необходим для полной сборки всех сервисов `pnpm build`, запуска всех тестов `pnpm test` и работы сервиса `apps/realtime`)
-* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis, RabbitMQ и MinIO
+* **Go (Golang):** >= 1.26+ (*опционально*: если вы фронтенд-разработчик и не пишете код на Go, сервис `realtime` можно запустить в Docker через `pnpm realtime:up` без установки Go на машину)
+* **Docker & Docker Compose:** для локального запуска PostgreSQL, Redis, RabbitMQ, MinIO и сервиса Realtime
 
 ---
 
@@ -103,7 +103,7 @@ pnpm install
 # Поднять PostgreSQL, Redis, RabbitMQ и MinIO (S3)
 pnpm run infra:up
 
-# Остановить контейнеры
+# Остановить контейнеры (включая realtime, если был запущен)
 pnpm run infra:down
 ```
 
@@ -127,7 +127,18 @@ pnpm run db:generate
 # или: pnpm --filter api db:generate
 ```
 
-### 6. Генерация Swagger / OpenAPI и типизированного API-клиента
+### 6. Назначение роли Администратора (CLI)
+
+Для начальной настройки и получения прав администратора на платформе:
+```bash
+# Назначить роль ADMIN существующему пользователю:
+pnpm --filter api seed:admin -- --email admin@mockinterview.tech
+
+# Или создать нового пользователя с ролью ADMIN:
+pnpm --filter api seed:admin -- --email newadmin@mockinterview.tech --password "SuperSecret123!"
+```
+
+### 7. Генерация Swagger / OpenAPI и типизированного API-клиента
 
 Для синхронизации контрактов между бэкендом и фронтендом:
 ```bash
@@ -145,7 +156,7 @@ pnpm run codegen
 pnpm run codegen:check
 ```
 
-### 7. Запуск сервисов в режиме разработки
+### 8. Запуск сервисов в режиме разработки
 
 #### Запуск всех сервисов одновременно (Turborepo):
 ```bash
@@ -172,11 +183,36 @@ pnpm dev
   pnpm dev:storybook
   # или: pnpm --filter ui-docs storybook
   ```
-* **Realtime WebSocket сервис (Go - порт 8080):**
-  ```bash
-  pnpm dev:realtime
-  ```
-  *(или напрямую через Go: `cd apps/realtime && go run cmd/server/main.go`)*
+* **Realtime WebSocket & SSE сервис (порт 8080):**
+  - **Вариант А (в Docker, без установки Go):**
+    ```bash
+    pnpm realtime:up      # Запуск в Docker
+    pnpm realtime:logs    # Просмотр логов
+    pnpm realtime:down    # Остановка
+    ```
+  - **Вариант Б (нативно через Go):**
+    ```bash
+    pnpm dev:realtime
+    # или: cd apps/realtime && go run cmd/server/main.go
+    ```
+
+### 9. Отправка и тестирование SSE-уведомлений (CLI)
+
+Для тестирования всплывающих уведомлений, инвайтов, бейджей и алертов:
+```bash
+# Отправить инвайт на интервью:
+pnpm sse:send --user dev-user-1 --interview
+
+# Обновить счетчик непрочитанных:
+pnpm sse:send --user dev-user-1 --badge 3
+
+# Отправить общесистемный broadcast:
+pnpm sse:broadcast --message "Технические работы через 10 минут"
+
+# Интерактивный режим:
+pnpm sse:send -i
+```
+*Подробная документация: [SSE CLI Guide](docs/backend/development/sse-notifications-cli.md).*
 
 ---
 
@@ -184,6 +220,9 @@ pnpm dev
 
 * 🎨 **[Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)** — дизайн-макеты интерфейса и UI-кита.
 * 📖 **[Frontend Документация](docs/frontend/README.md)** — архитектура (FSD, App Router), соглашения и структура.
+* 🛡️ **[Ролевая модель доступа (RBAC & PBAC)](docs/backend/security/rbac.md)** — динамические роли, права, декораторы и JWT claims.
+* 💻 **[CLI и утилиты управления](docs/backend/development/cli.md)** — руководство по работе с CLI-командами, seed:admin и Prisma.
+* 🔔 **[SSE CLI & Эмуляция уведомлений](docs/backend/development/sse-notifications-cli.md)** — отправка и тестирование real-time событий через Redis.
 * 🔌 **[API Contracts & OpenAPI / Swagger](docs/frontend/data/api-contracts.md)** — workflow обновления OpenAPI-схемы и генерации типов.
 * 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
 * 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.

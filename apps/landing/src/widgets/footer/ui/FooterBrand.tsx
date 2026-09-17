@@ -13,7 +13,7 @@ export function FooterBrand() {
     <div className="md:col-span-4 flex flex-col items-start">
       <Logo href={homeUrl} className="mb-4" />
 
-      <Typography.Muted className="text-xs text-slate-400 leading-relaxed mb-6 max-w-sm">
+      <Typography.Muted className="text-xs text-muted-foreground leading-relaxed mb-6 max-w-sm">
         {t("footer.desc")}
       </Typography.Muted>
 

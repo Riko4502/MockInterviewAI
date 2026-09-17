@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@packages/types": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,6 +1,5 @@
 import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import * as monaco from "monaco-editor";
 import type React from "react";
 
 import { useEffect, useRef, useState } from "react";
@@ -18,8 +17,29 @@ import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
 
-// Инициализация локального пакета monaco-editor вместо внешнего jsDelivr CDN
-loader.config({ monaco });
+let monacoInitPromise: Promise<typeof import("monaco-editor")> | null = null;
+
+/**
+ * Инициализирует Monaco Editor в браузере, конфигурируя loader локальным пакетом до монтирования редактора.
+ */
+export function initMonaco(): Promise<typeof import("monaco-editor")> {
+  if (typeof window === "undefined") {
+    return Promise.resolve({} as typeof import("monaco-editor"));
+  }
+  if (!monacoInitPromise) {
+    monacoInitPromise = import("monaco-editor").then((monaco) => {
+      loader.config({ monaco });
+      registerThemes(monaco);
+      return monaco;
+    });
+  }
+  return monacoInitPromise;
+}
+
+// Запускаем предварительную инициализацию в браузере
+if (typeof window !== "undefined") {
+  void initMonaco();
+}
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   value = "",
@@ -32,32 +52,55 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   cursorThrottleMs = 50,
   options = {},
 }) => {
+  const [isMonacoReady, setIsMonacoReady] = useState(false);
+
   // Сохраняем инстанс в state, чтобы хук useRemoteCursors получил его после onMount
   const [editorInstance, setEditorInstance] =
     useState<editor.IStandaloneCodeEditor | null>(null);
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    initMonaco().then(() => {
+      if (isMounted) {
+        setIsMonacoReady(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Синхронизируем тему при смене theme пропса в браузере
+  useEffect(() => {
+    if (typeof window !== "undefined" && isMonacoReady) {
+      initMonaco().then((monaco) => {
+        monaco.editor.setTheme(theme);
+      });
+    }
+  }, [theme, isMonacoReady]);
 
   // Этот хук автоматически рисует чужие курсоры поверх кода
   useRemoteCursors(editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
   // Регистрируем темы и базовые сниппеты/ключевые слова для языков
-  const handleBeforeMount = (monaco: Monaco) => {
-    registerThemes(monaco);
-    registerSqlCompletion(monaco);
-    registerPythonCompletion(monaco);
-    registerGoCompletion(monaco);
-    registerJavaCompletion(monaco);
-    registerCppCompletion(monaco);
-    registerRustCompletion(monaco);
+  const handleBeforeMount = (monacoInstance: Monaco) => {
+    registerThemes(monacoInstance);
+    registerSqlCompletion(monacoInstance);
+    registerPythonCompletion(monacoInstance);
+    registerGoCompletion(monacoInstance);
+    registerJavaCompletion(monacoInstance);
+    registerCppCompletion(monacoInstance);
+    registerRustCompletion(monacoInstance);
 
     // Поддержка современного стандарта ESNext
-    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ESNext,
+    monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
       allowNonTextExtensions: true,
     });
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ESNext,
+    monacoInstance.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
       allowNonTextExtensions: true,
     });
   };
@@ -114,16 +157,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div className="w-full h-full relative">
-      <Editor
-        height="100%"
-        language={language}
-        theme={theme}
-        value={value}
-        onChange={(val) => onChange?.(val ?? "")}
-        beforeMount={handleBeforeMount}
-        onMount={handleEditorDidMount}
-        options={mergedOptions}
-      />
+      {isMonacoReady ? (
+        <Editor
+          height="100%"
+          language={language}
+          theme={theme}
+          value={value}
+          onChange={(val) => onChange?.(val ?? "")}
+          beforeMount={handleBeforeMount}
+          onMount={handleEditorDidMount}
+          loading={<div className="size-full animate-pulse bg-muted/20" />}
+          options={mergedOptions}
+        />
+      ) : (
+        <div className="size-full animate-pulse bg-muted/20" />
+      )}
     </div>
   );
 };
