@@ -169,9 +169,11 @@ describe("AuthService", () => {
         update: jest.fn().mockResolvedValue(USER),
       },
       authRevocationTask: {
-        create: jest
-          .fn()
-          .mockResolvedValue({ id: "task-uuid-1", userId: USER.id }),
+        create: jest.fn().mockResolvedValue({
+          id: "task-uuid-1",
+          userId: USER.id,
+          createdAt: new Date("2026-09-01T00:00:00.000Z"),
+        }),
         delete: jest.fn().mockResolvedValue(undefined),
       },
       $transaction: jest
@@ -1167,7 +1169,10 @@ describe("AuthService", () => {
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
         data: { userId: USER.id },
       });
-      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(
+        USER.id,
+        new Date("2026-09-01T00:00:00.000Z"),
+      );
       expect(publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(USER.id),
@@ -1247,6 +1252,31 @@ describe("AuthService", () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword (persisted for worker retry)`,
         "Redis fail",
+      );
+    });
+
+    it("сбой публикации в Redis при отзыве сессий → логирует ошибку, не удаляет задачу", async () => {
+      redisGetdel.mockResolvedValue(USER.id);
+      findById.mockResolvedValue(USER);
+      publish.mockRejectedValue(new Error("Redis pub/sub fail"));
+
+      const result = await service.resetPassword({
+        token: RAW_TOKEN,
+        newPassword: NEW_PASS,
+        newPasswordConfirmation: NEW_PASS,
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: USER.id },
+        data: { passwordHash: "$argon2id$test-hash" },
+      });
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        message: "Пароль успешно изменен",
+      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword (persisted for worker retry)`,
+        "Redis pub/sub fail",
       );
     });
   });

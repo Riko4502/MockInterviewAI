@@ -66,7 +66,10 @@ describe("UsersService", () => {
         }),
       },
       authRevocationTask: {
-        create: jest.fn().mockResolvedValue({ id: "task-1" }),
+        create: jest.fn().mockResolvedValue({
+          id: "task-1",
+          createdAt: new Date("2026-09-10T12:00:00.000Z"),
+        }),
         delete: jest.fn().mockResolvedValue({ id: "task-1" }),
       },
       $transaction: jest.fn().mockImplementation((arg) => {
@@ -272,11 +275,23 @@ describe("UsersService", () => {
       );
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         mockUser.id,
+        new Date("2026-09-10T12:00:00.000Z"),
       );
       expect(redisServiceMock.publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(mockUser.id),
       );
+    });
+
+    it("не удаляет authRevocationTask если публикация в Redis завершилась ошибкой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      redisServiceMock.publish = jest
+        .fn()
+        .mockRejectedValue(new Error("Redis publish error"));
+
+      await service.deactivateAccount(mockUser.id, "session-123");
+
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
     it("восстанавливает аккаунт если прошло менее 30 дней", async () => {

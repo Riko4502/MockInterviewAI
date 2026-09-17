@@ -84,7 +84,10 @@ describe("AdminUsersService", () => {
         findUnique: jest.fn(),
       },
       authRevocationTask: {
-        create: jest.fn().mockResolvedValue({ id: "task-1" }),
+        create: jest.fn().mockResolvedValue({
+          id: "task-1",
+          createdAt: new Date("2026-09-10T12:00:00.000Z"),
+        }),
         delete: jest.fn().mockResolvedValue({ id: "task-1" }),
       },
       $transaction: jest.fn().mockImplementation((arg) => {
@@ -323,8 +326,33 @@ describe("AdminUsersService", () => {
       expect(result.role).toBe("ADMIN");
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
       );
       expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("не удаляет authRevocationTask если публикация в Redis завершилась ошибкой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.role.findUnique.mockResolvedValue({
+        id: "role-admin-id",
+        slug: "ADMIN",
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        displayName: "Updated Name",
+        role: { slug: "ADMIN", permissions: 1n },
+      });
+      redisServiceMock.publish.mockRejectedValue(
+        new Error("Redis publish error"),
+      );
+
+      const result = await service.updateUser(mockUserRecord.id, updateDto);
+
+      expect(result.role).toBe("ADMIN");
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
     it("не отзывает сессии если роль не менялась", async () => {
@@ -410,8 +438,33 @@ describe("AdminUsersService", () => {
       expect(result.deactivatedAt).not.toBeNull();
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         targetUserId,
+        new Date("2026-09-10T12:00:00.000Z"),
       );
       expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("не удаляет authRevocationTask при деактивации, если публикация в Redis завершилась ошибкой", async () => {
+      const adminId = "admin-uuid-123";
+      const targetUserId = "user-uuid-456";
+      const dto: UserStatusAdminDto = { isActive: false };
+
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      redisServiceMock.publish.mockRejectedValue(
+        new Error("Redis publish error"),
+      );
+
+      const result = await service.updateStatus(targetUserId, dto, adminId);
+
+      expect(result.isActive).toBe(false);
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
     it("активирует пользователя, сбрасывает deactivatedAt и не отзывает сессии", async () => {

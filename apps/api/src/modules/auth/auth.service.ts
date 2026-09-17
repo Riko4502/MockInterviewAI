@@ -20,7 +20,10 @@ import type {
 } from "@packages/dto";
 import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
-import { publishUserRevocation } from "../../common/pubsub/revocation";
+import {
+  publishUserRevocation,
+  publishUserRevocationOrThrow,
+} from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { MailService } from "../mail/mail.service";
@@ -629,6 +632,7 @@ export class AuthService implements OnModuleInit {
 
     // Создаем durable-задачу в той же транзакции PostgreSQL, что и изменение пароля
     let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
@@ -638,10 +642,11 @@ export class AuthService implements OnModuleInit {
         data: { userId },
       });
       taskId = task.id;
+      taskCreatedAt = task.createdAt;
     });
 
     try {
-      await this.revokeSessionsWithRetry(userId);
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt);
 
       // При успешной ревокации удаляем durable задачу
       if (taskId) {
@@ -669,13 +674,14 @@ export class AuthService implements OnModuleInit {
    */
   private async revokeSessionsWithRetry(
     userId: string,
+    maxCreatedAt?: Date | string,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        await this.sessionService.revokeAllUserSessions(userId);
-        await publishUserRevocation(this.redisService, userId);
+        await this.sessionService.revokeAllUserSessions(userId, maxCreatedAt);
+        await publishUserRevocationOrThrow(this.redisService, userId);
         return;
       } catch (error) {
         if (attempt === retries) {

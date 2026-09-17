@@ -18,7 +18,7 @@ import type {
 import { SystemRole } from "@packages/types";
 import argon2 from "argon2";
 import { USER_ADMIN_SELECT } from "../../../common/constants/user-select.constants";
-import { publishUserRevocation } from "../../../common/pubsub/revocation";
+import { publishUserRevocationOrThrow } from "../../../common/pubsub/revocation";
 import type { Prisma } from "../../../generated/prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { RedisService } from "../../../redis/redis.service";
@@ -358,19 +358,21 @@ export class AdminUsersService {
           select: USER_ADMIN_SELECT,
         });
 
+        let taskCreatedAt: Date | undefined;
         if (roleChanged) {
           const task = await tx.authRevocationTask.create({
             data: { userId: id },
           });
           taskId = task.id;
+          taskCreatedAt = task.createdAt;
         }
 
-        return user;
+        return { user, taskCreatedAt };
       });
 
       if (roleChanged) {
         try {
-          await this.revokeSessionsWithRetry(id);
+          await this.revokeSessionsWithRetry(id, updated.taskCreatedAt);
           if (taskId) {
             await this.prisma.authRevocationTask
               .delete({ where: { id: taskId } })
@@ -384,19 +386,20 @@ export class AdminUsersService {
         }
       }
 
+      const user = updated.user;
       return {
-        id: updated.id,
-        email: updated.email,
-        username: updated.username,
-        displayName: updated.displayName,
-        role: updated.role?.slug ?? SystemRole.USER,
-        isActive: updated.isActive,
-        deactivatedAt: updated.deactivatedAt,
-        avatarUrl: updated.avatarUrl,
-        telegramUsername: updated.telegramUsername,
-        gitUrl: updated.gitUrl,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role?.slug ?? SystemRole.USER,
+        isActive: user.isActive,
+        deactivatedAt: user.deactivatedAt,
+        avatarUrl: user.avatarUrl,
+        telegramUsername: user.telegramUsername,
+        gitUrl: user.gitUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       };
     } catch (error) {
       if (
@@ -471,19 +474,21 @@ export class AdminUsersService {
         select: USER_ADMIN_SELECT,
       });
 
+      let taskCreatedAt: Date | undefined;
       if (!dto.isActive) {
         const task = await tx.authRevocationTask.create({
           data: { userId: id },
         });
         taskId = task.id;
+        taskCreatedAt = task.createdAt;
       }
 
-      return user;
+      return { user, taskCreatedAt };
     });
 
     if (!dto.isActive) {
       try {
-        await this.revokeSessionsWithRetry(id);
+        await this.revokeSessionsWithRetry(id, updated.taskCreatedAt);
         if (taskId) {
           await this.prisma.authRevocationTask
             .delete({ where: { id: taskId } })
@@ -497,19 +502,20 @@ export class AdminUsersService {
       }
     }
 
+    const user = updated.user;
     return {
-      id: updated.id,
-      email: updated.email,
-      username: updated.username,
-      displayName: updated.displayName,
-      role: updated.role?.slug ?? SystemRole.USER,
-      isActive: updated.isActive,
-      deactivatedAt: updated.deactivatedAt,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role?.slug ?? SystemRole.USER,
+      isActive: user.isActive,
+      deactivatedAt: user.deactivatedAt,
+      avatarUrl: user.avatarUrl,
+      telegramUsername: user.telegramUsername,
+      gitUrl: user.gitUrl,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 
@@ -518,13 +524,17 @@ export class AdminUsersService {
    */
   private async revokeSessionsWithRetry(
     userId: string,
+    maxCreatedAt?: Date | string,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        await this.authSessionService.revokeAllUserSessions(userId);
-        await publishUserRevocation(this.redisService, userId);
+        await this.authSessionService.revokeAllUserSessions(
+          userId,
+          maxCreatedAt,
+        );
+        await publishUserRevocationOrThrow(this.redisService, userId);
         return;
       } catch (error) {
         if (attempt === retries) {

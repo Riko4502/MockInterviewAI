@@ -290,5 +290,31 @@ describe("AuthSessionService", () => {
 
       expect(redisDelete).not.toHaveBeenCalled();
     });
+
+    it("удаляет только сессии, созданные не позднее maxCreatedAt", async () => {
+      const oldSessionKey = `auth:session:${randomUUID()}`;
+      const newSessionKey = `auth:session:${randomUUID()}`;
+      const cutoff = new Date("2026-08-01T12:00:00.000Z");
+
+      const oldSession: AuthSession = {
+        ...createStoredSession("h-old"),
+        createdAt: "2026-08-01T10:00:00.000Z",
+      };
+      const newSession: AuthSession = {
+        ...createStoredSession("h-new"),
+        createdAt: "2026-08-01T14:00:00.000Z",
+      };
+
+      redisScanKeys.mockResolvedValue([oldSessionKey, newSessionKey]);
+      redisGet
+        .mockResolvedValueOnce(JSON.stringify(oldSession))
+        .mockResolvedValueOnce(JSON.stringify(newSession));
+
+      await service.revokeAllUserSessions(USER_ID, cutoff);
+
+      expect(redisDelete).toHaveBeenCalledTimes(1);
+      expect(redisDelete).toHaveBeenCalledWith(oldSessionKey);
+      expect(redisDelete).not.toHaveBeenCalledWith(newSessionKey);
+    });
   });
 });

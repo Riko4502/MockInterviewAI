@@ -15,7 +15,7 @@ import type {
   UserProfileDto,
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
-import { publishUserRevocation } from "../../common/pubsub/revocation";
+import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
 import type { Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
@@ -352,6 +352,7 @@ export class UsersService {
     }
 
     let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -362,6 +363,7 @@ export class UsersService {
         data: { userId },
       });
       taskId = task.id;
+      taskCreatedAt = task.createdAt;
     });
 
     try {
@@ -370,7 +372,7 @@ export class UsersService {
           .delete(`auth:session:${sessionId}`)
           .catch(() => undefined);
       }
-      await this.revokeSessionsWithRetry(userId);
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt);
       if (taskId) {
         await this.prisma.authRevocationTask
           .delete({ where: { id: taskId } })
@@ -389,13 +391,17 @@ export class UsersService {
    */
   private async revokeSessionsWithRetry(
     userId: string,
+    maxCreatedAt?: Date | string,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        await this.authSessionService.revokeAllUserSessions(userId);
-        await publishUserRevocation(this.redisService, userId);
+        await this.authSessionService.revokeAllUserSessions(
+          userId,
+          maxCreatedAt,
+        );
+        await publishUserRevocationOrThrow(this.redisService, userId);
         return;
       } catch (error) {
         if (attempt === retries) {

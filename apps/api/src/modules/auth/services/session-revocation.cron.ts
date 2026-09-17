@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { publishUserRevocation } from "../../../common/pubsub/revocation";
+import { publishUserRevocationOrThrow } from "../../../common/pubsub/revocation";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { RedisService } from "../../../redis/redis.service";
 import { AuthSessionService } from "./auth-session.service";
@@ -16,7 +16,8 @@ const BATCH_SIZE = 50;
  * Фоновый воркер повторной обработки незавершённых сессионных ревокаций.
  *
  * Обрабатывает задачи из таблицы `auth_revocation_tasks`, созданные при смене пароля
- * (например, через `resetPassword`), в случае если Redis был недоступен в момент запроса.
+ * (например, через `resetPassword`), смене роли или деактивации аккаунта, в случае если
+ * Redis был недоступен в момент исходного запроса.
  */
 @Injectable()
 export class SessionRevocationCron {
@@ -70,8 +71,11 @@ export class SessionRevocationCron {
 
     for (const task of tasks) {
       try {
-        await this.sessionService.revokeAllUserSessions(task.userId);
-        await publishUserRevocation(this.redisService, task.userId);
+        await this.sessionService.revokeAllUserSessions(
+          task.userId,
+          task.createdAt,
+        );
+        await publishUserRevocationOrThrow(this.redisService, task.userId);
         await this.prisma.authRevocationTask.delete({
           where: { id: task.id },
         });

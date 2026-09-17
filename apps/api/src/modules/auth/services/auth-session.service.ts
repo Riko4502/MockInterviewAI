@@ -187,16 +187,23 @@ export class AuthSessionService {
   }
 
   /**
-   * Отзывает все authentication session пользователя (§66 SPEC.md).
+   * Отзывает (удаляет) authentication session пользователя (§66 SPEC.md).
    *
    * Проходит по ключам `auth:session:*` через `SCAN`-итерацию, читает каждый
-   * session и удаляет те, чей `userId` совпадает с переданным. Сессии других
-   * пользователей не затрагиваются. Отсутствие сессий — no-op.
+   * session и удаляет те, чей `userId` совпадает с переданным.
+   * Если указан `maxCreatedAt`, удаляются только сессии, созданные не позднее
+   * этой временной метки (`session.createdAt <= maxCreatedAt`), что предотвращает
+   * удаление новых сессий, созданных после постановки задачи ревокации.
+   * Сессии других пользователей не затрагиваются. Отсутствие сессий — no-op.
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
+   * @param maxCreatedAt - Опциональная временная граница создания сессий.
    * @throws {Error} При ошибке Redis.
    */
-  async revokeAllUserSessions(userId: string): Promise<void> {
+  async revokeAllUserSessions(
+    userId: string,
+    maxCreatedAt?: Date | string,
+  ): Promise<void> {
     const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
 
     for (const key of keys) {
@@ -207,6 +214,17 @@ export class AuthSessionService {
       try {
         const session = JSON.parse(raw) as AuthSession;
         if (session.userId === userId) {
+          if (maxCreatedAt !== undefined) {
+            const sessionCreatedAtMs = new Date(session.createdAt).getTime();
+            const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
+            if (
+              !Number.isNaN(sessionCreatedAtMs) &&
+              !Number.isNaN(maxCreatedAtMs) &&
+              sessionCreatedAtMs > maxCreatedAtMs
+            ) {
+              continue;
+            }
+          }
           await this.redisService.delete(key);
           this.logger.debug(`Session revoked for user ${userId}: ${key}`);
         }
