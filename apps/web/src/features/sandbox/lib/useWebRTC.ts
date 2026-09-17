@@ -134,7 +134,16 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
         });
         const { stream: synthetic, audioCtx } =
           createSyntheticMediaStream("Камера (Аудио)");
-        syntheticAudioCtxRef.current = audioCtx;
+
+        // Останавливаем и удаляем синтетический аудиотрек, освобождаем audioCtx
+        for (const synthAudioTrack of synthetic.getAudioTracks()) {
+          synthAudioTrack.stop();
+          synthetic.removeTrack(synthAudioTrack);
+        }
+        if (audioCtx) {
+          void audioCtx.close();
+        }
+
         for (const track of audioStream.getAudioTracks()) {
           track.enabled = false;
           synthetic.addTrack(track);
@@ -276,6 +285,8 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     setRemoteStream(null);
     setConnectionState("idle");
     setIsScreenSharing(false);
+    setIsAudioMuted(true);
+    setIsVideoOff(true);
     setIsRemoteAudioMuted(true);
     setIsRemoteVideoOff(true);
     pendingCandidates.current = [];

@@ -40,7 +40,7 @@ export function useLiveKitRoom({
   const [error, setError] = useState<string | null>(null);
 
   const roomRef = useRef<Room | null>(null);
-  const isConnectingRef = useRef<boolean>(false);
+  const connectionAttemptRef = useRef<number>(0);
 
   // Обновление локального MediaStream из локальных публикаций
   const updateLocalStream = useCallback((currentRoom: Room) => {
@@ -74,15 +74,15 @@ export function useLiveKitRoom({
 
   // Подключение к комнате LiveKit SFU
   const connect = useCallback(async () => {
-    if (
-      isConnectingRef.current ||
-      roomRef.current?.state === ConnectionState.Connected
-    ) {
+    if (roomRef.current?.state === ConnectionState.Connected) {
       return;
     }
 
-    isConnectingRef.current = true;
+    const attemptId = ++connectionAttemptRef.current;
     setError(null);
+    setConnectionState(ConnectionState.Connecting);
+
+    let newRoom: Room | null = null;
 
     try {
       const isValid =
@@ -98,8 +98,8 @@ export function useLiveKitRoom({
         sessionId,
       });
 
-      // Соединение отменили (размонтирование/смена sessionId) во время запроса токена
-      if (!isConnectingRef.current) {
+      // Соединение отменили или запущена новая попытка во время запроса токена
+      if (attemptId !== connectionAttemptRef.current) {
         return;
       }
 
@@ -108,112 +108,155 @@ export function useLiveKitRoom({
       }
 
       // 2. Создаем экземпляр LiveKit Room
-      const newRoom = new Room({
+      const currentRoom = new Room({
         adaptiveStream: true,
         dynacast: true,
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution,
         },
       });
-
-      roomRef.current = newRoom;
-      setRoom(newRoom);
+      newRoom = currentRoom;
 
       // 3. Подписываемся на события комнаты
-      newRoom.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
-        setConnectionState(state);
-      });
+      currentRoom.on(
+        RoomEvent.ConnectionStateChanged,
+        (state: ConnectionState) => {
+          if (attemptId === connectionAttemptRef.current) {
+            setConnectionState(state);
+          }
+        },
+      );
 
-      newRoom.on(
+      currentRoom.on(
         RoomEvent.TrackSubscribed,
         (
           _track: RemoteTrack,
           _publication: RemoteTrackPublication,
           _participant: RemoteParticipant,
         ) => {
-          updateRemoteStream(newRoom);
+          if (attemptId === connectionAttemptRef.current) {
+            updateRemoteStream(currentRoom);
+          }
         },
       );
 
-      newRoom.on(
+      currentRoom.on(
         RoomEvent.TrackUnsubscribed,
         (
           _track: RemoteTrack,
           _publication: RemoteTrackPublication,
           _participant: RemoteParticipant,
         ) => {
-          updateRemoteStream(newRoom);
+          if (attemptId === connectionAttemptRef.current) {
+            updateRemoteStream(currentRoom);
+          }
         },
       );
 
-      newRoom.on(RoomEvent.LocalTrackPublished, () => {
-        updateLocalStream(newRoom);
+      currentRoom.on(RoomEvent.LocalTrackPublished, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateLocalStream(currentRoom);
+        }
       });
 
-      newRoom.on(RoomEvent.LocalTrackUnpublished, () => {
-        updateLocalStream(newRoom);
+      currentRoom.on(RoomEvent.LocalTrackUnpublished, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateLocalStream(currentRoom);
+        }
       });
 
-      newRoom.on(RoomEvent.TrackMuted, () => {
-        updateLocalStream(newRoom);
-        updateRemoteStream(newRoom);
+      currentRoom.on(RoomEvent.TrackMuted, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateLocalStream(currentRoom);
+          updateRemoteStream(currentRoom);
+        }
       });
 
-      newRoom.on(RoomEvent.TrackUnmuted, () => {
-        updateLocalStream(newRoom);
-        updateRemoteStream(newRoom);
+      currentRoom.on(RoomEvent.TrackUnmuted, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateLocalStream(currentRoom);
+          updateRemoteStream(currentRoom);
+        }
       });
 
-      newRoom.on(RoomEvent.TrackPublished, () => {
-        updateRemoteStream(newRoom);
+      currentRoom.on(RoomEvent.TrackPublished, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateRemoteStream(currentRoom);
+        }
       });
 
-      newRoom.on(RoomEvent.TrackUnpublished, () => {
-        updateRemoteStream(newRoom);
+      currentRoom.on(RoomEvent.TrackUnpublished, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          updateRemoteStream(currentRoom);
+        }
       });
 
-      newRoom.on(
+      currentRoom.on(
         RoomEvent.ParticipantConnected,
         (_participant: RemoteParticipant) => {
-          updateRemoteStream(newRoom);
+          if (attemptId === connectionAttemptRef.current) {
+            updateRemoteStream(currentRoom);
+          }
         },
       );
 
-      newRoom.on(
+      currentRoom.on(
         RoomEvent.ParticipantDisconnected,
         (_participant: RemoteParticipant) => {
-          updateRemoteStream(newRoom);
+          if (attemptId === connectionAttemptRef.current) {
+            updateRemoteStream(currentRoom);
+          }
         },
       );
 
-      newRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-        setActiveSpeakers(speakers);
-      });
+      currentRoom.on(
+        RoomEvent.ActiveSpeakersChanged,
+        (speakers: Participant[]) => {
+          if (attemptId === connectionAttemptRef.current) {
+            setActiveSpeakers(speakers);
+          }
+        },
+      );
 
-      newRoom.on(RoomEvent.Disconnected, () => {
-        setConnectionState(ConnectionState.Disconnected);
-        setLocalStream(null);
-        setRemoteStream(null);
-        setRemoteParticipants([]);
+      currentRoom.on(RoomEvent.Disconnected, () => {
+        if (attemptId === connectionAttemptRef.current) {
+          setConnectionState(ConnectionState.Disconnected);
+          setLocalStream(null);
+          setRemoteStream(null);
+          setRemoteParticipants([]);
+        }
       });
 
       // 4. Устанавливаем соединение с сервером
-      await newRoom.connect(serverUrl, token);
+      await currentRoom.connect(serverUrl, token);
 
-      // Соединение отменили во время подключения
-      if (roomRef.current !== newRoom) {
-        await newRoom.disconnect();
+      // Соединение отменили или началась новая попытка во время подключения
+      if (attemptId !== connectionAttemptRef.current) {
+        await currentRoom.disconnect();
         return;
       }
 
+      if (roomRef.current && roomRef.current !== currentRoom) {
+        await roomRef.current.disconnect();
+      }
+
+      roomRef.current = currentRoom;
+      setRoom(currentRoom);
+
       // Синхронизируем уже подключенных участников и их треки
-      updateRemoteStream(newRoom);
+      updateRemoteStream(currentRoom);
 
       // 5. Микрофон и камера по умолчанию выключены
       setIsCameraEnabled(false);
       setIsMicrophoneEnabled(false);
-      updateLocalStream(newRoom);
+      updateLocalStream(currentRoom);
     } catch (err) {
+      if (newRoom) {
+        await newRoom.disconnect().catch(() => {});
+      }
+      if (attemptId !== connectionAttemptRef.current) {
+        return;
+      }
       const msg =
         err instanceof Error
           ? err.message
@@ -221,14 +264,12 @@ export function useLiveKitRoom({
       setError(msg);
       setConnectionState(ConnectionState.Disconnected);
       throw err;
-    } finally {
-      isConnectingRef.current = false;
     }
   }, [sessionId, updateLocalStream, updateRemoteStream]);
 
   // Отключение от комнаты
   const disconnect = useCallback(async () => {
-    isConnectingRef.current = false;
+    connectionAttemptRef.current += 1;
     if (roomRef.current) {
       await roomRef.current.disconnect();
       roomRef.current = null;

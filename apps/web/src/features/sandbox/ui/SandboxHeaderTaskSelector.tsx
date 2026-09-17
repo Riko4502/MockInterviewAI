@@ -3,11 +3,25 @@ import { Badge, Button, Select, Typography } from "@packages/ui";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
 
-export function SandboxHeaderTaskSelector() {
+export interface SandboxHeaderTaskSelectorProps {
+  onTaskChange?: (taskId: string) => void;
+}
+
+export function SandboxHeaderTaskSelector({
+  onTaskChange,
+}: SandboxHeaderTaskSelectorProps = {}) {
   const { peerCount, onCopyInvite, isInviteCopied } = useSandboxMedia();
   const tasks = useSandboxStore((s) => s.tasks);
   const currentTaskId = useSandboxStore((s) => s.currentTaskId);
   const setTaskId = useSandboxStore((s) => s.setTaskId);
+
+  const handleTaskChange = (taskId: string) => {
+    if (onTaskChange) {
+      onTaskChange(taskId);
+    } else {
+      setTaskId(taskId);
+    }
+  };
 
   const currentTask = tasks.find((t) => t.id === currentTaskId);
 
@@ -17,7 +31,7 @@ export function SandboxHeaderTaskSelector() {
         Задача:
       </Typography.Muted>
 
-      <Select value={currentTaskId} onValueChange={setTaskId}>
+      <Select value={currentTaskId} onValueChange={handleTaskChange}>
         <Select.Trigger className="h-9 w-[260px]">
           <Select.Value placeholder="Выберите задачу" />
         </Select.Trigger>

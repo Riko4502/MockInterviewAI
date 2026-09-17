@@ -87,4 +87,14 @@ func TestRedisStore_Disabled_FailClosed(t *testing.T) {
 	if authActive {
 		t.Errorf("IsAuthSessionActive should return false when Redis is disabled (fail-closed)")
 	}
+
+	// 4. ConsumeTicket must return false when Redis is disabled
+	consumed, err := store.ConsumeTicket(ctx, "ticket-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if consumed {
+		t.Error("ConsumeTicket should return false when Redis is disabled")
+	}
 }
+

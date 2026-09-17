@@ -33,7 +33,7 @@ export function SandboxRoom() {
     const fromUrl = searchParams.get("room");
     const token = authToken.get();
 
-    if (!fromUrl && token) {
+    if ((!fromUrl || !isValidUUID(fromUrl)) && token) {
       sessionsControllerCreateSession()
         .then((res) => {
           if (res?.sessionId) {
@@ -84,6 +84,15 @@ export function SandboxRoom() {
     [setCode, realtime, language],
   );
 
+  // Синхронизация локальной смены задачи (меняет задачу в store и отправляет другим участникам)
+  const handleTaskChange = useCallback(
+    (newTaskId: string) => {
+      setTaskId(newTaskId);
+      realtime.broadcastTaskChange(newTaskId);
+    },
+    [setTaskId, realtime],
+  );
+
   // Синхронизация локальной смены языка программирования (меняет язык, стартер-код и отправляет другим участникам)
   const handleLanguageChange = useCallback(
     (newLang: LanguageId) => {
@@ -97,10 +106,7 @@ export function SandboxRoom() {
   const handleResetCode = useCallback(() => {
     resetCode();
     const currentTask = useSandboxStore.getState().getCurrentTask();
-    const starter =
-      currentTask.starterCode[language] ??
-      currentTask.starterCode.typescript ??
-      "";
+    const starter = currentTask.starterCode[language] ?? "";
     realtime.broadcastCodeUpdate(starter, language);
   }, [resetCode, realtime, language]);
 
@@ -115,6 +121,7 @@ export function SandboxRoom() {
         <SandboxHeader
           onLanguageChange={handleLanguageChange}
           onResetCode={handleResetCode}
+          onTaskChange={handleTaskChange}
         />
 
         {/* Основная рабочая область со сплиттерами */}

@@ -1,5 +1,5 @@
 import { AlertCircleIcon, MicIcon, UserIcon } from "@packages/icons";
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { useAudioVolumeMeter } from "../lib/useAudioVolumeMeter";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 
@@ -25,30 +25,41 @@ export function SandboxVideoWidgetScreen() {
     remoteStream,
     isRemoteAudioMuted,
   );
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const localVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      if (el) {
+        el.srcObject = localStream ?? null;
+        if (localStream) {
+          el.play?.().catch(() => {});
+        }
+      }
+    },
+    [localStream],
+  );
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play?.().catch(() => {});
-    }
-  }, [localStream]);
+  const remoteVideoRef = useCallback(
+    (el: HTMLVideoElement | null) => {
+      if (el) {
+        el.srcObject = remoteStream ?? null;
+        if (remoteStream) {
+          el.play?.().catch(() => {});
+        }
+      }
+    },
+    [remoteStream],
+  );
 
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play?.().catch(() => {});
-    }
-  }, [remoteStream]);
-
-  useEffect(() => {
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
-      remoteAudioRef.current.play?.().catch(() => {});
-    }
-  }, [remoteStream]);
+  const remoteAudioRef = useCallback(
+    (el: HTMLAudioElement | null) => {
+      if (el) {
+        el.srcObject = remoteStream ?? null;
+        if (remoteStream) {
+          el.play?.().catch(() => {});
+        }
+      }
+    },
+    [remoteStream],
+  );
 
   const showRemoteVideo = isInCall && remoteStream && !isRemoteVideoOff;
 
@@ -73,6 +84,7 @@ export function SandboxVideoWidgetScreen() {
               ref={remoteVideoRef}
               autoPlay
               playsInline
+              muted
               className="size-full object-cover"
             />
           ) : isInCall ? (

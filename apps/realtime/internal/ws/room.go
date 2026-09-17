@@ -103,7 +103,13 @@ func (r *Room) Run(ctx context.Context) {
 
 	// Последовательный воркер сохранения снимков кода в Redis
 	if r.sessionStore != nil {
-		go r.codeSaveWorker(ctx)
+		var initialSavedVersion int64
+		r.mu.RLock()
+		if r.lastCodeState != nil {
+			initialSavedVersion = r.lastCodeState.Version
+		}
+		r.mu.RUnlock()
+		go r.codeSaveWorker(ctx, initialSavedVersion)
 	}
 
 	idleTimer := time.NewTimer(roomIdleReapTimeout)
@@ -283,8 +289,8 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
 			r.mu.Lock()
-			// Условное обновление снимка в памяти: более старая версия не перезаписывает новейшую
-			if r.lastCodeState == nil || codePayload.Version >= r.lastCodeState.Version {
+			// Условное обновление снимка в памяти: более старая или равная версия не перезаписывает новейшую
+			if r.lastCodeState == nil || codePayload.Version > r.lastCodeState.Version {
 				r.lastCodeState = &codePayload
 			}
 			r.mu.Unlock()
@@ -332,13 +338,8 @@ func (r *Room) publishWorker(ctx context.Context) {
 }
 
 // codeSaveWorker последовательно и условно (по возрастанию Version) сохраняет снимки кода в Redis.
-func (r *Room) codeSaveWorker(ctx context.Context) {
-	var lastSavedVersion int64
-	r.mu.RLock()
-	if r.lastCodeState != nil {
-		lastSavedVersion = r.lastCodeState.Version
-	}
-	r.mu.RUnlock()
+func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
+	lastSavedVersion := initialSavedVersion
 
 	for {
 		select {
@@ -347,8 +348,8 @@ func (r *Room) codeSaveWorker(ctx context.Context) {
 		case <-r.done:
 			return
 		case payload := <-r.codeSaveQueue:
-			// Условная запись: если версия меньше уже сохраненной, пропускаем (защита от race conditions)
-			if payload.Version < lastSavedVersion {
+			// Условная запись: если версия меньше или равна уже сохраненной, пропускаем (защита от race conditions и дубликатов)
+			if payload.Version <= lastSavedVersion {
 				r.logger.Debug("skipping out-of-order code save",
 					slog.Int64("version", payload.Version),
 					slog.Int64("lastSavedVersion", lastSavedVersion),

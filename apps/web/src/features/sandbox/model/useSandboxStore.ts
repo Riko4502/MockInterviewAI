@@ -86,21 +86,15 @@ export const useSandboxStore = create<SandboxStoreState>((set, get) => {
       const { tasks, language } = get();
       const targetTask = tasks.find((t) => t.id === taskId) ?? tasks[0];
       set({
-        currentTaskId: taskId,
-        code:
-          targetTask.starterCode[language] ??
-          targetTask.starterCode.typescript ??
-          "",
+        currentTaskId: targetTask.id,
+        code: targetTask.starterCode[language] ?? "",
         revealedHints: 0,
       });
     },
 
     setLanguage: (newLang: LanguageId) => {
       const currentTask = get().getCurrentTask();
-      const newCode =
-        currentTask.starterCode[newLang] ??
-        currentTask.starterCode.typescript ??
-        "// Код на выбранном языке\n";
+      const newCode = currentTask.starterCode[newLang] ?? "";
       set({
         language: newLang,
         code: newCode,
@@ -170,9 +164,13 @@ export const useSandboxStore = create<SandboxStoreState>((set, get) => {
       }),
 
     tickTimer: () =>
-      set((state) => ({
-        timerSeconds: state.timerSeconds > 0 ? state.timerSeconds - 1 : 0,
-      })),
+      set((state) => {
+        const timerSeconds = Math.max(0, state.timerSeconds - 1);
+        return {
+          timerSeconds,
+          isTimerRunning: timerSeconds > 0 && state.isTimerRunning,
+        };
+      }),
 
     setIsVideoOpen: (openOrUpdater) => {
       if (typeof openOrUpdater === "function") {

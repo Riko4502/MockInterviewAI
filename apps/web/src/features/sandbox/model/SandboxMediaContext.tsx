@@ -72,10 +72,13 @@ export function SandboxMediaProvider({
 
   const [isInviteCopied, setIsInviteCopied] = useState<boolean>(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef<boolean>(true);
 
-  // Очистка таймера копирования при unmount
+  // Очистка таймера копирования и инвалидация при unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);
         copyTimeoutRef.current = null;
@@ -90,6 +93,8 @@ export function SandboxMediaProvider({
     navigator.clipboard
       .writeText(url)
       .then(() => {
+        if (!mountedRef.current) return;
+
         setIsInviteCopied(true);
 
         if (copyTimeoutRef.current) {
@@ -97,7 +102,9 @@ export function SandboxMediaProvider({
         }
 
         copyTimeoutRef.current = setTimeout(() => {
-          setIsInviteCopied(false);
+          if (mountedRef.current) {
+            setIsInviteCopied(false);
+          }
           copyTimeoutRef.current = null;
         }, 2500);
 
@@ -109,6 +116,7 @@ export function SandboxMediaProvider({
         });
       })
       .catch((err) => {
+        if (!mountedRef.current) return;
         console.warn("[Sandbox] Clipboard write failed:", err);
         toast.push({
           status: "error",
@@ -134,8 +142,11 @@ export function SandboxMediaProvider({
 
   // Связываем сигналы из realtime со звонками
   useEffect(() => {
-    // При монтировании сохраняем инстансы для внешних вызовов, если нужно
-  });
+    return realtime.subscribeWebRTCSignal((signal) => {
+      setIsVideoOpen(true);
+      void webrtc.handleSignal(signal);
+    });
+  }, [realtime, webrtc, setIsVideoOpen]);
 
   const connectionState: ConnectionState = livekit.isConnected
     ? "connected"

@@ -70,12 +70,37 @@ export function useSandboxRealtime({
   const peersRef = useRef<Map<string, PeerInfo>>(new Map());
   const channelRef = useRef<BroadcastChannel | null>(null);
   const wsConnRef = useRef<RealtimeConnection | null>(null);
+  const webRTCSignalListenersRef = useRef<Set<(signal: WebRTCSignal) => void>>(
+    new Set(),
+  );
+
+  const subscribeWebRTCSignal = useCallback(
+    (handler: (signal: WebRTCSignal) => void) => {
+      webRTCSignalListenersRef.current.add(handler);
+      return () => {
+        webRTCSignalListenersRef.current.delete(handler);
+      };
+    },
+    [],
+  );
 
   // Храним актуальные колбэки в ref, чтобы не пересоздавать подписку при ререндерах
   const callbacksRef = useRef<SandboxCallbacks>({
     onRemoteCodeUpdate,
     onRemoteTaskChange,
-    onRemoteWebRTCSignal,
+    onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
+      onRemoteWebRTCSignal?.(signal);
+      webRTCSignalListenersRef.current.forEach((listener) => {
+        try {
+          listener(signal);
+        } catch (err) {
+          console.error(
+            "[useSandboxRealtime] Error in WebRTC signal listener:",
+            err,
+          );
+        }
+      });
+    },
     onRemoteRunResult,
     onPeerJoined,
   });
@@ -84,7 +109,19 @@ export function useSandboxRealtime({
     callbacksRef.current = {
       onRemoteCodeUpdate,
       onRemoteTaskChange,
-      onRemoteWebRTCSignal,
+      onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
+        onRemoteWebRTCSignal?.(signal);
+        webRTCSignalListenersRef.current.forEach((listener) => {
+          try {
+            listener(signal);
+          } catch (err) {
+            console.error(
+              "[useSandboxRealtime] Error in WebRTC signal listener:",
+              err,
+            );
+          }
+        });
+      },
       onRemoteRunResult,
       onPeerJoined,
     };
@@ -423,5 +460,7 @@ export function useSandboxRealtime({
     broadcastTaskChange,
     broadcastWebRTCSignal,
     broadcastRunResult,
+    subscribeWebRTCSignal,
+    registerWebRTCSignalHandler: subscribeWebRTCSignal,
   };
 }

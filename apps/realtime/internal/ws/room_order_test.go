@@ -217,10 +217,26 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	// 4. Отправляем дубликат версии (Version: 4) с другим контентом — должен быть проигнорирован
+	duplicateEnv := NewEnvelope(
+		EventCodeUpdate,
+		"test-session",
+		"",
+		CodeUpdatePayload{
+			FilePath: "main.ts",
+			Content:  "duplicate v4",
+			Version:  4,
+		},
+	)
+	bytes, _ = duplicateEnv.ToBytes()
+	room.Broadcast(bytes, "")
+
+	time.Sleep(50 * time.Millisecond)
+
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	// Должны быть сохранены версии 1, 2, 3, 4 (outdated version 2 пропущена)
+	// Должны быть сохранены только версии 1, 2, 3, 4 (outdated version 2 и duplicate version 4 пропущены)
 	if len(store.savedPayload) != 4 {
 		t.Fatalf("expected 4 saved code states, got %d", len(store.savedPayload))
 	}
@@ -232,12 +248,13 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		}
 	}
 
-	// Проверяем последнее состояние в памяти комнаты
+	// Проверяем последнее состояние в памяти комнаты (не должно быть перезаписано дубликатом)
 	room.mu.RLock()
 	lastState := room.lastCodeState
 	room.mu.RUnlock()
 
-	if lastState == nil || lastState.Version != 4 {
-		t.Errorf("expected in-memory lastCodeState version 4, got %v", lastState)
+	if lastState == nil || lastState.Version != 4 || lastState.Content != "content v4" {
+		t.Errorf("expected in-memory lastCodeState version 4 with 'content v4', got %v", lastState)
 	}
 }
+
