@@ -46,14 +46,24 @@ describe("useSandboxStore", () => {
   });
 
   it("should return empty string and not fallback to typescript when template is missing", () => {
-    const { setLanguage, tasks } = useSandboxStore.getState();
-    // Имитируем задачу без шаблона для определенного языка
-    delete tasks[0].starterCode.go;
-    const newCode = setLanguage("go");
-    const state = useSandboxStore.getState();
-    expect(state.language).toBe("go");
-    expect(state.code).toBe("");
-    expect(newCode).toBe("");
+    const { tasks, setLanguage } = useSandboxStore.getState();
+    const taskWithoutGo = {
+      ...tasks[0],
+      starterCode: { ...tasks[0].starterCode },
+    };
+    delete taskWithoutGo.starterCode.go;
+
+    useSandboxStore.setState({ tasks: [taskWithoutGo, ...tasks.slice(1)] });
+
+    try {
+      const newCode = setLanguage("go");
+      const state = useSandboxStore.getState();
+      expect(state.language).toBe("go");
+      expect(state.code).toBe("");
+      expect(newCode).toBe("");
+    } finally {
+      useSandboxStore.setState({ tasks });
+    }
   });
 
   it("should apply remote code update with new language without resetting to starter code", () => {

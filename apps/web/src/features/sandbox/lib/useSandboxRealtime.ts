@@ -73,6 +73,22 @@ export function useSandboxRealtime({
   const webRTCSignalListenersRef = useRef<Set<(signal: WebRTCSignal) => void>>(
     new Set(),
   );
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+
+  const markMessageSeen = useCallback((id?: string) => {
+    if (!id) return false;
+    if (seenMessageIdsRef.current.has(id)) {
+      return true;
+    }
+    seenMessageIdsRef.current.add(id);
+    if (seenMessageIdsRef.current.size > 1000) {
+      const oldest = seenMessageIdsRef.current.values().next().value;
+      if (oldest) {
+        seenMessageIdsRef.current.delete(oldest);
+      }
+    }
+    return false;
+  }, []);
 
   const subscribeWebRTCSignal = useCallback(
     (handler: (signal: WebRTCSignal) => void) => {
@@ -135,6 +151,7 @@ export function useSandboxRealtime({
     ) => {
       if (!roomId) return;
       const msg: SandboxRealtimeMessage = {
+        id: uuidv4(),
         type,
         roomId,
         senderId: userId,
@@ -314,6 +331,9 @@ export function useSandboxRealtime({
               try {
                 const parsed = JSON.parse(text) as SandboxRealtimeMessage;
                 if (!isSelfPeer(parsed.senderId)) {
+                  if (markMessageSeen(parsed.id)) {
+                    break;
+                  }
                   dispatchSandboxMessage(parsed, callbacksRef.current);
                 }
               } catch {
@@ -360,7 +380,7 @@ export function useSandboxRealtime({
       }
       setWsConnected(false);
     };
-  }, [roomId, isSelfPeer]);
+  }, [roomId, isSelfPeer, markMessageSeen]);
 
   // 2. Локальный BroadcastChannel и localStorage (для мгновенного обмена между вкладками одного браузера)
   useEffect(() => {
@@ -381,6 +401,10 @@ export function useSandboxRealtime({
 
     const processMessage = (msg: SandboxRealtimeMessage) => {
       if (!msg || msg.roomId !== roomId || isSelfPeer(msg.senderId)) return;
+
+      if (markMessageSeen(msg.id)) {
+        return;
+      }
 
       if (msg.type === "presence-leave") {
         if (peersRef.current.has(msg.senderId)) {
@@ -412,6 +436,7 @@ export function useSandboxRealtime({
           if (msg.type === "presence-ping") {
             try {
               channel?.postMessage({
+                id: uuidv4(),
                 type: "presence-ping",
                 roomId,
                 senderId: userId,
@@ -441,7 +466,7 @@ export function useSandboxRealtime({
       channel?.close();
       channelRef.current = null;
     };
-  }, [roomId, userId, userName, isSelfPeer]);
+  }, [roomId, userId, userName, isSelfPeer, markMessageSeen]);
 
   // Формируем список соавторов с курсорами для Monaco Editor (исключая самого себя)
   const collaborators: Collaborator[] = otherPeers

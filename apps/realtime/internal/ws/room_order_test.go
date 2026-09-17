@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -176,8 +177,6 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		room.Broadcast(bytes, "")
 	}
 
-	time.Sleep(50 * time.Millisecond)
-
 	// 2. Отправляем устаревшую версию (Version: 2) — должна быть проигнорирована
 	outdatedEnv := NewEnvelope(
 		EventCodeUpdate,
@@ -193,7 +192,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 	room.Broadcast(bytes, "")
 
 	// 3. Отправляем более новую версию (Version: 4) — должна быть сохранена
-	newEnv := NewEnvelope(
+	newEnv4 := NewEnvelope(
 		EventCodeUpdate,
 		"test-session",
 		"",
@@ -203,19 +202,8 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 			Version:  4,
 		},
 	)
-	bytes, _ = newEnv.ToBytes()
+	bytes, _ = newEnv4.ToBytes()
 	room.Broadcast(bytes, "")
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		store.mu.Lock()
-		count := len(store.savedPayload)
-		store.mu.Unlock()
-		if count >= 4 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 
 	// 4. Отправляем дубликат версии (Version: 4) с другим контентом — должен быть проигнорирован
 	duplicateEnv := NewEnvelope(
@@ -231,30 +219,139 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 	bytes, _ = duplicateEnv.ToBytes()
 	room.Broadcast(bytes, "")
 
-	time.Sleep(50 * time.Millisecond)
+	// 5. Отправляем версию 5 как барьер синхронизации: ее сохранение в mock store
+	// строго подтверждает через FIFO очереди, что все предшествующие сообщения
+	// (устаревшая версия 2 и дубликат версии 4) были обработаны и пропущены воркером.
+	newEnv5 := NewEnvelope(
+		EventCodeUpdate,
+		"test-session",
+		"",
+		CodeUpdatePayload{
+			FilePath: "main.ts",
+			Content:  "content v5",
+			Version:  5,
+		},
+	)
+	bytes, _ = newEnv5.ToBytes()
+	room.Broadcast(bytes, "")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		count := len(store.savedPayload)
+		store.mu.Unlock()
+		if count >= 5 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	// Должны быть сохранены только версии 1, 2, 3, 4 (outdated version 2 и duplicate version 4 пропущены)
-	if len(store.savedPayload) != 4 {
-		t.Fatalf("expected 4 saved code states, got %d", len(store.savedPayload))
+	// Должны быть сохранены только версии 1, 2, 3, 4, 5 (outdated version 2 и duplicate version 4 пропущены)
+	if len(store.savedPayload) != 5 {
+		t.Fatalf("expected 5 saved code states, got %d", len(store.savedPayload))
 	}
 
-	expectedVersions := []int64{1, 2, 3, 4}
+	expectedVersions := []int64{1, 2, 3, 4, 5}
 	for i, p := range store.savedPayload {
 		if p.Version != expectedVersions[i] {
 			t.Errorf("saved payload %d: expected version %d, got %d", i, expectedVersions[i], p.Version)
 		}
+		if p.Version == 4 && p.Content != "content v4" {
+			t.Errorf("saved payload for version 4 was overwritten by duplicate: got content %q", p.Content)
+		}
 	}
 
-	// Проверяем последнее состояние в памяти комнаты (не должно быть перезаписано дубликатом)
+	// Проверяем последнее состояние в памяти комнаты
 	room.mu.RLock()
 	lastState := room.lastCodeState
 	room.mu.RUnlock()
 
-	if lastState == nil || lastState.Version != 4 || lastState.Content != "content v4" {
-		t.Errorf("expected in-memory lastCodeState version 4 with 'content v4', got %v", lastState)
+	if lastState == nil || lastState.Version != 5 || lastState.Content != "content v5" {
+		t.Errorf("expected in-memory lastCodeState version 5 with 'content v5', got %v", lastState)
+	}
+}
+
+type mockSlowSessionStore struct {
+	mockSessionStoreOrder
+	delay time.Duration
+}
+
+func (m *mockSlowSessionStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
+	return m.mockSessionStoreOrder.SaveCodeState(ctx, sessionID, data)
+}
+
+func TestRoom_CodeSave_QueueOverflow_Coalescing(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &mockSlowSessionStore{
+		delay: 5 * time.Millisecond,
+	}
+	room := NewRoom("test-overflow-session", nil, store, logger, nil)
+	go room.Run(ctx)
+	defer room.Close()
+
+	// Отправляем 200 обновлений подряд (burst, гарантированно превышающий емкость очереди в 128 элементов)
+	totalUpdates := int64(200)
+	for v := int64(1); v <= totalUpdates; v++ {
+		codeEnv := NewEnvelope(
+			EventCodeUpdate,
+			"test-overflow-session",
+			"",
+			CodeUpdatePayload{
+				FilePath: "main.ts",
+				Content:  fmt.Sprintf("content v%d", v),
+				Version:  v,
+			},
+		)
+		bytes, _ := codeEnv.ToBytes()
+		room.Broadcast(bytes, "")
+	}
+
+	// Ожидаем, пока воркер через coalescing-слот сохранит самый последний снимок (v200)
+	deadline := time.Now().Add(4 * time.Second)
+	var lastSavedVersion int64
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		if len(store.savedPayload) > 0 {
+			lastSavedVersion = store.savedPayload[len(store.savedPayload)-1].Version
+		}
+		store.mu.Unlock()
+		if lastSavedVersion == totalUpdates {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.savedPayload) == 0 {
+		t.Fatal("no code payloads were saved in store")
+	}
+
+	lastPayload := store.savedPayload[len(store.savedPayload)-1]
+	if lastPayload.Version != totalUpdates {
+		t.Fatalf("expected last saved version to be %d, got %d", totalUpdates, lastPayload.Version)
+	}
+	if lastPayload.Content != "content v200" {
+		t.Fatalf("expected last saved content to be 'content v200', got %q", lastPayload.Content)
+	}
+
+	// Проверяем состояние в памяти комнаты
+	room.mu.RLock()
+	lastState := room.lastCodeState
+	room.mu.RUnlock()
+
+	if lastState == nil || lastState.Version != totalUpdates || lastState.Content != "content v200" {
+		t.Fatalf("expected in-memory lastCodeState version %d with 'content v200', got %v", totalUpdates, lastState)
 	}
 }
 

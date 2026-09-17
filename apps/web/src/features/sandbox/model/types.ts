@@ -88,6 +88,7 @@ export interface SandboxRealtimeMessagePayload {
 }
 
 export interface SandboxRealtimeMessage {
+  id?: string;
   type: SandboxRealtimeMessageType;
   roomId: string;
   senderId: string;

@@ -190,6 +190,7 @@ export const useSandboxStore = create<SandboxStoreState>((set, get) => {
     resetStore: () => {
       const firstTask = MOCK_INTERVIEW_TASKS[0];
       set({
+        tasks: MOCK_INTERVIEW_TASKS,
         currentTaskId: firstTask.id,
         language: "typescript",
         theme: "dark",

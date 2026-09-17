@@ -61,7 +61,7 @@ export function mapSandboxMessageToEnvelope(
         ...base,
         type: "chat.message",
         payload: {
-          messageId: `msg_${uuidv4()}`,
+          messageId: msg.id ? `msg_${msg.id}` : `msg_${uuidv4()}`,
           senderId: msg.senderId,
           senderName: msg.senderName,
           text: JSON.stringify(msg),

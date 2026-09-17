@@ -73,9 +73,9 @@ export function useLiveKitRoom({
   }, []);
 
   // Подключение к комнате LiveKit SFU
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (): Promise<boolean> => {
     if (roomRef.current?.state === ConnectionState.Connected) {
-      return;
+      return true;
     }
 
     const attemptId = ++connectionAttemptRef.current;
@@ -100,7 +100,7 @@ export function useLiveKitRoom({
 
       // Соединение отменили или запущена новая попытка во время запроса токена
       if (attemptId !== connectionAttemptRef.current) {
-        return;
+        return false;
       }
 
       if (!token || !serverUrl) {
@@ -233,7 +233,7 @@ export function useLiveKitRoom({
       // Соединение отменили или началась новая попытка во время подключения
       if (attemptId !== connectionAttemptRef.current) {
         await currentRoom.disconnect();
-        return;
+        return false;
       }
 
       if (roomRef.current && roomRef.current !== currentRoom) {
@@ -250,12 +250,13 @@ export function useLiveKitRoom({
       setIsCameraEnabled(false);
       setIsMicrophoneEnabled(false);
       updateLocalStream(currentRoom);
+      return true;
     } catch (err) {
       if (newRoom) {
         await newRoom.disconnect().catch(() => {});
       }
       if (attemptId !== connectionAttemptRef.current) {
-        return;
+        return false;
       }
       const msg =
         err instanceof Error

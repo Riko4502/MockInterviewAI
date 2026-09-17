@@ -30,16 +30,18 @@ type Room struct {
 	register      chan *Client
 	unregister    chan *Client
 	broadcast     chan broadcastMessage
-	pubQueue      chan []byte
-	codeSaveQueue chan CodeUpdatePayload
-	done          chan struct{}
-	closeOnce     sync.Once
-	mu            sync.RWMutex
-	logger        *slog.Logger
-	onEmpty       func(roomID string)
-	broadcaster   storage.Broadcaster
-	sessionStore  storage.SessionStore
-	lastCodeState *CodeUpdatePayload
+	pubQueue         chan []byte
+	codeSaveQueue    chan CodeUpdatePayload
+	codeSaveSignal   chan struct{}
+	done             chan struct{}
+	closeOnce        sync.Once
+	mu               sync.RWMutex
+	logger           *slog.Logger
+	onEmpty          func(roomID string)
+	broadcaster      storage.Broadcaster
+	sessionStore     storage.SessionStore
+	lastCodeState    *CodeUpdatePayload
+	pendingCodeState *CodeUpdatePayload
 }
 
 // NewRoom создает новый экземпляр комнаты для сессии с поддержкой распределенного Broadcaster и SessionStore.
@@ -51,18 +53,19 @@ func NewRoom(
 	onEmpty func(roomID string),
 ) *Room {
 	return &Room{
-		ID:            id,
-		clients:       make(map[string]*Client),
-		register:      make(chan *Client),
-		unregister:    make(chan *Client),
-		broadcast:     make(chan broadcastMessage, 256),
-		pubQueue:      make(chan []byte, 512),
-		codeSaveQueue: make(chan CodeUpdatePayload, 128),
-		done:          make(chan struct{}),
-		logger:        logger.With(slog.String("roomId", id)),
-		onEmpty:       onEmpty,
-		broadcaster:   broadcaster,
-		sessionStore:  sessionStore,
+		ID:             id,
+		clients:        make(map[string]*Client),
+		register:       make(chan *Client),
+		unregister:     make(chan *Client),
+		broadcast:      make(chan broadcastMessage, 256),
+		pubQueue:       make(chan []byte, 512),
+		codeSaveQueue:  make(chan CodeUpdatePayload, 128),
+		codeSaveSignal: make(chan struct{}, 1),
+		done:           make(chan struct{}),
+		logger:         logger.With(slog.String("roomId", id)),
+		onEmpty:        onEmpty,
+		broadcaster:    broadcaster,
+		sessionStore:   sessionStore,
 	}
 }
 
@@ -299,7 +302,21 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 				select {
 				case r.codeSaveQueue <- codePayload:
 				default:
-					r.logger.Warn("code save queue is full, dropping snapshot update",
+					// Очередь заполнена (slow Redis / burst) — coalescing:
+					// сохраняем новейший снимок в pending-слот, чтобы он не был потерян
+					r.mu.Lock()
+					if r.pendingCodeState == nil || codePayload.Version > r.pendingCodeState.Version {
+						r.pendingCodeState = &codePayload
+					}
+					r.mu.Unlock()
+
+					// Сигнализируем воркеру о наличии не примененного coalesced-снимка
+					select {
+					case r.codeSaveSignal <- struct{}{}:
+					default:
+					}
+
+					r.logger.Warn("code save queue is full, coalesced into pending snapshot slot",
 						slog.Int64("version", codePayload.Version),
 					)
 				}
@@ -341,6 +358,56 @@ func (r *Room) publishWorker(ctx context.Context) {
 func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 	lastSavedVersion := initialSavedVersion
 
+	savePayload := func(payload CodeUpdatePayload) {
+		// Условная запись: если версия меньше или равна уже сохраненной, пропускаем (защита от race conditions и дубликатов)
+		if payload.Version <= lastSavedVersion {
+			r.logger.Debug("skipping out-of-order code save",
+				slog.Int64("version", payload.Version),
+				slog.Int64("lastSavedVersion", lastSavedVersion),
+			)
+			return
+		}
+
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			r.logger.Warn("failed to marshal code payload for redis snapshot",
+				slog.String("error", err.Error()),
+				slog.Int64("version", payload.Version),
+			)
+			return
+		}
+
+		saveCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := r.sessionStore.SaveCodeState(saveCtx, r.ID, payloadBytes); err != nil {
+			r.logger.Warn("failed to save code state snapshot in redis",
+				slog.String("error", err.Error()),
+				slog.Int64("version", payload.Version),
+			)
+		} else {
+			lastSavedVersion = payload.Version
+		}
+	}
+
+	drainPending := func() {
+		for {
+			r.mu.Lock()
+			var pending *CodeUpdatePayload
+			if r.pendingCodeState != nil && r.pendingCodeState.Version > lastSavedVersion {
+				pending = r.pendingCodeState
+				r.pendingCodeState = nil
+			} else {
+				r.pendingCodeState = nil
+			}
+			r.mu.Unlock()
+
+			if pending == nil {
+				return
+			}
+			savePayload(*pending)
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -348,34 +415,10 @@ func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 		case <-r.done:
 			return
 		case payload := <-r.codeSaveQueue:
-			// Условная запись: если версия меньше или равна уже сохраненной, пропускаем (защита от race conditions и дубликатов)
-			if payload.Version <= lastSavedVersion {
-				r.logger.Debug("skipping out-of-order code save",
-					slog.Int64("version", payload.Version),
-					slog.Int64("lastSavedVersion", lastSavedVersion),
-				)
-				continue
-			}
-
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				r.logger.Warn("failed to marshal code payload for redis snapshot",
-					slog.String("error", err.Error()),
-					slog.Int64("version", payload.Version),
-				)
-				continue
-			}
-
-			saveCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			if err := r.sessionStore.SaveCodeState(saveCtx, r.ID, payloadBytes); err != nil {
-				r.logger.Warn("failed to save code state snapshot in redis",
-					slog.String("error", err.Error()),
-					slog.Int64("version", payload.Version),
-				)
-			} else {
-				lastSavedVersion = payload.Version
-			}
-			cancel()
+			savePayload(payload)
+			drainPending()
+		case <-r.codeSaveSignal:
+			drainPending()
 		}
 	}
 }
@@ -454,6 +497,7 @@ func (r *Room) Close() {
 		}
 		r.clients = make(map[string]*Client)
 		r.lastCodeState = nil
+		r.pendingCodeState = nil
 		r.logger.Info("room closed successfully")
 	})
 }

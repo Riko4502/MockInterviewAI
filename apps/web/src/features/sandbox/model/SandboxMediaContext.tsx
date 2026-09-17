@@ -144,9 +144,18 @@ export function SandboxMediaProvider({
   useEffect(() => {
     return realtime.subscribeWebRTCSignal((signal) => {
       setIsVideoOpen(true);
+      if (signal.type === "call-started") {
+        void livekit.connect().catch((err) => {
+          console.warn("[SandboxMedia] LiveKit receiver connect failed:", err);
+        });
+      } else if (signal.type === "call-ended") {
+        if (livekit.isConnected || livekit.isConnecting) {
+          void livekit.disconnect();
+        }
+      }
       void webrtc.handleSignal(signal);
     });
-  }, [realtime, webrtc, setIsVideoOpen]);
+  }, [realtime, webrtc, setIsVideoOpen, livekit]);
 
   const connectionState: ConnectionState = livekit.isConnected
     ? "connected"
@@ -189,11 +198,13 @@ export function SandboxMediaProvider({
   const handleStartCall = useCallback(async () => {
     setIsVideoOpen(true);
     try {
-      await livekit.connect();
-      realtime.broadcastWebRTCSignal({
-        type: "call-started",
-        senderId: realtime.userId,
-      });
+      const connected = await livekit.connect();
+      if (connected) {
+        realtime.broadcastWebRTCSignal({
+          type: "call-started",
+          senderId: realtime.userId,
+        });
+      }
     } catch {
       await webrtc.startCall();
     }
