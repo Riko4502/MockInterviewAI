@@ -40,7 +40,7 @@
 | Клиентская (in-app) инструментация Redis | **Лёгкая** — статус соединения, `PoolStats`, счётчики ошибок; без гистограмм латентности команд (берётся из exporter `commandstats`) |
 | Пароль прод-Redis (`requirepass`) | **Без изменений** в рамках этого этапа — только мониторинг |
 | Throttler API → Redis (`ThrottlerStorageRedis`) | **Отложено** (в открытых вопросах) |
-| Sentry Datasource plugin в Grafana | **Да** — ставим для корреляции ошибок с метриками |
+| Sentry Datasource plugin в Grafana | **Да** — ставим для корреляции ошибок с метриками; версия запинена `grafana-sentry-datasource:${SENTRY_DATASOURCE_VERSION:-2.2.6}` (requires Grafana >=10.4.0). Прод-образ «с запечённым плагином» (`FROM grafana/grafana:11.1.4` + `grafana-cli plugins install`) — roadmap, на этапе избыточно |
 | Распространение dashboards | **Копировать при деплое** — scp-шаг `deploy-server.yml` копирует `infra` + `dashboards` на сервер; compose монтирует их томом (read-only, перечитывание раз в 30 c) |
 | Прод-Redis `maxmemory-policy` | **`noeviction`** (cap `${REDIS_MAXMEMORY:-512mb}`) до анализа usage-паттернов; `allkeys-lru` **НЕ используется** — эвикция молча удаляла бы blacklist-токены и notification-стримы. Оценка `volatile-lru` / отдельного cache-инстанса отложена; alert на эвикцию стоит |
 | Redis-auth в прод | **Отложено**; фиксация риска в `SECURITY.md` — открытый долг |
@@ -161,7 +161,9 @@ packages/observability/
   UI привязан к `127.0.0.1:9090` (внешнего доступа нет).
 - `grafana` (image `grafana/grafana:11.1.4`) + provisioning + volume
   `grafana_data`, порт `127.0.0.1:3001:3000` (избежали коллизии с web на 3000).
-  Установлен Sentry Datasource plugin (`GF_INSTALL_PLUGINS=grafana-sentry-datasource`);
+  Sentry Datasource plugin запинен: `GF_INSTALL_PLUGINS=grafana-sentry-datasource:${SENTRY_DATASOURCE_VERSION:-2.2.6}`
+  (верс.-зависимая установка при старте контейнера, независимость от plugin
+  registry; requires Grafana >=10.4.0 — совместим с 11.1.4);
   `GRAFANA_ADMIN_PASSWORD` — **обязателен** (fail-closed, `:?` в compose),
   прокидывается через `secrets.GRAFANA_ADMIN_PASSWORD` в `deploy-server.yml`.
 - `redis_exporter` (image `oliver006/redis_exporter:v1.61.0`) + `REDIS_ADDR=redis://redis:6379`,
@@ -326,6 +328,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.4 — 2026-09-17
+- **Sentry Datasource plugin запинен:** `GF_INSTALL_PLUGINS=grafana-sentry-datasource:${SENTRY_DATASOURCE_VERSION:-2.2.6}`
+  (requires Grafana >=10.4.0, совместим с образом 11.1.4). Раньше каждая
+  переустановка Grafana тянула latest с plugin registry — недоступность
+  registry или несовместимый релиз ломали контейнер на деплое. Прод-образ
+  с запечённым плагином помечен roadmap (§3).
 
 ### 0.7.3 — 2026-09-17
 - **`maxmemory-policy` для Redis:** `allkeys-lru` заменён на `noeviction`

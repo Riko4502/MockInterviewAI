@@ -131,6 +131,12 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.2 — 2026-09-17
+- **Sentry Datasource plugin запинен:** `SENTRY_DATASOURCE_VERSION` (default
+  `2.2.6`) в `.env.example` и `GF_INSTALL_PLUGINS` → детерминированная
+  установка при каждом старте Grafana; roadmap «образ с запечённым плагином»
+  зафиксирован в SPEC §3.
+
 ### 0.7.1 — 2026-09-17
 - **Закрыт вопрос `maxmemory-policy` (§6):** вместо `allkeys-lru` выбран
   `noeviction` (dev 128mb / prod cap `${REDIS_MAXMEMORY:-512mb}`) — эвикция
