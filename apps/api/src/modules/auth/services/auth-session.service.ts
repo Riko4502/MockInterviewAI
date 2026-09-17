@@ -11,6 +11,8 @@ export interface AuthSession {
   tokenFamilyId: string;
   createdAt: string;
   lastUsedAt: string;
+  /** Поколение авторизации для предотвращения race conditions (§CWE-362). */
+  generation?: number;
 }
 
 /**
@@ -43,6 +45,7 @@ export class AuthSessionService {
    * @param userId - UUID пользователя.
    * @param refreshTokenHash - HMAC-SHA-256 хеш refresh token.
    * @param tokenFamilyId - UUID семейства токенов.
+   * @param generation - Опциональное поколение авторизации пользователя.
    * @returns Созданная session.
    * @throws {Error} При ошибке Redis.
    */
@@ -51,6 +54,7 @@ export class AuthSessionService {
     userId: string,
     refreshTokenHash: string,
     tokenFamilyId: string,
+    generation?: number,
   ): Promise<AuthSession> {
     const now = new Date().toISOString();
 
@@ -60,6 +64,7 @@ export class AuthSessionService {
       tokenFamilyId,
       createdAt: now,
       lastUsedAt: now,
+      ...(generation !== undefined && { generation }),
     };
 
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
@@ -191,18 +196,19 @@ export class AuthSessionService {
    *
    * Проходит по ключам `auth:session:*` через `SCAN`-итерацию, читает каждый
    * session и удаляет те, чей `userId` совпадает с переданным.
-   * Если указан `maxCreatedAt`, удаляются только сессии, созданные не позднее
-   * этой временной метки (`session.createdAt <= maxCreatedAt`), что предотвращает
-   * удаление новых сессий, созданных после постановки задачи ревокации.
+   * Если указан `maxGeneration`, удаляются сессии с `session.generation <= maxGeneration`.
+   * Если указан `maxCreatedAt`, удаляются сессии, созданные не позднее этой временной метки.
    * Сессии других пользователей не затрагиваются. Отсутствие сессий — no-op.
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
    * @param maxCreatedAt - Опциональная временная граница создания сессий.
+   * @param maxGeneration - Опциональная граница поколения авторизации.
    * @throws {Error} При ошибке Redis.
    */
   async revokeAllUserSessions(
     userId: string,
     maxCreatedAt?: Date | string,
+    maxGeneration?: number,
   ): Promise<void> {
     const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
 
@@ -214,7 +220,11 @@ export class AuthSessionService {
       try {
         const session = JSON.parse(raw) as AuthSession;
         if (session.userId === userId) {
-          if (maxCreatedAt !== undefined) {
+          if (maxGeneration !== undefined && session.generation !== undefined) {
+            if (session.generation > maxGeneration) {
+              continue;
+            }
+          } else if (maxCreatedAt !== undefined) {
             const sessionCreatedAtMs = new Date(session.createdAt).getTime();
             const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
             if (

@@ -143,6 +143,7 @@ export class AuthService implements OnModuleInit {
     const userWithRole = await this.usersService.findUserWithRoleById(userId);
     const permissions =
       userWithRole?.role?.permissions ?? SystemPermission.NONE;
+    const generation = userWithRole?.generation ?? 1;
 
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
@@ -151,10 +152,12 @@ export class AuthService implements OnModuleInit {
       userId,
       sessionId,
       permissions,
+      generation,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
       userId,
       sessionId,
+      generation,
     );
 
     const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
@@ -165,6 +168,7 @@ export class AuthService implements OnModuleInit {
         userId,
         refreshTokenHash,
         tokenFamilyId,
+        generation,
       );
     } catch (error) {
       this.logger.error(
@@ -219,31 +223,44 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    if (user.deletedAt) {
-      const elapsedMs = Date.now() - user.deletedAt.getTime();
+    // Ре-верификация пользователя после ресурсоёмкого argon2.verify для устранения CWE-362 гонок
+    const freshUser = await this.usersService.findUserWithRoleById(user.id);
+    if (
+      !freshUser ||
+      freshUser.isActive === false ||
+      freshUser.generation !== user.generation
+    ) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (freshUser.deletedAt) {
+      const elapsedMs = Date.now() - freshUser.deletedAt.getTime();
       if (elapsedMs > THIRTY_DAYS_MS) {
         throw new UnauthorizedException("Invalid credentials");
       }
 
-      await this.usersService.restoreAccount(user.id);
+      await this.usersService.restoreAccount(freshUser.id);
       this.logger.log(
-        `Account ${user.id} (${user.email}) automatically restored upon login`,
+        `Account ${freshUser.id} (${freshUser.email}) automatically restored upon login`,
       );
     }
 
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
-    const permissions = user.role?.permissions ?? SystemPermission.NONE;
+    const permissions = freshUser.role?.permissions ?? SystemPermission.NONE;
+    const generation = freshUser.generation ?? 1;
 
     const accessToken = this.tokenService.generateAccessToken(
-      user.id,
+      freshUser.id,
       sessionId,
       permissions,
+      generation,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
-      user.id,
+      freshUser.id,
       sessionId,
+      generation,
     );
 
     const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
@@ -251,9 +268,10 @@ export class AuthService implements OnModuleInit {
     try {
       await this.sessionService.createSession(
         sessionId,
-        user.id,
+        freshUser.id,
         refreshTokenHash,
         tokenFamilyId,
+        generation,
       );
     } catch (error) {
       this.logger.error(
@@ -404,16 +422,40 @@ export class AuthService implements OnModuleInit {
     }
 
     const newPasswordHash = await this.hashPassword(newPassword);
-    await this.usersService.updatePassword(userId, newPasswordHash);
+
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: newPasswordHash,
+          generation: { increment: 1 },
+        },
+      });
+      const task = await tx.authRevocationTask.create({
+        data: {
+          userId,
+          generation: user.generation,
+        },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = user.generation;
+    });
 
     try {
-      await this.sessionService.revokeAllUserSessions(userId);
-      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
-      // репликах (Phase A). Best-effort — сбой публикации не влияет на пароль.
-      await publishUserRevocation(this.redisService, userId);
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
     } catch (error) {
       this.logger.error(
-        "Redis unavailable during changePassword — sessions not revoked",
+        `Failed to revoke sessions / publish revocation for user ${userId} during changePassword (persisted for worker retry)`,
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();
@@ -476,8 +518,24 @@ export class AuthService implements OnModuleInit {
         throw new UnauthorizedException("Invalid credentials");
       }
 
+      if (
+        payload.generation !== undefined &&
+        session.generation !== undefined &&
+        payload.generation !== session.generation
+      ) {
+        await this.sessionService.revokeSession(payload.sid);
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
       const user = await this.usersService.findUserWithRoleById(session.userId);
-      if (!user || user.deletedAt || user.isActive === false) {
+      if (
+        !user ||
+        user.deletedAt ||
+        user.isActive === false ||
+        (session.generation !== undefined &&
+          user.generation !== undefined &&
+          session.generation !== user.generation)
+      ) {
         await this.sessionService.revokeSession(payload.sid);
         throw new UnauthorizedException("Invalid credentials");
       }
@@ -488,15 +546,18 @@ export class AuthService implements OnModuleInit {
       const newTokenFamilyId = randomUUID();
 
       const permissions = user.role?.permissions ?? SystemPermission.NONE;
+      const generation = user.generation ?? 1;
 
       const newAccessToken = this.tokenService.generateAccessToken(
         session.userId,
         newSessionId,
         permissions,
+        generation,
       );
       const newRefreshToken = this.tokenService.generateRefreshToken(
         session.userId,
         newSessionId,
+        generation,
       );
 
       const newRefreshTokenHash =
@@ -507,6 +568,7 @@ export class AuthService implements OnModuleInit {
         session.userId,
         newRefreshTokenHash,
         newTokenFamilyId,
+        generation,
       );
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
@@ -633,20 +695,28 @@ export class AuthService implements OnModuleInit {
     // Создаем durable-задачу в той же транзакции PostgreSQL, что и изменение пароля
     let taskId: string | undefined;
     let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
-        data: { passwordHash: newPasswordHash },
+        data: {
+          passwordHash: newPasswordHash,
+          generation: { increment: 1 },
+        },
       });
       const task = await tx.authRevocationTask.create({
-        data: { userId },
+        data: {
+          userId,
+          generation: user.generation,
+        },
       });
       taskId = task.id;
       taskCreatedAt = task.createdAt;
+      taskGeneration = user.generation;
     });
 
     try {
-      await this.revokeSessionsWithRetry(userId, taskCreatedAt);
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
 
       // При успешной ревокации удаляем durable задачу
       if (taskId) {
@@ -675,12 +745,17 @@ export class AuthService implements OnModuleInit {
   private async revokeSessionsWithRetry(
     userId: string,
     maxCreatedAt?: Date | string,
+    maxGeneration?: number,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        await this.sessionService.revokeAllUserSessions(userId, maxCreatedAt);
+        await this.sessionService.revokeAllUserSessions(
+          userId,
+          maxCreatedAt,
+          maxGeneration,
+        );
         await publishUserRevocationOrThrow(this.redisService, userId);
         return;
       } catch (error) {

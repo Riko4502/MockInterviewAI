@@ -354,25 +354,35 @@ export class AdminUsersService {
             }),
             ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
             ...(newRoleId !== undefined && { roleId: newRoleId }),
+            ...(roleChanged && { generation: { increment: 1 } }),
           },
           select: USER_ADMIN_SELECT,
         });
 
         let taskCreatedAt: Date | undefined;
+        let taskGeneration: number | undefined;
         if (roleChanged) {
           const task = await tx.authRevocationTask.create({
-            data: { userId: id },
+            data: {
+              userId: id,
+              generation: existing.generation,
+            },
           });
           taskId = task.id;
           taskCreatedAt = task.createdAt;
+          taskGeneration = existing.generation;
         }
 
-        return { user, taskCreatedAt };
+        return { user, taskCreatedAt, taskGeneration };
       });
 
       if (roleChanged) {
         try {
-          await this.revokeSessionsWithRetry(id, updated.taskCreatedAt);
+          await this.revokeSessionsWithRetry(
+            id,
+            updated.taskCreatedAt,
+            updated.taskGeneration,
+          );
           if (taskId) {
             await this.prisma.authRevocationTask
               .delete({ where: { id: taskId } })
@@ -470,25 +480,35 @@ export class AdminUsersService {
         data: {
           isActive: dto.isActive,
           deactivatedAt,
+          ...(!dto.isActive && { generation: { increment: 1 } }),
         },
         select: USER_ADMIN_SELECT,
       });
 
       let taskCreatedAt: Date | undefined;
+      let taskGeneration: number | undefined;
       if (!dto.isActive) {
         const task = await tx.authRevocationTask.create({
-          data: { userId: id },
+          data: {
+            userId: id,
+            generation: existing.generation,
+          },
         });
         taskId = task.id;
         taskCreatedAt = task.createdAt;
+        taskGeneration = existing.generation;
       }
 
-      return { user, taskCreatedAt };
+      return { user, taskCreatedAt, taskGeneration };
     });
 
     if (!dto.isActive) {
       try {
-        await this.revokeSessionsWithRetry(id, updated.taskCreatedAt);
+        await this.revokeSessionsWithRetry(
+          id,
+          updated.taskCreatedAt,
+          updated.taskGeneration,
+        );
         if (taskId) {
           await this.prisma.authRevocationTask
             .delete({ where: { id: taskId } })
@@ -525,6 +545,7 @@ export class AdminUsersService {
   private async revokeSessionsWithRetry(
     userId: string,
     maxCreatedAt?: Date | string,
+    maxGeneration?: number,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
@@ -533,6 +554,7 @@ export class AdminUsersService {
         await this.authSessionService.revokeAllUserSessions(
           userId,
           maxCreatedAt,
+          maxGeneration,
         );
         await publishUserRevocationOrThrow(this.redisService, userId);
         return;

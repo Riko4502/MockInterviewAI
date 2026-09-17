@@ -191,7 +191,10 @@ export class UsersService {
   async updatePassword(id: string, passwordHash: string): Promise<User> {
     return this.prisma.user.update({
       where: { id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        generation: { increment: 1 },
+      },
     });
   }
 
@@ -353,17 +356,25 @@ export class UsersService {
 
     let taskId: string | undefined;
     let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
-        data: { deletedAt: new Date() },
+        data: {
+          deletedAt: new Date(),
+          generation: { increment: 1 },
+        },
       });
       const task = await tx.authRevocationTask.create({
-        data: { userId },
+        data: {
+          userId,
+          generation: existing.generation,
+        },
       });
       taskId = task.id;
       taskCreatedAt = task.createdAt;
+      taskGeneration = existing.generation;
     });
 
     try {
@@ -372,7 +383,7 @@ export class UsersService {
           .delete(`auth:session:${sessionId}`)
           .catch(() => undefined);
       }
-      await this.revokeSessionsWithRetry(userId, taskCreatedAt);
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
       if (taskId) {
         await this.prisma.authRevocationTask
           .delete({ where: { id: taskId } })
@@ -392,6 +403,7 @@ export class UsersService {
   private async revokeSessionsWithRetry(
     userId: string,
     maxCreatedAt?: Date | string,
+    maxGeneration?: number,
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
@@ -400,6 +412,7 @@ export class UsersService {
         await this.authSessionService.revokeAllUserSessions(
           userId,
           maxCreatedAt,
+          maxGeneration,
         );
         await publishUserRevocationOrThrow(this.redisService, userId);
         return;

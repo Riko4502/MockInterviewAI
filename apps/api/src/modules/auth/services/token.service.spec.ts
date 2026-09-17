@@ -96,6 +96,13 @@ describe("TokenService", () => {
 
       expect(decoded.permissions).toBe(0);
     });
+
+    it("включает generation в payload access token", () => {
+      const token = service.generateAccessToken(USER_ID, SESSION_ID, 0, 2);
+      const decoded = jwt.decode(token) as jwt.JwtPayload;
+
+      expect(decoded.generation).toBe(2);
+    });
   });
 
   describe("generateRefreshToken", () => {
@@ -116,6 +123,13 @@ describe("TokenService", () => {
         issuer: ISSUER,
         audience: AUDIENCE,
       });
+    });
+
+    it("включает generation в payload refresh token", () => {
+      const token = service.generateRefreshToken(USER_ID, SESSION_ID, 3);
+      const decoded = jwt.decode(token) as jwt.JwtPayload;
+
+      expect(decoded.generation).toBe(3);
     });
   });
 

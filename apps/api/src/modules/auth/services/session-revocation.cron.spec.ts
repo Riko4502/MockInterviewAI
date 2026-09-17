@@ -58,8 +58,8 @@ describe("SessionRevocationCron", () => {
       const date1 = new Date("2026-08-01T10:00:00.000Z");
       const date2 = new Date("2026-08-01T11:00:00.000Z");
       const mockTasks = [
-        { id: "task-1", userId: "user-1", createdAt: date1 },
-        { id: "task-2", userId: "user-2", createdAt: date2 },
+        { id: "task-1", userId: "user-1", createdAt: date1, generation: 1 },
+        { id: "task-2", userId: "user-2", createdAt: date2, generation: 2 },
       ];
       prismaMock.authRevocationTask.findMany.mockResolvedValue(mockTasks);
 
@@ -69,10 +69,12 @@ describe("SessionRevocationCron", () => {
       expect(sessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         "user-1",
         date1,
+        1,
       );
       expect(sessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         "user-2",
         date2,
+        2,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledWith(
         "auth:revocations",

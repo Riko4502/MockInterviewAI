@@ -74,6 +74,7 @@ export class SessionRevocationCron {
         await this.sessionService.revokeAllUserSessions(
           task.userId,
           task.createdAt,
+          task.generation ?? undefined,
         );
         await publishUserRevocationOrThrow(this.redisService, task.userId);
         await this.prisma.authRevocationTask.delete({

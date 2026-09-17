@@ -70,8 +70,21 @@ export class AccessTokenGuard implements CanActivate {
     const payload = this.tokenService.verifyAccessToken(token);
 
     // Live-проверка сессии в Redis: logout/деактивация/ротация инвалидируют
-    // access token везде (A8). Redis-ошибка пробрасывается наверх (→ 500).
-    if (!(await this.authSessionService.isSessionActive(payload.sid))) {
+    // access token везде (A8). Проверяется также совпадение поколения авторизации (§CWE-362).
+    const session = await this.authSessionService.getSession(payload.sid);
+    if (!session) {
+      throw new UnauthorizedException("Session has expired or been revoked");
+    }
+
+    if (session.userId !== payload.sub) {
+      throw new UnauthorizedException("Session has expired or been revoked");
+    }
+
+    if (
+      payload.generation !== undefined &&
+      session.generation !== undefined &&
+      payload.generation !== session.generation
+    ) {
       throw new UnauthorizedException("Session has expired or been revoked");
     }
 

@@ -61,6 +61,7 @@ describe("AdminUsersService", () => {
     telegramUsername: "test_tg",
     roleId: "00000000-0000-4000-a000-000000000002",
     gitUrl: "https://github.com/testuser",
+    generation: 1,
     createdAt: new Date("2026-09-01T00:00:00.000Z"),
     updatedAt: new Date("2026-09-10T00:00:00.000Z"),
     role: {
@@ -327,6 +328,7 @@ describe("AdminUsersService", () => {
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         mockUserRecord.id,
         new Date("2026-09-10T12:00:00.000Z"),
+        1,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
       expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
@@ -352,6 +354,11 @@ describe("AdminUsersService", () => {
       const result = await service.updateUser(mockUserRecord.id, updateDto);
 
       expect(result.role).toBe("ADMIN");
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
@@ -439,6 +446,7 @@ describe("AdminUsersService", () => {
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         targetUserId,
         new Date("2026-09-10T12:00:00.000Z"),
+        1,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
       expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
@@ -464,6 +472,11 @@ describe("AdminUsersService", () => {
       const result = await service.updateStatus(targetUserId, dto, adminId);
 
       expect(result.isActive).toBe(false);
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        targetUserId,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 

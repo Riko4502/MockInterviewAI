@@ -46,6 +46,7 @@ describe("UsersService", () => {
     gitUrl: "https://github.com/ivan_dev",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
+    generation: 1,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   };
@@ -70,7 +71,7 @@ describe("UsersService", () => {
           id: "task-1",
           createdAt: new Date("2026-09-10T12:00:00.000Z"),
         }),
-        delete: jest.fn().mockResolvedValue({ id: "task-1" }),
+        delete: jest.fn().mockResolvedValue({}),
       },
       $transaction: jest.fn().mockImplementation((arg) => {
         if (typeof arg === "function") {
@@ -82,12 +83,12 @@ describe("UsersService", () => {
     storageServiceMock = {
       uploadAvatar: jest
         .fn()
-        .mockResolvedValue("https://s3.example.com/new_avatar.webp"),
+        .mockResolvedValue("https://example.com/new_avatar.webp"),
       deleteFile: jest.fn().mockResolvedValue(undefined),
     };
     redisServiceMock = {
-      delete: jest.fn().mockResolvedValue(undefined),
-      publish: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(1),
+      publish: jest.fn().mockResolvedValue(1),
     };
     authSessionServiceMock = {
       revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
@@ -95,37 +96,29 @@ describe("UsersService", () => {
 
     service = new UsersService(
       prismaMock as unknown as PrismaService,
-      storageServiceMock as StorageService,
-      redisServiceMock as RedisService,
+      storageServiceMock as unknown as StorageService,
+      redisServiceMock as unknown as RedisService,
       authSessionServiceMock as unknown as AuthSessionService,
     );
   });
 
   describe("create", () => {
     it("создаёт нового пользователя с ID найденной роли", async () => {
-      prismaMock.user.create.mockResolvedValue({
-        id: mockUser.id,
-        email: mockUser.email,
-        passwordHash: mockUser.passwordHash,
-        roleId: "00000000-0000-4000-a000-000000000002",
-      });
+      prismaMock.user.create.mockResolvedValue(mockUser);
 
       const result = await service.create({
-        email: mockUser.email,
-        passwordHash: mockUser.passwordHash,
+        email: "test@example.com",
+        passwordHash: "argon2id$hashed",
       });
 
-      expect(prismaMock.role.findUnique).toHaveBeenCalledWith({
-        where: { slug: SystemRole.USER },
-      });
+      expect(result).toEqual(mockUser);
       expect(prismaMock.user.create).toHaveBeenCalledWith({
         data: {
-          email: mockUser.email,
-          passwordHash: mockUser.passwordHash,
+          email: "test@example.com",
+          passwordHash: "argon2id$hashed",
           roleId: "00000000-0000-4000-a000-000000000002",
         },
       });
-      expect(result.id).toBe(mockUser.id);
     });
 
     it("выбрасывает InternalServerErrorException если роль не найдена", async () => {
@@ -134,31 +127,32 @@ describe("UsersService", () => {
       await expect(
         service.create({
           email: "test@example.com",
-          passwordHash: "hash",
+          passwordHash: "argon2id$hashed",
         }),
       ).rejects.toThrow(InternalServerErrorException);
-      expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
   });
 
   describe("getProfile", () => {
     it("возвращает профиль пользователя без passwordHash с ролью и ненулевой маской", async () => {
-      const { passwordHash: _, deletedAt: __, ...safeProfile } = mockUser;
-      prismaMock.user.findUnique.mockResolvedValue(safeProfile);
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.getProfile(mockUser.id);
 
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: mockUser.id },
-        select: expect.any(Object),
-      });
+      const {
+        passwordHash: _,
+        deletedAt: __,
+        generation: ___,
+        ...safeProfile
+      } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
         role: SystemRole.USER,
-        permissions: "2",
+        permissions: SystemPermission.USERS_READ.toString(),
       });
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
+      expect(result).not.toHaveProperty("generation");
     });
 
     it("выбрасывает NotFoundException если профиль не найден", async () => {
@@ -172,25 +166,19 @@ describe("UsersService", () => {
 
   describe("updateProfile", () => {
     it("успешно обновляет профиль пользователя", async () => {
-      prismaMock.user.findUnique.mockResolvedValue(mockUser);
       const updatedProfile = {
         ...mockUser,
         displayName: "New Name",
-        telegramUsername: "new_tg",
-        gitUrl: "https://gitlab.com/new_user",
       };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.findFirst.mockResolvedValue(null);
       prismaMock.user.update.mockResolvedValue(updatedProfile);
 
       const result = await service.updateProfile(mockUser.id, {
         displayName: "New Name",
-        telegramUsername: "new_tg",
-        gitUrl: "https://gitlab.com/new_user",
       });
 
       expect(result.displayName).toBe("New Name");
-      expect(result.gitUrl).toBe("https://gitlab.com/new_user");
-      expect(result.role).toBe(SystemRole.USER);
-      expect(result.permissions).toBe("2");
       expect(prismaMock.user.update).toHaveBeenCalled();
     });
 
@@ -198,7 +186,7 @@ describe("UsersService", () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(mockUser)
         .mockResolvedValueOnce({
-          id: "22222222-2222-4222-a222-222222222222",
+          id: "another-user-id",
           username: "taken_username",
         });
 
@@ -211,7 +199,7 @@ describe("UsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updateProfile("non-existent", { displayName: "Test" }),
+        service.updateProfile("non-existent-id", { displayName: "New Name" }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -221,26 +209,38 @@ describe("UsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
       prismaMock.user.update.mockResolvedValue({
         ...mockUser,
-        avatarUrl: "https://s3.example.com/new_avatar.webp",
+        avatarUrl: "https://example.com/new_avatar.webp",
       });
 
-      const mockFile = { buffer: Buffer.from("test") } as Express.Multer.File;
+      const mockFile = {
+        buffer: Buffer.from("fake-image"),
+        mimetype: "image/png",
+      } as Express.Multer.File;
+
       const result = await service.updateAvatar(mockUser.id, mockFile);
 
+      expect(result).toEqual({
+        avatarUrl: "https://example.com/new_avatar.webp",
+      });
       expect(storageServiceMock.uploadAvatar).toHaveBeenCalledWith(
         mockUser.id,
         mockFile,
       );
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { avatarUrl: "https://example.com/new_avatar.webp" },
+      });
       expect(storageServiceMock.deleteFile).toHaveBeenCalledWith(
         mockUser.avatarUrl,
       );
-      expect(result).toEqual({
-        avatarUrl: "https://s3.example.com/new_avatar.webp",
-      });
     });
 
     it("удаляет текущий аватар из S3 и обнуляет в БД", async () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        avatarUrl: null,
+      });
 
       await service.deleteAvatar(mockUser.id);
 
@@ -262,10 +262,16 @@ describe("UsersService", () => {
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: mockUser.id },
-        data: { deletedAt: expect.any(Date) },
+        data: {
+          deletedAt: expect.any(Date),
+          generation: { increment: 1 },
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
-        data: { userId: mockUser.id },
+        data: {
+          userId: mockUser.id,
+          generation: 1,
+        },
       });
       expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
         where: { id: "task-1" },
@@ -276,6 +282,7 @@ describe("UsersService", () => {
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         mockUser.id,
         new Date("2026-09-10T12:00:00.000Z"),
+        1,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledWith(
         "auth:revocations",

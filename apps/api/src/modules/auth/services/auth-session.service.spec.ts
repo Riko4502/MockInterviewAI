@@ -316,5 +316,30 @@ describe("AuthSessionService", () => {
       expect(redisDelete).toHaveBeenCalledWith(oldSessionKey);
       expect(redisDelete).not.toHaveBeenCalledWith(newSessionKey);
     });
+
+    it("удаляет сессии с generation <= maxGeneration", async () => {
+      const gen1SessionKey = `auth:session:${randomUUID()}`;
+      const gen2SessionKey = `auth:session:${randomUUID()}`;
+
+      const gen1Session: AuthSession = {
+        ...createStoredSession("h-gen1"),
+        generation: 1,
+      };
+      const gen2Session: AuthSession = {
+        ...createStoredSession("h-gen2"),
+        generation: 2,
+      };
+
+      redisScanKeys.mockResolvedValue([gen1SessionKey, gen2SessionKey]);
+      redisGet
+        .mockResolvedValueOnce(JSON.stringify(gen1Session))
+        .mockResolvedValueOnce(JSON.stringify(gen2Session));
+
+      await service.revokeAllUserSessions(USER_ID, undefined, 1);
+
+      expect(redisDelete).toHaveBeenCalledTimes(1);
+      expect(redisDelete).toHaveBeenCalledWith(gen1SessionKey);
+      expect(redisDelete).not.toHaveBeenCalledWith(gen2SessionKey);
+    });
   });
 });

@@ -45,7 +45,7 @@ const DTO = {
   passwordConfirmation: "Str0ngPassw0rd!123",
 };
 
-const USER = { id: "user-1", email: DTO.email };
+const USER = { id: "user-1", email: DTO.email, generation: 1 };
 const USER_PASSWORD_HASH = "$argon2id$user-password-hash";
 
 type LoggerAccessor = {
@@ -101,10 +101,29 @@ describe("AuthService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    findByEmail = jest.fn().mockResolvedValue(null);
-    findById = jest.fn().mockResolvedValue({
+    const defaultUserRecord = {
       ...USER,
       passwordHash: USER_PASSWORD_HASH,
+      generation: 1,
+      isActive: true,
+      deletedAt: null,
+      role: {
+        slug: "USER",
+        permissions: SystemPermission.USERS_READ,
+      },
+    };
+
+    findByEmail = jest.fn().mockResolvedValue(null);
+    findById = jest.fn().mockImplementation(async (id: string) => {
+      const emailUser = await findByEmail(USER.email);
+      if (emailUser && emailUser.id === id) {
+        return {
+          ...defaultUserRecord,
+          ...emailUser,
+        };
+      }
+      if (id === USER.id) return defaultUserRecord;
+      return null;
     });
     findUserWithRoleByEmail = jest
       .fn()
@@ -147,11 +166,13 @@ describe("AuthService", () => {
       sub: USER.id,
       sid: SESSION_ID,
       typ: "refresh",
+      generation: 1,
     });
     getSession = jest.fn().mockResolvedValue({
       userId: USER.id,
       refreshTokenHash: "stored.hmac.hash",
       tokenFamilyId: TOKEN_FAMILY_ID,
+      generation: 1,
       createdAt: "2026-08-24T00:00:00.000Z",
       lastUsedAt: "2026-08-24T00:00:00.000Z",
     });
@@ -254,14 +275,16 @@ describe("AuthService", () => {
         USER.id,
         SESSION_ID,
         SystemPermission.USERS_READ,
+        1,
       );
-      expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID, 1);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
       expect(createSession).toHaveBeenCalledWith(
         SESSION_ID,
         USER.id,
         "stored.hmac.hash",
         TOKEN_FAMILY_ID,
+        1,
       );
       expect(result).toEqual({
         accessToken: "raw.access.token",
@@ -348,14 +371,16 @@ describe("AuthService", () => {
         USER.id,
         SESSION_ID,
         SystemPermission.USERS_READ,
+        1,
       );
-      expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID);
+      expect(generateRefreshToken).toHaveBeenCalledWith(USER.id, SESSION_ID, 1);
       expect(hashRefreshToken).toHaveBeenCalledWith("raw.refresh.token");
       expect(createSession).toHaveBeenCalledWith(
         SESSION_ID,
         USER.id,
         "stored.hmac.hash",
         TOKEN_FAMILY_ID,
+        1,
       );
       expect(result).toEqual({
         accessToken: "raw.access.token",
@@ -376,6 +401,7 @@ describe("AuthService", () => {
         USER.id,
         "stored.hmac.hash",
         TOKEN_FAMILY_ID,
+        1,
       );
     });
 
@@ -437,6 +463,24 @@ describe("AuthService", () => {
       (argon2.verify as jest.Mock).mockResolvedValue(true);
 
       await expect(service.login(DTO)).rejects.toThrow(ForbiddenException);
+    });
+
+    it("отклоняет вход с 401 Unauthorized если generation изменился во время проверки пароля (§CWE-362)", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+        generation: 1,
+      });
+      (argon2.verify as jest.Mock).mockResolvedValue(true);
+      // При повторной проверке после argon2 в БД уже поколение 2 (пароль/статус изменен)
+      findById.mockResolvedValue({
+        ...USER,
+        passwordHash: "$argon2id$newer-hash",
+        generation: 2,
+      });
+
+      await expect(service.login(DTO)).rejects.toThrow(UnauthorizedException);
+      expect(createSession).not.toHaveBeenCalled();
     });
   });
 
@@ -672,6 +716,7 @@ describe("AuthService", () => {
         USER.id,
         "stored.hmac.hash",
         TOKEN_FAMILY_ID,
+        1,
       );
     });
 
@@ -727,15 +772,18 @@ describe("AuthService", () => {
         USER.id,
         "new.stored.hmac.hash",
         NEW_TOKEN_FAMILY_ID,
+        1,
       );
       expect(generateAccessToken).toHaveBeenCalledWith(
         USER.id,
         NEW_SESSION_ID,
         SystemPermission.USERS_READ,
+        1,
       );
       expect(generateRefreshToken).toHaveBeenCalledWith(
         USER.id,
         NEW_SESSION_ID,
+        1,
       );
       // Успешная ротация НЕ является ревокацией: все WS остаются активными
       expect(publish).not.toHaveBeenCalled();
@@ -816,6 +864,26 @@ describe("AuthService", () => {
       findUserWithRoleById.mockResolvedValue({
         ...USER,
         isActive: false,
+      });
+
+      const error = await service.refresh("raw.refresh.token").catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(revokeSession).toHaveBeenCalledWith(SESSION_ID);
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("несовпадение generation пользователя и сессии (§CWE-362) → 401, сессия отозвана", async () => {
+      getSession.mockResolvedValue({
+        userId: USER.id,
+        refreshTokenHash: "stored.hmac.hash",
+        tokenFamilyId: TOKEN_FAMILY_ID,
+        generation: 1,
+      });
+      findUserWithRoleById.mockResolvedValue({
+        ...USER,
+        generation: 2,
       });
 
       const error = await service.refresh("raw.refresh.token").catch((e) => e);
@@ -927,12 +995,26 @@ describe("AuthService", () => {
         timeCost: 2,
         parallelism: 1,
       });
-      expect(updatePassword).toHaveBeenCalledWith(
-        USER.id,
-        "$argon2id$test-hash",
-      );
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: USER.id },
+        data: {
+          passwordHash: "$argon2id$test-hash",
+          generation: { increment: 1 },
+        },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: {
+          userId: USER.id,
+          generation: 1,
+        },
+      });
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
-      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(
+        USER.id,
+        expect.any(Date),
+        1,
+      );
       expect(publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(USER.id),
@@ -1164,14 +1246,21 @@ describe("AuthService", () => {
       expect(prismaMock.$transaction).toHaveBeenCalled();
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER.id },
-        data: { passwordHash: "$argon2id$test-hash" },
+        data: {
+          passwordHash: "$argon2id$test-hash",
+          generation: { increment: 1 },
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
-        data: { userId: USER.id },
+        data: {
+          userId: USER.id,
+          generation: 1,
+        },
       });
       expect(revokeAllUserSessions).toHaveBeenCalledWith(
         USER.id,
         new Date("2026-09-01T00:00:00.000Z"),
+        1,
       );
       expect(publish).toHaveBeenCalledWith(
         "auth:revocations",
@@ -1240,10 +1329,16 @@ describe("AuthService", () => {
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER.id },
-        data: { passwordHash: "$argon2id$test-hash" },
+        data: {
+          passwordHash: "$argon2id$test-hash",
+          generation: { increment: 1 },
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
-        data: { userId: USER.id },
+        data: {
+          userId: USER.id,
+          generation: 1,
+        },
       });
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
       expect(result).toEqual({
@@ -1268,7 +1363,10 @@ describe("AuthService", () => {
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER.id },
-        data: { passwordHash: "$argon2id$test-hash" },
+        data: {
+          passwordHash: "$argon2id$test-hash",
+          generation: { increment: 1 },
+        },
       });
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
       expect(result).toEqual({
