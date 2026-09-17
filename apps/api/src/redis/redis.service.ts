@@ -79,7 +79,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.client.connect();
-this.logger.log("Redis connection established");
+    this.logger.log("Redis connection established");
   }
 
   private classifyRedisError(error: Error): string {

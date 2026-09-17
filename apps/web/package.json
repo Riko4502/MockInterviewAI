@@ -26,7 +26,7 @@
     "@packages/observability": "workspace:^",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
-"@packages/editor": "workspace:*",
+    "@packages/editor": "workspace:*",
     "@sentry/nextjs": "^10.0.0",
     "@tanstack/react-query": "^5.101.4",
     "i18next": "^26.4.0",

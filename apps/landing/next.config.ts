@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     "@packages/ui",
     "@packages/icons",
     "@packages/utils",
-"@packages/tailwind-config",
+    "@packages/tailwind-config",
     "@packages/editor",
     "@packages/observability",
   ],

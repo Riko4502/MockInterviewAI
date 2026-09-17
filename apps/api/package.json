@@ -29,7 +29,7 @@
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.5.0",
     "@packages/dto": "workspace:^",
-"@packages/observability": "workspace:^",
+    "@packages/observability": "workspace:^",
     "@packages/types": "workspace:^",
     "@packages/utils": "workspace:^",
     "@prisma/adapter-pg": "^7.9.1",
