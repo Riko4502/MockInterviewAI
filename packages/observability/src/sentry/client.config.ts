@@ -22,6 +22,10 @@ const browserEnv = z.object({
  * as `NEXT_PUBLIC_SENTRY_DSN`. Returns `null` when the DSN is not configured —
  * e.g. in local development without Sentry.
  *
+ * Next.js inlines build-time env only for direct `process.env.NEXT_PUBLIC_*`
+ * member access, so the values are read property-by-property; the whole
+ * `process.env` object is not available in the browser bundle.
+ *
  * Usage in sentry.client.config.ts:
  * ```ts
  * import * as Sentry from "@sentry/nextjs";
@@ -32,7 +36,12 @@ const browserEnv = z.object({
  * ```
  */
 export function sentryClientConfig(): SentryClientOptions | null {
-  const parsed = browserEnv.safeParse(process.env);
+  const parsed = browserEnv.safeParse({
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+    NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:
+      process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+  });
   if (!parsed.success || !parsed.data.NEXT_PUBLIC_SENTRY_DSN) {
     return null;
   }

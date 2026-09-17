@@ -131,6 +131,13 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.6 — 2026-09-17
+- **`sentryClientConfig()`:** `safeParse(process.env)` → прямое чтение
+  `process.env.NEXT_PUBLIC_SENTRY_DSN` / `_ENVIRONMENT` / `_TRACES_SAMPLE_RATE`
+  по одному — Next.js инлайнит только прямой member access, целиком
+  `process.env` в браузере недоступен (браузерный Sentry не включался). SPEC
+  §5.2 уточнён.
+
 ### 0.7.5 — 2026-09-17
 - Alert `RedisStreamLagHigh` (по `redis_stream_length > 100`) удалён: длина
   стрима — размер буфера (`MAXLEN ~ 100`, XREAD не удаляет записи), а не

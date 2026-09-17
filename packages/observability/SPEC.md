@@ -109,6 +109,10 @@ packages/observability/
   рантайма нет. `next.config.ts`
   оборачивается в `withSentryConfig` — только build-плагин (source maps,
   upload), guard по `SENTRY_DSN` (без DSN конфиг не оборачивается).
+- Браузерные `NEXT_PUBLIC_*` инлайнятся Next.js в бандл только при прямом
+  доступе `process.env.NEXT_PUBLIC_SENTRY_DSN` и т.д., поэтому
+  `sentryClientConfig()` читает их по одному (результат — фиксированные
+  значения на момент сборки).
 - Source Maps: `SENTRY_AUTH_TOKEN` + script `sentry:sourcemaps` после
   `next build`.
 
@@ -333,6 +337,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.8 — 2026-09-17
+- **`sentryClientConfig()` (браузер):** `safeParse(process.env)` заменён на
+  прямое чтение `process.env.NEXT_PUBLIC_*` по одному. Next.js инлайнит
+  build-time env только для прямого member access; целиком `process.env` в
+  бразуере пуст → DSN всегда `undefined` → браузерный Sentry не
+  инициализировался в web/landing даже в проде. §5.2 уточнён.
 
 ### 0.7.7 — 2026-09-17
 - **Alert `RedisStreamLagHigh` удалён:** `redis_stream_length` — размер
