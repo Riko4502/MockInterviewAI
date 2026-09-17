@@ -1,4 +1,4 @@
-import { sentryClientConfig } from "@packages/observability";
+import { sentryClientConfig } from "@packages/observability/sentry/client";
 import * as Sentry from "@sentry/nextjs";
 
 const sentryConfig = sentryClientConfig();

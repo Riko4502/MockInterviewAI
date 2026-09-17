@@ -56,12 +56,14 @@ packages/observability/
 ├── src/
 │   ├── index.ts
 │   ├── sentry/
-│   │   ├── index.ts         # barrel
-│   │   ├── env.ts           # Zod-схема env Sentry
-│   │   ├── nestjs.config.ts # пресет для @sentry/nestjs
-│   │   ├── nextjs.config.ts # пресет для @sentry/nextjs (build-time)
-│   │   ├── runtime.config.ts# пресет для серверного/edge рантайма
-│   │   └── client.config.ts # пресет для браузерного рантайма (NEXT_PUBLIC_SENTRY_DSN)
+│   │   ├── index.ts           # barrel (full, Node-only safe)
+│   │   ├── edge.ts            # edge-safe barrel (sentryRuntimeConfig only)
+│   │   ├── client.ts          # browser-safe barrel (sentryClientConfig only)
+│   │   ├── env.ts             # Zod-схема env Sentry
+│   │   ├── nestjs.config.ts   # пресет для @sentry/nestjs
+│   │   ├── nextjs.config.ts   # пресет для @sentry/nextjs (build-time)
+│   │   ├── runtime.config.ts  # пресет для серверного/edge рантайма
+│   │   └── client.config.ts   # пресет для браузерного рантайма (NEXT_PUBLIC_SENTRY_DSN)
 │   └── prometheus/
 │       ├── index.ts         # barrel
 │       └── env.ts           # Zod-схема env Prometheus
@@ -96,12 +98,15 @@ packages/observability/
 ### 5.2 apps/web и apps/landing (Next.js)
 
 - `@sentry/nextjs`.
-- **apps/web** (standalone SSR): `sentry.client.config.ts`,
-  `sentry.server.config.ts`, `sentry.edge.config.ts`, `next.config.ts`
-  оборачивается в `withSentryConfig`.
+- **apps/web** (standalone SSR): `sentry.client.config.ts` (через
+  `@packages/observability/sentry/client` — browser-safe, без Node-зависимостей),
+  `sentry.server.config.ts`, `sentry.edge.config.ts` (через
+  `@packages/observability/sentry/edge` — без `@sentry/profiling-node`),
+  `next.config.ts` оборачивается в `withSentryConfig`.
 - **apps/landing** (`output: "export"`, статический лендинг): только клиентская
   инициализация `sentry.client.config.ts` через
-  `NEXT_PUBLIC_SENTRY_DSN`; серверного/edge рантайма нет. `next.config.ts`
+  `NEXT_PUBLIC_SENTRY_DSN` (`@packages/observability/sentry/client`); серверного/edge
+  рантайма нет. `next.config.ts`
   оборачивается в `withSentryConfig` — только build-плагин (source maps,
   upload), guard по `SENTRY_DSN` (без DSN конфиг не оборачивается).
 - Source Maps: `SENTRY_AUTH_TOKEN` + script `sentry:sourcemaps` после

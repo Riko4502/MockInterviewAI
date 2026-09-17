@@ -13,6 +13,14 @@
       "types": "./dist/sentry/index.d.ts",
       "default": "./dist/sentry/index.js"
     },
+    "./sentry/edge": {
+      "types": "./dist/sentry/edge.d.ts",
+      "default": "./dist/sentry/edge.js"
+    },
+    "./sentry/client": {
+      "types": "./dist/sentry/client.d.ts",
+      "default": "./dist/sentry/client.js"
+    },
     "./prometheus": {
       "types": "./dist/prometheus/index.d.ts",
       "default": "./dist/prometheus/index.js"
