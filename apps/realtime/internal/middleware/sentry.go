@@ -29,6 +29,10 @@ func Sentry(logger *slog.Logger) func(next http.Handler) http.Handler {
 			span := sentry.StartSpan(ctx, "http.server",
 				sentry.WithTransactionName(r.Method+" "+r.URL.Path),
 			)
+			defer span.Finish()
+			// span.Context() сохраняет hub и добавляет span: downstream-хендлеры
+			// видят активный span и могут создавать честные дочерние span'ы.
+			r = r.WithContext(span.Context())
 			span.SetData("url", SanitizeURI(r.URL))
 			span.SetTag("request_id", requestID)
 
@@ -43,8 +47,6 @@ func Sentry(logger *slog.Logger) func(next http.Handler) http.Handler {
 			}, nil)
 
 			next.ServeHTTP(w, r)
-
-			span.Finish()
 		})
 	}
 }

@@ -131,6 +131,11 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.8 — 2026-09-17
+- **Sentry middleware (apps/realtime):** `r = r.WithContext(span.Context())` —
+  активный span виден downstream (дочерние span'ы); `span.Finish()` → `defer`
+  (finish при panic). Добавлен тест проброса span+hub (`sentry_test.go`).
+
 ### 0.7.7 — 2026-09-17
 - **`MetricsInterceptor` (apps/api):** статус исключения фиксируется в
   `catchError` (`HttpException.getStatus()`, иначе 500) до `finalize` — раньше

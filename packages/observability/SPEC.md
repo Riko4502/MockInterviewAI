@@ -340,6 +340,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 
 ## Изменения
 
+### 0.8.0 — 2026-09-17
+- **Sentry middleware (apps/realtime):** контекст активного span'а
+  (`span.Context()`) прокидывается в запрос — downstream-хендлеры видят корневой
+  span и строят дочерние; `span.Finish()` переведён на `defer` (закрытие span
+  при panic). Hub сохраняется (StartSpan строит ctx из переданного контекста
+  с hub). Тест `sentry_test.go` проверяет проброс span+hub.
+
 ### 0.7.9 — 2026-09-17
 - **`MetricsInterceptor` (apps/api):** статус в `http_requests_total` теперь
   фиксируется в `catchError` (`HttpException.getStatus()`, неизвестная ошибка →
