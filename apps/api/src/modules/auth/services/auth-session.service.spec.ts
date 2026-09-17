@@ -39,12 +39,14 @@ describe("AuthSessionService", () => {
   let redisGet: jest.Mock;
   let redisDelete: jest.Mock;
   let redisScanKeys: jest.Mock;
+  let redisEval: jest.Mock;
 
   beforeEach(() => {
     redisSet = jest.fn().mockResolvedValue("OK");
     redisGet = jest.fn().mockResolvedValue(null);
     redisDelete = jest.fn().mockResolvedValue(1);
     redisScanKeys = jest.fn().mockResolvedValue([]);
+    redisEval = jest.fn().mockResolvedValue(1);
 
     service = new AuthSessionService(
       {
@@ -52,6 +54,7 @@ describe("AuthSessionService", () => {
         get: redisGet,
         delete: redisDelete,
         scanKeys: redisScanKeys,
+        eval: redisEval,
       } as unknown as RedisService,
       createConfigService(),
     );
@@ -65,11 +68,14 @@ describe("AuthSessionService", () => {
   });
 
   describe("createSession", () => {
-    it("сохраняет session под ключом auth:session:{sessionId}", async () => {
+    it("сохраняет session под ключом auth:session:{sessionId} через атомарный eval (§CWE-362)", async () => {
       await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
 
-      expect(redisSet).toHaveBeenCalledTimes(1);
-      expect(redisSet.mock.calls[0][0]).toBe(`auth:session:${SESSION_ID}`);
+      expect(redisEval).toHaveBeenCalledTimes(1);
+      expect(redisEval.mock.calls[0][1][1]).toBe(`auth:session:${SESSION_ID}`);
+      expect(redisEval.mock.calls[0][1][0]).toBe(
+        `auth:user:${USER_ID}:min_generation`,
+      );
     });
 
     it("записывает JSON со всеми полями payload (§16 SPEC.md)", async () => {
@@ -80,7 +86,7 @@ describe("AuthSessionService", () => {
         FAMILY_ID,
       );
 
-      const [, raw] = redisSet.mock.calls[0];
+      const [, , [, raw]] = redisEval.mock.calls[0];
       const stored = JSON.parse(raw) as AuthSession;
 
       expect(stored.userId).toBe(USER_ID);
@@ -96,7 +102,7 @@ describe("AuthSessionService", () => {
     it("устанавливает TTL по умолчанию 7 дней", async () => {
       await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
 
-      expect(redisSet.mock.calls[0][2]).toBe(604800);
+      expect(redisEval.mock.calls[0][2][2]).toBe(604800);
     });
 
     it("вычисляет TTL из конфига jwt.refreshExpiresIn", async () => {
@@ -105,28 +111,25 @@ describe("AuthSessionService", () => {
           set: redisSet,
           get: redisGet,
           delete: redisDelete,
+          eval: redisEval,
         } as unknown as RedisService,
         createConfigService("1h"),
       );
 
       await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
 
-      expect(redisSet.mock.calls[0][2]).toBe(3600);
+      expect(redisEval.mock.calls[0][2][2]).toBe(3600);
     });
 
     it("выбрасывает UnauthorizedException если поколение сессии устарело (fence min_generation)", async () => {
-      redisGet.mockImplementation(async (key: string) => {
-        if (key === `auth:user:${USER_ID}:min_generation`) {
-          return "3";
-        }
-        return null;
-      });
+      redisEval.mockResolvedValue(-1);
 
       await expect(
         service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID, 2),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(redisSet).not.toHaveBeenCalled();
+      expect(redisEval).toHaveBeenCalledTimes(1);
+      expect(redisEval.mock.calls[0][2][0]).toBe(2);
     });
   });
 
@@ -330,10 +333,10 @@ describe("AuthSessionService", () => {
 
       await service.revokeAllUserSessions(USER_ID, undefined, 1);
 
-      expect(redisSet).toHaveBeenCalledWith(
-        `auth:user:${USER_ID}:min_generation`,
-        "2",
-        604800,
+      expect(redisEval).toHaveBeenCalledWith(
+        expect.any(String),
+        [`auth:user:${USER_ID}:min_generation`],
+        [2, 604800],
       );
       expect(redisDelete).toHaveBeenCalledTimes(1);
       expect(redisDelete).toHaveBeenCalledWith(gen1SessionKey);

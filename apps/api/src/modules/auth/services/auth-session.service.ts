@@ -21,6 +21,73 @@ export interface AuthSession {
  * Отвечает за: создание/чтение/обновление/удаление session,
  * rotation refresh token с replay detection, привязку TTL к `JWT_REFRESH_EXPIRATION`.
  */
+/**
+ * Lua-скрипт для атомарной проверки generation fence и сохранения сессии (§CWE-362).
+ * KEYS[1]: auth:user:{userId}:min_generation
+ * KEYS[2]: auth:session:{sessionId}
+ * ARGV[1]: generation (number | "")
+ * ARGV[2]: session JSON
+ * ARGV[3]: ttlSeconds (number)
+ *
+ * Возвращает 1 в случае успеха, -1 если generation устарел.
+ */
+export const CREATE_SESSION_LUA = `
+local min_gen_key = KEYS[1]
+local session_key = KEYS[2]
+local generation = tonumber(ARGV[1])
+local session_json = ARGV[2]
+local ttl = tonumber(ARGV[3])
+
+if generation ~= nil then
+    local min_gen_val = redis.call('get', min_gen_key)
+    if min_gen_val then
+        local min_gen = tonumber(min_gen_val)
+        if min_gen and generation < min_gen then
+            return -1
+        end
+    end
+end
+
+if ttl and ttl > 0 then
+    redis.call('set', session_key, session_json, 'EX', ttl)
+else
+    redis.call('set', session_key, session_json)
+end
+
+return 1
+`;
+
+/**
+ * Lua-скрипт для атомарного монотонного обновления generation fence (§CWE-362).
+ * KEYS[1]: auth:user:{userId}:min_generation
+ * ARGV[1]: targetMinGen (number)
+ * ARGV[2]: ttlSeconds (number)
+ *
+ * Устанавливает max(currentMinGen, targetMinGen) и предотвращает понижение fence.
+ */
+export const UPDATE_MIN_GEN_LUA = `
+local min_gen_key = KEYS[1]
+local target_min_gen = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+
+local current_val = redis.call('get', min_gen_key)
+local current_min_gen = 0
+if current_val then
+    current_min_gen = tonumber(current_val) or 0
+end
+
+if target_min_gen > current_min_gen then
+    if ttl and ttl > 0 then
+        redis.call('set', min_gen_key, tostring(target_min_gen), 'EX', ttl)
+    else
+        redis.call('set', min_gen_key, tostring(target_min_gen))
+    end
+    return target_min_gen
+end
+
+return current_min_gen
+`;
+
 @Injectable()
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
@@ -71,27 +138,25 @@ export class AuthSessionService {
     const sessionKey = this.key(sessionId);
     const minGenKey = `auth:user:${userId}:min_generation`;
 
-    // Атомарная проверка generation через Redis fence:
+    // Атомарная проверка generation через Redis Lua fence (§CWE-362):
     // если поколение пользователя уже было инкрементировано (смена пароля/деактивация),
-    // запрещаем создание сессии со старым поколением (§CWE-362).
-    if (generation !== undefined) {
-      const minGenStr = await this.redisService.get(minGenKey);
-      if (minGenStr) {
-        const minGen = parseInt(minGenStr, 10);
-        if (!Number.isNaN(minGen) && generation < minGen) {
-          this.logger.warn(
-            `Session creation rejected for user ${userId}: generation ${generation} is older than min_generation ${minGen}`,
-          );
-          throw new UnauthorizedException("Invalid credentials");
-        }
-      }
-    }
-
-    await this.redisService.set(
-      sessionKey,
-      JSON.stringify(session),
-      ttlSeconds,
+    // сессия атомарно отклоняется без записи в Redis.
+    const result = await this.redisService.eval<number>(
+      CREATE_SESSION_LUA,
+      [minGenKey, sessionKey],
+      [
+        generation !== undefined ? generation : "",
+        JSON.stringify(session),
+        ttlSeconds,
+      ],
     );
+
+    if (result === -1) {
+      this.logger.warn(
+        `Session creation rejected for user ${userId}: generation ${generation} is older than min_generation`,
+      );
+      throw new UnauthorizedException("Invalid credentials");
+    }
 
     this.logger.debug(`Session created: ${sessionId}`);
     return session;
@@ -231,20 +296,14 @@ export class AuthSessionService {
   ): Promise<void> {
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
     if (maxGeneration !== undefined) {
-      // Устанавливаем минимально допустимое поколение для новых сессий (атомарный fence)
+      // Атомарно устанавливаем max(currentMinGen, targetMinGen) без возможности уменьшения fence (§CWE-362)
       const minGenKey = `auth:user:${userId}:min_generation`;
       const targetMinGen = maxGeneration + 1;
-      const currentMinGenStr = await this.redisService.get(minGenKey);
-      const currentMinGen = currentMinGenStr
-        ? parseInt(currentMinGenStr, 10)
-        : 0;
-      if (Number.isNaN(currentMinGen) || targetMinGen > currentMinGen) {
-        await this.redisService.set(
-          minGenKey,
-          String(targetMinGen),
-          ttlSeconds,
-        );
-      }
+      await this.redisService.eval<number>(
+        UPDATE_MIN_GEN_LUA,
+        [minGenKey],
+        [targetMinGen, ttlSeconds],
+      );
     }
 
     const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);

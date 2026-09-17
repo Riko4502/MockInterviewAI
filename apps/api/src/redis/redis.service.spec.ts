@@ -12,6 +12,7 @@ const mockRedisInstance = {
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
+  eval: jest.fn().mockResolvedValue(1),
   scanStream: jest.fn(),
 };
 
@@ -149,6 +150,23 @@ describe("RedisService", () => {
       const result = await service.ping();
       expect(result).toBe("PONG");
       expect(mockRedisInstance.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("eval", () => {
+    it("выполняет Lua-скрипт с ключами и аргументами", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.eval("return 1", ["k1", "k2"], ["a1", 10]);
+      expect(result).toBe(1);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        "return 1",
+        2,
+        "k1",
+        "k2",
+        "a1",
+        10,
+      );
     });
   });
 
