@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -384,5 +385,12 @@ func getEnvFloat(key string, fallback float64) (float64, error) {
 	if valStr == "" {
 		return fallback, nil
 	}
-	return strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+	v, err := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, fmt.Errorf("%s must be a finite number, got %q", key, valStr)
+	}
+	return v, nil
 }
