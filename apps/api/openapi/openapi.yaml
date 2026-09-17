@@ -437,6 +437,12 @@ paths:
               - role
               - updatedAt
             type: string
+        - name: isDeleted
+          required: false
+          in: query
+          description: Фильтр по статусу удаления (soft-deleted)
+          schema:
+            type: boolean
         - name: isActive
           required: false
           in: query
@@ -573,6 +579,33 @@ paths:
       security: *a4
       summary: Обновить данные и/или роль пользователя
       tags: *a5
+    delete:
+      operationId: AdminUsersController_deleteUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Пользователь успешно удален
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Попытка удалить собственный аккаунт администратора
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Удалить (деактивировать) пользователя администратором
+      tags: *a5
   /api/v1/admin/users/{id}/status:
     patch:
       operationId: AdminUsersController_updateStatus
@@ -607,6 +640,60 @@ paths:
           description: Пользователь не найден
       security: *a4
       summary: Активировать или деактивировать аккаунт пользователя
+      tags: *a5
+  /api/v1/admin/users/{id}/reset-password:
+    post:
+      operationId: AdminUsersController_resetPassword
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Пароль пользователя успешно сброшен, сгенерирован временный пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Сбросить пароль пользователя и сгенерировать временный
+      tags: *a5
+  /api/v1/admin/users/{id}/restore:
+    post:
+      operationId: AdminUsersController_restoreUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Пользователь успешно восстановлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Аккаунт пользователя не был удален
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Восстановить удаленного пользователя администратором
       tags: *a5
   /api/v1/sessions:
     post:
@@ -905,9 +992,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         email:
           type: string
           format: email
@@ -917,9 +1004,9 @@ components:
         permissions:
           type: string
         updatedAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - displayName
@@ -1010,9 +1097,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - displayName
@@ -1163,9 +1250,14 @@ components:
                 type: boolean
               deactivatedAt:
                 nullable: true
-                anyOf:
-                  - {}
-                  - type: string
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              deletedAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
               avatarUrl:
                 nullable: true
                 type: string
@@ -1176,13 +1268,13 @@ components:
                 nullable: true
                 type: string
               createdAt:
-                anyOf:
-                  - {}
-                  - type: string
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
               updatedAt:
-                anyOf:
-                  - {}
-                  - type: string
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
             required:
               - id
               - email
@@ -1191,6 +1283,7 @@ components:
               - role
               - isActive
               - deactivatedAt
+              - deletedAt
               - avatarUrl
               - telegramUsername
               - gitUrl
@@ -1254,9 +1347,14 @@ components:
           type: boolean
         deactivatedAt:
           nullable: true
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        deletedAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         avatarUrl:
           nullable: true
           type: string
@@ -1267,13 +1365,13 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         updatedAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         sessionsCount:
           type: integer
           minimum: 0
@@ -1290,6 +1388,7 @@ components:
         - role
         - isActive
         - deactivatedAt
+        - deletedAt
         - avatarUrl
         - telegramUsername
         - gitUrl
@@ -1306,7 +1405,7 @@ components:
           pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
         password:
           type: string
-          minLength: 8
+          minLength: 12
           maxLength: 128
         role:
           default: USER
@@ -1347,9 +1446,14 @@ components:
           type: boolean
         deactivatedAt:
           nullable: true
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        deletedAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         avatarUrl:
           nullable: true
           type: string
@@ -1360,13 +1464,13 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         updatedAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - email
@@ -1375,6 +1479,7 @@ components:
         - role
         - isActive
         - deactivatedAt
+        - deletedAt
         - avatarUrl
         - telegramUsername
         - gitUrl
@@ -1584,7 +1689,8 @@ components:
       properties:
         userId:
           type: string
-          minLength: 1
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         role:
           type: string
           enum:

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -6,14 +7,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type {
-  AdminUsersQueryDto,
-  CreateUserAdminDto,
-  PaginatedUsersAdminResponseDto,
-  UpdateUserAdminDto,
-  UserAdminDetailResponseDto,
-  UserAdminResponseDto,
-  UserStatusAdminDto,
+import {
+  type AdminUsersQueryInputDto,
+  adminUsersQuerySchema,
+  type CreateUserAdminDto,
+  type PaginatedUsersAdminResponseDto,
+  type UpdateUserAdminDto,
+  type UserAdminDetailResponseDto,
+  type UserAdminResponseDto,
+  type UserStatusAdminDto,
 } from "@packages/dto";
 import { SystemRole } from "@packages/types";
 import argon2 from "argon2";
@@ -23,6 +25,7 @@ import type { Prisma } from "../../../generated/prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { RedisService } from "../../../redis/redis.service";
 import { AuthSessionService } from "../../auth/services/auth-session.service";
+import { StorageService } from "../../storage/storage.service";
 
 /**
  * Сервис административного управления пользователями.
@@ -40,6 +43,7 @@ export class AdminUsersService {
     private readonly configService: ConfigService,
     private readonly authSessionService: AuthSessionService,
     private readonly redisService: RedisService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -49,17 +53,18 @@ export class AdminUsersService {
    * @returns Пагинированный список пользователей.
    */
   async getUsersList(
-    query: AdminUsersQueryDto,
+    query: AdminUsersQueryInputDto = {},
   ): Promise<PaginatedUsersAdminResponseDto> {
     const {
-      page = 1,
-      limit = 20,
+      page,
+      limit,
       search,
       role,
       isActive,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = query;
+      isDeleted,
+      sortBy,
+      sortOrder,
+    } = adminUsersQuerySchema.parse(query);
 
     const where: Prisma.UserWhereInput = {};
 
@@ -77,6 +82,10 @@ export class AdminUsersService {
 
     if (isActive !== undefined) {
       where.isActive = isActive;
+    }
+
+    if (isDeleted !== undefined) {
+      where.deletedAt = isDeleted ? { not: null } : null;
     }
 
     let orderBy: Prisma.UserOrderByWithRelationInput;
@@ -103,20 +112,9 @@ export class AdminUsersService {
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    const items: UserAdminResponseDto[] = users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role?.slug ?? SystemRole.USER,
-      isActive: user.isActive,
-      deactivatedAt: user.deactivatedAt,
-      avatarUrl: user.avatarUrl,
-      telegramUsername: user.telegramUsername,
-      gitUrl: user.gitUrl,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    }));
+    const items: UserAdminResponseDto[] = users.map((user) =>
+      this.mapToUserAdminResponse(user),
+    );
 
     return {
       items,
@@ -157,18 +155,7 @@ export class AdminUsersService {
     }
 
     return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role?.slug ?? SystemRole.USER,
-      isActive: user.isActive,
-      deactivatedAt: user.deactivatedAt,
-      avatarUrl: user.avatarUrl,
-      telegramUsername: user.telegramUsername,
-      gitUrl: user.gitUrl,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      ...this.mapToUserAdminResponse(user),
       sessionsCount: user._count.sessions,
       participationsCount: user._count.participations,
     };
@@ -224,20 +211,7 @@ export class AdminUsersService {
         select: USER_ADMIN_SELECT,
       });
 
-      return {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        role: user.role?.slug ?? SystemRole.USER,
-        isActive: user.isActive,
-        deactivatedAt: user.deactivatedAt,
-        avatarUrl: user.avatarUrl,
-        telegramUsername: user.telegramUsername,
-        gitUrl: user.gitUrl,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      };
+      return this.mapToUserAdminResponse(user);
     } catch (error) {
       // TODO улучшить проверку
       if (
@@ -286,6 +260,7 @@ export class AdminUsersService {
   async updateUser(
     id: string,
     dto: UpdateUserAdminDto,
+    currentAdminId?: string,
   ): Promise<UserAdminResponseDto> {
     const existing = await this.prisma.user.findUnique({
       where: { id },
@@ -296,7 +271,12 @@ export class AdminUsersService {
       throw new NotFoundException("User not found");
     }
 
-    if (dto.email && dto.email !== existing.email) {
+    const emailChanged = Boolean(dto.email && dto.email !== existing.email);
+    const usernameChanged = Boolean(
+      dto.username !== undefined && dto.username !== existing.username,
+    );
+
+    if (dto.email && emailChanged) {
       const emailConflict = await this.prisma.user.findUnique({
         where: { email: dto.email },
       });
@@ -305,7 +285,7 @@ export class AdminUsersService {
       }
     }
 
-    if (dto.username && dto.username !== existing.username) {
+    if (dto.username && usernameChanged) {
       const usernameConflict = await this.prisma.user.findUnique({
         where: { username: dto.username },
       });
@@ -337,6 +317,12 @@ export class AdminUsersService {
       }
     }
 
+    if (id === currentAdminId && roleChanged) {
+      throw new BadRequestException("Cannot change own administrator role");
+    }
+
+    const credentialsChanged = roleChanged || emailChanged || usernameChanged;
+
     let taskId: string | undefined;
     try {
       const updated = await this.prisma.$transaction(async (tx) => {
@@ -354,7 +340,7 @@ export class AdminUsersService {
             }),
             ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
             ...(newRoleId !== undefined && { roleId: newRoleId }),
-            ...(roleChanged && { generation: { increment: 1 } }),
+            ...(credentialsChanged && { generation: { increment: 1 } }),
           },
           select: {
             ...USER_ADMIN_SELECT,
@@ -364,7 +350,7 @@ export class AdminUsersService {
 
         let taskCreatedAt: Date | undefined;
         let taskGeneration: number | undefined;
-        if (roleChanged) {
+        if (credentialsChanged) {
           const preIncrementGeneration = user.generation - 1;
           const task = await tx.authRevocationTask.create({
             data: {
@@ -380,7 +366,7 @@ export class AdminUsersService {
         return { user, taskCreatedAt, taskGeneration };
       });
 
-      if (roleChanged) {
+      if (credentialsChanged) {
         try {
           await this.revokeSessionsWithRetry(
             id,
@@ -400,21 +386,21 @@ export class AdminUsersService {
         }
       }
 
-      const user = updated.user;
-      return {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        role: user.role?.slug ?? SystemRole.USER,
-        isActive: user.isActive,
-        deactivatedAt: user.deactivatedAt,
-        avatarUrl: user.avatarUrl,
-        telegramUsername: user.telegramUsername,
-        gitUrl: user.gitUrl,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      };
+      if (
+        dto.avatarUrl !== undefined &&
+        dto.avatarUrl !== existing.avatarUrl &&
+        existing.avatarUrl
+      ) {
+        await this.storageService
+          .deleteFile(existing.avatarUrl)
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to delete old avatar ${existing.avatarUrl} from storage during admin updateUser: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      }
+
+      return this.mapToUserAdminResponse(updated.user);
     } catch (error) {
       if (
         (error instanceof Error && "code" in error && error.code === "P2002") ||
@@ -530,7 +516,221 @@ export class AdminUsersService {
       }
     }
 
-    const user = updated.user;
+    return this.mapToUserAdminResponse(updated.user);
+  }
+
+  /**
+   * Сбрасывает пароль пользователя, генерирует криптографически стойкий временный пароль,
+   * инкрементирует generation и немедленно отзывает все активные сессии.
+   * Временный пароль логируется в консоль (до подключения email-сервиса).
+   *
+   * @param id - UUID целевого пользователя.
+   * @returns DTO обновленного пользователя.
+   * @throws {NotFoundException} Если пользователь не найден.
+   */
+  async resetPassword(id: string): Promise<UserAdminResponseDto> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, generation: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("User not found");
+    }
+
+    const tempPassword = this.generateTemporaryPassword();
+    const passwordHash = await this.hashPassword(tempPassword);
+
+    let taskId: string | undefined;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: {
+          passwordHash,
+          generation: { increment: 1 },
+        },
+        select: {
+          ...USER_ADMIN_SELECT,
+          generation: true,
+        },
+      });
+
+      const preIncrementGeneration = user.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: {
+          userId: id,
+          generation: preIncrementGeneration,
+        },
+      });
+      taskId = task.id;
+
+      return {
+        user,
+        taskCreatedAt: task.createdAt,
+        taskGeneration: preIncrementGeneration,
+      };
+    });
+
+    try {
+      await this.revokeSessionsWithRetry(
+        id,
+        updated.taskCreatedAt,
+        updated.taskGeneration,
+      );
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${id} during resetPassword (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    this.logger.log(
+      `[TEMP PASSWORD] Reset password for user ${existing.email} (${id}): ${tempPassword}`,
+    );
+
+    return this.mapToUserAdminResponse(updated.user);
+  }
+
+  /**
+   * Удаляет (деактивирует) пользователя администратором.
+   * Устанавливает `deletedAt`, сбрасывает `isActive` в false, инкрементирует `generation`
+   * и немедленно отзывает все сессии пользователя.
+   *
+   * @param id - UUID целевого пользователя.
+   * @param currentAdminId - UUID текущего авторизованного администратора.
+   * @returns DTO удаленного пользователя.
+   * @throws {BadRequestException} Если администратор пытается удалить сам себя.
+   * @throws {NotFoundException} Если пользователь не найден.
+   */
+  async deleteUser(
+    id: string,
+    currentAdminId: string,
+  ): Promise<UserAdminResponseDto> {
+    if (id === currentAdminId) {
+      throw new BadRequestException("Cannot delete own administrator account");
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("User not found");
+    }
+
+    let taskId: string | undefined;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          isActive: false,
+          generation: { increment: 1 },
+        },
+        select: {
+          ...USER_ADMIN_SELECT,
+          generation: true,
+        },
+      });
+
+      const preIncrementGeneration = user.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: {
+          userId: id,
+          generation: preIncrementGeneration,
+        },
+      });
+      taskId = task.id;
+
+      return {
+        user,
+        taskCreatedAt: task.createdAt,
+        taskGeneration: preIncrementGeneration,
+      };
+    });
+
+    try {
+      await this.revokeSessionsWithRetry(
+        id,
+        updated.taskCreatedAt,
+        updated.taskGeneration,
+      );
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${id} during deleteUser (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    return this.mapToUserAdminResponse(updated.user);
+  }
+
+  /**
+   * Восстанавливает удаленного пользователя администратором.
+   * Сбрасывает `deletedAt` в null и активирует учетную запись (`isActive: true`).
+   *
+   * @param id - UUID целевого пользователя.
+   * @returns DTO восстановленного пользователя.
+   * @throws {NotFoundException} Если пользователь не найден.
+   * @throws {BadRequestException} Если аккаунт пользователя не был удален.
+   */
+  async restoreUser(id: string): Promise<UserAdminResponseDto> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (existing.deletedAt === null) {
+      throw new BadRequestException("User account is not deleted");
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+        isActive: true,
+      },
+      select: USER_ADMIN_SELECT,
+    });
+
+    return this.mapToUserAdminResponse(updated);
+  }
+
+  /**
+   * Генерирует криптографически стойкий случайный временный пароль (16 символов).
+   * Включает заглавные, строчные буквы, цифры и спецсимволы.
+   */
+  private generateTemporaryPassword(): string {
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    const bytes = randomBytes(16);
+    let password = "";
+    // TODO вынести в константу 16
+    for (let i = 0; i < 16; i++) {
+      password += chars[bytes[i] % chars.length];
+    }
+    return password;
+  }
+
+  /**
+   * Преобразует запись пользователя Prisma в UserAdminResponseDto с ISO-строками для дат.
+   */
+  private mapToUserAdminResponse(
+    user: Prisma.UserGetPayload<{ select: typeof USER_ADMIN_SELECT }>,
+  ): UserAdminResponseDto {
     return {
       id: user.id,
       email: user.email,
@@ -538,12 +738,27 @@ export class AdminUsersService {
       displayName: user.displayName,
       role: user.role?.slug ?? SystemRole.USER,
       isActive: user.isActive,
-      deactivatedAt: user.deactivatedAt,
+      deactivatedAt: user.deactivatedAt
+        ? typeof user.deactivatedAt === "string"
+          ? user.deactivatedAt
+          : user.deactivatedAt.toISOString()
+        : null,
+      deletedAt: user.deletedAt
+        ? typeof user.deletedAt === "string"
+          ? user.deletedAt
+          : user.deletedAt.toISOString()
+        : null,
       avatarUrl: user.avatarUrl,
       telegramUsername: user.telegramUsername,
       gitUrl: user.gitUrl,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      createdAt:
+        typeof user.createdAt === "string"
+          ? user.createdAt
+          : user.createdAt.toISOString(),
+      updatedAt:
+        typeof user.updatedAt === "string"
+          ? user.updatedAt
+          : user.updatedAt.toISOString(),
     };
   }
 

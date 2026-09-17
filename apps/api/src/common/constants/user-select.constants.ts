@@ -10,6 +10,7 @@ export const USER_ADMIN_SELECT = {
   displayName: true,
   isActive: true,
   deactivatedAt: true,
+  deletedAt: true,
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,

@@ -24,12 +24,13 @@ export const userAdminResponseSchema = z.object({
   displayName: z.string().nullable(),
   role: z.string(),
   isActive: z.boolean(),
-  deactivatedAt: z.date().or(z.string()).nullable(),
+  deactivatedAt: z.iso.datetime().nullable(),
+  deletedAt: z.iso.datetime().nullable(),
   avatarUrl: z.string().nullable(),
   telegramUsername: z.string().nullable(),
   gitUrl: z.string().nullable(),
-  createdAt: z.date().or(z.string()),
-  updatedAt: z.date().or(z.string()),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export type UserAdminResponseDto = z.infer<typeof userAdminResponseSchema>;

@@ -14,7 +14,7 @@ export interface CreateUserAdminDto {
   /** @pattern ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$ */
   email: string;
   /**
-     * @minLength 8
+     * @minLength 12
      * @maxLength 128
      */
   password: string;

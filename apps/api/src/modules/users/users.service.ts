@@ -215,21 +215,7 @@ export class UsersService {
       throw new NotFoundException("User profile not found");
     }
 
-    return {
-      id: profile.id,
-      email: profile.email,
-      displayName: profile.displayName,
-      username: profile.username,
-      avatarUrl: profile.avatarUrl,
-      telegramUsername: profile.telegramUsername,
-      gitUrl: profile.gitUrl,
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
-      role: profile.role?.slug ?? SystemRole.USER,
-      permissions: (
-        profile.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(profile);
   }
 
   /**
@@ -273,21 +259,7 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      displayName: updated.displayName,
-      username: updated.username,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-      role: updated.role?.slug ?? SystemRole.USER,
-      permissions: (
-        updated.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(updated);
   }
 
   /**
@@ -460,21 +432,7 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      displayName: updated.displayName,
-      username: updated.username,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-      role: updated.role?.slug ?? SystemRole.USER,
-      permissions: (
-        updated.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(updated);
   }
 
   /**
@@ -500,6 +458,70 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    return user;
+    return this.mapToPublicUserProfile(user);
+  }
+
+  /**
+   * Преобразует выборку пользователя Prisma в полный UserProfileDto с ISO-строками дат.
+   */
+  private mapToUserProfile(profile: {
+    id: string;
+    email: string;
+    displayName: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+    telegramUsername: string | null;
+    gitUrl: string | null;
+    role: { slug: string; permissions: bigint } | null;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+  }): UserProfileDto {
+    return {
+      id: profile.id,
+      email: profile.email,
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+      telegramUsername: profile.telegramUsername,
+      gitUrl: profile.gitUrl,
+      createdAt:
+        typeof profile.createdAt === "string"
+          ? profile.createdAt
+          : profile.createdAt.toISOString(),
+      updatedAt:
+        typeof profile.updatedAt === "string"
+          ? profile.updatedAt
+          : profile.updatedAt.toISOString(),
+      role: profile.role?.slug ?? SystemRole.USER,
+      permissions: (
+        profile.role?.permissions ?? SystemPermission.NONE
+      ).toString(),
+    };
+  }
+
+  /**
+   * Преобразует выборку публичного профиля Prisma в PublicUserProfileDto с ISO-строкой даты.
+   */
+  private mapToPublicUserProfile(user: {
+    id: string;
+    displayName: string | null;
+    username: string | null;
+    avatarUrl: string | null;
+    telegramUsername: string | null;
+    gitUrl: string | null;
+    createdAt: Date | string;
+  }): PublicUserProfileDto {
+    return {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      telegramUsername: user.telegramUsername,
+      gitUrl: user.gitUrl,
+      createdAt:
+        typeof user.createdAt === "string"
+          ? user.createdAt
+          : user.createdAt.toISOString(),
+    };
   }
 }

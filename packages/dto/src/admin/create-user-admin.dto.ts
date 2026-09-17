@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { normalizeEmail } from "../auth/email";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "../auth/password-policy";
 import { USERNAME_REGEX } from "../profile/update-profile.dto";
 
 /**
@@ -13,8 +17,14 @@ export const createUserAdminSchema = z.object({
     .transform(normalizeEmail),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password must be at most 128 characters"),
+    .min(
+      PASSWORD_MIN_LENGTH,
+      `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
+    )
+    .max(
+      PASSWORD_MAX_LENGTH,
+      `Password must be at most ${PASSWORD_MAX_LENGTH} characters`,
+    ),
   role: z.string().trim().optional().default("USER"),
   username: z
     .string()

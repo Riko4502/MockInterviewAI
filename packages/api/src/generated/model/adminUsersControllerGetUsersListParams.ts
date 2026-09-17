@@ -22,6 +22,10 @@ sortOrder?: AdminUsersControllerGetUsersListSortOrder;
  */
 sortBy?: AdminUsersControllerGetUsersListSortBy;
 /**
+ * Фильтр по статусу удаления (soft-deleted)
+ */
+isDeleted?: boolean;
+/**
  * Фильтр по статусу активности
  */
 isActive?: boolean;

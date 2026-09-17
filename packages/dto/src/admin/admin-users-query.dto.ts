@@ -30,17 +30,23 @@ export const adminUsersQuerySchema = z.object({
   search: z.string().trim().optional(),
   role: z.string().trim().optional(),
   isActive: z
-    .preprocess((val) => {
-      if (val === "true" || val === true) return true;
-      if (val === "false" || val === false) return false;
-      return undefined;
-    }, z.boolean().optional())
+    .union([z.boolean(), z.enum(["true", "false"])])
+    .transform((val) => val === true || val === "true")
+    .optional(),
+  isDeleted: z
+    .union([z.boolean(), z.enum(["true", "false"])])
+    .transform((val) => val === true || val === "true")
     .optional(),
   sortBy: adminUsersSortBySchema.default("createdAt"),
   sortOrder: adminUsersSortOrderSchema.default("desc"),
 });
 
 /**
- * DTO query-параметров списка пользователей администратора.
+ * DTO входных query-параметров списка пользователей администратора (до валидации и с дефолтными значениями).
+ */
+export type AdminUsersQueryInputDto = z.input<typeof adminUsersQuerySchema>;
+
+/**
+ * DTO валидированных query-параметров списка пользователей администратора.
  */
 export type AdminUsersQueryDto = z.infer<typeof adminUsersQuerySchema>;

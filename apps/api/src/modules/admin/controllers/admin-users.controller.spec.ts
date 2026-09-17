@@ -9,6 +9,9 @@ describe("AdminUsersController", () => {
     createUser: jest.Mock;
     updateUser: jest.Mock;
     updateStatus: jest.Mock;
+    resetPassword: jest.Mock;
+    deleteUser: jest.Mock;
+    restoreUser: jest.Mock;
   };
 
   const mockUserResponse = {
@@ -19,6 +22,7 @@ describe("AdminUsersController", () => {
     role: "USER",
     isActive: true,
     deactivatedAt: null,
+    deletedAt: null,
     avatarUrl: null,
     telegramUsername: null,
     gitUrl: null,
@@ -53,6 +57,17 @@ describe("AdminUsersController", () => {
         ...mockUserResponse,
         isActive: false,
         deactivatedAt: new Date(),
+      }),
+      resetPassword: jest.fn().mockResolvedValue(mockUserResponse),
+      deleteUser: jest.fn().mockResolvedValue({
+        ...mockUserResponse,
+        deletedAt: new Date(),
+        isActive: false,
+      }),
+      restoreUser: jest.fn().mockResolvedValue({
+        ...mockUserResponse,
+        deletedAt: null,
+        isActive: true,
       }),
     };
 
@@ -96,13 +111,19 @@ describe("AdminUsersController", () => {
     expect(result.id).toBe(mockUserResponse.id);
   });
 
-  it("updateUser передает id и dto сервису", async () => {
+  it("updateUser передает id, dto и currentAdminId сервису", async () => {
+    const adminId = "admin-uuid-123";
     const dto = { displayName: "Updated Alex" };
-    const result = await controller.updateUser(mockUserResponse.id, dto);
+    const result = await controller.updateUser(
+      mockUserResponse.id,
+      dto,
+      adminId,
+    );
 
     expect(serviceMock.updateUser).toHaveBeenCalledWith(
       mockUserResponse.id,
       dto,
+      adminId,
     );
     expect(result.displayName).toBe("Updated Alex");
   });
@@ -122,5 +143,30 @@ describe("AdminUsersController", () => {
       adminId,
     );
     expect(result.isActive).toBe(false);
+  });
+
+  it("resetPassword передает id сервису", async () => {
+    const result = await controller.resetPassword(mockUserResponse.id);
+
+    expect(serviceMock.resetPassword).toHaveBeenCalledWith(mockUserResponse.id);
+    expect(result.id).toBe(mockUserResponse.id);
+  });
+
+  it("deleteUser передает id и currentAdminId сервису", async () => {
+    const adminId = "admin-uuid-123";
+    const result = await controller.deleteUser(mockUserResponse.id, adminId);
+
+    expect(serviceMock.deleteUser).toHaveBeenCalledWith(
+      mockUserResponse.id,
+      adminId,
+    );
+    expect(result.isActive).toBe(false);
+  });
+
+  it("restoreUser передает id сервису", async () => {
+    const result = await controller.restoreUser(mockUserResponse.id);
+
+    expect(serviceMock.restoreUser).toHaveBeenCalledWith(mockUserResponse.id);
+    expect(result.isActive).toBe(true);
   });
 });

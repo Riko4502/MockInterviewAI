@@ -143,10 +143,14 @@ describe("UsersService", () => {
         passwordHash: _,
         deletedAt: __,
         generation: ___,
+        createdAt: ____,
+        updatedAt: _____,
         ...safeProfile
       } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
+        createdAt: mockUser.createdAt.toISOString(),
+        updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
         permissions: SystemPermission.USERS_READ.toString(),
       });
@@ -360,7 +364,10 @@ describe("UsersService", () => {
         where: { id: mockUser.id, deletedAt: null },
         select: expect.any(Object),
       });
-      expect(result).toEqual(publicData);
+      expect(result).toEqual({
+        ...publicData,
+        createdAt: mockUser.createdAt.toISOString(),
+      });
     });
   });
 });

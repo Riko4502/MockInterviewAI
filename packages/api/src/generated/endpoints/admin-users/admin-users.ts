@@ -430,6 +430,79 @@ export const useAdminUsersControllerUpdateUser = <TError = void,
       > => {
       return useMutation(getAdminUsersControllerUpdateUserMutationOptions(options), queryClient);
     }
+    export const getAdminUsersControllerDeleteUserUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${id}`
+}
+
+/**
+ * @summary Удалить (деактивировать) пользователя администратором
+ */
+export const adminUsersControllerDeleteUser = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<UserAdminResponseDto> => {
+
+  return customInstance<UserAdminResponseDto>(getAdminUsersControllerDeleteUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminUsersControllerDeleteUserMutationKey = () => ['adminUsersControllerDeleteUser'] as const;
+
+export const getAdminUsersControllerDeleteUserMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>, TError,AdminUsersControllerDeleteUserMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>, TError,AdminUsersControllerDeleteUserMutationVariables, TContext> => {
+
+const mutationKey = getAdminUsersControllerDeleteUserMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>, AdminUsersControllerDeleteUserMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminUsersControllerDeleteUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUsersControllerDeleteUserMutationResult = NonNullable<Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>>
+
+    export type AdminUsersControllerDeleteUserMutationError = void
+    export type AdminUsersControllerDeleteUserMutationVariables = {id: string}
+
+    /**
+ * @summary Удалить (деактивировать) пользователя администратором
+ */
+export const useAdminUsersControllerDeleteUser = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>, TError,AdminUsersControllerDeleteUserMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof adminUsersControllerDeleteUser>>,
+        TError,
+        AdminUsersControllerDeleteUserMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAdminUsersControllerDeleteUserMutationOptions(options), queryClient);
+    }
     export const getAdminUsersControllerUpdateStatusUrl = (id: string,) => {
 
 
@@ -509,4 +582,150 @@ export const useAdminUsersControllerUpdateStatus = <TError = void,
         TContext
       > => {
       return useMutation(getAdminUsersControllerUpdateStatusMutationOptions(options), queryClient);
+    }
+    export const getAdminUsersControllerResetPasswordUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${id}/reset-password`
+}
+
+/**
+ * @summary Сбросить пароль пользователя и сгенерировать временный
+ */
+export const adminUsersControllerResetPassword = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<UserAdminResponseDto> => {
+
+  return customInstance<UserAdminResponseDto>(getAdminUsersControllerResetPasswordUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminUsersControllerResetPasswordMutationKey = () => ['adminUsersControllerResetPassword'] as const;
+
+export const getAdminUsersControllerResetPasswordMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerResetPassword>>, TError,AdminUsersControllerResetPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerResetPassword>>, TError,AdminUsersControllerResetPasswordMutationVariables, TContext> => {
+
+const mutationKey = getAdminUsersControllerResetPasswordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUsersControllerResetPassword>>, AdminUsersControllerResetPasswordMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminUsersControllerResetPassword(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUsersControllerResetPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof adminUsersControllerResetPassword>>>
+
+    export type AdminUsersControllerResetPasswordMutationError = void
+    export type AdminUsersControllerResetPasswordMutationVariables = {id: string}
+
+    /**
+ * @summary Сбросить пароль пользователя и сгенерировать временный
+ */
+export const useAdminUsersControllerResetPassword = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerResetPassword>>, TError,AdminUsersControllerResetPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof adminUsersControllerResetPassword>>,
+        TError,
+        AdminUsersControllerResetPasswordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAdminUsersControllerResetPasswordMutationOptions(options), queryClient);
+    }
+    export const getAdminUsersControllerRestoreUserUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${id}/restore`
+}
+
+/**
+ * @summary Восстановить удаленного пользователя администратором
+ */
+export const adminUsersControllerRestoreUser = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<UserAdminResponseDto> => {
+
+  return customInstance<UserAdminResponseDto>(getAdminUsersControllerRestoreUserUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminUsersControllerRestoreUserMutationKey = () => ['adminUsersControllerRestoreUser'] as const;
+
+export const getAdminUsersControllerRestoreUserMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>, TError,AdminUsersControllerRestoreUserMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>, TError,AdminUsersControllerRestoreUserMutationVariables, TContext> => {
+
+const mutationKey = getAdminUsersControllerRestoreUserMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>, AdminUsersControllerRestoreUserMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminUsersControllerRestoreUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUsersControllerRestoreUserMutationResult = NonNullable<Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>>
+
+    export type AdminUsersControllerRestoreUserMutationError = void
+    export type AdminUsersControllerRestoreUserMutationVariables = {id: string}
+
+    /**
+ * @summary Восстановить удаленного пользователя администратором
+ */
+export const useAdminUsersControllerRestoreUser = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>, TError,AdminUsersControllerRestoreUserMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof adminUsersControllerRestoreUser>>,
+        TError,
+        AdminUsersControllerRestoreUserMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAdminUsersControllerRestoreUserMutationOptions(options), queryClient);
     }

@@ -22,21 +22,27 @@ export interface AuthSession {
  * rotation refresh token с replay detection, привязку TTL к `JWT_REFRESH_EXPIRATION`.
  */
 /**
- * Lua-скрипт для атомарной проверки generation fence и сохранения сессии (§CWE-362).
+ * Lua-скрипт для атомарной проверки generation fence, сохранения сессии и индексации в ZSET (§CWE-362).
  * KEYS[1]: auth:user:{userId}:min_generation
  * KEYS[2]: auth:session:{sessionId}
+ * KEYS[3]: auth:user:{userId}:sessions
  * ARGV[1]: generation (number | "")
  * ARGV[2]: session JSON
  * ARGV[3]: ttlSeconds (number)
+ * ARGV[4]: sessionId (string)
+ * ARGV[5]: nowMs (number)
  *
  * Возвращает 1 в случае успеха, -1 если generation устарел.
  */
 export const CREATE_SESSION_LUA = `
 local min_gen_key = KEYS[1]
 local session_key = KEYS[2]
+local user_sessions_key = KEYS[3]
 local generation = tonumber(ARGV[1])
 local session_json = ARGV[2]
 local ttl = tonumber(ARGV[3])
+local session_id = ARGV[4]
+local now_ms = tonumber(ARGV[5])
 
 if generation ~= nil then
     local min_gen_val = redis.call('get', min_gen_key)
@@ -50,11 +56,38 @@ end
 
 if ttl and ttl > 0 then
     redis.call('set', session_key, session_json, 'EX', ttl)
+    if user_sessions_key and session_id and now_ms then
+        local expire_at_ms = now_ms + (ttl * 1000)
+        redis.call('zremrangebyscore', user_sessions_key, '-inf', '(' .. now_ms)
+        redis.call('zadd', user_sessions_key, expire_at_ms, session_id)
+        redis.call('expire', user_sessions_key, ttl)
+    end
 else
     redis.call('set', session_key, session_json)
+    if user_sessions_key and session_id then
+        redis.call('zadd', user_sessions_key, '+inf', session_id)
+    end
 end
 
 return 1
+`;
+
+/**
+ * Lua-скрипт для получения активных сессий пользователя из ZSET с предварительной очисткой устаревших.
+ * KEYS[1]: auth:user:{userId}:sessions
+ * ARGV[1]: nowMs (number)
+ *
+ * Возвращает массив ID активных сессий.
+ */
+export const GET_USER_ACTIVE_SESSIONS_LUA = `
+local user_sessions_key = KEYS[1]
+local now_ms = tonumber(ARGV[1])
+
+if now_ms then
+    redis.call('zremrangebyscore', user_sessions_key, '-inf', '(' .. now_ms)
+end
+
+return redis.call('zrange', user_sessions_key, 0, -1)
 `;
 
 /**
@@ -124,6 +157,7 @@ export class AuthSessionService {
     generation?: number,
   ): Promise<AuthSession> {
     const now = new Date().toISOString();
+    const nowMs = Date.now();
 
     const session: AuthSession = {
       userId,
@@ -137,17 +171,18 @@ export class AuthSessionService {
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
     const sessionKey = this.key(sessionId);
     const minGenKey = `auth:user:${userId}:min_generation`;
+    const userSessionsKey = this.userSessionsKey(userId);
 
-    // Атомарная проверка generation через Redis Lua fence (§CWE-362):
-    // если поколение пользователя уже было инкрементировано (смена пароля/деактивация),
-    // сессия атомарно отклоняется без записи в Redis.
+    // Атомарная проверка generation через Redis Lua fence и индексация в ZSET (§CWE-362, Task 7)
     const result = await this.redisService.eval<number>(
       CREATE_SESSION_LUA,
-      [minGenKey, sessionKey],
+      [minGenKey, sessionKey, userSessionsKey],
       [
         generation !== undefined ? generation : "",
         JSON.stringify(session),
         ttlSeconds,
+        sessionId,
+        nowMs,
       ],
     );
 
@@ -218,6 +253,28 @@ export class AuthSessionService {
       ttlSeconds,
     );
 
+    const nowMs = Date.now();
+    const expireAtMs = nowMs + ttlSeconds * 1000;
+    const userSessionsKey = this.userSessionsKey(updated.userId);
+    await this.redisService
+      .eval(
+        `
+        local now_ms = tonumber(ARGV[1])
+        local expire_at_ms = tonumber(ARGV[2])
+        local session_id = ARGV[3]
+        local ttl = tonumber(ARGV[4])
+        redis.call('zremrangebyscore', KEYS[1], '-inf', '(' .. now_ms)
+        redis.call('zadd', KEYS[1], expire_at_ms, session_id)
+        if ttl and ttl > 0 then
+            redis.call('expire', KEYS[1], ttl)
+        end
+        return 1
+        `,
+        [userSessionsKey],
+        [nowMs, expireAtMs, sessionId, ttlSeconds],
+      )
+      .catch(() => undefined);
+
     return updated;
   }
 
@@ -228,7 +285,18 @@ export class AuthSessionService {
    * @throws {Error} При ошибке Redis.
    */
   async deleteSession(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
     await this.redisService.delete(this.key(sessionId));
+    if (session?.userId) {
+      const userSessionsKey = this.userSessionsKey(session.userId);
+      await this.redisService
+        .eval(
+          `redis.call('zrem', KEYS[1], ARGV[1])`,
+          [userSessionsKey],
+          [sessionId],
+        )
+        .catch(() => undefined);
+    }
     this.logger.debug(`Session deleted: ${sessionId}`);
   }
 
@@ -276,13 +344,10 @@ export class AuthSessionService {
   }
 
   /**
-   * Отзывает (удаляет) authentication session пользователя (§66 SPEC.md).
+   * Отзывает (удаляет) authentication sessions конкретного пользователя (§66 SPEC.md, Task 7).
    *
-   * Проходит по ключам `auth:session:*` через `SCAN`-итерацию, читает каждый
-   * session и удаляет те, чей `userId` совпадает с переданным.
-   * Если указан `maxGeneration`, удаляются сессии с `session.generation <= maxGeneration`.
-   * Если указан `maxCreatedAt`, удаляются сессии, созданные не позднее этой временной метки.
-   * Сессии других пользователей не затрагиваются. Отсутствие сессий — no-op.
+   * Использует индексированный Sorted Set (`ZSET`) `auth:user:{userId}:sessions` для $O(1)$ выборки
+   * сессий конкретного пользователя, полностью исключая глобальный `SCAN auth:session:*`.
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
    * @param maxCreatedAt - Опциональная временная граница создания сессий.
@@ -306,13 +371,34 @@ export class AuthSessionService {
       );
     }
 
-    const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
+    const userSessionsKey = this.userSessionsKey(userId);
+    const nowMs = Date.now();
 
-    for (const key of keys) {
-      const raw = await this.redisService.get(key);
+    const sessionIds = await this.redisService.eval<string[]>(
+      GET_USER_ACTIVE_SESSIONS_LUA,
+      [userSessionsKey],
+      [nowMs],
+    );
+
+    if (!sessionIds || sessionIds.length === 0) {
+      return;
+    }
+
+    for (const sessionId of sessionIds) {
+      const sessionKey = this.key(sessionId);
+      const raw = await this.redisService.get(sessionKey);
       if (!raw) {
+        // Ключ сессии уже истек или удален — удаляем из ZSET
+        await this.redisService
+          .eval(
+            `redis.call('zrem', KEYS[1], ARGV[1])`,
+            [userSessionsKey],
+            [sessionId],
+          )
+          .catch(() => undefined);
         continue;
       }
+
       try {
         const session = JSON.parse(raw) as AuthSession;
         if (session.userId === userId) {
@@ -331,13 +417,27 @@ export class AuthSessionService {
               continue;
             }
           }
-          await this.redisService.delete(key);
-          this.logger.debug(`Session revoked for user ${userId}: ${key}`);
+
+          await this.redisService.delete(sessionKey);
+          await this.redisService
+            .eval(
+              `redis.call('zrem', KEYS[1], ARGV[1])`,
+              [userSessionsKey],
+              [sessionId],
+            )
+            .catch(() => undefined);
+          this.logger.debug(
+            `Session revoked for user ${userId}: ${sessionKey}`,
+          );
         }
       } catch {
-        // Некорректный JSON в несессионном ключе — пропускаем, не удаляем.
-        this.logger.warn(`Skipped invalid session payload at ${key}`);
+        this.logger.warn(`Skipped invalid session payload at ${sessionKey}`);
       }
+    }
+
+    // Если фильтры не были заданы (полный логаут пользователя), очищаем ZSET
+    if (maxCreatedAt === undefined && maxGeneration === undefined) {
+      await this.redisService.delete(userSessionsKey).catch(() => undefined);
     }
   }
 
@@ -349,5 +449,15 @@ export class AuthSessionService {
    */
   private key(sessionId: string): string {
     return `${REDIS_SESSION_PREFIX}${sessionId}`;
+  }
+
+  /**
+   * Формирует Redis-ключ индекса сессий пользователя (Sorted Set).
+   *
+   * @param userId - UUID пользователя.
+   * @returns Redis-ключ вида `auth:user:{userId}:sessions`.
+   */
+  private userSessionsKey(userId: string): string {
+    return `auth:user:${userId}:sessions`;
   }
 }

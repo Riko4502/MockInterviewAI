@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -90,6 +91,12 @@ export class AdminUsersController {
     required: false,
     type: Boolean,
     description: "Фильтр по статусу активности",
+  })
+  @ApiQuery({
+    name: "isDeleted",
+    required: false,
+    type: Boolean,
+    description: "Фильтр по статусу удаления (soft-deleted)",
   })
   @ApiQuery({
     name: "sortBy",
@@ -249,8 +256,9 @@ export class AdminUsersController {
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body(new ZodValidationPipe(updateUserAdminSchema))
     dto: UpdateUserAdminDto,
+    @CurrentUser("sub") currentAdminId: string,
   ): Promise<UserAdminResponseDto> {
-    return this.adminUsersService.updateUser(id, dto);
+    return this.adminUsersService.updateUser(id, dto, currentAdminId);
   }
 
   /**
@@ -294,5 +302,120 @@ export class AdminUsersController {
     @CurrentUser("sub") currentAdminId: string,
   ): Promise<UserAdminResponseDto> {
     return this.adminUsersService.updateStatus(id, dto, currentAdminId);
+  }
+
+  /**
+   * Сбрасывает пароль пользователя и генерирует временный пароль.
+   */
+  @Post(":id/reset-password")
+  @ApiOperation({
+    summary: "Сбросить пароль пользователя и сгенерировать временный",
+  })
+  @ApiParam({
+    name: "id",
+    type: String,
+    description: "UUID пользователя",
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Пароль пользователя успешно сброшен, сгенерирован временный пароль",
+    schema: { $ref: "#/components/schemas/UserAdminResponseDto" },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Не авторизован",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Доступ запрещен",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Пользователь не найден",
+  })
+  async resetPassword(
+    @Param("id", new ParseUUIDPipe()) id: string,
+  ): Promise<UserAdminResponseDto> {
+    return this.adminUsersService.resetPassword(id);
+  }
+
+  /**
+   * Удаляет (деактивирует) пользователя администратором.
+   */
+  @Delete(":id")
+  @ApiOperation({
+    summary: "Удалить (деактивировать) пользователя администратором",
+  })
+  @ApiParam({
+    name: "id",
+    type: String,
+    description: "UUID пользователя",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Пользователь успешно удален",
+    schema: { $ref: "#/components/schemas/UserAdminResponseDto" },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Попытка удалить собственный аккаунт администратора",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Не авторизован",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Доступ запрещен",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Пользователь не найден",
+  })
+  async deleteUser(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @CurrentUser("sub") currentAdminId: string,
+  ): Promise<UserAdminResponseDto> {
+    return this.adminUsersService.deleteUser(id, currentAdminId);
+  }
+
+  /**
+   * Восстанавливает ранее удаленного пользователя администратором.
+   */
+  @Post(":id/restore")
+  @ApiOperation({
+    summary: "Восстановить удаленного пользователя администратором",
+  })
+  @ApiParam({
+    name: "id",
+    type: String,
+    description: "UUID пользователя",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Пользователь успешно восстановлен",
+    schema: { $ref: "#/components/schemas/UserAdminResponseDto" },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Аккаунт пользователя не был удален",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Не авторизован",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Доступ запрещен",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Пользователь не найден",
+  })
+  async restoreUser(
+    @Param("id", new ParseUUIDPipe()) id: string,
+  ): Promise<UserAdminResponseDto> {
+    return this.adminUsersService.restoreUser(id);
   }
 }

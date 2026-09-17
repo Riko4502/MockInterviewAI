@@ -14,6 +14,7 @@ import { SystemPermission } from "@packages/types";
 import type { PrismaService } from "../../../prisma/prisma.service";
 import type { RedisService } from "../../../redis/redis.service";
 import type { AuthSessionService } from "../../auth/services/auth-session.service";
+import type { StorageService } from "../../storage/storage.service";
 import { AdminUsersService } from "./admin-users.service";
 
 jest.mock("argon2", () => ({
@@ -49,6 +50,9 @@ describe("AdminUsersService", () => {
   let redisServiceMock: {
     publish: jest.Mock;
   };
+  let storageServiceMock: {
+    deleteFile: jest.Mock;
+  };
 
   const mockUserRecord = {
     id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
@@ -57,6 +61,7 @@ describe("AdminUsersService", () => {
     displayName: "Test User",
     isActive: true,
     deactivatedAt: null,
+    deletedAt: null,
     avatarUrl: "https://storage.example.com/avatar.png",
     telegramUsername: "test_tg",
     roleId: "00000000-0000-4000-a000-000000000002",
@@ -118,11 +123,16 @@ describe("AdminUsersService", () => {
       publish: jest.fn().mockResolvedValue(1),
     };
 
+    storageServiceMock = {
+      deleteFile: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new AdminUsersService(
       prismaMock as unknown as PrismaService,
       configServiceMock as unknown as ConfigService,
       authSessionServiceMock as unknown as AuthSessionService,
       redisServiceMock as unknown as RedisService,
+      storageServiceMock as unknown as StorageService,
     );
   });
 
@@ -149,11 +159,12 @@ describe("AdminUsersService", () => {
         role: "USER",
         isActive: true,
         deactivatedAt: null,
+        deletedAt: null,
         avatarUrl: mockUserRecord.avatarUrl,
         telegramUsername: mockUserRecord.telegramUsername,
         gitUrl: mockUserRecord.gitUrl,
-        createdAt: mockUserRecord.createdAt,
-        updatedAt: mockUserRecord.updatedAt,
+        createdAt: mockUserRecord.createdAt.toISOString(),
+        updatedAt: mockUserRecord.updatedAt.toISOString(),
       });
       expect(result.meta).toEqual({
         total: 1,
@@ -196,6 +207,28 @@ describe("AdminUsersService", () => {
           orderBy: { role: { slug: "asc" } },
           skip: 10,
           take: 10,
+        }),
+      );
+    });
+
+    it("применяет фильтрацию по isDeleted (true -> not: null, false -> null)", async () => {
+      prismaMock.$transaction.mockResolvedValue([[], 0]);
+
+      await service.getUsersList({ isDeleted: true });
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            deletedAt: { not: null },
+          },
+        }),
+      );
+
+      await service.getUsersList({ isDeleted: false });
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            deletedAt: null,
+          },
         }),
       );
     });
@@ -364,7 +397,106 @@ describe("AdminUsersService", () => {
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
-    it("не отзывает сессии если роль не менялась", async () => {
+    it("отзывает сессии при смене email", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(mockUserRecord) // existing
+        .mockResolvedValueOnce(null); // email conflict check
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        email: "newemail@example.com",
+        generation: 2,
+      });
+
+      const result = await service.updateUser(mockUserRecord.id, {
+        email: "newemail@example.com",
+      });
+
+      expect(result.email).toBe("newemail@example.com");
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+    });
+
+    it("отзывает сессии при смене username", async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(mockUserRecord) // existing
+        .mockResolvedValueOnce(null); // username conflict check
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        username: "newusername",
+        generation: 2,
+      });
+
+      const result = await service.updateUser(mockUserRecord.id, {
+        username: "newusername",
+      });
+
+      expect(result.username).toBe("newusername");
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+    });
+
+    it("отзывает сессии при сбросе username в null (Task 13)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord); // existing
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        username: null,
+        generation: 2,
+      });
+
+      const result = await service.updateUser(mockUserRecord.id, {
+        username: null,
+      });
+
+      expect(result.username).toBeNull();
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+    });
+
+    it("удаляет старый аватар из S3 при смене аватара", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        avatarUrl: "https://storage.example.com/new-avatar.png",
+      });
+
+      await service.updateUser(mockUserRecord.id, {
+        avatarUrl: "https://storage.example.com/new-avatar.png",
+      });
+
+      expect(storageServiceMock.deleteFile).toHaveBeenCalledWith(
+        mockUserRecord.avatarUrl,
+      );
+    });
+
+    it("удаляет старый аватар из S3 при обнулении avatarUrl", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        avatarUrl: null,
+      });
+
+      await service.updateUser(mockUserRecord.id, {
+        avatarUrl: null,
+      });
+
+      expect(storageServiceMock.deleteFile).toHaveBeenCalledWith(
+        mockUserRecord.avatarUrl,
+      );
+    });
+
+    it("не отзывает сессии если роль, email и username не менялись", async () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
       prismaMock.role.findUnique.mockResolvedValue({
         id: "00000000-0000-4000-a000-000000000002",
@@ -380,6 +512,22 @@ describe("AdminUsersService", () => {
       expect(
         authSessionServiceMock.revokeAllUserSessions,
       ).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает BadRequestException при попытке изменить роль собственного аккаунта администратора", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.role.findUnique.mockResolvedValue({
+        id: "role-admin-id",
+        slug: "ADMIN",
+      });
+
+      await expect(
+        service.updateUser(
+          mockUserRecord.id,
+          { role: "ADMIN" },
+          mockUserRecord.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("выбрасывает ConflictException при конфликте username", async () => {
@@ -503,6 +651,178 @@ describe("AdminUsersService", () => {
       expect(
         authSessionServiceMock.revokeAllUserSessions,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resetPassword", () => {
+    it("успешно сбрасывает пароль, инкрементирует generation и отзывает сессии", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        generation: 2,
+      });
+
+      const result = await service.resetPassword(mockUserRecord.id);
+
+      expect(result.id).toBe(mockUserRecord.id);
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockUserRecord.id },
+          data: expect.objectContaining({
+            passwordHash: expect.any(String),
+            generation: { increment: 1 },
+          }),
+        }),
+      );
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("выбрасывает NotFoundException если пользователь не существует", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.resetPassword("non-existent-id")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("не удаляет authRevocationTask если публикация в Redis завершилась ошибкой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        generation: 2,
+      });
+      redisServiceMock.publish.mockRejectedValue(
+        new Error("Redis publish error"),
+      );
+
+      const result = await service.resetPassword(mockUserRecord.id);
+
+      expect(result.id).toBe(mockUserRecord.id);
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteUser", () => {
+    it("защищает от удаления собственного аккаунта администратора", async () => {
+      await expect(
+        service.deleteUser("admin-id-1", "admin-id-1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.deleteUser("non-existent-id", "current-admin-id"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("удаляет пользователя, проставляет deletedAt, isActive: false и отзывает сессии", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: new Date("2026-09-17T12:00:00.000Z"),
+        isActive: false,
+        generation: 2,
+      });
+
+      const result = await service.deleteUser(
+        mockUserRecord.id,
+        "other-admin-id",
+      );
+
+      expect(result.deletedAt).toBe("2026-09-17T12:00:00.000Z");
+      expect(result.isActive).toBe(false);
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
+      expect(redisServiceMock.publish).toHaveBeenCalledTimes(1);
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("не удаляет authRevocationTask при удалении, если публикация в Redis завершилась ошибкой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: new Date(),
+        isActive: false,
+        generation: 2,
+      });
+      redisServiceMock.publish.mockRejectedValue(
+        new Error("Redis publish error"),
+      );
+
+      const result = await service.deleteUser(
+        mockUserRecord.id,
+        "other-admin-id",
+      );
+
+      expect(result.id).toBe(mockUserRecord.id);
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("restoreUser", () => {
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.restoreUser("non-existent-id")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("выбрасывает BadRequestException если аккаунт пользователя не был удален", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: null,
+      });
+
+      await expect(service.restoreUser(mockUserRecord.id)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("успешно восстанавливает удаленного пользователя и активирует его", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: new Date("2026-09-15T10:00:00.000Z"),
+        isActive: false,
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: null,
+        isActive: true,
+      });
+
+      const result = await service.restoreUser(mockUserRecord.id);
+
+      expect(result.deletedAt).toBeNull();
+      expect(result.isActive).toBe(true);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUserRecord.id },
+        data: {
+          deletedAt: null,
+          isActive: true,
+        },
+        select: expect.any(Object),
+      });
     });
   });
 });

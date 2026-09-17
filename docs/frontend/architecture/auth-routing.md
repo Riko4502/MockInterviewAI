@@ -32,7 +32,7 @@
 
 ## 2. Компонент `AuthBoundary`
 
-Компонент расположен в [`apps/web/src/features/auth/ui/AuthBoundary.tsx`](file:///d:/проекты/MockInterviewAI/apps/web/src/features/auth/ui/AuthBoundary.tsx) и экспортируется через `@/features/auth`.
+Компонент расположен в [`apps/web/src/features/auth/ui/AuthBoundary.tsx`](./apps/web/src/features/auth/ui/AuthBoundary.tsx) и экспортируется через `@/features/auth`.
 
 ### API:
 

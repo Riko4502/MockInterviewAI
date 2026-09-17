@@ -1,5 +1,6 @@
 export {
   type AdminUsersQueryDto,
+  type AdminUsersQueryInputDto,
   type AdminUsersSortBy,
   type AdminUsersSortOrder,
   adminUsersQuerySchema,
