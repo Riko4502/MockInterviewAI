@@ -131,6 +131,12 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.7 — 2026-09-17
+- **`MetricsInterceptor` (apps/api):** статус исключения фиксируется в
+  `catchError` (`HttpException.getStatus()`, иначе 500) до `finalize` — раньше
+  все ошибки записывались как 200 (finalize выполняется до `response.status`)
+  и error-rate панели не видели сбои. Добавлен `metrics.interceptor.spec.ts`.
+
 ### 0.7.6 — 2026-09-17
 - **`sentryClientConfig()`:** `safeParse(process.env)` → прямое чтение
   `process.env.NEXT_PUBLIC_SENTRY_DSN` / `_ENVIRONMENT` / `_TRACES_SAMPLE_RATE`

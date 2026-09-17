@@ -208,7 +208,9 @@ packages/observability/
 
 ### NestJS (apps/api) — реализовано
 - `http_request_duration_seconds` (histogram)
-- `http_requests_total{status_code}`
+- `http_requests_total{status_code}` — статус фиксируется при завершении потока:
+  при исключении — из `HttpException` (неизвестная ошибка → 500), до записи
+  `response.status` HttpExceptionFilter'ом (иначе ошибки попадали бы в 200)
 - `nestjs_active_requests`
 - `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
 - `redis_client_errors_total` (счётчик: `NOAUTH`, `ECONNREFUSED`, ...)
@@ -337,6 +339,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.9 — 2026-09-17
+- **`MetricsInterceptor` (apps/api):** статус в `http_requests_total` теперь
+  фиксируется в `catchError` (`HttpException.getStatus()`, неизвестная ошибка →
+  500) до `finalize` — `finalize` срабатывает при teardown раньше, чем
+  HttpExceptionFilter выставит `response.status`, и все ошибки писались как 200.
+  Добавлены юнит-тесты `metrics.interceptor.spec.ts`. §8 уточнён.
 
 ### 0.7.8 — 2026-09-17
 - **`sentryClientConfig()` (браузер):** `safeParse(process.env)` заменён на
