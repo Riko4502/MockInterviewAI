@@ -329,6 +329,12 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 
 ## Изменения
 
+### 0.7.5 — 2026-09-17
+- **`api-http.json` «Redis Connection Status»:** строковые value mappings
+  (`ready`/`error`/`close`/`reconnecting`) заменены на числовые per-series
+  overrides (`1` → текст+цвет, `0` → пусто) — метрика возвращает 0/1, строки
+  не совпадали бы со значением sample, панель показывала сырые 0/1.
+
 ### 0.7.4 — 2026-09-17
 - **Sentry Datasource plugin запинен:** `GF_INSTALL_PLUGINS=grafana-sentry-datasource:${SENTRY_DATASOURCE_VERSION:-2.2.6}`
   (requires Grafana >=10.4.0, совместим с образом 11.1.4). Раньше каждая

@@ -131,6 +131,11 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.3 — 2026-09-17
+- **`api-http.json` «Redis Connection Status»:** value mappings переведены на
+  числовые per-series overrides (`1` → текст/цвет, `0` → пусто); строковые
+  ключи не работали с числовой метрикой `redis_connection_status` (0/1).
+
 ### 0.7.2 — 2026-09-17
 - **Sentry Datasource plugin запинен:** `SENTRY_DATASOURCE_VERSION` (default
   `2.2.6`) в `.env.example` и `GF_INSTALL_PLUGINS` → детерминированная

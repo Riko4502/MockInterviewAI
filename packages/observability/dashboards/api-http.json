@@ -89,29 +89,78 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            {
-              "options": { "ready": { "text": "Connected", "color": "green" } },
-              "type": "value"
-            },
-            {
-              "options": { "error": { "text": "Error", "color": "red" } },
-              "type": "value"
-            },
-            {
-              "options": { "close": { "text": "Closed", "color": "orange" } },
-              "type": "value"
-            },
-            {
-              "options": {
-                "reconnecting": { "text": "Reconnecting", "color": "yellow" }
-              },
-              "type": "value"
-            }
-          ],
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "ready" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "Connected", "color": "green" },
+                      "0": { "text": "" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "error" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "Error", "color": "red" },
+                      "0": { "text": "" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "close" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "Closed", "color": "orange" },
+                      "0": { "text": "" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "reconnecting" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "Reconnecting", "color": "yellow" },
+                      "0": { "text": "" }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     },
     {
