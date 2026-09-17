@@ -171,8 +171,13 @@ packages/observability/
   `REDIS_EXPORTER_CHECK_KEYS=session:*:active`, порт `127.0.0.1:9121`.
 - сеть `monitoring` (bridge) для мониторинг-контейнеров.
 - Alert-правила Prometheus (`infra/prometheus/alerting/redis.yml`):
-  `RedisTargetDown`, `RedisStreamLagHigh`, `RedisEvictions`,
-  `RealtimePubSubLagHigh`, `ApiTargetDown`, `RealtimeTargetDown`.
+  `RedisTargetDown`, `RedisEvictions`, `RealtimePubSubLagHigh`,
+  `RedisStreamDeliveryLagHigh`, `ApiTargetDown`, `RealtimeTargetDown`.
+  `RedisStreamDeliveryLagHigh` измеряет задержку доставки notify-событий
+  (p95 `realtime_sse_redis_stream_lag_seconds` > 30s; baseline включает интервал
+  `XREAD BLOCK`, см. `SSE_STREAM_BLOCK_SECONDS`). Длина стримов
+  (`redis_stream_length`, `MAXLEN ~ 100`) — только мониторинг размера буфера,
+  как индикатор отставания ридера не используется (XREAD не удаляет записи).
   Правила оцениваются в Prometheus; Alertmanager нотификация (Telegram) —
   за рамками этого этапа.
 
@@ -328,6 +333,16 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.7.7 — 2026-09-17
+- **Alert `RedisStreamLagHigh` удалён:** `redis_stream_length` — размер
+  сохранённых записей (`XADD MAXLEN ~ 100`, приближённый тримминг; `XREAD` не
+  удаляет записи), а не отставание ридера — здоровые читатели могли иметь
+  стрим > 100 и ложно триггерить alert.
+- **Добавлен alert `RedisStreamDeliveryLagHigh`** (группа `realtime`): p95
+  `realtime_sse_redis_stream_lag_seconds` > 30s — реальная задержка доставки
+  события из стрима; порог 30s учитывает baseline `XREAD BLOCK`
+  (`SSE_STREAM_BLOCK_SECONDS`). §7 обновлён.
 
 ### 0.7.6 — 2026-09-17
 - **`redis.json` «Command Latency»:** expr `redis_commands_duration_seconds_total`

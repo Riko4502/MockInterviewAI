@@ -21,7 +21,7 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | ✅ сделано: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` (realtime), api-часть — в шаге 2 |
 | 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds`, counter `realtime_sse_stream_backlog_entries_total` и гистограмма `realtime_sse_poll_batch_entries` |
 | 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ✅ сделано: datasource + file-provisioning, дашборды монтируются из `packages/observability/dashboards/` |
-| 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ✅ сделано: `infra/prometheus/alerting/redis.yml` (target-down, evictions, stream-lag, pubsub-lag); нотификация — вне этапа |
+| 11 | Alert-правила Redis (memory/evictions/stream delivery-lag) | infra | P1 | ✅ сделано: `infra/prometheus/alerting/redis.yml` (target-down, evictions, delivery-lag, pubsub-lag); нотификация — вне этапа |
 | 12 | `.env.example` + docs | shared | P2 | ✅ сделано: единый `.env.example` дополнен Sentry/Grafana, SPEC/PLAN актуализированы |
 
 **Phase 1 (P0, шаги 1–4) — завершена 2026-09-11.**
@@ -57,7 +57,7 @@ GRAFANA_ADMIN_PASSWORD=
   go-redis в realtime; без гистограмм клиентской латентности.
 - Бизнесовый уровень: `realtime_ws_pubsub_lag_seconds` + контроль длины
   стримов `user:*:notifications`.
-- Grafana: дашборд `redis.json` + alert-правила (memory, evictions, stream-lag).
+- Grafana: дашборд `redis.json` + alert-правила (memory, evictions, stream delivery-lag).
 - Прод-Redis работает **без пароля**, `requirepass` — вне данного этапа.
 
 ## 6. Открытые вопросы
@@ -130,6 +130,15 @@ redis-экспортер, alert-правила активны; правки `das
 ---
 
 ## Изменения
+
+### 0.7.5 — 2026-09-17
+- Alert `RedisStreamLagHigh` (по `redis_stream_length > 100`) удалён: длина
+  стрима — размер буфера (`MAXLEN ~ 100`, XREAD не удаляет записи), а не
+  отставание ридера, возможны ложные срабатывания у здоровых читателей.
+- Вместо него `RedisStreamDeliveryLagHigh` (группа `realtime`): p95
+  `realtime_sse_redis_stream_lag_seconds` > 30s — фактическая задержка
+  доставки; порог с учётом baseline `XREAD BLOCK`. SPEC §7, шаг 11 и §5
+  уточнены.
 
 ### 0.7.4 — 2026-09-17
 - **`redis.json` «Command Latency»:** вместо голого counter'а
