@@ -45,6 +45,7 @@ export function useLiveKitRoom({
 
   // Обновление локального MediaStream из локальных публикаций
   const updateLocalStream = useCallback((currentRoom: Room) => {
+    if (typeof MediaStream === "undefined") return;
     const stream = new MediaStream();
     currentRoom.localParticipant.videoTrackPublications.forEach((pub) => {
       if (pub.track?.mediaStreamTrack) {
@@ -61,6 +62,7 @@ export function useLiveKitRoom({
 
   // Обновление удаленного MediaStream из всех удаленных участников
   const updateRemoteStream = useCallback((currentRoom: Room) => {
+    if (typeof MediaStream === "undefined") return;
     const tracks: MediaStreamTrack[] = [];
     currentRoom.remoteParticipants.forEach((p) => {
       p.trackPublications.forEach((pub) => {

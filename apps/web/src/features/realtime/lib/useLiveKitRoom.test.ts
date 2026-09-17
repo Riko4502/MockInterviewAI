@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { ConnectionState } from "livekit-client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveKitRoom } from "./useLiveKitRoom";
 
 const mockDisconnect = vi.fn().mockResolvedValue(undefined);
@@ -59,13 +59,33 @@ vi.mock("livekit-client", () => {
   };
 });
 
+class MockMediaStream {
+  tracks: unknown[] = [];
+  constructor(tracks: unknown[] = []) {
+    this.tracks = tracks;
+  }
+  addTrack(track: unknown) {
+    this.tracks.push(track);
+  }
+  getTracks() {
+    return this.tracks;
+  }
+}
+
 describe("useLiveKitRoom end -> start race condition", () => {
   const validUUID = "12345678-1234-4234-8234-123456789abc";
+  const originalMediaStream = globalThis.MediaStream;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockDisconnect.mockResolvedValue(undefined);
     mockConnect.mockResolvedValue(undefined);
+    // @ts-expect-error Mocking MediaStream
+    globalThis.MediaStream = MockMediaStream;
+  });
+
+  afterEach(() => {
+    globalThis.MediaStream = originalMediaStream;
   });
 
   it("should await in-flight disconnect before starting a new connection", async () => {
