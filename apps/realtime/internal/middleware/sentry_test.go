@@ -44,8 +44,10 @@ func TestSentryMiddlewarePassthroughWhenDisabled(t *testing.T) {
 // и hub (события/breadcrumb'ы).
 func TestSentryMiddlewarePropagatesSpanToHandler(t *testing.T) {
 	if err := sentry.Init(sentry.ClientOptions{
-		Dsn:       "https://public@example.com/1",
-		Transport: noopTransport{},
+		Dsn:              "https://public@example.com/1",
+		Transport:        noopTransport{},
+		EnableTracing:    true,
+		TracesSampleRate: 1.0,
 	}); err != nil {
 		t.Fatalf("sentry.Init: %v", err)
 	}
@@ -57,9 +59,13 @@ func TestSentryMiddlewarePropagatesSpanToHandler(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, nil))
 
 	var sawSpan, sawHub bool
+	var sampled sentry.Sampled
 	handler := Sentry(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawSpan = sentry.SpanFromContext(r.Context()) != nil
 		sawHub = sentry.GetHubFromContext(r.Context()) != nil
+		if span := sentry.SpanFromContext(r.Context()); span != nil {
+			sampled = span.Sampled
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
@@ -76,5 +82,8 @@ func TestSentryMiddlewarePropagatesSpanToHandler(t *testing.T) {
 	}
 	if !sawHub {
 		t.Error("expected the cloned hub in the handler context")
+	}
+	if sampled != sentry.SampledTrue {
+		t.Errorf("expected sampled span (EnableTracing + rate=1), got %v", sampled)
 	}
 }

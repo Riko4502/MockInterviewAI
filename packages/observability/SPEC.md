@@ -340,6 +340,13 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 
 ## Изменения
 
+### 0.8.1 — 2026-09-17
+- **Sentry Init (apps/realtime):** добавлен `EnableTracing: TracesSampleRate > 0`.
+  В sentry-go v0.49 rule #1 в `sample()` при `EnableTracing=false` всегда
+  `SampledFalse` — без этого все HTTP-транзакции отбрасывались независимо от
+  `TracesSampleRate`. Тесты `sentry_test.go` (SampledTrue при rate>0, SampledFalse
+  при rate 0) и `middleware/sentry_test.go` (EnableTracing в Init + проверка span).
+
 ### 0.8.0 — 2026-09-17
 - **Sentry middleware (apps/realtime):** контекст активного span'а
   (`span.Context()`) прокидывается в запрос — downstream-хендлеры видят корневой

@@ -131,6 +131,11 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.9 — 2026-09-17
+- **Sentry Init (apps/realtime):** `EnableTracing: TracesSampleRate > 0` — без
+  него sentry-go v0.49 всегда отбрасывает span'ы (rule #1), транзакции не
+  уходили. Тесты семплирования в `internal/sentry`.
+
 ### 0.7.8 — 2026-09-17
 - **Sentry middleware (apps/realtime):** `r = r.WithContext(span.Context())` —
   активный span виден downstream (дочерние span'ы); `span.Finish()` → `defer`
