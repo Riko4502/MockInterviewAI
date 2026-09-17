@@ -74,6 +74,8 @@ Scrape-таргеты: api на `host.docker.internal:3001`, realtime на `host
 | `NEXT_PUBLIC_SENTRY_DSN` | web / landing (браузер) |
 | `SENTRY_ENVIRONMENT` | тег окружения (например `development`) |
 | `SENTRY_TRACES_SAMPLE_RATE` | доля трассировок (дефолт `0.2`) |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | web / landing (браузер) — тег окружения |
+| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | web / landing (браузер) — доля трассировок |
 
 В dev **не нужны** `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — они
 используются только при сборке (upload source maps).
