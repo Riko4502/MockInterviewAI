@@ -158,8 +158,8 @@ func run() error {
 
 	// Базовые middleware
 	r.Use(chimiddleware.RequestID)
-	r.Use(middleware.Recoverer(logger))
 	r.Use(middleware.Sentry(logger))
+	r.Use(middleware.Recoverer(logger))
 	r.Use(middleware.RequestLogger(logger))
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
 
