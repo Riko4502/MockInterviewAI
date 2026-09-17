@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { RedisService } from "../../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth.constants";
@@ -68,8 +68,27 @@ export class AuthSessionService {
     };
 
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
+    const sessionKey = this.key(sessionId);
+    const minGenKey = `auth:user:${userId}:min_generation`;
+
+    // Атомарная проверка generation через Redis fence:
+    // если поколение пользователя уже было инкрементировано (смена пароля/деактивация),
+    // запрещаем создание сессии со старым поколением (§CWE-362).
+    if (generation !== undefined) {
+      const minGenStr = await this.redisService.get(minGenKey);
+      if (minGenStr) {
+        const minGen = parseInt(minGenStr, 10);
+        if (!Number.isNaN(minGen) && generation < minGen) {
+          this.logger.warn(
+            `Session creation rejected for user ${userId}: generation ${generation} is older than min_generation ${minGen}`,
+          );
+          throw new UnauthorizedException("Invalid credentials");
+        }
+      }
+    }
+
     await this.redisService.set(
-      this.key(sessionId),
+      sessionKey,
       JSON.stringify(session),
       ttlSeconds,
     );
@@ -210,6 +229,24 @@ export class AuthSessionService {
     maxCreatedAt?: Date | string,
     maxGeneration?: number,
   ): Promise<void> {
+    const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
+    if (maxGeneration !== undefined) {
+      // Устанавливаем минимально допустимое поколение для новых сессий (атомарный fence)
+      const minGenKey = `auth:user:${userId}:min_generation`;
+      const targetMinGen = maxGeneration + 1;
+      const currentMinGenStr = await this.redisService.get(minGenKey);
+      const currentMinGen = currentMinGenStr
+        ? parseInt(currentMinGenStr, 10)
+        : 0;
+      if (Number.isNaN(currentMinGen) || targetMinGen > currentMinGen) {
+        await this.redisService.set(
+          minGenKey,
+          String(targetMinGen),
+          ttlSeconds,
+        );
+      }
+    }
+
     const keys = await this.redisService.scanKeys(`${REDIS_SESSION_PREFIX}*`);
 
     for (const key of keys) {

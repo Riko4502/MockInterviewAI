@@ -359,22 +359,26 @@ export class UsersService {
     let taskGeneration: number | undefined;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
+      const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           deletedAt: new Date(),
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
+      const preIncrementGeneration = updatedUser.generation - 1;
       const task = await tx.authRevocationTask.create({
         data: {
           userId,
-          generation: existing.generation,
+          generation: preIncrementGeneration,
         },
       });
       taskId = task.id;
       taskCreatedAt = task.createdAt;
-      taskGeneration = existing.generation;
+      taskGeneration = preIncrementGeneration;
     });
 
     try {

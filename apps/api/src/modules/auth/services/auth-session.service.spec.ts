@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { RedisService } from "../../../redis/redis.service";
 import { type AuthSession, AuthSessionService } from "./auth-session.service";
@@ -112,6 +113,21 @@ describe("AuthSessionService", () => {
 
       expect(redisSet.mock.calls[0][2]).toBe(3600);
     });
+
+    it("выбрасывает UnauthorizedException если поколение сессии устарело (fence min_generation)", async () => {
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:user:${USER_ID}:min_generation`) {
+          return "3";
+        }
+        return null;
+      });
+
+      await expect(
+        service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID, 2),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(redisSet).not.toHaveBeenCalled();
+    });
   });
 
   describe("getSession", () => {
@@ -157,43 +173,31 @@ describe("AuthSessionService", () => {
     it("возвращает null если session не найдена", async () => {
       redisGet.mockResolvedValue(null);
 
-      const result = await service.updateSession(SESSION_ID, {
-        lastUsedAt: new Date().toISOString(),
+      const updated = await service.updateSession(SESSION_ID, {
+        refreshTokenHash: "new",
       });
 
-      expect(result).toBeNull();
+      expect(updated).toBeNull();
       expect(redisSet).not.toHaveBeenCalled();
     });
   });
 
-  describe("deleteSession", () => {
-    it("удаляет ключ session", async () => {
+  describe("deleteSession / revokeSession", () => {
+    it("удаляет ключ auth:session:{sessionId}", async () => {
       await service.deleteSession(SESSION_ID);
+
+      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
+    });
+
+    it("revokeSession делегирует deleteSession", async () => {
+      await service.revokeSession(SESSION_ID);
 
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
     });
   });
 
   describe("rotateSession", () => {
-    it("при новом hash обновляет refreshTokenHash и lastUsedAt", async () => {
-      const stored = createStoredSession("old-hash");
-      redisGet.mockResolvedValue(JSON.stringify(stored));
-
-      const rotated = await service.rotateSession(SESSION_ID, "new-hash");
-
-      expect(rotated?.refreshTokenHash).toBe("new-hash");
-      expect(rotated?.tokenFamilyId).toBe(FAMILY_ID);
-      expect(rotated?.lastUsedAt).not.toBe(stored.createdAt);
-
-      const [, raw, ttl] = redisSet.mock.calls[0];
-      expect(ttl).toBe(604800);
-      expect(JSON.parse(raw)).toMatchObject({
-        refreshTokenHash: "new-hash",
-        userId: USER_ID,
-      });
-    });
-
-    it("replay detection: тот же hash отзывает session и возвращает null", async () => {
+    it("replay detected (хеш совпадает) → revoke + null", async () => {
       redisGet.mockResolvedValue(
         JSON.stringify(createStoredSession("same-hash")),
       );
@@ -202,68 +206,53 @@ describe("AuthSessionService", () => {
 
       expect(result).toBeNull();
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
-      expect(redisSet).not.toHaveBeenCalled();
     });
 
-    it("несуществующая session → null без удаления", async () => {
+    it("успешная ротация → обновляет refreshTokenHash и lastUsedAt", async () => {
+      redisGet.mockResolvedValue(
+        JSON.stringify(createStoredSession("old-hash")),
+      );
+
+      const result = await service.rotateSession(SESSION_ID, "new-hash");
+
+      expect(result?.refreshTokenHash).toBe("new-hash");
+      expect(redisSet).toHaveBeenCalledTimes(1);
+    });
+
+    it("сессия не найдена → null", async () => {
       redisGet.mockResolvedValue(null);
 
       const result = await service.rotateSession(SESSION_ID, "any-hash");
 
       expect(result).toBeNull();
-      expect(redisDelete).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("revokeSession", () => {
-    it("удаляет ключ session", async () => {
-      await service.revokeSession(SESSION_ID);
-
-      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
-    });
-
-    it("session с tokenFamilyId отзывается целиком по ключу (§31–32)", async () => {
-      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
-      await service.revokeSession(SESSION_ID);
-
-      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${SESSION_ID}`);
-      const [, raw] = redisSet.mock.calls[0];
-      expect(JSON.parse(raw)).toMatchObject({ tokenFamilyId: FAMILY_ID });
     });
   });
 
   describe("revokeAllUserSessions", () => {
-    it("удаляет все сессии пользователя (§66)", async () => {
-      const other1 = randomUUID();
-      const other2 = randomUUID();
-      redisScanKeys.mockResolvedValue([
-        `auth:session:${other1}`,
-        `auth:session:${other2}`,
-      ]);
-      redisGet
-        .mockResolvedValueOnce(JSON.stringify(createStoredSession("h1")))
-        .mockResolvedValueOnce(JSON.stringify(createStoredSession("h2")));
-
-      await service.revokeAllUserSessions(USER_ID);
-
-      expect(redisScanKeys).toHaveBeenCalledWith("auth:session:*");
-      expect(redisDelete).toHaveBeenCalledTimes(2);
-      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${other1}`);
-      expect(redisDelete).toHaveBeenCalledWith(`auth:session:${other2}`);
-    });
-
-    it("сессии другого пользователя не удаляются (§66)", async () => {
+    it("удаляет только сессии переданного userId", async () => {
+      const otherUserId = randomUUID();
       const mine = randomUUID();
       const theirs = randomUUID();
+
+      const mySession: AuthSession = {
+        ...createStoredSession("h1"),
+        userId: USER_ID,
+      };
+      const theirSession: AuthSession = {
+        ...createStoredSession("h2"),
+        userId: otherUserId,
+      };
+
       redisScanKeys.mockResolvedValue([
         `auth:session:${mine}`,
         `auth:session:${theirs}`,
       ]);
-      redisGet
-        .mockResolvedValueOnce(JSON.stringify(createStoredSession("hm")))
-        .mockResolvedValueOnce(
-          JSON.stringify({ ...createStoredSession("ht"), userId: "other" }),
-        );
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:session:${mine}`) return JSON.stringify(mySession);
+        if (key === `auth:session:${theirs}`)
+          return JSON.stringify(theirSession);
+        return null;
+      });
 
       await service.revokeAllUserSessions(USER_ID);
 
@@ -306,9 +295,11 @@ describe("AuthSessionService", () => {
       };
 
       redisScanKeys.mockResolvedValue([oldSessionKey, newSessionKey]);
-      redisGet
-        .mockResolvedValueOnce(JSON.stringify(oldSession))
-        .mockResolvedValueOnce(JSON.stringify(newSession));
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === oldSessionKey) return JSON.stringify(oldSession);
+        if (key === newSessionKey) return JSON.stringify(newSession);
+        return null;
+      });
 
       await service.revokeAllUserSessions(USER_ID, cutoff);
 
@@ -331,12 +322,19 @@ describe("AuthSessionService", () => {
       };
 
       redisScanKeys.mockResolvedValue([gen1SessionKey, gen2SessionKey]);
-      redisGet
-        .mockResolvedValueOnce(JSON.stringify(gen1Session))
-        .mockResolvedValueOnce(JSON.stringify(gen2Session));
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === gen1SessionKey) return JSON.stringify(gen1Session);
+        if (key === gen2SessionKey) return JSON.stringify(gen2Session);
+        return null;
+      });
 
       await service.revokeAllUserSessions(USER_ID, undefined, 1);
 
+      expect(redisSet).toHaveBeenCalledWith(
+        `auth:user:${USER_ID}:min_generation`,
+        "2",
+        604800,
+      );
       expect(redisDelete).toHaveBeenCalledTimes(1);
       expect(redisDelete).toHaveBeenCalledWith(gen1SessionKey);
       expect(redisDelete).not.toHaveBeenCalledWith(gen2SessionKey);

@@ -317,6 +317,7 @@ describe("AdminUsersService", () => {
       });
       prismaMock.user.update.mockResolvedValue({
         ...mockUserRecord,
+        generation: 2,
         displayName: "Updated Name",
         role: { slug: "ADMIN", permissions: 1n },
       });
@@ -344,6 +345,7 @@ describe("AdminUsersService", () => {
       });
       prismaMock.user.update.mockResolvedValue({
         ...mockUserRecord,
+        generation: 2,
         displayName: "Updated Name",
         role: { slug: "ADMIN", permissions: 1n },
       });
@@ -435,6 +437,7 @@ describe("AdminUsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
       prismaMock.user.update.mockResolvedValue({
         ...mockUserRecord,
+        generation: 2,
         isActive: false,
         deactivatedAt: new Date(),
       });
@@ -462,6 +465,7 @@ describe("AdminUsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUserRecord);
       prismaMock.user.update.mockResolvedValue({
         ...mockUserRecord,
+        generation: 2,
         isActive: false,
         deactivatedAt: new Date(),
       });

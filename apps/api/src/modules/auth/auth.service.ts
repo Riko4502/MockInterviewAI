@@ -241,7 +241,7 @@ export class AuthService implements OnModuleInit {
 
       await this.usersService.restoreAccount(freshUser.id);
       this.logger.log(
-        `Account ${freshUser.id} (${freshUser.email}) automatically restored upon login`,
+        `Account ${freshUser.id} automatically restored upon login`,
       );
     }
 
@@ -274,6 +274,9 @@ export class AuthService implements OnModuleInit {
         generation,
       );
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       this.logger.error(
         "Redis unavailable during login",
         error instanceof Error ? error.message : String(error),
@@ -428,22 +431,26 @@ export class AuthService implements OnModuleInit {
     let taskGeneration: number | undefined;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
+      const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
+      const preIncrementGeneration = updatedUser.generation - 1;
       const task = await tx.authRevocationTask.create({
         data: {
           userId,
-          generation: user.generation,
+          generation: preIncrementGeneration,
         },
       });
       taskId = task.id;
       taskCreatedAt = task.createdAt;
-      taskGeneration = user.generation;
+      taskGeneration = preIncrementGeneration;
     });
 
     try {
@@ -697,22 +704,26 @@ export class AuthService implements OnModuleInit {
     let taskCreatedAt: Date | undefined;
     let taskGeneration: number | undefined;
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
+      const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
+      const preIncrementGeneration = updatedUser.generation - 1;
       const task = await tx.authRevocationTask.create({
         data: {
           userId,
-          generation: user.generation,
+          generation: preIncrementGeneration,
         },
       });
       taskId = task.id;
       taskCreatedAt = task.createdAt;
-      taskGeneration = user.generation;
+      taskGeneration = preIncrementGeneration;
     });
 
     try {

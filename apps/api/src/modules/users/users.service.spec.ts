@@ -57,7 +57,7 @@ describe("UsersService", () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         create: jest.fn(),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue({ ...mockUser, generation: 2 }),
       },
       role: {
         findUnique: jest.fn().mockResolvedValue({
@@ -265,6 +265,9 @@ describe("UsersService", () => {
         data: {
           deletedAt: expect.any(Date),
           generation: { increment: 1 },
+        },
+        select: {
+          generation: true,
         },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({

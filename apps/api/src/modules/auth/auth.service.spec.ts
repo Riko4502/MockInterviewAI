@@ -187,7 +187,7 @@ describe("AuthService", () => {
     prismaMock = {
       user: {
         delete: deleteUser,
-        update: jest.fn().mockResolvedValue(USER),
+        update: jest.fn().mockResolvedValue({ ...USER, generation: 2 }),
       },
       authRevocationTask: {
         create: jest.fn().mockResolvedValue({
@@ -1002,6 +1002,9 @@ describe("AuthService", () => {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
         data: {
@@ -1250,6 +1253,9 @@ describe("AuthService", () => {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
         data: {
@@ -1333,6 +1339,9 @@ describe("AuthService", () => {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
         },
+        select: {
+          generation: true,
+        },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
         data: {
@@ -1366,6 +1375,9 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+        },
+        select: {
+          generation: true,
         },
       });
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();

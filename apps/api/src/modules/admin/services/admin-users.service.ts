@@ -356,21 +356,25 @@ export class AdminUsersService {
             ...(newRoleId !== undefined && { roleId: newRoleId }),
             ...(roleChanged && { generation: { increment: 1 } }),
           },
-          select: USER_ADMIN_SELECT,
+          select: {
+            ...USER_ADMIN_SELECT,
+            generation: true,
+          },
         });
 
         let taskCreatedAt: Date | undefined;
         let taskGeneration: number | undefined;
         if (roleChanged) {
+          const preIncrementGeneration = user.generation - 1;
           const task = await tx.authRevocationTask.create({
             data: {
               userId: id,
-              generation: existing.generation,
+              generation: preIncrementGeneration,
             },
           });
           taskId = task.id;
           taskCreatedAt = task.createdAt;
-          taskGeneration = existing.generation;
+          taskGeneration = preIncrementGeneration;
         }
 
         return { user, taskCreatedAt, taskGeneration };
@@ -482,21 +486,25 @@ export class AdminUsersService {
           deactivatedAt,
           ...(!dto.isActive && { generation: { increment: 1 } }),
         },
-        select: USER_ADMIN_SELECT,
+        select: {
+          ...USER_ADMIN_SELECT,
+          generation: true,
+        },
       });
 
       let taskCreatedAt: Date | undefined;
       let taskGeneration: number | undefined;
       if (!dto.isActive) {
+        const preIncrementGeneration = user.generation - 1;
         const task = await tx.authRevocationTask.create({
           data: {
             userId: id,
-            generation: existing.generation,
+            generation: preIncrementGeneration,
           },
         });
         taskId = task.id;
         taskCreatedAt = task.createdAt;
-        taskGeneration = existing.generation;
+        taskGeneration = preIncrementGeneration;
       }
 
       return { user, taskCreatedAt, taskGeneration };
