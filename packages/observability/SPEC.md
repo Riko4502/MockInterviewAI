@@ -86,8 +86,9 @@ packages/observability/
     `nestjs_active_requests` — снимаются через `MetricsInterceptor`
     (route из `request.route?.path`).
   - `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
-    и `redis_client_errors_total` (`NOAUTH`, `ECONNREFUSED`, ...) — из
-    `RedisService` (слушатели событий ioredis).
+    и `redis_client_errors_total` (`NOAUTH`, `ECONNREFUSED`, `ECONNRESET`,
+    `ETIMEDOUT`, `other`) — из `RedisService` (слушатели событий ioredis,
+    классификация по тексту ошибки).
 - `MetricsController` — `GET /api/v1/metrics` (полный путь после глобального префикса, `@Public`, `text/plain`).
 - `HttpExceptionFilter` — в ветке необработанных ошибок `captureException`.
 - Через `SENTRY_*` из `env.validation.ts` (Zod, runtime-parse в `validate`).

@@ -4,11 +4,16 @@ import Redis from "ioredis";
 import type { MetricsService } from "../common/metrics/metrics.service";
 import { RedisService } from "./redis.service";
 
+const mockRedisEvents = new EventEmitter();
+
 const mockRedisInstance = {
   connect: jest.fn().mockResolvedValue(undefined),
   quit: jest.fn().mockResolvedValue("OK"),
   disconnect: jest.fn(),
-  on: jest.fn(),
+  on: jest.fn((event: string, handler: (...args: unknown[]) => void) => {
+    mockRedisEvents.on(event, handler);
+  }),
+  emit: mockRedisEvents.emit.bind(mockRedisEvents),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(1),
@@ -46,10 +51,13 @@ function createMetricsService(): MetricsService {
 
 describe("RedisService", () => {
   let service: RedisService;
+  let metricsService: MetricsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RedisService(createConfigService(), createMetricsService());
+    mockRedisEvents.removeAllListeners();
+    metricsService = createMetricsService();
+    service = new RedisService(createConfigService(), metricsService);
   });
 
   describe("onModuleInit", () => {
@@ -97,6 +105,81 @@ describe("RedisService", () => {
       await service.onModuleDestroy();
 
       expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("connection events", () => {
+    it("обновляет метрику статуса на ready", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("ready");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("ready");
+    });
+
+    it("классифицирует ECONNREFUSED как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit(
+        "error",
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("error");
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ECONNREFUSED");
+    });
+
+    it("классифицирует ECONNRESET как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("read ECONNRESET"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ECONNRESET");
+    });
+
+    it("классифицирует NOAUTH как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit(
+        "error",
+        new Error("NOAUTH Authentication required"),
+      );
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("NOAUTH");
+    });
+
+    it("классифицирует ETIMEDOUT как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("connect ETIMEDOUT"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ETIMEDOUT");
+    });
+
+    it("относит неизвестные ошибки к other", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("something unexpected"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("other");
+    });
+
+    it("обновляет метрику статуса на close", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("close");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("close");
+    });
+
+    it("обновляет метрику статуса на reconnecting", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("reconnecting");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith(
+        "reconnecting",
+      );
     });
   });
 

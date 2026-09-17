@@ -84,7 +84,7 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
   - `src/common/pipes/zod-validation.pipe.spec.ts` — валидные/невалидные данные, формат ошибок `{ field: message }`, `_root`, вложенные пути.
   - `src/common/guards/origin-check.guard.spec.ts` — нет заголовков, совпадает/не совпадает, Referer fallback, приоритет Origin, startsWith matching.
   - `src/common/interceptors/sensitive-logging.interceptor.spec.ts` — логирует method/url/latency, не логирует body, пропускает observable.
-  - `src/redis/redis.service.spec.ts` — set/get/delete/expire/ping, onModuleInit/onModuleDestroy, дефолты конфига.
+  - `src/redis/redis.service.spec.ts` — set/get/delete/expire/ping, onModuleInit/onModuleDestroy, дефолты конфига, connection events (ready/error/close/reconnecting → setRedisStatus, classifyRedisError: NOAUTH/ECONNREFUSED/ECONNRESET/ETIMEDOUT/other).
 
 ## Phase 5 — Auth module
 
