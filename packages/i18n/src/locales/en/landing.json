@@ -10,7 +10,9 @@
     "getStarted": "Get Started",
     "themeLight": "Light theme",
     "themeDark": "Dark theme",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "languageSelector": "Language selector",
+    "switchTo": "Switch to {{language}}"
   },
   "hero": {
     "badge": "PEER-TO-PEER INTERVIEWS & AI HINTS",

@@ -10,7 +10,9 @@
     "getStarted": "Начать",
     "themeLight": "Светлая тема",
     "themeDark": "Тёмная тема",
-    "toggleTheme": "Переключить тему"
+    "toggleTheme": "Переключить тему",
+    "languageSelector": "Выбор языка",
+    "switchTo": "Переключить на {{language}}"
   },
   "hero": {
     "badge": "СОБЕСЕДОВАНИЯ С РЕАЛЬНЫМИ ЛЮДЬМИ И ИИ-ПОДСКАЗКИ",

@@ -12,7 +12,7 @@ export interface NavLanguageSwitcherProps {
 export function NavLanguageSwitcher({
   locale: propLocale,
 }: NavLanguageSwitcherProps = {}) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation("landing");
 
   // Authoritative locale from prop (URL route) or synchronized i18n state
   const currentLocale: Locale =
@@ -21,7 +21,7 @@ export function NavLanguageSwitcher({
 
   return (
     <nav
-      aria-label="Language selector"
+      aria-label={t("nav.languageSelector")}
       className="inline-flex items-center gap-1 p-1 rounded-full bg-slate-200/60 dark:bg-white/[0.06] border border-slate-300/60 dark:border-white/10 shadow-inner backdrop-blur-md select-none"
     >
       <div className="pl-1.5 pr-0.5 text-muted-foreground/80 hidden sm:flex items-center justify-center">
@@ -50,7 +50,7 @@ export function NavLanguageSwitcher({
             <Link
               key={loc}
               href={targetUrl}
-              aria-label={`Switch to ${localeLabels[loc]}`}
+              aria-label={t("nav.switchTo", { language: localeLabels[loc] })}
               className="px-2.5 py-1 text-xs font-medium font-mono rounded-full text-muted-foreground hover:text-foreground hover:bg-slate-300/50 dark:hover:bg-white/10 transition-all duration-200"
             >
               {label}

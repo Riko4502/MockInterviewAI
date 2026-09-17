@@ -59,30 +59,30 @@ export function HeroCodeMockup() {
 
       {/* Titanium Hardware Studio Frame */}
       <div className="relative rounded-[30px] p-2.5 sm:p-3 apple-glass border border-black/10 dark:border-white/[0.14] shadow-2xl backdrop-blur-2xl transition-all duration-500">
-        {/* Hardware Header with macOS Control Dots and Tab Switcher */}
-        <WindowHeader
-          actions={
-            <>
-              <div className="w-5 h-5 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] sm:text-[10px] font-mono font-medium whitespace-nowrap flex items-center justify-center sm:gap-1.5 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span className="hidden sm:inline">
-                  {t("hero.mockStatusLive")}
-                </span>
-              </div>
-              <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground whitespace-nowrap">
-                {latency}ms
-              </span>
-            </>
-          }
+        {/* Apple Segmented Tabs Root */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => setActiveTab(val)}
+          size="sm"
+          className="w-full"
         >
-          {/* Apple Segmented Tabs from @packages/ui */}
-          <Tabs
-            value={activeTab}
-            onValueChange={(val) => setActiveTab(val)}
-            size="sm"
-            className="ml-0.5 sm:ml-2"
+          {/* Hardware Header with macOS Control Dots and Tab Switcher */}
+          <WindowHeader
+            actions={
+              <>
+                <div className="w-5 h-5 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] sm:text-[10px] font-mono font-medium whitespace-nowrap flex items-center justify-center sm:gap-1.5 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="hidden sm:inline">
+                    {t("hero.mockStatusLive")}
+                  </span>
+                </div>
+                <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+                  {latency}ms
+                </span>
+              </>
+            }
           >
-            <Tabs.List className="h-6 sm:h-7 p-0.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06] rounded-lg">
+            <Tabs.List className="h-6 sm:h-7 p-0.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06] rounded-lg ml-0.5 sm:ml-2">
               <Tabs.Trigger
                 value="solution"
                 className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-mono rounded-md h-5 sm:h-6 data-[state=active]:bg-white dark:data-[state=active]:bg-[#181924] data-[state=active]:text-foreground dark:data-[state=active]:text-white data-[state=active]:shadow-sm whitespace-nowrap flex items-center gap-1"
@@ -106,55 +106,78 @@ export function HeroCodeMockup() {
                 </span>
               </Tabs.Trigger>
             </Tabs.List>
-          </Tabs>
-        </WindowHeader>
+          </WindowHeader>
 
-        {/* Studio Editor Screen */}
-        <div className="p-3.5 bg-black/[0.015] dark:bg-[#07070b]/90 rounded-b-[22px] space-y-3">
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-muted-foreground px-1 pb-1 gap-2">
-            <span className="font-mono text-[9px] sm:text-[10px] tracking-wide uppercase opacity-70 truncate">
-              TypeScript • React 19 • Algorithms
-            </span>
-            <span className="font-medium text-violet-600 dark:text-violet-400 shrink-0">
-              {t("hero.mockRole")}
-            </span>
-          </div>
-
-          {/* Monaco Editor Container */}
-          <div className="h-[230px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-white/40 dark:bg-[#0c0d14]/80">
-            <CodeEditorLazy
-              value={
-                activeTab === "solution"
-                  ? EVALUATE_STREAM_CODE
-                  : TEST_STREAM_CODE
-              }
-              language="typescript"
-              theme={editorTheme}
-              readOnly
-              options={{
-                fontSize: 12.5,
-                lineNumbers: "on",
-                lineNumbersMinChars: 2,
-                padding: { top: 12, bottom: 12 },
-                scrollBeyondLastLine: false,
-                minimap: { enabled: false },
-                scrollbar: {
-                  vertical: "hidden",
-                  horizontal: "hidden",
-                },
-              }}
-            />
-          </div>
-
-          {/* Status Bar */}
-          <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between px-1 sm:px-2 pt-1 text-[10px] sm:text-[11px] text-muted-foreground font-mono gap-1">
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-              <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>{t("hero.mockTestsPassed")}</span>
+          {/* Studio Editor Screen */}
+          <div className="p-3.5 bg-black/[0.015] dark:bg-[#07070b]/90 rounded-b-[22px] space-y-3">
+            <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-muted-foreground px-1 pb-1 gap-2">
+              <span className="font-mono text-[9px] sm:text-[10px] tracking-wide uppercase opacity-70 truncate">
+                TypeScript • React 19 • Algorithms
+              </span>
+              <span className="font-medium text-violet-600 dark:text-violet-400 shrink-0">
+                {t("hero.mockRole")}
+              </span>
             </div>
-            <span className="shrink-0">{t("hero.mockComplexity")}</span>
+
+            {/* Monaco Editor Container in Tabs.Content */}
+            <Tabs.Content
+              value="solution"
+              className="h-[230px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-white/40 dark:bg-[#0c0d14]/80 outline-none"
+            >
+              <CodeEditorLazy
+                value={EVALUATE_STREAM_CODE}
+                language="typescript"
+                theme={editorTheme}
+                readOnly
+                options={{
+                  fontSize: 12.5,
+                  lineNumbers: "on",
+                  lineNumbersMinChars: 2,
+                  padding: { top: 12, bottom: 12 },
+                  scrollBeyondLastLine: false,
+                  minimap: { enabled: false },
+                  scrollbar: {
+                    vertical: "hidden",
+                    horizontal: "hidden",
+                  },
+                }}
+              />
+            </Tabs.Content>
+
+            <Tabs.Content
+              value="test"
+              className="h-[230px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-white/40 dark:bg-[#0c0d14]/80 outline-none"
+            >
+              <CodeEditorLazy
+                value={TEST_STREAM_CODE}
+                language="typescript"
+                theme={editorTheme}
+                readOnly
+                options={{
+                  fontSize: 12.5,
+                  lineNumbers: "on",
+                  lineNumbersMinChars: 2,
+                  padding: { top: 12, bottom: 12 },
+                  scrollBeyondLastLine: false,
+                  minimap: { enabled: false },
+                  scrollbar: {
+                    vertical: "hidden",
+                    horizontal: "hidden",
+                  },
+                }}
+              />
+            </Tabs.Content>
+
+            {/* Status Bar */}
+            <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between px-1 sm:px-2 pt-1 text-[10px] sm:text-[11px] text-muted-foreground font-mono gap-1">
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                <span>{t("hero.mockTestsPassed")}</span>
+              </div>
+              <span className="shrink-0">{t("hero.mockComplexity")}</span>
+            </div>
           </div>
-        </div>
+        </Tabs>
       </div>
 
       {/* Floating Widget 1: Apple Intelligence Voice Wave Pill (Top-Right Overlap) */}

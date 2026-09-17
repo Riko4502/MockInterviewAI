@@ -16,12 +16,28 @@ import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
 
-// Используем локальный пакет monaco-editor в браузере (безопасно для SSR)
+let monacoInitPromise: Promise<typeof import("monaco-editor")> | null = null;
+
+/**
+ * Инициализирует Monaco Editor в браузере, конфигурируя loader локальным пакетом до монтирования редактора.
+ */
+export function initMonaco(): Promise<typeof import("monaco-editor")> {
+  if (typeof window === "undefined") {
+    return Promise.resolve({} as typeof import("monaco-editor"));
+  }
+  if (!monacoInitPromise) {
+    monacoInitPromise = import("monaco-editor").then((monaco) => {
+      loader.config({ monaco });
+      registerThemes(monaco);
+      return monaco;
+    });
+  }
+  return monacoInitPromise;
+}
+
+// Запускаем предварительную инициализацию в браузере
 if (typeof window !== "undefined") {
-  import("monaco-editor").then((monaco) => {
-    loader.config({ monaco });
-    registerThemes(monaco);
-  });
+  void initMonaco();
 }
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -35,19 +51,33 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   cursorThrottleMs = 50,
   options = {},
 }) => {
+  const [isMonacoReady, setIsMonacoReady] = useState(false);
+
   // Сохраняем инстанс в state, чтобы хук useRemoteCursors получил его после onMount
   const [editorInstance, setEditorInstance] =
     useState<editor.IStandaloneCodeEditor | null>(null);
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    let isMounted = true;
+    initMonaco().then(() => {
+      if (isMounted) {
+        setIsMonacoReady(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Синхронизируем тему при смене theme пропса в браузере
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      import("monaco-editor").then((monaco) => {
+    if (typeof window !== "undefined" && isMonacoReady) {
+      initMonaco().then((monaco) => {
         monaco.editor.setTheme(theme);
       });
     }
-  }, [theme]);
+  }, [theme, isMonacoReady]);
 
   // Этот хук автоматически рисует чужие курсоры поверх кода
   useRemoteCursors(editorInstance, collaborators);
@@ -126,17 +156,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div className="w-full h-full relative">
-      <Editor
-        height="100%"
-        language={language}
-        theme={theme}
-        value={value}
-        onChange={(val) => onChange?.(val ?? "")}
-        beforeMount={handleBeforeMount}
-        onMount={handleEditorDidMount}
-        loading={<div className="size-full animate-pulse bg-muted/20" />}
-        options={mergedOptions}
-      />
+      {isMonacoReady ? (
+        <Editor
+          height="100%"
+          language={language}
+          theme={theme}
+          value={value}
+          onChange={(val) => onChange?.(val ?? "")}
+          beforeMount={handleBeforeMount}
+          onMount={handleEditorDidMount}
+          loading={<div className="size-full animate-pulse bg-muted/20" />}
+          options={mergedOptions}
+        />
+      ) : (
+        <div className="size-full animate-pulse bg-muted/20" />
+      )}
     </div>
   );
 };
