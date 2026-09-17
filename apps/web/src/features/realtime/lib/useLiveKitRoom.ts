@@ -79,7 +79,11 @@ export function useLiveKitRoom({
   const connect = useCallback(async (): Promise<boolean> => {
     // Если идет процесс отключения предыдущей комнаты, ожидаем его полного завершения
     if (disconnectPromiseRef.current) {
-      await disconnectPromiseRef.current;
+      try {
+        await disconnectPromiseRef.current;
+      } catch {
+        // Игнорируем ошибки отключения предыдущей комнаты
+      }
     }
 
     if (roomRef.current?.state === ConnectionState.Connected) {
@@ -283,18 +287,13 @@ export function useLiveKitRoom({
     roomRef.current = null;
 
     if (roomToDisconnect) {
-      const disconnPromise = (async () => {
-        try {
-          await roomToDisconnect.disconnect();
-        } catch (err) {
-          console.warn("[useLiveKitRoom] Disconnect failed:", err);
-        }
-      })();
-
+      const disconnPromise = roomToDisconnect.disconnect();
       disconnectPromiseRef.current = disconnPromise;
 
       try {
         await disconnPromise;
+      } catch (err) {
+        console.warn("[useLiveKitRoom] Disconnect failed:", err);
       } finally {
         if (disconnectPromiseRef.current === disconnPromise) {
           disconnectPromiseRef.current = null;

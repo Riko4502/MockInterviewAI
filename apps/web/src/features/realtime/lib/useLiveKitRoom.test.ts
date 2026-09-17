@@ -135,4 +135,35 @@ describe("useLiveKitRoom end -> start race condition", () => {
 
     unmount();
   });
+
+  it("should safely proceed with new connection even if disconnect rejected with error", async () => {
+    const { result, unmount } = renderHook(() =>
+      useLiveKitRoom({ sessionId: validUUID }),
+    );
+
+    // 1. Initial connection
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    // 2. Mock failing disconnect
+    mockDisconnect.mockRejectedValueOnce(
+      new Error("Network disconnect failure"),
+    );
+
+    act(() => {
+      void result.current.disconnect();
+    });
+
+    // 3. Connect immediately after failing disconnect
+    let connected = false;
+    await act(async () => {
+      connected = await result.current.connect();
+    });
+
+    expect(connected).toBe(true);
+    expect(mockConnect).toHaveBeenCalledTimes(2);
+
+    unmount();
+  });
 });
