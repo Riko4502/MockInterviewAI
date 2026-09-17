@@ -68,6 +68,7 @@ describe("NotificationsController", () => {
         userId,
         page,
         limit,
+        undefined,
       );
 
       expect(result).toEqual(paginatedNotifications);
@@ -80,6 +81,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         20,
+        undefined,
       );
     });
 
@@ -90,6 +92,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         1,
+        undefined,
       );
     });
 
@@ -100,6 +103,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         100,
+        undefined,
       );
     });
 
@@ -132,6 +136,33 @@ describe("NotificationsController", () => {
         BadRequestException,
       );
 
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("category", () => {
+    it.each([
+      "INTERVIEW",
+      "MESSAGE",
+      "SYSTEM",
+    ])("передает категорию %s в сервис", async (category) => {
+      await controller.getNotifications(userId, 1, 20, category);
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        1,
+        20,
+        category,
+      );
+    });
+    it.each([
+      "ALL",
+      "message",
+      "",
+      "UNKNOWN",
+    ])("отклоняет категорию %s", async (category) => {
+      await expect(
+        controller.getNotifications(userId, 1, 20, category),
+      ).rejects.toThrow(BadRequestException);
       expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
     });
   });

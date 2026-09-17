@@ -89,7 +89,12 @@ export const NotificationBell = () => {
 
         <div className="border-t border-border p-2">
           <Button asChild variant="ghost" className="w-full">
-            <Link href="/notifications">Посмотреть все уведомления</Link>
+            <Link
+              href="/dashboard/notifications"
+              onClick={() => setIsOpen(false)}
+            >
+              Посмотреть все уведомления
+            </Link>
           </Button>
         </div>
       </Popover.Content>

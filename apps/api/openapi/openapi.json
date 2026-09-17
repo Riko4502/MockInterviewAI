@@ -919,6 +919,16 @@
               "default": 20
             },
             "description": "Number of notifications per page. Allowed range: 1–100."
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Notification category. Omit to include all categories.",
+            "schema": {
+              "enum": ["SYSTEM", "INTERVIEW", "MESSAGE"],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -933,7 +943,7 @@
             }
           },
           "400": {
-            "description": "Invalid pagination parameters"
+            "description": "Invalid pagination or category parameters"
           }
         },
         "security": [

@@ -21,6 +21,7 @@ import {
 import {
   notificationActionResponseSchema,
   notificationsListSchema,
+  notificationTypeSchema,
   unreadNotificationsCountSchema,
 } from "@packages/dto";
 
@@ -66,7 +67,13 @@ export class NotificationsController {
   })
   @ApiResponse({
     status: 400,
-    description: "Invalid pagination parameters",
+    description: "Invalid pagination or category parameters",
+  })
+  @ApiQuery({
+    name: "category",
+    required: false,
+    enum: notificationTypeSchema.options,
+    description: "Notification category. Omit to include all categories.",
   })
   async getNotifications(
     @CurrentUser("sub") userId: string,
@@ -86,6 +93,7 @@ export class NotificationsController {
       }),
     )
     limit: number,
+    @Query("category") category?: string,
   ) {
     if (page < 1) {
       throw new BadRequestException("page must be greater than or equal to 1");
@@ -95,7 +103,21 @@ export class NotificationsController {
       throw new BadRequestException("limit must be between 1 and 100");
     }
 
-    return this.notificationsService.getNotifications(userId, page, limit);
+    const parsedCategory = notificationTypeSchema
+      .optional()
+      .safeParse(category);
+    if (!parsedCategory.success) {
+      throw new BadRequestException(
+        "category must be SYSTEM, INTERVIEW or MESSAGE",
+      );
+    }
+
+    return this.notificationsService.getNotifications(
+      userId,
+      page,
+      limit,
+      parsedCategory.data,
+    );
   }
 
   @Get("unread-count")
