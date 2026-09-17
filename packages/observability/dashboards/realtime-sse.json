@@ -221,7 +221,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "targets": [
         {
-          "expr": "realtime_sse_stream_backlog_entries",
+          "expr": "realtime_sse_stream_backlog_entries_total",
           "legendFormat": "{{node_id}}",
           "refId": "A"
         }

@@ -127,9 +127,9 @@ func (m *Metrics) ObserveSessionDuration(seconds float64) {
 }
 
 // ObservePollBatch учитывает пачку событий, прочитанную одним XREAD-поллингом.
-// gauge streamBacklog приближенно оценивает «длину» невычитанного хвоста
-// персональных стримов на ноде: за каждый поллинг добавляется (batch-1)
-// невостребованных событий, когда ридер догоняет накопленные события.
+// counter streamBacklog накапливает суммарный избыток догоняющих событий:
+// за каждый поллинг добавляется (batch-1) событий, прочитанных сверх первого.
+// Это кумулятивный показатель отставания ридера, а не мгновенная длина хвоста.
 func (m *Metrics) ObservePollBatch(batch int) {
 	if batch <= 0 {
 		return
@@ -139,8 +139,8 @@ func (m *Metrics) ObservePollBatch(batch int) {
 	m.pollBatch.observe(float64(batch))
 }
 
-// StreamBacklog возвращает текущее значение gauge невычитанного хвоста стримов.
-func (m *Metrics) StreamBacklog() int {
+// StreamBacklogEntriesTotal возвращает суммарный избыток догоняющих событий.
+func (m *Metrics) StreamBacklogEntriesTotal() int {
 	return int(m.streamBacklog.Load())
 }
 
@@ -167,8 +167,9 @@ func (m *Metrics) WritePrometheus(w io.Writer) {
 		"Number of unique users with at least one open SSE stream",
 		`node_id="`+node+`"`, m.activeUsers.Load())
 
-	writeGauge(&buf, "realtime_sse_stream_backlog_entries",
-		"Approximate number of unread events in user notification streams (sum of poll batch excess)",
+	buf.WriteString("# HELP realtime_sse_stream_backlog_entries_total Total number of extra events read beyond the first in XREAD polls (reader catch-up)\n")
+	buf.WriteString("# TYPE realtime_sse_stream_backlog_entries_total counter\n")
+	writeSample(&buf, "realtime_sse_stream_backlog_entries_total",
 		`node_id="`+node+`"`, m.streamBacklog.Load())
 
 	buf.WriteString("# HELP realtime_sse_connections_total Total number of SSE connection attempts\n")

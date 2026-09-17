@@ -19,7 +19,7 @@ Prometheus + Grafana для монорепо (см. `SPEC.md`).
 | 6 | Prometheus config + docker-compose.prod.yml | infra | P0 | ✅ сделано: `infra/` в пакете, сервисы prometheus/grafana/redis_exporter + сеть `monitoring` в `docker-compose.prod.yml`, scp в `deploy-server.yml` |
 | 7 | `redis_exporter` → job `redis` + env `check_streams`/`check_keys` | infra | P0 | ✅ сделано: сервис в compose, job `redis` в prometheus.yml, `REDIS_EXPORTER_CHECK_STREAMS`/`REDIS_EXPORTER_CHECK_KEYS` |
 | 8 | In-app Redis: `PoolStats` (realtime) + статус/ошибки ioredis (api) | realtime, api | P0 | ✅ сделано: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` (realtime), api-часть — в шаге 2 |
-| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds` + gauge `realtime_sse_stream_backlog_entries` и гистограмма `realtime_sse_poll_batch_entries` |
+| 9 | `realtime_ws_pubsub_lag_seconds` + gauge длины стримов | realtime | P1 | ✅ сделано: гистограмма `realtime_ws_pubsub_lag_seconds`, counter `realtime_sse_stream_backlog_entries_total` и гистограмма `realtime_sse_poll_batch_entries` |
 | 10 | Grafana provisioning + dashboards (в т.ч. `redis.json`) | infra | P1 | ✅ сделано: datasource + file-provisioning, дашборды монтируются из `packages/observability/dashboards/` |
 | 11 | Alert-правила Redis (memory/evictions/stream-lag) | infra | P1 | ✅ сделано: `infra/prometheus/alerting/redis.yml` (target-down, evictions, stream-lag, pubsub-lag); нотификация — вне этапа |
 | 12 | `.env.example` + docs | shared | P2 | ✅ сделано: единый `.env.example` дополнен Sentry/Grafana, SPEC/PLAN актуализированы |
@@ -173,7 +173,7 @@ redis-экспортер, alert-правила активны; правки `das
 - Шаг 8 выполнен: `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total`
   (снимок `PoolStats()` go-redis на скрейпе `/metrics`, disabled-пул не экспортируется).
 - Шаг 9 выполнен: `realtime_ws_pubsub_lag_seconds` (histogram по метке `sentAt`
-  в `PubSubMessage`), `realtime_sse_stream_backlog_entries` (gauge) +
+  в `PubSubMessage`), `realtime_sse_stream_backlog_entries_total` (counter) +
   `realtime_sse_poll_batch_entries` (histogram).
 - Метрики добавлены в `dashboards/realtime-sse.json` (WS lag, pool, stream backlog).
 

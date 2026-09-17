@@ -128,8 +128,9 @@ packages/observability/
     (снимок `PoolStats()` на каждом скрейпе `/metrics`);
   - `realtime_ws_pubsub_lag_seconds` (histogram) — замер по метке времени
     `sentAt` внутри `PubSubMessage` между публикацией и приёмом на реплике;
-  - `realtime_sse_stream_backlog_entries` (gauge) — приближённая оценка длины
-    невычитанного хвоста персональных стримов (сумма `batch-1` по XREAD);
+  - `realtime_sse_stream_backlog_entries_total` (counter) — суммарный избыток
+    догоняющих событий по XREAD («сверх первой» в каждой пачке), индикатор
+    отставания ридера;
   - `realtime_sse_poll_batch_entries` (histogram) — размер пачек событий,
     прочитанных одним XREAD-поллингом.
 
@@ -209,8 +210,8 @@ packages/observability/
 - `realtime_sse_dropped_messages_total`
 - `realtime_sse_redis_stream_lag_seconds`
 - `realtime_sse_session_duration_seconds`
-- `realtime_sse_stream_backlog_entries` — приближённая длина невычитанного
-  хвоста персональных стримов (сумма `batch-1` по XREAD-поллингам)
+- `realtime_sse_stream_backlog_entries_total` — counter суммарного избытка
+  догоняющих событий (сумма `batch-1` по XREAD-поллингам)
 - `realtime_sse_poll_batch_entries` — histogram размеров пачек событий за поллинг
 - `realtime_ws_pubsub_lag_seconds` — задержка релея событий комнат через Pub/Sub
 - `redis_pool_total/idle/stale` + `redis_pool_hits/misses/timeouts_total` —
@@ -369,8 +370,8 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ### 0.4.0 — 2026-09-11
 - Шаги 8–9 PLAN реализованы: `redis_pool_*` (снимок `PoolStats()`),
   `realtime_ws_pubsub_lag_seconds` (по метке `sentAt` в `PubSubMessage`),
-  `realtime_sse_stream_backlog_entries` + `realtime_sse_poll_batch_entries`
-  (оценка длины хвоста стримов). Метрики добавлены в `realtime-sse.json`.
+  `realtime_sse_stream_backlog_entries_total` + `realtime_sse_poll_batch_entries`
+  (оценка отставания ридера стримов). Метрики добавлены в `realtime-sse.json`.
 
 ### 0.3.0 — 2026-09-11
 - **Phase 1 реализована** (Sentry+PROM в api/web/realtime, пакет заскаффолден):
