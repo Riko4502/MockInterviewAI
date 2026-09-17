@@ -35,7 +35,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: mock-interview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -79,7 +79,7 @@ services:
       - "50000-50200:50000-50200/udp"      # UDP media (WebRTC)
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: mock-interview-minio-init
     depends_on:
       minio:
