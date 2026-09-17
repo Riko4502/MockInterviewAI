@@ -11,7 +11,7 @@ docker-compose.yml
 ├── postgres       # PostgreSQL 16 (порт 5432) — реляционная база данных
 ├── redis          # Redis 7 (порт 6379) — кэш, блэклисты токенов и Pub/Sub
 ├── minio          # MinIO (порт 9000 — S3 API, порт 9001 — Web Console)
-├── livekit        # LiveKit SFU (порт 7880 — WS-сигналинг, 7881 — HTTPS, 50000–50200 — UDP-медиа)
+├── livekit        # LiveKit SFU (порт 7880 — WS-сигналинг, 7881 — HTTPS, 60000–60018 — UDP-медиа)
 └── minio-init     # Одноразовый CLI-контейнер для автосоздания бакетов
 ```
 
@@ -25,7 +25,7 @@ docker-compose.yml
 | **MinIO Console** | `localhost:9001` | Веб-интерфейс управления файлами | `minioadmin / minioadmin` |
 | **LiveKit** | `localhost:7880` | WebSocket-сигналинг WebRTC, отдаётся как `serverUrl` в join-токене | ключ `devkey` / секрет `dev-local-secret-change-me-0123456789` |
 | **LiveKit** | `localhost:7881` | HTTPS-эндпоинт (для продакшена/внешних клиентов) | — |
-| **LiveKit** | `localhost:50000–50200` | UDP-диапазон медиапотоков (аудио/видео) | — |
+| **LiveKit** | `localhost:60000–60018` | UDP-диапазон медиапотоков (аудио/видео); дефолт вне исключённых Hyper-V/WSL2 портов Windows 50000-50478, переопределяется через `LIVEKIT_UDP_PORT_START`/`LIVEKIT_UDP_PORT_END` | — |
 
 ---
 
