@@ -1,8 +1,16 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
-import { InterviewParticipantRole } from "../../generated/prisma/enums";
+import {
+  InterviewParticipantRole,
+  InterviewSessionStatus,
+} from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 
@@ -66,6 +74,83 @@ export class SessionsService {
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
     );
     return { sessionId: session.id };
+  }
+
+  /**
+   * Присоединяет пользователя к сессии.
+   *
+   * 1. Проверяет существование сессии (404 если нет).
+   * 2. Проверяет статус сессии (403 если CLOSED).
+   * 3. Если пользователь уже участник — сохраняет его существующую роль,
+   *    продлевает TTL зеркала в Redis и возвращает существующую роль.
+   * 4. Если новый участник — добавляет в Postgres с ролью CANDIDATE,
+   *    записывает в Redis-зеркало и возвращает роль CANDIDATE.
+   */
+  async joinSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<{ role: InterviewParticipantRole }> {
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        participants: {
+          where: { userId },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException("Session not found");
+    }
+
+    if (session.status === InterviewSessionStatus.CLOSED) {
+      throw new ForbiddenException("Session is closed");
+    }
+
+    const existingParticipant = session.participants[0];
+    if (existingParticipant) {
+      await this.redis.set(
+        sessionActiveKey(sessionId),
+        ACTIVE_VALUE,
+        this.mirrorTtlSeconds,
+      );
+      await this.redis.hset(
+        sessionMembersKey(sessionId),
+        userId,
+        existingParticipant.role,
+        this.mirrorTtlSeconds,
+      );
+
+      return { role: existingParticipant.role };
+    }
+
+    const participant = await this.prisma.interviewParticipant.upsert({
+      where: { sessionId_userId: { sessionId, userId } },
+      create: {
+        sessionId,
+        userId,
+        role: InterviewParticipantRole.CANDIDATE,
+      },
+      update: {},
+    });
+
+    await this.redis.set(
+      sessionActiveKey(sessionId),
+      ACTIVE_VALUE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      userId,
+      participant.role,
+      this.mirrorTtlSeconds,
+    );
+
+    this.logger.log(
+      `user ${userId} joined session ${sessionId} as ${participant.role}`,
+    );
+
+    return { role: participant.role };
   }
 
   /**

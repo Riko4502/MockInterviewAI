@@ -478,8 +478,8 @@ func awaitComment(t *testing.T, body io.Reader) {
 				return
 			}
 		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
-			_ = err
+		if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("sse scan stopped before expected comment: %v", err)
 		}
 	}()
 

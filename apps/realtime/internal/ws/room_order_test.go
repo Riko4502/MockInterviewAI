@@ -43,6 +43,8 @@ type mockSessionStoreOrder struct {
 	mu           sync.Mutex
 	savedCodes   [][]byte
 	savedPayload []CodeUpdatePayload
+	callLog      []CodeUpdatePayload
+	calls        int
 	nextVersion  int64
 }
 
@@ -77,8 +79,10 @@ func (m *mockSessionStoreOrder) NextCodeVersion(_ context.Context, _ string) (in
 func (m *mockSessionStoreOrder) SaveCodeState(_ context.Context, _ string, data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.calls++
 	var p CodeUpdatePayload
 	if err := json.Unmarshal(data, &p); err == nil {
+		m.callLog = append(m.callLog, p)
 		if len(m.savedPayload) > 0 && p.Version <= m.savedPayload[len(m.savedPayload)-1].Version {
 			return nil
 		}
@@ -356,6 +360,9 @@ drained:
 	if len(store.savedPayload) != 5 {
 		t.Fatalf("expected 5 saved code states, got %d", len(store.savedPayload))
 	}
+	if len(store.callLog) != 5 {
+		t.Fatalf("expected 5 SaveCodeState calls in callLog, got %d", len(store.callLog))
+	}
 
 	expectedVersions := []int64{1, 2, 3, 4, 5}
 	for i, p := range store.savedPayload {
@@ -364,6 +371,11 @@ drained:
 		}
 		if p.Version == 4 && p.Content != "content v4" {
 			t.Errorf("saved payload for version 4 was overwritten by duplicate: got content %q", p.Content)
+		}
+	}
+	for i, p := range store.callLog {
+		if p.Version != expectedVersions[i] {
+			t.Errorf("callLog %d: expected version %d, got %d", i, expectedVersions[i], p.Version)
 		}
 	}
 
@@ -378,18 +390,18 @@ drained:
 
 	// Проверяем доставку сообщений локальному клиенту в WebSocket (sendCh)
 	var deliveredEnvelopes []RawEnvelope
-	for {
+	deliveryDeadline := time.After(2 * time.Second)
+	for len(deliveredEnvelopes) < 5 {
 		select {
 		case msgBytes := <-client.sendCh:
 			raw, parseErr := ParseRawEnvelope(msgBytes)
 			if parseErr == nil && raw.Type == EventCodeUpdate {
 				deliveredEnvelopes = append(deliveredEnvelopes, raw)
 			}
-		default:
-			goto checkedClient
+		case <-deliveryDeadline:
+			t.Fatalf("timed out waiting for delivered envelopes, got %d", len(deliveredEnvelopes))
 		}
 	}
-checkedClient:
 
 	if len(deliveredEnvelopes) != 5 {
 		t.Fatalf("expected 5 delivered code.update envelopes to client, got %d", len(deliveredEnvelopes))

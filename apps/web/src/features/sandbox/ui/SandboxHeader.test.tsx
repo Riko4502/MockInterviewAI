@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxHeader } from "./SandboxHeader";
 
-const onCopyInviteMock = vi.fn();
+const { onCopyInviteMock } = vi.hoisted(() => ({
+  onCopyInviteMock: vi.fn(),
+}));
 
 vi.mock("../model/SandboxMediaContext", () => ({
   useSandboxMedia: () => ({

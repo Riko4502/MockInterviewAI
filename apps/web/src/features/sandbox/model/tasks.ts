@@ -332,43 +332,87 @@ public:
       "-5000 <= Node.val <= 5000",
     ],
     starterCode: {
-      typescript: `function reverseList(head: number[]): number[] {
+      typescript: `class ListNode {
+  val: number;
+  next: ListNode | null;
+  constructor(val?: number, next?: ListNode | null) {
+    this.val = val === undefined ? 0 : val;
+    this.next = next === undefined ? null : next;
+  }
+}
+
+function reverseList(head: ListNode | null): ListNode | null {
   // Напишите ваше решение здесь
-  return [];
+  return null;
 }
 `,
-      javascript: `function reverseList(head) {
+      javascript: `/**
+ * Definition for singly-linked list.
+ * function ListNode(val, next) {
+ *     this.val = (val===undefined ? 0 : val)
+ *     this.next = (next===undefined ? null : next)
+ * }
+ */
+function reverseList(head) {
   // Напишите ваше решение здесь
-  return [];
+  return null;
 }
 `,
-      python: `def reverseList(head: list[int]) -> list[int]:
+      python: `# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next
+
+def reverseList(head: Optional[ListNode]) -> Optional[ListNode]:
     # Ваше решение здесь
     pass
 `,
       go: `package main
 
-func reverseList(head []int) []int {
+// Definition for singly-linked list.
+type ListNode struct {
+	Val  int
+	Next *ListNode
+}
+
+func reverseList(head *ListNode) *ListNode {
 	// Ваше решение здесь
 	return nil
 }
 `,
-      cpp: `#include <vector>
-
-using namespace std;
-
+      cpp: `/**
+ * Definition for singly-linked list.
+ * struct ListNode {
+ *     int val;
+ *     ListNode *next;
+ *     ListNode() : val(0), next(nullptr) {}
+ *     ListNode(int x) : val(x), next(nullptr) {}
+ *     ListNode(int x, ListNode *next) : val(x), next(next) {}
+ * };
+ */
 class Solution {
 public:
-    vector<int> reverseList(vector<int>& head) {
+    ListNode* reverseList(ListNode* head) {
         // Ваше решение здесь
-        return {};
+        return nullptr;
     }
 };
 `,
-      java: `class Solution {
-    public int[] reverseList(int[] head) {
+      java: `/**
+ * Definition for singly-linked list.
+ * public class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode() {}
+ *     ListNode(int val) { this.val = val; }
+ *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+ * }
+ */
+class Solution {
+    public ListNode reverseList(ListNode head) {
         // Ваше решение здесь
-        return new int[0];
+        return null;
     }
 }
 `,

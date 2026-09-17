@@ -13,5 +13,12 @@
     "strengths": "Strengths",
     "improvements": "Areas for Improvement",
     "summary": "Meeting Summary"
+  },
+  "sandbox": {
+    "connecting": "Connecting to session...",
+    "errorTitle": "Connection Error",
+    "joinError": "Failed to connect to the session. It might be closed or does not exist.",
+    "createError": "Failed to create a new session.",
+    "createNew": "Create New Session"
   }
 }

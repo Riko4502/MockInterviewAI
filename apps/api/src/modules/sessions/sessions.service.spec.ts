@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
@@ -88,6 +88,90 @@ describe("SessionsService", () => {
         "INTERVIEWER",
         7200,
       );
+    });
+  });
+
+  describe("joinSession", () => {
+    it("добавляет нового кандидата в Postgres и обновляет Redis-зеркало", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        participants: [],
+      });
+      prismaMock.interviewParticipant.upsert.mockResolvedValue({
+        sessionId,
+        userId: "candidate-1",
+        role: "CANDIDATE",
+      });
+
+      const result = await service.joinSession(sessionId, "candidate-1");
+
+      expect(result).toEqual({ role: "CANDIDATE" });
+      expect(prismaMock.interviewParticipant.upsert).toHaveBeenCalledWith({
+        where: { sessionId_userId: { sessionId, userId: "candidate-1" } },
+        create: {
+          sessionId,
+          userId: "candidate-1",
+          role: "CANDIDATE",
+        },
+        update: {},
+      });
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:active`,
+        "true",
+        7200,
+      );
+      expect(redisMock.hset).toHaveBeenCalledWith(
+        `session:${sessionId}:members`,
+        "candidate-1",
+        "CANDIDATE",
+        7200,
+      );
+    });
+
+    it("возвращает существующую роль без изменения в БД (например INTERVIEWER)", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+
+      const result = await service.joinSession(sessionId, ownerId);
+
+      expect(result).toEqual({ role: "INTERVIEWER" });
+      expect(prismaMock.interviewParticipant.upsert).not.toHaveBeenCalled();
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:active`,
+        "true",
+        7200,
+      );
+      expect(redisMock.hset).toHaveBeenCalledWith(
+        `session:${sessionId}:members`,
+        ownerId,
+        "INTERVIEWER",
+        7200,
+      );
+    });
+
+    it("бросает ForbiddenException если статус сессии CLOSED", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "CLOSED",
+        participants: [],
+      });
+
+      await expect(
+        service.joinSession(sessionId, "candidate-1"),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.interviewParticipant.upsert).not.toHaveBeenCalled();
+    });
+
+    it("бросает NotFoundException если сессия не найдена", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.joinSession(sessionId, "candidate-1"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

@@ -2,11 +2,11 @@ export const paths = {
   login: "/login",
   register: "/register",
   dashboard: "/dashboard",
+  sandbox: "/dashboard/sandbox",
   interviews: "/dashboard/interviews",
   partners: "/dashboard/partners",
   statistics: "/dashboard/statistics",
   resources: "/dashboard/resources",
-  sandbox: "/dashboard/sandbox",
 } as const;
 
 export const ROUTES = paths;

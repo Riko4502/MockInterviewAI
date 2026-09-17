@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
 } from "@nestjs/common";
@@ -17,6 +19,7 @@ import {
   type AddParticipantDto,
   addParticipantSchema,
   type InterviewParticipantRole,
+  type JoinSessionResponseDto,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
@@ -60,6 +63,47 @@ export class SessionsController {
     @CurrentUser("sub") userId: string,
   ): Promise<{ sessionId: string }> {
     return this.sessionsService.createSession(userId);
+  }
+
+  /**
+   * Присоединяет текущего пользователя к интервью-сессии.
+   *
+   * @param sessionId - UUID сессии из пути.
+   * @param userId - UUID текущего пользователя (`sub`).
+   * @returns `{ role }` — роль пользователя в сессии.
+   */
+  @Post(":id/join")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Присоединиться к интервью-сессии" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Успешное присоединение к сессии",
+    schema: registerSchema("JoinSessionResponseDto", {
+      type: "object",
+      properties: {
+        role: {
+          type: "string",
+          enum: ["CANDIDATE", "INTERVIEWER", "OBSERVER"],
+          description: "Роль пользователя в сессии",
+        },
+      },
+      required: ["role"],
+    }),
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 403, description: "Сессия закрыта" })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
+  async joinSession(
+    @Param("id") sessionId: string,
+    @CurrentUser("sub") userId: string,
+  ): Promise<JoinSessionResponseDto> {
+    return this.sessionsService.joinSession(sessionId, userId);
   }
 
   /**

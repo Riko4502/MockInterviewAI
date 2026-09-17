@@ -22,6 +22,8 @@ export * from './forgotPasswordDto';
 export * from './healthResponseDto';
 export * from './healthResponseDtoDb';
 export * from './healthResponseDtoStatus';
+export * from './joinSessionResponseDto';
+export * from './joinSessionResponseDtoRole';
 export * from './loginDto';
 export * from './mediaTokenRequestDto';
 export * from './mediaTokenResponseDto';

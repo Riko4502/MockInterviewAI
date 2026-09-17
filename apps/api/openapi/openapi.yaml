@@ -423,6 +423,33 @@ paths:
       summary: Создать новую интервью-сессию
       tags: &a5
         - Sessions
+  /api/v1/sessions/{id}/join:
+    post:
+      operationId: SessionsController_joinSession
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Успешное присоединение к сессии
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinSessionResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Сессия закрыта
+        "404":
+          description: Сессия не найдена
+      security: *a4
+      summary: Присоединиться к интервью-сессии
+      tags: *a5
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -530,6 +557,8 @@ paths:
           description: Ошибка валидации входных данных
         "401":
           description: Не авторизован
+        "403":
+          description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
       security: &a6
@@ -1044,6 +1073,41 @@ components:
           type: boolean
       required:
         - success
+    CreateSessionResponseDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+      required:
+        - sessionId
+    JoinSessionResponseDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+          description: Роль пользователя в сессии
+      required:
+        - role
+    AddParticipantDto:
+      type: object
+      properties:
+        userId:
+          type: string
+          minLength: 1
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+      required:
+        - userId
+        - role
     TicketDto:
       type: object
       properties:
@@ -1086,26 +1150,3 @@ components:
         - token
         - serverUrl
         - roomName
-    CreateSessionResponseDto:
-      type: object
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-      required:
-        - sessionId
-    AddParticipantDto:
-      type: object
-      properties:
-        userId:
-          type: string
-          minLength: 1
-        role:
-          type: string
-          enum:
-            - CANDIDATE
-            - INTERVIEWER
-            - OBSERVER
-      required:
-        - userId
-        - role

@@ -7,6 +7,7 @@ describe("mapSandboxMessageToEnvelope", () => {
 
   it("should correctly map 'code-update' message to 'code.update' WebSocket envelope", () => {
     const msg: SandboxRealtimeMessage = {
+      id: "message-123",
       type: "code-update",
       roomId,
       senderId: "user-1",
@@ -21,6 +22,7 @@ describe("mapSandboxMessageToEnvelope", () => {
 
     expect(envelope.type).toBe("code.update");
     expect(envelope.sessionId).toBe(roomId);
+    expect(envelope.requestId).toBe("message-123");
     expect(envelope.payload).toMatchObject({
       filePath: "main",
       language: "typescript",

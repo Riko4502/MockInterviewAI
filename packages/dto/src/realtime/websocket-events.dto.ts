@@ -107,8 +107,8 @@ export interface BaseWebSocketEnvelope<TType extends string, TPayload> {
   type: TType;
   version: number;
   sessionId: string;
-  requestId?: string;
-  timestamp?: string;
+  requestId: string;
+  timestamp: string;
   payload: TPayload;
 }
 

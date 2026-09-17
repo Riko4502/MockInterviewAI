@@ -143,7 +143,9 @@ export function SandboxMediaProvider({
   // Связываем сигналы из realtime со звонками
   useEffect(() => {
     return realtime.subscribeWebRTCSignal((signal) => {
-      setIsVideoOpen(true);
+      if (signal.type === "call-started" || signal.type === "offer") {
+        setIsVideoOpen(true);
+      }
       if (signal.type === "call-started") {
         void livekit.connect().catch((err) => {
           console.warn("[SandboxMedia] LiveKit receiver connect failed:", err);

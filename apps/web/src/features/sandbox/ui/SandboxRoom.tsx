@@ -1,195 +1,130 @@
 "use client";
 
-import { sessionsControllerCreateSession } from "@packages/api";
-import { CodeEditorLazy, type LanguageId } from "@packages/editor";
-import { Resizable } from "@packages/ui";
+import {
+  sessionsControllerCreateSession,
+  sessionsControllerJoinSession,
+} from "@packages/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { validate as isValidUUID, v4 as uuidv4 } from "uuid";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { validate as isValidUUID } from "uuid";
 import { authToken } from "@/shared/api";
-import { useSandboxRealtime } from "../lib/useSandboxRealtime";
-import { SandboxMediaProvider } from "../model/SandboxMediaContext";
-import { useSandboxTimer } from "../model/useSandboxState";
-import { useSandboxStore } from "../model/useSandboxStore";
-import { SandboxConsolePanel } from "./SandboxConsolePanel";
-import { SandboxHeader } from "./SandboxHeader";
-import { SandboxTaskPanel } from "./SandboxTaskPanel";
-import { SandboxVideoWidget } from "./SandboxVideoWidget";
+import "@/shared/lib/i18n";
+import { SandboxRoomError } from "./SandboxRoomError";
+import { SandboxRoomLoading } from "./SandboxRoomLoading";
+import { SandboxRoomWorkspace } from "./SandboxRoomWorkspace";
 
-export function SandboxRoom() {
-  const searchParams = useSearchParams();
+export type SessionStatus = "idle" | "initializing" | "joined" | "error";
+
+export interface SandboxRoomProps {
+  onSessionReady?: (sessionId: string, role: string) => void;
+}
+
+export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { t } = useTranslation("interview");
 
-  // Идентификатор совместной комнаты (строго валидный UUID для бэкенда)
-  const [roomId, setRoomId] = useState<string>(() => {
-    const fromUrl = searchParams.get("room");
-    if (fromUrl && isValidUUID(fromUrl)) return fromUrl;
-    return uuidv4();
-  });
+  const [status, setStatus] = useState<SessionStatus>("idle");
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Автоматическое создание сессии на бэкенде для авторизованных пользователей
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  const onSessionReadyRef = useRef(onSessionReady);
+  onSessionReadyRef.current = onSessionReady;
+
+  // Инициализация / Join Flow
   useEffect(() => {
-    const fromUrl = searchParams.get("room");
-    const token = authToken.get();
+    let cancelled = false;
 
-    if ((!fromUrl || !isValidUUID(fromUrl)) && token) {
+    const token = authToken.get();
+    if (!token) {
+      return;
+    }
+
+    const roomParam = searchParams.get("room");
+
+    if (roomParam && isValidUUID(roomParam)) {
+      setStatus("initializing");
+
+      sessionsControllerJoinSession(roomParam)
+        .then((res) => {
+          if (cancelled) return;
+          setRoomId(roomParam);
+          setRole(res.role);
+          setStatus("joined");
+          onSessionReadyRef.current?.(roomParam, res.role);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.error("[SandboxRoom] Failed to join session:", err);
+          setStatus("error");
+          setErrorMessage(
+            err instanceof Error ? err.message : t("sandbox.joinError"),
+          );
+        });
+    } else {
+      setStatus("initializing");
+
       sessionsControllerCreateSession()
         .then((res) => {
+          if (cancelled) return;
           if (res?.sessionId) {
             setRoomId(res.sessionId);
+            setRole("INTERVIEWER");
+            setStatus("joined");
+
             const params = new URLSearchParams(searchParams.toString());
             params.set("room", res.sessionId);
-            router.replace(`${pathname}?${params.toString()}`);
+            routerRef.current.replace(`${pathname}?${params.toString()}`);
+
+            onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
           }
         })
         .catch((err) => {
-          console.warn("[Sandbox] Auto-provision session failed:", err);
+          if (cancelled) return;
+          console.error("[SandboxRoom] Failed to create session:", err);
+          setStatus("error");
+          setErrorMessage(
+            err instanceof Error ? err.message : t("sandbox.createError"),
+          );
         });
     }
-  }, [searchParams, pathname, router]);
 
-  const code = useSandboxStore((s) => s.code);
-  const setCode = useSandboxStore((s) => s.setCode);
-  const language = useSandboxStore((s) => s.language);
-  const setLanguage = useSandboxStore((s) => s.setLanguage);
-  const applyRemoteCodeUpdate = useSandboxStore((s) => s.applyRemoteCodeUpdate);
-  const resetCode = useSandboxStore((s) => s.resetCode);
-  const theme = useSandboxStore((s) => s.theme);
-  const setTaskId = useSandboxStore((s) => s.setTaskId);
-  const setIsVideoOpen = useSandboxStore((s) => s.setIsVideoOpen);
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, pathname, t]);
 
-  useSandboxTimer();
+  const handleCreateNewSession = useCallback(() => {
+    setStatus("idle");
+    setRoomId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("room");
+    routerRef.current.replace(`${pathname}?${params.toString()}`);
+  }, [searchParams, pathname]);
 
-  // Реалтайм синхронизация состояния и сигналов
-  const realtime = useSandboxRealtime({
-    roomId,
-    onRemoteCodeUpdate: (remoteCode, remoteLang) => {
-      applyRemoteCodeUpdate(remoteCode, remoteLang);
-    },
-    onRemoteTaskChange: (newTaskId) => {
-      setTaskId(newTaskId);
-    },
-    onRemoteWebRTCSignal: () => {
-      setIsVideoOpen(true);
-    },
-  });
+  // Error State
+  if (status === "error") {
+    return (
+      <SandboxRoomError
+        errorMessage={errorMessage}
+        onCreateNewSession={handleCreateNewSession}
+      />
+    );
+  }
 
-  // Синхронизация изменений локального кода
-  const handleCodeChange = useCallback(
-    (newCode: string) => {
-      setCode(newCode);
-      realtime.broadcastCodeUpdate(newCode, language);
-    },
-    [setCode, realtime, language],
-  );
+  // Loading State
+  if (status === "initializing" || status === "idle" || !roomId) {
+    return <SandboxRoomLoading />;
+  }
 
-  // Синхронизация локальной смены задачи (меняет задачу в store и отправляет другим участникам)
-  const handleTaskChange = useCallback(
-    (newTaskId: string) => {
-      setTaskId(newTaskId);
-      realtime.broadcastTaskChange(newTaskId);
-    },
-    [setTaskId, realtime],
-  );
-
-  // Синхронизация локальной смены языка программирования (меняет язык, стартер-код и отправляет другим участникам)
-  const handleLanguageChange = useCallback(
-    (newLang: LanguageId) => {
-      const newCode = setLanguage(newLang);
-      realtime.broadcastCodeUpdate(newCode, newLang);
-    },
-    [setLanguage, realtime],
-  );
-
-  // Сброс кода к начальному шаблону с синхронизацией
-  const handleResetCode = useCallback(() => {
-    resetCode();
-    const currentTask = useSandboxStore.getState().getCurrentTask();
-    const starter = currentTask.starterCode[language] ?? "";
-    realtime.broadcastCodeUpdate(starter, language);
-  }, [resetCode, realtime, language]);
-
+  // Active Workspace
   return (
-    <SandboxMediaProvider
-      roomId={roomId}
-      pathname={pathname}
-      realtime={realtime}
-    >
-      <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-        {/* Верхний тулбар управления */}
-        <SandboxHeader
-          onLanguageChange={handleLanguageChange}
-          onResetCode={handleResetCode}
-          onTaskChange={handleTaskChange}
-        />
-
-        {/* Основная рабочая область со сплиттерами */}
-        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-          <Resizable.Group orientation="horizontal" className="h-full w-full">
-            {/* Левая панель: Условие задачи, AI подсказки, Заметки */}
-            <Resizable.Panel
-              defaultSize="15%"
-              maxSize="15%"
-              className="min-w-0 min-h-0"
-            >
-              <SandboxTaskPanel />
-            </Resizable.Panel>
-
-            <Resizable.Handle withHandle />
-
-            {/* Правая панель: Редактор кода (сверху) + Консоль (снизу) */}
-            <Resizable.Panel
-              defaultSize="55%"
-              minSize="15%"
-              className="min-w-0 min-h-0"
-            >
-              <Resizable.Group orientation="vertical" className="h-full w-full">
-                {/* Верхняя часть: Monaco Редактор */}
-                <Resizable.Panel
-                  defaultSize="60%"
-                  minSize="20%"
-                  maxSize="85%"
-                  className="min-w-0 min-h-0"
-                >
-                  <div className="relative h-full w-full min-w-0 min-h-0 overflow-hidden bg-background">
-                    <CodeEditorLazy
-                      value={code}
-                      onChange={(val) => handleCodeChange(val ?? "")}
-                      language={language}
-                      theme={theme}
-                      collaborators={realtime.collaborators}
-                      onCursorChange={realtime.broadcastCursorMove}
-                      options={{
-                        fontSize: 14,
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        tabSize: 2,
-                      }}
-                    />
-                  </div>
-                </Resizable.Panel>
-
-                <Resizable.Handle withHandle />
-
-                {/* Нижняя часть: Результаты тестов и Консоль */}
-                <Resizable.Panel
-                  defaultSize="40%"
-                  minSize="15%"
-                  maxSize="80%"
-                  className="min-w-0 min-h-0"
-                >
-                  <SandboxConsolePanel />
-                </Resizable.Panel>
-              </Resizable.Group>
-            </Resizable.Panel>
-          </Resizable.Group>
-        </div>
-
-        {/* Плавающий виджет WebRTC / LiveKit видеосвязи */}
-        <SandboxVideoWidget />
-      </div>
-    </SandboxMediaProvider>
+    <SandboxRoomWorkspace roomId={roomId} role={role} pathname={pathname} />
   );
 }

@@ -27,9 +27,10 @@ type Room struct {
 	ID string
 
 	clients       map[string]*Client
-	register      chan *Client
-	unregister    chan *Client
-	broadcast     chan broadcastMessage
+	register         chan *Client
+	unregister       chan *Client
+	broadcast        chan broadcastMessage
+	codeUpdateQueue  chan broadcastMessage
 	pubQueue         chan []byte
 	codeSaveQueue    chan CodeUpdatePayload
 	codeSaveSignal   chan struct{}
@@ -54,19 +55,20 @@ func NewRoom(
 	onEmpty func(roomID string),
 ) *Room {
 	return &Room{
-		ID:             id,
-		clients:        make(map[string]*Client),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		broadcast:      make(chan broadcastMessage, 256),
-		pubQueue:       make(chan []byte, 512),
-		codeSaveQueue:  make(chan CodeUpdatePayload, 128),
-		codeSaveSignal: make(chan struct{}, 1),
-		done:           make(chan struct{}),
-		logger:         logger.With(slog.String("roomId", id)),
-		onEmpty:        onEmpty,
-		broadcaster:    broadcaster,
-		sessionStore:   sessionStore,
+		ID:              id,
+		clients:         make(map[string]*Client),
+		register:        make(chan *Client),
+		unregister:      make(chan *Client),
+		broadcast:       make(chan broadcastMessage, 256),
+		codeUpdateQueue: make(chan broadcastMessage, 256),
+		pubQueue:        make(chan []byte, 512),
+		codeSaveQueue:   make(chan CodeUpdatePayload, 128),
+		codeSaveSignal:  make(chan struct{}, 1),
+		done:            make(chan struct{}),
+		logger:          logger.With(slog.String("roomId", id)),
+		onEmpty:         onEmpty,
+		broadcaster:     broadcaster,
+		sessionStore:    sessionStore,
 	}
 }
 
@@ -105,6 +107,9 @@ func (r *Room) Run(ctx context.Context) {
 		// Последовательный воркер публикации сообщений в Redis Pub/Sub
 		go r.publishWorker(ctx)
 	}
+
+	// Последовательный воркер выделения версий кода для локальных событий (исключает блокировку Room.Run на Redis I/O)
+	go r.codeUpdateWorker(ctx)
 
 	// Последовательный воркер сохранения снимков кода в Redis
 	if r.sessionStore != nil {
@@ -280,42 +285,12 @@ func (r *Room) handleUnregister(client *Client) {
 
 // handleBroadcast рассылает сообщение локальным клиентам, ставит в очередь на сохранение и на публикацию в Redis.
 func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
-	// 1. Если это обновление кода, назначаем монотонную версию на сервере (для локальных событий),
-	// обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
+	// 1. Если это обновление кода, обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
 	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
-			var globalVersion int64
-			if !msg.isRemote && r.sessionStore != nil {
-				seqCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				v, err := r.sessionStore.NextCodeVersion(seqCtx, r.ID)
-				cancel()
-				if err != nil {
-					r.logger.Warn("failed to allocate global code version from redis, falling back to local counter",
-						slog.String("error", err.Error()),
-					)
-				} else {
-					globalVersion = v
-				}
-			}
-
 			r.mu.Lock()
 			if !msg.isRemote {
-				// Глобальная монотонная версия: при наличии SessionStore запрашивается атомарный sequence из Redis,
-				// иначе монотонно инкрементируется локальный счетчик (fallback)
-				if globalVersion <= r.codeVersion {
-					r.codeVersion++
-					globalVersion = r.codeVersion
-				} else {
-					r.codeVersion = globalVersion
-				}
-				codePayload.Version = globalVersion
 				r.lastCodeState = &codePayload
-
-				// Сериализуем обновленный конверт с согласованным номером версии
-				updatedEnv := NewEnvelope(raw.Type, raw.SessionID, raw.RequestID, codePayload)
-				if updatedBytes, marshalErr := updatedEnv.ToBytes(); marshalErr == nil {
-					msg.data = updatedBytes
-				}
 			} else {
 				// Сообщение из Redis от другой реплики: принимаем версию, только если она строго новее
 				if r.lastCodeState != nil && codePayload.Version <= r.lastCodeState.Version {
@@ -527,6 +502,65 @@ func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 	}
 }
 
+// codeUpdateWorker последовательно выделяет глобальные номера версий из Redis в фоновом режиме,
+// исключая блокировку главного цикла Room.Run на сетевом I/O к Redis.
+func (r *Room) codeUpdateWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.done:
+			return
+		case msg := <-r.codeUpdateQueue:
+			raw, err := ParseRawEnvelope(msg.data)
+			if err != nil || raw.Type != EventCodeUpdate {
+				continue
+			}
+			codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw)
+			if unpackErr != nil {
+				continue
+			}
+
+			var globalVersion int64
+			if r.sessionStore != nil {
+				seqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				v, allocErr := r.sessionStore.NextCodeVersion(seqCtx, r.ID)
+				cancel()
+				if allocErr != nil {
+					r.logger.Warn("failed to allocate global code version from redis, falling back to local counter",
+						slog.String("error", allocErr.Error()),
+					)
+				} else {
+					globalVersion = v
+				}
+			}
+
+			r.mu.Lock()
+			if globalVersion <= r.codeVersion {
+				r.codeVersion++
+				globalVersion = r.codeVersion
+			} else {
+				r.codeVersion = globalVersion
+			}
+			codePayload.Version = globalVersion
+			r.mu.Unlock()
+
+			updatedEnv := NewEnvelope(raw.Type, raw.SessionID, raw.RequestID, codePayload)
+			if updatedBytes, marshalErr := updatedEnv.ToBytes(); marshalErr == nil {
+				msg.data = updatedBytes
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-r.done:
+				return
+			case r.broadcast <- msg:
+			}
+		}
+	}
+}
+
 // Register регистрирует клиента в комнате.
 func (r *Room) Register(client *Client) {
 	select {
@@ -547,6 +581,21 @@ func (r *Room) Unregister(client *Client) {
 
 // Broadcast отправляет сообщение всем участникам комнаты (локально и в Redis).
 func (r *Room) Broadcast(data []byte, senderID string) {
+	select {
+	case <-r.done:
+		return
+	default:
+	}
+
+	if raw, err := ParseRawEnvelope(data); err == nil && raw.Type == EventCodeUpdate {
+		select {
+		case <-r.done:
+			return
+		case r.codeUpdateQueue <- broadcastMessage{data: data, senderID: senderID, isRemote: false}:
+			return
+		}
+	}
+
 	select {
 	case <-r.done:
 		return

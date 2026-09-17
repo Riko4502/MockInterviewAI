@@ -59,7 +59,14 @@ export function useSandboxRealtime({
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const isSelfPeer = useCallback(
+  const pendingCodeRef = useRef<{
+    code: string;
+    language: LanguageId;
+  } | null>(null);
+
+  const pendingTaskRef = useRef<string | null>(null);
+
+  const isSelfServerPeer = useCallback(
     (peerId: string) => {
       if (!peerId) return true;
       if (peerId === userId) return true;
@@ -68,6 +75,14 @@ export function useSandboxRealtime({
         return true;
       }
       return false;
+    },
+    [userId],
+  );
+
+  const isSelfLocalPeer = useCallback(
+    (peerId: string) => {
+      if (!peerId) return true;
+      return peerId === userId;
     },
     [userId],
   );
@@ -189,6 +204,7 @@ export function useSandboxRealtime({
 
   const broadcastCodeUpdate = useCallback(
     (code: string, language: LanguageId) => {
+      pendingCodeRef.current = { code, language };
       sendMessage("code-update", { code, language });
     },
     [sendMessage],
@@ -203,6 +219,7 @@ export function useSandboxRealtime({
 
   const broadcastTaskChange = useCallback(
     (taskId: string) => {
+      pendingTaskRef.current = taskId;
       sendMessage("task-change", { taskId });
     },
     [sendMessage],
@@ -244,7 +261,7 @@ export function useSandboxRealtime({
             const participants = envelope.payload.participants || [];
             peersRef.current.clear();
             for (const p of participants) {
-              if (p.userId && !isSelfPeer(p.userId)) {
+              if (p.userId && !isSelfServerPeer(p.userId)) {
                 peersRef.current.set(p.userId, {
                   id: p.userId,
                   name: p.username || "Участник",
@@ -258,17 +275,22 @@ export function useSandboxRealtime({
 
             // Восстановление начального состояния кода при синхронизации комнаты
             if (envelope.payload.codeState?.content !== undefined) {
-              callbacksRef.current.onRemoteCodeUpdate?.(
-                envelope.payload.codeState.content,
-                envelope.payload.codeState.language as LanguageId,
-              );
+              if (pendingCodeRef.current) {
+                // Если есть неподтвержденные локальные изменения, повторно отправляем их
+                sendMessage("code-update", pendingCodeRef.current);
+              } else {
+                callbacksRef.current.onRemoteCodeUpdate?.(
+                  envelope.payload.codeState.content,
+                  envelope.payload.codeState.language as LanguageId,
+                );
+              }
             }
             break;
           }
 
           case "presence.join": {
             const p = envelope.payload;
-            if (p.userId && !isSelfPeer(p.userId)) {
+            if (p.userId && !isSelfServerPeer(p.userId)) {
               const hadPeer = peersRef.current.has(p.userId);
               peersRef.current.set(p.userId, {
                 id: p.userId,
@@ -296,7 +318,7 @@ export function useSandboxRealtime({
 
           case "cursor.move": {
             const p = envelope.payload;
-            if (p.userId && !isSelfPeer(p.userId)) {
+            if (p.userId && !isSelfServerPeer(p.userId)) {
               let existing = peersRef.current.get(p.userId);
               if (!existing) {
                 existing = {
@@ -321,6 +343,7 @@ export function useSandboxRealtime({
 
           case "code.update": {
             if (markMessageSeen(envelope.requestId)) {
+              pendingCodeRef.current = null;
               break;
             }
             const p = envelope.payload;
@@ -350,7 +373,7 @@ export function useSandboxRealtime({
                 if (parsed.payload?.signal) {
                   parsed.payload.signal.senderId = serverSenderId;
                 }
-                if (!isSelfPeer(parsed.senderId)) {
+                if (!isSelfServerPeer(parsed.senderId)) {
                   if (markMessageSeen(parsed.id)) {
                     break;
                   }
@@ -386,6 +409,13 @@ export function useSandboxRealtime({
         } else {
           wsConnRef.current = conn;
           setWsConnected(true);
+          // Отправка неподтвержденных локальных изменений после восстановления соединения
+          if (pendingCodeRef.current) {
+            sendMessage("code-update", pendingCodeRef.current);
+          }
+          if (pendingTaskRef.current) {
+            sendMessage("task-change", { taskId: pendingTaskRef.current });
+          }
         }
       })
       .catch(() => {
@@ -400,7 +430,7 @@ export function useSandboxRealtime({
       }
       setWsConnected(false);
     };
-  }, [roomId, isSelfPeer, markMessageSeen]);
+  }, [roomId, isSelfServerPeer, markMessageSeen, sendMessage]);
 
   // 2. Локальный BroadcastChannel и localStorage (для мгновенного обмена между вкладками одного браузера)
   useEffect(() => {
@@ -420,7 +450,8 @@ export function useSandboxRealtime({
     };
 
     const processMessage = (msg: SandboxRealtimeMessage) => {
-      if (!msg || msg.roomId !== roomId || isSelfPeer(msg.senderId)) return;
+      if (!msg || msg.roomId !== roomId || isSelfLocalPeer(msg.senderId))
+        return;
 
       if (markMessageSeen(msg.id)) {
         return;
@@ -486,11 +517,11 @@ export function useSandboxRealtime({
       channel?.close();
       channelRef.current = null;
     };
-  }, [roomId, userId, userName, isSelfPeer, markMessageSeen]);
+  }, [roomId, userId, userName, isSelfLocalPeer, markMessageSeen]);
 
   // Формируем список соавторов с курсорами для Monaco Editor (исключая самого себя)
   const collaborators: Collaborator[] = otherPeers
-    .filter((peer) => !isSelfPeer(peer.id))
+    .filter((peer) => !isSelfLocalPeer(peer.id))
     .map(mapPeerToCollaborator);
 
   return {
