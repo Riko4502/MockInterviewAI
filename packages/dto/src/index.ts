@@ -24,6 +24,19 @@ export {
   type ResetPasswordDto,
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
+export type {
+  MatchRequestResponseDto,
+  UnreadMatchRequestsCountDto,
+} from "./matchmaking/match-request-response.dto";
+// Matchmaking
+export {
+  type CreateMatchRequestDto,
+  createMatchRequestSchema,
+  type MatchRequestQueryDto,
+  matchRequestQuerySchema,
+  type RejectMatchRequestDto,
+  rejectMatchRequestSchema,
+} from "./matchmaking/matchmaking.dto";
 export {
   type NotificationActionResponseDto,
   type NotificationDto,
@@ -61,3 +74,31 @@ export {
   type InterviewParticipantRole,
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
+export {
+  normalizeSkill,
+  type ParsedSearchQuery,
+  parseSearchQuery,
+  sanitizeSearchTerm,
+  stripHtmlTags,
+} from "./showcase/search-parser";
+// Showcase
+export {
+  type ExperienceLevel,
+  experienceLevelEnum,
+  type InterviewLanguage,
+  interviewLanguageEnum,
+  type MatchRequestStatus,
+  matchRequestStatusEnum,
+  type ShowcaseCardStatus,
+  type ShowcaseSortBy,
+  type Specialization,
+  showcaseCardStatusEnum,
+  showcaseSortByEnum,
+  specializationEnum,
+} from "./showcase/showcase.enums";
+export type {
+  PaginatedResponseDto,
+  PublicUserCardDto,
+  ShowcaseCardResponseDto,
+  ShowcaseCardStatsDto,
+} from "./showcase/showcase-response.dto";
