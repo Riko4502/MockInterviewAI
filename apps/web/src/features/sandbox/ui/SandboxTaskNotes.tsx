@@ -23,7 +23,8 @@ export function SandboxTaskNotes() {
         className="flex-1 resize-none font-mono text-xs leading-relaxed"
       />
       <span className="text-[10px] text-muted-foreground">
-        Заметки сохраняются автоматически в рамках вашей сессии.
+        Заметки хранятся только в памяти страницы и будут потеряны после
+        перезагрузки.
       </span>
     </div>
   );

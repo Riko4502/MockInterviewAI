@@ -37,87 +37,40 @@ export const MOCK_INTERVIEW_TASKS: InterviewTask[] = [
     starterCode: {
       typescript: `function twoSum(nums: number[], target: number): number[] {
   // Напишите ваше решение здесь
-  const map = new Map<number, number>();
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (map.has(complement)) {
-      return [map.get(complement)!, i];
-    }
-    map.set(nums[i], i);
-  }
   return [];
 }
 `,
       javascript: `function twoSum(nums, target) {
   // Напишите ваше решение здесь
-  const map = new Map();
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (map.has(complement)) {
-      return [map.get(complement), i];
-    }
-    map.set(nums[i], i);
-  }
   return [];
 }
 `,
       python: `def twoSum(nums: list[int], target: int) -> list[int]:
     # Ваше решение здесь
-    seen = {}
-    for i, num in enumerate(nums):
-        complement = target - num
-        if complement in seen:
-            return [seen[complement], i]
-        seen[num] = i
-    return []
+    pass
 `,
       go: `package main
 
 func twoSum(nums []int, target int) []int {
-	seen := make(map[int]int)
-	for i, num := range nums {
-		complement := target - num
-		if idx, ok := seen[complement]; ok {
-			return []int{idx, i}
-		}
-		seen[num] = i
-	}
+	// Ваше решение здесь
 	return nil
 }
 `,
       cpp: `#include <vector>
-#include <unordered_map>
 
 using namespace std;
 
 class Solution {
 public:
     vector<int> twoSum(vector<int>& nums, int target) {
-        unordered_map<int, int> seen;
-        for (int i = 0; i < nums.size(); ++i) {
-            int complement = target - nums[i];
-            if (seen.count(complement)) {
-                return {seen[complement], i};
-            }
-            seen[nums[i]] = i;
-        }
+        // Ваше решение здесь
         return {};
     }
 };
 `,
-      java: `import java.util.HashMap;
-import java.util.Map;
-
-class Solution {
+      java: `class Solution {
     public int[] twoSum(int[] nums, int target) {
-        Map<Integer, Integer> seen = new HashMap<>();
-        for (int i = 0; i < nums.length; i++) {
-            int complement = target - nums[i];
-            if (seen.containsKey(complement)) {
-                return new int[] { seen.get(complement), i };
-            }
-            seen.put(nums[i], i);
-        }
+        // Ваше решение здесь
         return new int[0];
     }
 }
@@ -188,94 +141,41 @@ class Solution {
     starterCode: {
       typescript: `function isPalindrome(s: string): boolean {
   // Напишите ваше решение здесь
-  const clean = s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  let left = 0;
-  let right = clean.length - 1;
-  while (left < right) {
-    if (clean[left] !== clean[right]) return false;
-    left++;
-    right--;
-  }
-  return true;
+  return false;
 }
 `,
       javascript: `function isPalindrome(s) {
   // Напишите ваше решение здесь
-  const clean = s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  let left = 0;
-  let right = clean.length - 1;
-  while (left < right) {
-    if (clean[left] !== clean[right]) return false;
-    left++;
-    right--;
-  }
-  return true;
+  return false;
 }
 `,
       python: `def isPalindrome(s: str) -> bool:
-    clean = [c.lower() for c in s if c.isalnum()]
-    return clean == clean[::-1]
+    # Ваше решение здесь
+    pass
 `,
       go: `package main
 
-import "unicode"
-
 func isPalindrome(s string) bool {
-	runes := []rune(s)
-	left, right := 0, len(runes)-1
-	for left < right {
-		for left < right && !isAlphaNum(runes[left]) {
-			left++
-		}
-		for left < right && !isAlphaNum(runes[right]) {
-			right--
-		}
-		if unicode.ToLower(runes[left]) != unicode.ToLower(runes[right]) {
-			return false
-		}
-		left++
-		right--
-	}
-	return true
-}
-
-func isAlphaNum(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r)
+	// Ваше решение здесь
+	return false
 }
 `,
       cpp: `#include <string>
-#include <cctype>
 
 using namespace std;
 
 class Solution {
 public:
     bool isPalindrome(string s) {
-        int left = 0, right = s.size() - 1;
-        while (left < right) {
-            while (left < right && !isalnum(s[left])) left++;
-            while (left < right && !isalnum(s[right])) right--;
-            if (tolower(s[left]) != tolower(s[right])) return false;
-            left++;
-            right--;
-        }
-        return true;
+        // Ваше решение здесь
+        return false;
     }
 };
 `,
       java: `class Solution {
     public boolean isPalindrome(String s) {
-        int left = 0, right = s.length() - 1;
-        while (left < right) {
-            while (left < right && !Character.isLetterOrDigit(s.charAt(left))) left++;
-            while (left < right && !Character.isLetterOrDigit(s.charAt(right))) right--;
-            if (Character.toLowerCase(s.charAt(left)) != Character.toLowerCase(s.charAt(right))) {
-                return false;
-            }
-            left++;
-            right--;
-        }
-        return true;
+        // Ваше решение здесь
+        return false;
     }
 }
 `,
@@ -338,108 +238,42 @@ public:
     ],
     starterCode: {
       typescript: `function lengthOfLongestSubstring(s: string): number {
-  // Напишите ваше решение здесь (Sliding Window)
-  const map = new Map<string, number>();
-  let maxLength = 0;
-  let left = 0;
-
-  for (let right = 0; right < s.length; right++) {
-    const char = s[right];
-    if (map.has(char) && map.get(char)! >= left) {
-      left = map.get(char)! + 1;
-    }
-    map.set(char, right);
-    maxLength = Math.max(maxLength, right - left + 1);
-  }
-
-  return maxLength;
+  // Напишите ваше решение здесь
+  return 0;
 }
 `,
       javascript: `function lengthOfLongestSubstring(s) {
   // Напишите ваше решение здесь
-  const map = new Map();
-  let maxLength = 0;
-  let left = 0;
-
-  for (let right = 0; right < s.length; right++) {
-    const char = s[right];
-    if (map.has(char) && map.get(char) >= left) {
-      left = map.get(char) + 1;
-    }
-    map.set(char, right);
-    maxLength = Math.max(maxLength, right - left + 1);
-  }
-
-  return maxLength;
+  return 0;
 }
 `,
       python: `def lengthOfLongestSubstring(s: str) -> int:
-    seen = {}
-    max_len = 0
-    left = 0
-    for right, char in enumerate(s):
-        if char in seen and seen[char] >= left:
-            left = seen[char] + 1
-        seen[char] = right
-        max_len = max(max_len, right - left + 1)
-    return max_len
+    # Ваше решение здесь
+    pass
 `,
       go: `package main
 
 func lengthOfLongestSubstring(s string) int {
-	seen := make(map[byte]int)
-	maxLen, left := 0, 0
-	for right := 0; right < len(s); right++ {
-		b := s[right]
-		if idx, exists := seen[b]; exists && idx >= left {
-			left = idx + 1
-		}
-		seen[b] = right
-		if curr := right - left + 1; curr > maxLen {
-			maxLen = curr
-		}
-	}
-	return maxLen
+	// Ваше решение здесь
+	return 0
 }
 `,
       cpp: `#include <string>
-#include <unordered_map>
-#include <algorithm>
 
 using namespace std;
 
 class Solution {
 public:
     int lengthOfLongestSubstring(string s) {
-        unordered_map<char, int> seen;
-        int maxLen = 0, left = 0;
-        for (int right = 0; right < s.length(); ++right) {
-            if (seen.count(s[right]) && seen[s[right]] >= left) {
-                left = seen[s[right]] + 1;
-            }
-            seen[s[right]] = right;
-            maxLen = max(maxLen, right - left + 1);
-        }
-        return maxLen;
+        // Ваше решение здесь
+        return 0;
     }
 };
 `,
-      java: `import java.util.HashMap;
-import java.util.Map;
-
-class Solution {
+      java: `class Solution {
     public int lengthOfLongestSubstring(String s) {
-        Map<Character, Integer> seen = new HashMap<>();
-        int maxLen = 0, left = 0;
-        for (int right = 0; right < s.length(); right++) {
-            char c = s.charAt(right);
-            if (seen.containsKey(c) && seen.get(c) >= left) {
-                left = seen.get(c) + 1;
-            }
-            seen.put(c, right);
-            maxLen = Math.max(maxLen, right - left + 1);
-        }
-        return maxLen;
+        // Ваше решение здесь
+        return 0;
     }
 }
 `,
@@ -499,48 +333,42 @@ class Solution {
     ],
     starterCode: {
       typescript: `function reverseList(head: number[]): number[] {
-  // Для тестирования в песочнице работаем с массивом как с представлением списка
-  return [...head].reverse();
+  // Напишите ваше решение здесь
+  return [];
 }
 `,
       javascript: `function reverseList(head) {
-  return [...head].reverse();
+  // Напишите ваше решение здесь
+  return [];
 }
 `,
       python: `def reverseList(head: list[int]) -> list[int]:
-    return head[::-1]
+    # Ваше решение здесь
+    pass
 `,
       go: `package main
 
 func reverseList(head []int) []int {
-	res := make([]int, len(head))
-	for i, v := range head {
-		res[len(head)-1-i] = v
-	}
-	return res
+	// Ваше решение здесь
+	return nil
 }
 `,
       cpp: `#include <vector>
-#include <algorithm>
 
 using namespace std;
 
 class Solution {
 public:
     vector<int> reverseList(vector<int>& head) {
-        vector<int> res = head;
-        reverse(res.begin(), res.end());
-        return res;
+        // Ваше решение здесь
+        return {};
     }
 };
 `,
       java: `class Solution {
     public int[] reverseList(int[] head) {
-        int[] res = new int[head.length];
-        for (int i = 0; i < head.length; i++) {
-            res[head.length - 1 - i] = head[i];
-        }
-        return res;
+        // Ваше решение здесь
+        return new int[0];
     }
 }
 `,

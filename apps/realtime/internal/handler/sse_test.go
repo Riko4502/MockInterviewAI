@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -83,6 +84,7 @@ func (f *fakeStore) GetSessionUserRole(context.Context, string, string) (string,
 	return "candidate", nil
 }
 
+func (f *fakeStore) NextCodeVersion(context.Context, string) (int64, error) { return 0, nil }
 func (f *fakeStore) SaveCodeState(context.Context, string, []byte) error { return nil }
 
 func (f *fakeStore) GetCodeState(context.Context, string) ([]byte, error) { return nil, nil }
@@ -246,6 +248,15 @@ func readFrames(body io.Reader) <-chan sseFrame {
 			case strings.HasPrefix(line, "data: "):
 				current.Data += strings.TrimPrefix(line, "data: ")
 			}
+		}
+
+		if current.Event != "" {
+			frames <- current
+		}
+
+		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+			// Логирование или игнорирование ожидаемого закрытия потока
+			_ = err
 		}
 	}()
 
@@ -466,6 +477,9 @@ func awaitComment(t *testing.T, body io.Reader) {
 			if strings.HasPrefix(scanner.Text(), ":") {
 				return
 			}
+		}
+		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+			_ = err
 		}
 	}()
 

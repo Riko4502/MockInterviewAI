@@ -284,11 +284,31 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 	// обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
 	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
+			var globalVersion int64
+			if !msg.isRemote && r.sessionStore != nil {
+				seqCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				v, err := r.sessionStore.NextCodeVersion(seqCtx, r.ID)
+				cancel()
+				if err != nil {
+					r.logger.Warn("failed to allocate global code version from redis, falling back to local counter",
+						slog.String("error", err.Error()),
+					)
+				} else {
+					globalVersion = v
+				}
+			}
+
 			r.mu.Lock()
 			if !msg.isRemote {
-				// Монотонная версия на сервере: предотвращает гонки, дубликаты и рассинхрон из-за локальных часов клиента
-				r.codeVersion++
-				codePayload.Version = r.codeVersion
+				// Глобальная монотонная версия: при наличии SessionStore запрашивается атомарный sequence из Redis,
+				// иначе монотонно инкрементируется локальный счетчик (fallback)
+				if globalVersion <= r.codeVersion {
+					r.codeVersion++
+					globalVersion = r.codeVersion
+				} else {
+					r.codeVersion = globalVersion
+				}
+				codePayload.Version = globalVersion
 				r.lastCodeState = &codePayload
 
 				// Сериализуем обновленный конверт с согласованным номером версии
@@ -297,13 +317,27 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 					msg.data = updatedBytes
 				}
 			} else {
-				// Сообщение из Redis от другой реплики: принимаем версию, если она новее
+				// Сообщение из Redis от другой реплики: принимаем версию, только если она строго новее
+				if r.lastCodeState != nil && codePayload.Version <= r.lastCodeState.Version {
+					r.logger.Debug("dropping out-of-order remote code update before broadcast and save",
+						slog.Int64("version", codePayload.Version),
+						slog.Int64("lastCodeVersion", r.lastCodeState.Version),
+					)
+					r.mu.Unlock()
+					return
+				}
+				if codePayload.Version <= r.codeVersion && r.codeVersion > 0 {
+					r.logger.Debug("dropping out-of-order remote code update before broadcast and save",
+						slog.Int64("version", codePayload.Version),
+						slog.Int64("codeVersion", r.codeVersion),
+					)
+					r.mu.Unlock()
+					return
+				}
 				if codePayload.Version > r.codeVersion {
 					r.codeVersion = codePayload.Version
 				}
-				if r.lastCodeState == nil || codePayload.Version > r.lastCodeState.Version {
-					r.lastCodeState = &codePayload
-				}
+				r.lastCodeState = &codePayload
 			}
 			r.mu.Unlock()
 
