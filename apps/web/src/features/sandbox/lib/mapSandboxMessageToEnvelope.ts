@@ -25,7 +25,7 @@ export function mapSandboxMessageToEnvelope(
           filePath: "main",
           language: msg.payload.language || "typescript",
           content: msg.payload.code ?? "",
-          version: Date.now(),
+          version: 0,
         },
       };
 

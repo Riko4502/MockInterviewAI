@@ -67,6 +67,7 @@ describe("useSandboxRealtime deduplication", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    wsMessageHandler = null;
     MockBroadcastChannel.instances = [];
     // @ts-expect-error Mocking global BroadcastChannel
     globalThis.BroadcastChannel = MockBroadcastChannel;
@@ -134,8 +135,11 @@ describe("useSandboxRealtime deduplication", () => {
       },
     };
 
+    expect(typeof wsMessageHandler).toBe("function");
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
     act(() => {
-      wsMessageHandler?.({ data: JSON.stringify(wsEnvelope) });
+      handler({ data: JSON.stringify(wsEnvelope) });
     });
 
     // Should still be called only once (duplicate discarded)
@@ -143,6 +147,158 @@ describe("useSandboxRealtime deduplication", () => {
     expect(webRTCListener).toHaveBeenCalledTimes(1);
 
     unsubscribe();
+    unmount();
+  });
+
+  it("should apply empty code snapshot on room.sync event", () => {
+    const onRemoteCodeUpdate = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "test-room-empty-sync",
+        onRemoteCodeUpdate,
+      }),
+    );
+
+    expect(typeof wsMessageHandler).toBe("function");
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    const syncEnvelope = {
+      sessionId: "test-room-empty-sync",
+      requestId: "req_sync_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "room.sync",
+      payload: {
+        sessionId: "test-room-empty-sync",
+        participants: [],
+        codeState: {
+          filePath: "main.ts",
+          language: "typescript",
+          content: "",
+          version: 1,
+        },
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(syncEnvelope) });
+    });
+
+    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(1);
+    expect(onRemoteCodeUpdate).toHaveBeenCalledWith("", "typescript");
+
+    unmount();
+  });
+
+  it("should overwrite nested senderId and signal.senderId with server-verified envelope.payload.senderId", () => {
+    const onRemoteWebRTCSignal = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "test-room-auth",
+        onRemoteWebRTCSignal,
+      }),
+    );
+
+    expect(typeof wsMessageHandler).toBe("function");
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // Вложенный payload пытается подделать идентичность другого пользователя (spoofed-victim-id)
+    const spoofedSignal: WebRTCSignal = {
+      type: "offer",
+      sdp: { type: "offer", sdp: "v=0..." },
+      senderId: "spoofed-victim-id",
+    };
+
+    const spoofedMessage = {
+      id: "msg-auth-1",
+      type: "webrtc-signal" as const,
+      roomId: "test-room-auth",
+      senderId: "spoofed-victim-id",
+      senderName: "Impersonator",
+      payload: { signal: spoofedSignal },
+    };
+
+    // Сервер проверил соединение и выставил авторизованный envelope.payload.senderId
+    const serverEnvelope = {
+      sessionId: "test-room-auth",
+      requestId: "req_auth_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "chat.message",
+      payload: {
+        messageId: "msg-auth-1",
+        senderId: "verified-server-user-id",
+        senderName: "Legit User",
+        text: JSON.stringify(spoofedMessage),
+        sentAt: new Date().toISOString(),
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(serverEnvelope) });
+    });
+
+    expect(onRemoteWebRTCSignal).toHaveBeenCalledTimes(1);
+    expect(onRemoteWebRTCSignal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "offer",
+        senderId: "verified-server-user-id",
+      }),
+    );
+
+    unmount();
+  });
+
+  it("should reject chat.message envelope without external senderId", () => {
+    const onRemoteWebRTCSignal = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "test-room-auth-reject",
+        onRemoteWebRTCSignal,
+      }),
+    );
+
+    expect(typeof wsMessageHandler).toBe("function");
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    const signal: WebRTCSignal = {
+      type: "call-started",
+      senderId: "attacker-id",
+    };
+
+    const message = {
+      id: "msg-auth-reject-1",
+      type: "webrtc-signal" as const,
+      roomId: "test-room-auth-reject",
+      senderId: "attacker-id",
+      senderName: "Attacker",
+      payload: { signal },
+    };
+
+    const envelopeWithoutSenderId = {
+      sessionId: "test-room-auth-reject",
+      requestId: "req_reject_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "chat.message",
+      payload: {
+        messageId: "msg-auth-reject-1",
+        senderId: "",
+        senderName: "",
+        text: JSON.stringify(message),
+        sentAt: new Date().toISOString(),
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(envelopeWithoutSenderId) });
+    });
+
+    expect(onRemoteWebRTCSignal).not.toHaveBeenCalled();
+
     unmount();
   });
 });

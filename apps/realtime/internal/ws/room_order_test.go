@@ -151,6 +151,72 @@ func TestRoom_OrderedPublishing(t *testing.T) {
 	}
 }
 
+func TestRoom_ServerMonotonicVersionAssignment(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &mockSessionStoreOrder{}
+	room := NewRoom("test-session-monotonic", nil, store, logger, nil)
+	go room.Run(ctx)
+	defer room.Close()
+
+	// Клиенты шлют обновления с произвольными версиями (например, version: 0 или рассинхронизированное локальное время)
+	clientSentVersions := []int64{0, 100, 50, 50, 0}
+	for i, v := range clientSentVersions {
+		codeEnv := NewEnvelope(
+			EventCodeUpdate,
+			"test-session-monotonic",
+			"",
+			CodeUpdatePayload{
+				FilePath: "main.ts",
+				Content:  fmt.Sprintf("content step %d", i+1),
+				Version:  v,
+			},
+		)
+		bytes, _ := codeEnv.ToBytes()
+		room.Broadcast(bytes, "")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		count := len(store.savedPayload)
+		store.mu.Unlock()
+		if count >= len(clientSentVersions) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	// Сервер должен назначить строго монотонные версии: 1, 2, 3, 4, 5
+	if len(store.savedPayload) != len(clientSentVersions) {
+		t.Fatalf("expected %d saved code states, got %d", len(clientSentVersions), len(store.savedPayload))
+	}
+
+	for i, p := range store.savedPayload {
+		expectedVersion := int64(i + 1)
+		if p.Version != expectedVersion {
+			t.Errorf("step %d: expected server monotonic version %d, got %d", i, expectedVersion, p.Version)
+		}
+		expectedContent := fmt.Sprintf("content step %d", i+1)
+		if p.Content != expectedContent {
+			t.Errorf("step %d: expected content %q, got %q", i, expectedContent, p.Content)
+		}
+	}
+
+	room.mu.RLock()
+	lastState := room.lastCodeState
+	room.mu.RUnlock()
+
+	if lastState == nil || lastState.Version != 5 || lastState.Content != "content step 5" {
+		t.Errorf("expected in-memory lastCodeState version 5 with 'content step 5', got %v", lastState)
+	}
+}
+
 func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -161,7 +227,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 	go room.Run(ctx)
 	defer room.Close()
 
-	// 1. Отправляем версии 1, 2, 3 по порядку
+	// 1. Отправляем версии 1, 2, 3 по порядку через BroadcastFromRemote (версии уже назначены удаленной репликой)
 	for v := int64(1); v <= 3; v++ {
 		codeEnv := NewEnvelope(
 			EventCodeUpdate,
@@ -174,7 +240,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 			},
 		)
 		bytes, _ := codeEnv.ToBytes()
-		room.Broadcast(bytes, "")
+		room.BroadcastFromRemote(bytes)
 	}
 
 	// 2. Отправляем устаревшую версию (Version: 2) — должна быть проигнорирована
@@ -189,7 +255,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		},
 	)
 	bytes, _ := outdatedEnv.ToBytes()
-	room.Broadcast(bytes, "")
+	room.BroadcastFromRemote(bytes)
 
 	// 3. Отправляем более новую версию (Version: 4) — должна быть сохранена
 	newEnv4 := NewEnvelope(
@@ -203,7 +269,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		},
 	)
 	bytes, _ = newEnv4.ToBytes()
-	room.Broadcast(bytes, "")
+	room.BroadcastFromRemote(bytes)
 
 	// 4. Отправляем дубликат версии (Version: 4) с другим контентом — должен быть проигнорирован
 	duplicateEnv := NewEnvelope(
@@ -217,7 +283,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		},
 	)
 	bytes, _ = duplicateEnv.ToBytes()
-	room.Broadcast(bytes, "")
+	room.BroadcastFromRemote(bytes)
 
 	// 5. Отправляем версию 5 как барьер синхронизации: ее сохранение в mock store
 	// строго подтверждает через FIFO очереди, что все предшествующие сообщения
@@ -233,7 +299,7 @@ func TestRoom_OrderedAndConditionalCodeSaving(t *testing.T) {
 		},
 	)
 	bytes, _ = newEnv5.ToBytes()
-	room.Broadcast(bytes, "")
+	room.BroadcastFromRemote(bytes)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {

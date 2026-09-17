@@ -172,6 +172,7 @@ model UserPermissionOverride {
    - Возвращает эффективный массив прав текущего пользователя (с учетом роли и персональных overrides) для клиентского интерфейса.
 5. **`PATCH /api/v1/admin/users/:id/permissions`**
    - Персональное переопределение прав пользователя (`grant` / `deny`).
+   - **Инвалидация кэша:** Обязательно удаляет закэшированные права целевого `userId` из Redis после успешного обновления, гарантируя немедленное применение `deny` / `grant` переопределений без задержки на время истечения TTL (15 минут).
 
 ---
 
@@ -189,10 +190,11 @@ model UserPermissionOverride {
 - [ ] **Модуль `PermissionsModule` (`apps/api/src/modules/permissions`):**
   - Сервис расчета эффективных прав (`getEffectiveUserPermissions`).
   - Методы управления матрицей прав ролей с транзакционной записью.
-  - Инвалидация Redis-кэша пермишенов при любых изменениях матрицы.
+  - Инвалидация Redis-кэша пермишенов при любых изменениях матрицы прав ролей и персональных overrides пользователей.
 - [ ] **Интеграция с существующими контроллерами:**
   - Добавление `@RequirePermissions(PermissionKey.NAVIGATION_WRITE)` на `AdminNavigationController`.
   - Добавление `@RequirePermissions(PermissionKey.USERS_WRITE)` на `AdminUsersController`.
 - [ ] **Тестирование:**
   - Unit-тесты `permissions.guard.spec.ts` (положительные и отрицательные сценарии, deny overrides).
   - E2E-тесты эндпоинтов `/api/v1/admin/roles/:role/permissions`.
+  - E2E-тест инвалидации кэша: прогретый кэш прав пользователя → `deny` override через `PATCH /api/v1/admin/users/:id/permissions` → повторный запрос к защищённому эндпоинту возвращает `403 Forbidden`.

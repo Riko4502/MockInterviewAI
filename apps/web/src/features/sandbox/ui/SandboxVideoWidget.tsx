@@ -15,8 +15,8 @@ export function SandboxVideoWidget() {
 
   return (
     <div
-      className={`fixed right-6 bottom-6 z-50 overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl transition-all duration-300 ${
-        isMinimized ? "w-72" : "w-96"
+      className={`fixed right-4 bottom-4 z-50 w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl transition-all duration-300 ${
+        isMinimized ? "max-w-72" : "max-w-96"
       }`}
     >
       <SandboxVideoWidgetHeader

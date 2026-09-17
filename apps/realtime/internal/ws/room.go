@@ -40,6 +40,7 @@ type Room struct {
 	onEmpty          func(roomID string)
 	broadcaster      storage.Broadcaster
 	sessionStore     storage.SessionStore
+	codeVersion      int64
 	lastCodeState    *CodeUpdatePayload
 	pendingCodeState *CodeUpdatePayload
 }
@@ -83,6 +84,7 @@ func (r *Room) Run(ctx context.Context) {
 			if unpackErr := json.Unmarshal(codeBytes, &codePayload); unpackErr == nil {
 				r.mu.Lock()
 				r.lastCodeState = &codePayload
+				r.codeVersion = codePayload.Version
 				r.mu.Unlock()
 				r.logger.Info("restored last code state from redis",
 					slog.String("filePath", codePayload.FilePath),
@@ -278,23 +280,30 @@ func (r *Room) handleUnregister(client *Client) {
 
 // handleBroadcast рассылает сообщение локальным клиентам, ставит в очередь на сохранение и на публикацию в Redis.
 func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
-	// 1. Немедленная рассылка подключенным клиентам на текущем сервере (минимальная задержка)
-	r.mu.RLock()
-	for clientID, client := range r.clients {
-		if msg.senderID != "" && clientID == msg.senderID {
-			continue
-		}
-		client.Send(msg.data)
-	}
-	r.mu.RUnlock()
-
-	// 2. Если это обновление кода, условно обновляем снимок в памяти и ставим в очередь упорядоченного сохранения
+	// 1. Если это обновление кода, назначаем монотонную версию на сервере (для локальных событий),
+	// обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
 	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
 			r.mu.Lock()
-			// Условное обновление снимка в памяти: более старая или равная версия не перезаписывает новейшую
-			if r.lastCodeState == nil || codePayload.Version > r.lastCodeState.Version {
+			if !msg.isRemote {
+				// Монотонная версия на сервере: предотвращает гонки, дубликаты и рассинхрон из-за локальных часов клиента
+				r.codeVersion++
+				codePayload.Version = r.codeVersion
 				r.lastCodeState = &codePayload
+
+				// Сериализуем обновленный конверт с согласованным номером версии
+				updatedEnv := NewEnvelope(raw.Type, raw.SessionID, raw.RequestID, codePayload)
+				if updatedBytes, marshalErr := updatedEnv.ToBytes(); marshalErr == nil {
+					msg.data = updatedBytes
+				}
+			} else {
+				// Сообщение из Redis от другой реплики: принимаем версию, если она новее
+				if codePayload.Version > r.codeVersion {
+					r.codeVersion = codePayload.Version
+				}
+				if r.lastCodeState == nil || codePayload.Version > r.lastCodeState.Version {
+					r.lastCodeState = &codePayload
+				}
 			}
 			r.mu.Unlock()
 
@@ -323,6 +332,16 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 			}
 		}
 	}
+
+	// 2. Немедленная рассылка подключенным клиентам на текущем сервере (минимальная задержка)
+	r.mu.RLock()
+	for clientID, client := range r.clients {
+		if msg.senderID != "" && clientID == msg.senderID {
+			continue
+		}
+		client.Send(msg.data)
+	}
+	r.mu.RUnlock()
 
 	// 3. Если сообщение локальное — ставим в последовательную очередь упорядоченной публикации в Redis Pub/Sub
 	if !msg.isRemote && r.broadcaster != nil {
@@ -549,6 +568,7 @@ func (r *Room) Close() {
 		r.clients = make(map[string]*Client)
 		r.lastCodeState = nil
 		r.pendingCodeState = nil
+		r.codeVersion = 0
 		r.logger.Info("room closed successfully")
 	})
 }

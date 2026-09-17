@@ -62,7 +62,12 @@ export function useSandboxRealtime({
   const isSelfPeer = useCallback(
     (peerId: string) => {
       if (!peerId) return true;
-      return peerId === userId;
+      if (peerId === userId) return true;
+      const auth = getAuthUser();
+      if (auth.id && (peerId === auth.id || peerId.startsWith(`${auth.id}_`))) {
+        return true;
+      }
+      return false;
     },
     [userId],
   );
@@ -252,7 +257,7 @@ export function useSandboxRealtime({
             updatePeers();
 
             // Восстановление начального состояния кода при синхронизации комнаты
-            if (envelope.payload.codeState?.content) {
+            if (envelope.payload.codeState?.content !== undefined) {
               callbacksRef.current.onRemoteCodeUpdate?.(
                 envelope.payload.codeState.content,
                 envelope.payload.codeState.language as LanguageId,
@@ -329,10 +334,22 @@ export function useSandboxRealtime({
           }
 
           case "chat.message": {
+            const serverSenderId = envelope.payload.senderId;
+            if (!serverSenderId) {
+              break;
+            }
+            const serverSenderName = envelope.payload.senderName;
             const text = envelope.payload.text;
             if (text && typeof text === "string" && text.startsWith("{")) {
               try {
                 const parsed = JSON.parse(text) as SandboxRealtimeMessage;
+                parsed.senderId = serverSenderId;
+                if (serverSenderName) {
+                  parsed.senderName = serverSenderName;
+                }
+                if (parsed.payload?.signal) {
+                  parsed.payload.signal.senderId = serverSenderId;
+                }
                 if (!isSelfPeer(parsed.senderId)) {
                   if (markMessageSeen(parsed.id)) {
                     break;
