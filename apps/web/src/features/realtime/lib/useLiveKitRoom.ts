@@ -41,6 +41,7 @@ export function useLiveKitRoom({
 
   const roomRef = useRef<Room | null>(null);
   const connectionAttemptRef = useRef<number>(0);
+  const disconnectPromiseRef = useRef<Promise<void> | null>(null);
 
   // Обновление локального MediaStream из локальных публикаций
   const updateLocalStream = useCallback((currentRoom: Room) => {
@@ -74,6 +75,11 @@ export function useLiveKitRoom({
 
   // Подключение к комнате LiveKit SFU
   const connect = useCallback(async (): Promise<boolean> => {
+    // Если идет процесс отключения предыдущей комнаты, ожидаем его полного завершения
+    if (disconnectPromiseRef.current) {
+      await disconnectPromiseRef.current;
+    }
+
     if (roomRef.current?.state === ConnectionState.Connected) {
       return true;
     }
@@ -271,11 +277,30 @@ export function useLiveKitRoom({
   // Отключение от комнаты
   const disconnect = useCallback(async () => {
     connectionAttemptRef.current += 1;
-    if (roomRef.current) {
-      await roomRef.current.disconnect();
-      roomRef.current = null;
+    const roomToDisconnect = roomRef.current;
+    roomRef.current = null;
+
+    if (roomToDisconnect) {
+      const disconnPromise = (async () => {
+        try {
+          await roomToDisconnect.disconnect();
+        } catch (err) {
+          console.warn("[useLiveKitRoom] Disconnect failed:", err);
+        }
+      })();
+
+      disconnectPromiseRef.current = disconnPromise;
+
+      try {
+        await disconnPromise;
+      } finally {
+        if (disconnectPromiseRef.current === disconnPromise) {
+          disconnectPromiseRef.current = null;
+        }
+      }
     }
-    setRoom(null);
+
+    setRoom((prev) => (prev === roomToDisconnect ? null : prev));
     setConnectionState(ConnectionState.Disconnected);
     setLocalStream(null);
     setRemoteStream(null);

@@ -315,6 +315,9 @@ export function useSandboxRealtime({
           }
 
           case "code.update": {
+            if (markMessageSeen(envelope.requestId)) {
+              break;
+            }
             const p = envelope.payload;
             if (p.content !== undefined) {
               callbacksRef.current.onRemoteCodeUpdate?.(

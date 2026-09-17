@@ -355,3 +355,69 @@ func TestRoom_CodeSave_QueueOverflow_Coalescing(t *testing.T) {
 	}
 }
 
+type mockFailingSessionStore struct {
+	mockSessionStoreOrder
+	failCount int
+	calls     int
+}
+
+func (m *mockFailingSessionStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
+	m.mu.Lock()
+	m.calls++
+	if m.calls <= m.failCount {
+		m.mu.Unlock()
+		return fmt.Errorf("simulated redis transient failure #%d", m.calls)
+	}
+	m.mu.Unlock()
+	return m.mockSessionStoreOrder.SaveCodeState(ctx, sessionID, data)
+}
+
+func TestRoom_CodeSave_ErrorRetry(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &mockFailingSessionStore{
+		failCount: 2,
+	}
+	room := NewRoom("test-retry-session", nil, store, logger, nil)
+	go room.Run(ctx)
+	defer room.Close()
+
+	codeEnv := NewEnvelope(
+		EventCodeUpdate,
+		"test-retry-session",
+		"",
+		CodeUpdatePayload{
+			FilePath: "main.ts",
+			Content:  "content v1 after retry",
+			Version:  1,
+		},
+	)
+	bytes, _ := codeEnv.ToBytes()
+	room.Broadcast(bytes, "")
+
+	// Ожидаем, пока воркер повторит попытку сохранения и успешно запишет снимок
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		count := len(store.savedPayload)
+		store.mu.Unlock()
+		if count >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.savedPayload) != 1 {
+		t.Fatalf("expected 1 saved code state after retry, got %d (total calls: %d)", len(store.savedPayload), store.calls)
+	}
+
+	if store.savedPayload[0].Version != 1 || store.savedPayload[0].Content != "content v1 after retry" {
+		t.Fatalf("saved payload mismatch: got %v", store.savedPayload[0])
+	}
+}
+

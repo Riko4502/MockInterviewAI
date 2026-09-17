@@ -79,7 +79,6 @@ export function SandboxVideoWidgetScreen() {
         <>
           {/* Основной экран: Видео собеседника или аватар */}
           {showRemoteVideo ? (
-            // biome-ignore lint/a11y/useMediaCaption: WebRTC realtime video stream
             <video
               ref={remoteVideoRef}
               autoPlay

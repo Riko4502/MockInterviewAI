@@ -11,7 +11,7 @@ export function mapSandboxMessageToEnvelope(
 ): AnyWebSocketEnvelope {
   const base = {
     sessionId: roomId,
-    requestId: `req_${Date.now()}`,
+    requestId: msg.id || `req_${Date.now()}`,
     timestamp: new Date().toISOString(),
     version: 1,
   };

@@ -354,18 +354,48 @@ func (r *Room) publishWorker(ctx context.Context) {
 	}
 }
 
-// codeSaveWorker последовательно и условно (по возрастанию Version) сохраняет снимки кода в Redis.
+// codeSaveWorker последовательно и условно (по возрастанию Version) сохраняет снимки кода в Redis с повтором при ошибках.
 func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 	lastSavedVersion := initialSavedVersion
+	var retryTimer *time.Timer
+	var retryC <-chan time.Time
+	retryBackoff := 50 * time.Millisecond
+	const maxBackoff = 1 * time.Second
 
-	savePayload := func(payload CodeUpdatePayload) {
+	scheduleRetry := func() {
+		if retryTimer != nil {
+			retryTimer.Stop()
+		}
+		retryTimer = time.NewTimer(retryBackoff)
+		retryC = retryTimer.C
+		retryBackoff *= 2
+		if retryBackoff > maxBackoff {
+			retryBackoff = maxBackoff
+		}
+	}
+
+	cancelRetry := func() {
+		if retryTimer != nil {
+			retryTimer.Stop()
+			retryTimer = nil
+		}
+		retryC = nil
+		retryBackoff = 50 * time.Millisecond
+	}
+	defer func() {
+		if retryTimer != nil {
+			retryTimer.Stop()
+		}
+	}()
+
+	savePayload := func(payload CodeUpdatePayload) bool {
 		// Условная запись: если версия меньше или равна уже сохраненной, пропускаем (защита от race conditions и дубликатов)
 		if payload.Version <= lastSavedVersion {
 			r.logger.Debug("skipping out-of-order code save",
 				slog.Int64("version", payload.Version),
 				slog.Int64("lastSavedVersion", lastSavedVersion),
 			)
-			return
+			return true
 		}
 
 		payloadBytes, err := json.Marshal(payload)
@@ -374,19 +404,32 @@ func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 				slog.String("error", err.Error()),
 				slog.Int64("version", payload.Version),
 			)
-			return
+			return true
 		}
 
 		saveCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		if err := r.sessionStore.SaveCodeState(saveCtx, r.ID, payloadBytes); err != nil {
-			r.logger.Warn("failed to save code state snapshot in redis",
+			r.logger.Warn("failed to save code state snapshot in redis, returning to pending slot for retry",
 				slog.String("error", err.Error()),
 				slog.Int64("version", payload.Version),
 			)
-		} else {
-			lastSavedVersion = payload.Version
+
+			// Возвращаем failed payload в coalescing-слот (сохраняя более новую версию, если она уже появилась)
+			r.mu.Lock()
+			if r.pendingCodeState == nil || payload.Version > r.pendingCodeState.Version {
+				failedPayload := payload
+				r.pendingCodeState = &failedPayload
+			}
+			r.mu.Unlock()
+
+			scheduleRetry()
+			return false
 		}
+
+		lastSavedVersion = payload.Version
+		cancelRetry()
+		return true
 	}
 
 	drainPending := func() {
@@ -404,7 +447,11 @@ func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 			if pending == nil {
 				return
 			}
-			savePayload(*pending)
+			if ok := savePayload(*pending); !ok {
+				// При ошибке savePayload вернул снимок в pendingCodeState и запланировал retryTimer.
+				// Прерываем drainPending во избежание busy loop!
+				return
+			}
 		}
 	}
 
@@ -415,9 +462,13 @@ func (r *Room) codeSaveWorker(ctx context.Context, initialSavedVersion int64) {
 		case <-r.done:
 			return
 		case payload := <-r.codeSaveQueue:
-			savePayload(payload)
-			drainPending()
+			if ok := savePayload(payload); ok {
+				drainPending()
+			}
 		case <-r.codeSaveSignal:
+			drainPending()
+		case <-retryC:
+			retryC = nil
 			drainPending()
 		}
 	}
