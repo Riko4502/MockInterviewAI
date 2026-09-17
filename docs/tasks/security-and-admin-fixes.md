@@ -8,14 +8,14 @@
 
 | # | Область | Проблема / Уязвимость | Влияние | Решение | Статус |
 |---|---|---|---|---|---|
-| 1 | **Security / DTO** | CWE-521: Ослабленные требования к паролю в `CreateUserAdminDto` (8 символов вместо 12) | Создание администратором учетных записей со слабыми паролями, входящих через `/api/v1/auth/login` | Использовать `PASSWORD_MIN_LENGTH` (12) в `createUserAdminSchema` | ✅ Выполнено |
+| 1 | **Security / DTO** | CWE-521: Ручной ввод пароля администратором в `CreateUserAdminDto` | Риск компрометации паролей администратором и создание слабых паролей | Исключить поле `password` из `CreateUserAdminDto` (Zero-Knowledge: генерация криптостойкого пароля на сервере + email-рассылка) | ✅ Выполнено |
 | 2 | **Database / Prisma** | Отсутствие SQL-миграции для столбцов `generation` в `users` и `auth_revocation_tasks` | Ошибки выполнения запросов Prisma в продакшене из-за несоответствия схемы БД (`schema.prisma`) | Создать новую миграцию `20260914150000_add_generation_fields` | ✅ Выполнено |
 | 3 | **Tests / Auth** | Недостаточная проверка обновления `lastUsedAt` в тесте `rotateSession` | Ложноположительное прохождение теста при отсутствии обновления временной метки сессии | Добавить в тест `auth-session.service.spec.ts` проверки возвращенного и сохраненного в Redis `lastUsedAt` | ✅ Выполнено |
 | 4 | **API Validation / DTO** | `isActive` query-параметр: `preprocess` молча отключает фильтрацию при невалидных значениях | Запрос `?isActive=1` возвращает всех пользователей (200 OK) вместо ошибки 400 | Заменить `preprocess` на `z.union([z.boolean(), z.enum(["true", "false"])])` с `transform` | ✅ Выполнено |
 | 5 | **OpenAPI / DTO** | `z.date().or(z.string())` генерирует пустой `anyOf: [{}, {"type": "string"}]` в OpenAPI | Потеря типа `date-time` в контрактах OpenAPI, генерация `any`/`unknown` в клиенте API | Использовать `z.iso.datetime()` для полей дат (`createdAt`, `updatedAt`, `deactivatedAt`) | ✅ Выполнено |
-| 6 | **Security / Admin** | Отсутствие инвалидации сессий и инкремента `generation` при смене `email` или `username` администратором | Сохранение доступа по старым JWT/Refresh токенам после смены почты или логина | Добавить проверку `credentialsChanged = roleChanged || emailChanged || usernameChanged`, инкрементировать `generation` и отзывать сессии | ✅ Выполнено |
+| 6 | **Security / Admin** | Отсутствие инвалидации сессий и инкремента `generation` при смене `email` или `username` администратором | Сохранение доступа по старым JWT/Refresh токенам после смены почты или логина | Добавить проверку `credentialsChanged = roleChanged \|\| emailChanged \|\| usernameChanged`, инкрементировать `generation` и отзывать сессии | ✅ Выполнено |
 | 7 | **Performance / Redis** | Неэффективный глобальный `SCAN auth:session:*` в `revokeAllUserSessions` ($O(N)$ чтений) | Задержки и высокая сетевая нагрузка на Redis при большом числе сессий в продакшене | Использовать Redis Sorted Set (`ZSET`) `auth:user:{userId}:sessions` со score=expiration для $O(1)$ выборки, без утечек памяти | ✅ Выполнено |
-| 8 | **OpenAPI / Profile** | `z.date().or(z.string())` в `userProfileSchema` и `publicUserProfileSchema` | Генерация `createdAt: unknown | string` в клиенте `@packages/api` для профилей | Заменить на `z.iso.datetime()` в `packages/dto/src/profile/user-profile.dto.ts` | ✅ Выполнено |
+| 8 | **OpenAPI / Profile** | `z.date().or(z.string())` в `userProfileSchema` и `publicUserProfileSchema` | Генерация `createdAt: unknown \| string` в клиенте `@packages/api` для профилей | Заменить на `z.iso.datetime()` в `packages/dto/src/profile/user-profile.dto.ts` | ✅ Выполнено |
 | 9 | **API Validation** | Отсутствие `ParseUUIDPipe` в `sessions.controller.ts` и `notifications.controller.ts` | Некорректный UUID в пути вызывает `500 Internal Server Error` (Postgres syntax error) вместо `400` | Добавить `new ParseUUIDPipe()` для параметров `:id` и `:userId` | ⏳ Ожидает |
 | 10 | **DTO Validation** | `addParticipantSchema.userId` использует `min(1)` вместо валидации UUID | Передача не-UUID строки приводит к ошибке БД вместо 400 ошибки валидации | Заменить на `z.string().uuid()` в `participant.dto.ts` | ✅ Выполнено |
 | 11 | **Admin Panel / Consistency** | Отсутствие поля `deletedAt` в `userAdminResponseSchema` и `USER_ADMIN_SELECT` | Администратор не видит само-удаленные аккаунты (с 30-дневным окном восстановления) | Добавить `deletedAt` в селект и DTO схемы ответа администратора | ✅ Выполнено |
@@ -51,27 +51,37 @@
 
 ---
 
-### 1. Security Misconfiguration: Слабая парольная политика при создании пользователя администратором (CWE-521)
+### 1. Security & Zero-Knowledge: Исключение ручного ввода пароля администратором (Zero-Knowledge Admin Policy)
 
 #### 🛑 Описание проблемы
-- **Файл:** [`packages/dto/src/admin/create-user-admin.dto.ts`](./packages/dto/src/admin/create-user-admin.dto.ts)
-- **Суть:** `CreateUserAdminDto.password` валидировался с `minLength: 8`. В то же время `RegisterDto`, `ChangePasswordDto` и `ResetPasswordDto` используют константу `PASSWORD_MIN_LENGTH = 12` из `@packages/dto` ([`packages/dto/src/auth/password-policy.ts`](./packages/dto/src/auth/password-policy.ts)).
-- **Риск / Impact:** Администратор мог создать учетную запись со слабым паролем (8-11 символов). Пользователь использовал эти постоянные учетные данные для входа через `/api/v1/auth/login`, снижая стойкость системы к перебору и нарушая общую политику безопасности паролей.
+- **Файл:** [`packages/dto/src/admin/create-user-admin.dto.ts`](../../packages/dto/src/admin/create-user-admin.dto.ts)
+- **Суть:** Ранее `CreateUserAdminDto` содержал поле `password`, позволявшее администратору вручную задавать пароль при создании пользователя. Это нарушало приватность (Zero-Knowledge) и создавало риск установки предсказуемых или слабых паролей.
+- **Риск / Impact:** Администратор знал начальный пароль пользователя, что снижало безопасность учетной записи. Кроме того, ошибки валидации email не имели четкой локализации.
 
 #### 🛠️ План решения
-- [x] **1.1.** В [`packages/dto/src/admin/create-user-admin.dto.ts`](./packages/dto/src/admin/create-user-admin.dto.ts) импортировать `PASSWORD_MIN_LENGTH` и `PASSWORD_MAX_LENGTH` из `../auth/password-policy` и применить в схеме `password`.
-- [x] **1.2.** Добавить/обновить unit-тесты для `createUserAdminSchema` в `packages/dto`.
+- [x] **1.1.** Полностью удалить поле `password` из `createUserAdminSchema` и `CreateUserAdminDto`.
+- [x] **1.2.** Внедрить генерацию криптографически стойкого временного пароля (16 символов) на стороне сервера в `AdminUsersService.createUser` с отправкой на email пользователя.
+- [x] **1.3.** Обновить схему валидации `email`:
+  ```typescript
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email обязателен")
+    .pipe(z.email("Некорректный email"))
+    .transform(normalizeEmail)
+  ```
+- [x] **1.4.** Добавить/обновить unit-тесты для `createUserAdminSchema` в `packages/dto`.
 
 ---
 
 ### 2. Отсутствие SQL-миграции для полей `generation`
 
 #### 🛑 Описание проблемы
-- **Файл модели:** [`apps/api/prisma/schema.prisma`](./apps/api/prisma/schema.prisma)
+- **Файл модели:** [`apps/api/prisma/schema.prisma`](../../apps/api/prisma/schema.prisma)
 - **Суть:** В моделях `User` и `AuthRevocationTask` объявлены поля `generation`:
   - `User.generation Int @default(1)`
   - `AuthRevocationTask.generation Int?`
-  Однако ни одна из существующих миграций в [`apps/api/prisma/migrations/`](./apps/api/prisma/migrations/) не содержала инструкций `ADD COLUMN generation`.
+  Однако ни одна из существующих миграций в [`apps/api/prisma/migrations/`](../../apps/api/prisma/migrations/) не содержала инструкций `ADD COLUMN generation`.
 - **Риск / Impact:** При запуске `apps/api/start.sh` (`prisma migrate deploy`) база данных не получала данные колонки. Запросы Prisma к моделям `User` и `AuthRevocationTask` завершались ошибками выполнения (runtime error `column "generation" does not exist`).
 
 #### 🛠️ План решения
@@ -83,24 +93,24 @@
 ### 3. Проверка обновления `lastUsedAt` при ротации сессии
 
 #### 🛑 Описание проблемы
-- **Файл:** [`apps/api/src/modules/auth/services/auth-session.service.spec.ts`](./apps/api/src/modules/auth/services/auth-session.service.spec.ts#L214-L223)
+- **Файл:** [`apps/api/src/modules/auth/services/auth-session.service.spec.ts`](../../apps/api/src/modules/auth/services/auth-session.service.spec.ts#L214-L223)
 - **Суть:** Тест `"успешная ротация → обновляет refreshTokenHash и lastUsedAt"` проверял только `expect(result?.refreshTokenHash).toBe("new-hash")` и `expect(redisSet).toHaveBeenCalledTimes(1)`.
 - **Риск / Impact:** Если реализация метода `rotateSession` сохранит старое значение `lastUsedAt`, тест все равно проходил (false positive), маскируя ошибку логики аудита активности сессий.
 
 #### 🛠️ План решения
-- [x] **3.1.** В [`apps/api/src/modules/auth/services/auth-session.service.spec.ts`](./apps/api/src/modules/auth/services/auth-session.service.spec.ts) добавить проверку `expect(result?.lastUsedAt).not.toBe(...)` и `expect(persisted.lastUsedAt).toBe(result?.lastUsedAt)`.
+- [x] **3.1.** В [`apps/api/src/modules/auth/services/auth-session.service.spec.ts`](../../apps/api/src/modules/auth/services/auth-session.service.spec.ts) добавить проверку `expect(result?.lastUsedAt).not.toBe(...)` и `expect(persisted.lastUsedAt).toBe(result?.lastUsedAt)`.
 
 ---
 
 ### 4. Некорректное значение `isActive` молча отключает фильтрацию
 
 #### 🛑 Описание проблемы
-- **Файл:** [`packages/dto/src/admin/admin-users-query.dto.ts`](./packages/dto/src/admin/admin-users-query.dto.ts#L32-L38)
+- **Файл:** [`packages/dto/src/admin/admin-users-query.dto.ts`](../../packages/dto/src/admin/admin-users-query.dto.ts#L32-L38)
 - **Суть:** Использование `z.preprocess` возвращало `undefined` для любых значений, кроме `"true"`, `true`, `"false"`, `false`. Сервис `AdminUsersService` накладывал фильтр по `isActive` только при `query.isActive !== undefined`.
 - **Риск / Impact:** При передаче некорректного значения (например, `?isActive=1`, `?isActive=TRUE`, `?isActive=yes`) Zod преобразовывал его в `undefined`, фильтр игнорировался, и API возвращал `200 OK` со всеми пользователями вместо `400 Bad Request`. Администратор мог принять полный список за список активных пользователей.
 
 #### 🛠️ План решения
-- [x] **4.1.** В [`packages/dto/src/admin/admin-users-query.dto.ts`](./packages/dto/src/admin/admin-users-query.dto.ts) заменить `z.preprocess(...)` на `z.union([z.boolean(), z.enum(["true", "false"])]).transform(...)`.
+- [x] **4.1.** В [`packages/dto/src/admin/admin-users-query.dto.ts`](../../packages/dto/src/admin/admin-users-query.dto.ts) заменить `z.preprocess(...)` на `z.union([z.boolean(), z.enum(["true", "false"])]).transform(...)`.
 - [x] **4.2.** Добавить unit-тесты для `adminUsersQuerySchema` в `packages/dto`.
 
 ---
@@ -108,12 +118,12 @@
 ### 5. Некорректный тип дат в OpenAPI для схемы ответа пользователя администратора
 
 #### 🛑 Описание проблемы
-- **Файл:** [`packages/dto/src/admin/user-admin-response.dto.ts`](./packages/dto/src/admin/user-admin-response.dto.ts#L27-L33)
+- **Файл:** [`packages/dto/src/admin/user-admin-response.dto.ts`](../../packages/dto/src/admin/user-admin-response.dto.ts#L27-L33)
 - **Суть:** Поля `createdAt`, `updatedAt`, `deactivatedAt` были описаны как `z.date().or(z.string())`. В генераторе OpenAPI это превращалось в `anyOf: [{}, {"type": "string"}]`. Ветка `{}` не валидировала тип, из-за чего спецификация теряла `format: "date-time"`, а кодогенерация API-клиентов создавала типы `any` / `unknown`.
 - **Контекст:** В рантайме `AdminUsersService` получает `Date` из Prisma, контроллер возвращает объект в NestJS, а JSON-сериализатор преобразует `Date` в стандартную ISO-строку. В проекте уже используется Zod версии `^4.4.3` с поддержкой `z.iso.datetime()`.
 
 #### 🛠️ План решения
-- [x] **5.1.** В [`packages/dto/src/admin/user-admin-response.dto.ts`](./packages/dto/src/admin/user-admin-response.dto.ts) заменить `z.date().or(z.string())` на `z.iso.datetime()`.
+- [x] **5.1.** В [`packages/dto/src/admin/user-admin-response.dto.ts`](../../packages/dto/src/admin/user-admin-response.dto.ts) заменить `z.date().or(z.string())` на `z.iso.datetime()`.
 - [x] **5.2.** Добавить/обновить unit-тесты для схем ответа пользователя в `packages/dto`.
 
 ---
@@ -121,12 +131,12 @@
 ### 6. Инвалидация активных сессий при изменении `email` или `username` пользователя администратором
 
 #### 🛑 Описание проблемы
-- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](./apps/api/src/modules/admin/services/admin-users.service.ts#L305-L350)
+- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts#L305-L350)
 - **Суть:** В методе `updateUser` инкремент `generation: { increment: 1 }` и постановка задачи ревокации `authRevocationTask` выполняются только при изменении роли (`roleChanged = true`). При смене `email` или `username` сессии остаются активными.
 - **Риск / Impact:** Если аккаунт передается другому владельцу или меняется email в связи с компрометацией, ранее выданные JWT/Refresh токены продолжают действовать до 7 дней, сохраняя несанкционированный доступ.
 
 #### 🛠️ План решения
-- [x] **6.1.** В [`apps/api/src/modules/admin/services/admin-users.service.ts`](./apps/api/src/modules/admin/services/admin-users.service.ts) расширить условие инвалидации: `const credentialsChanged = roleChanged || (dto.email && dto.email !== existing.email) || (dto.username && dto.username !== existing.username)`.
+- [x] **6.1.** В [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts) расширить условие инвалидации: `const credentialsChanged = roleChanged || (dto.email && dto.email !== existing.email) || (dto.username && dto.username !== existing.username)`.
 - [x] **6.2.** Инкрементировать `generation` и отправлять команду ревокации `revokeSessionsWithRetry` при `credentialsChanged`.
 - [x] **6.3.** Обновить unit-тесты `admin-users.service.spec.ts` для проверки отзыва сессий при смене `email` и `username`.
 
@@ -135,7 +145,7 @@
 ### 7. Оптимизация поиска и ревокации сессий в Redis (Sorted Set `ZSET`)
 
 #### 🛑 Описание проблемы
-- **Файл:** [`apps/api/src/modules/auth/services/auth-session.service.ts`](./apps/api/src/modules/auth/services/auth-session.service.ts#L309-L330)
+- **Файл:** [`apps/api/src/modules/auth/services/auth-session.service.ts`](../../apps/api/src/modules/auth/services/auth-session.service.ts#L309-L330)
 - **Суть:** `revokeAllUserSessions` использует `SCAN auth:session:*` и делает отдельный `GET` запрос для каждой активной сессии в системе.
 - **Риск / Impact:** В продакшене при десятках тысяч сессий операция поиска имеет сложность $O(N)$ по всем сессиям, создавая пиковую нагрузку на Redis и задержки в обработке HTTP-запросов.
 
@@ -150,7 +160,7 @@
 ### 8. Строгая типизация ISO-дат в схемах профиля пользователя
 
 #### 🛑 Описание проблемы
-- **Файл:** [`packages/dto/src/profile/user-profile.dto.ts`](./packages/dto/src/profile/user-profile.dto.ts)
+- **Файл:** [`packages/dto/src/profile/user-profile.dto.ts`](../../packages/dto/src/profile/user-profile.dto.ts)
 - **Суть:** `publicUserProfileSchema` и `userProfileSchema` используют `z.date().or(z.string())`, что приводит к генерации `createdAt: unknown | string` в сгенерированном API-клиенте.
 - **Риск / Impact:** Потеря типобезопасности формата дат на фронтенде и в Swagger.
 
@@ -164,7 +174,7 @@
 ### 9. Валидация параметров пути UUID через `ParseUUIDPipe`
 
 #### 🛑 Описание проблемы
-- **Файлы:** [`apps/api/src/modules/sessions/sessions.controller.ts`](./apps/api/src/modules/sessions/sessions.controller.ts), [`apps/api/src/modules/notifications/notifications.controller.ts`](./apps/api/src/modules/notifications/notifications.controller.ts)
+- **Файлы:** [`apps/api/src/modules/sessions/sessions.controller.ts`](../../apps/api/src/modules/sessions/sessions.controller.ts), [`apps/api/src/modules/notifications/notifications.controller.ts`](../../apps/api/src/modules/notifications/notifications.controller.ts)
 - **Суть:** Эндпоинты используют `@Param("id") sessionId: string` без `ParseUUIDPipe`.
 - **Риск / Impact:** Передача некорректного UUID приводит к `500 Internal Server Error` (Postgres syntax error `22P02`) вместо стандартного `400 Bad Request`.
 
@@ -178,7 +188,7 @@
 ### 10. Валидация UUID в `addParticipantSchema.userId`
 
 #### 🛑 Описание проблемы
-- **Файл:** [`packages/dto/src/sessions/participant.dto.ts`](./packages/dto/src/sessions/participant.dto.ts)
+- **Файл:** [`packages/dto/src/sessions/participant.dto.ts`](../../packages/dto/src/sessions/participant.dto.ts)
 - **Суть:** Поле `userId` валидируется как `z.string().min(1)` вместо UUID.
 - **Риск / Impact:** Невалидная строка проходит Zod-валидацию и падает на уровне запроса к БД с 500 ошибкой.
 
@@ -191,7 +201,7 @@
 ### 11. Поддержка и отображение статуса `deletedAt` в Admin Users API
 
 #### 🛑 Описание проблемы
-- **Файлы:** [`packages/dto/src/admin/user-admin-response.dto.ts`](./packages/dto/src/admin/user-admin-response.dto.ts), [`apps/api/src/common/constants/user-select.constants.ts`](./apps/api/src/common/constants/user-select.constants.ts)
+- **Файлы:** [`packages/dto/src/admin/user-admin-response.dto.ts`](../../packages/dto/src/admin/user-admin-response.dto.ts), [`apps/api/src/common/constants/user-select.constants.ts`](../../apps/api/src/common/constants/user-select.constants.ts)
 - **Суть:** Само-удаленные пользователем аккаунты (`deletedAt !== null`, `isActive: true`) отображаются в админке как обычные активные пользователи без возможности отличить их.
 - **Риск / Impact:** Неполнота данных в админ-панели и невозможность аудита удаленных аккаунтов.
 
@@ -205,7 +215,7 @@
 ### 12. Удаление старых файлов аватара из S3 при редактировании администратором
 
 #### 🛑 Описание проблемы
-- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](./apps/api/src/modules/admin/services/admin-users.service.ts)
+- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts)
 - **Суть:** При обнулении (`avatarUrl: null`) или замене аватара администратором старый файл не удаляется из S3.
 - **Риск / Impact:** Накопление мусорных файлов в хранилище S3/MinIO.
 
@@ -218,7 +228,7 @@
 ### 13. Отзыв сессий и инкремент `generation` при сбросе логина (`username: null`)
 
 #### 🛑 Описание проблемы
-- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](./apps/api/src/modules/admin/services/admin-users.service.ts)
+- **Файл:** [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts)
 - **Суть:** В методе `updateUser` определение изменения логина реализовано как `const usernameChanged = Boolean(dto.username && dto.username !== existing.username)`. При передаче `username: null` (сброс логина пользователя администратором) переменная `usernameChanged` вычисляется в `false`.
 - **Риск / Impact:** При сбросе логина администратором (например, при подозрении на компрометацию или нарушении правил) `generation` пользователя не увеличивается и ранее выданные JWT/Refresh токены продолжают действовать до 7 дней.
 

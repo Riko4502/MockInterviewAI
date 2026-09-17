@@ -37,6 +37,7 @@ describe("AuthSessionService", () => {
   let service: AuthSessionService;
   let redisSet: jest.Mock;
   let redisGet: jest.Mock;
+  let redisMget: jest.Mock;
   let redisDelete: jest.Mock;
   let redisScanKeys: jest.Mock;
   let redisEval: jest.Mock;
@@ -44,14 +45,40 @@ describe("AuthSessionService", () => {
   beforeEach(() => {
     redisSet = jest.fn().mockResolvedValue("OK");
     redisGet = jest.fn().mockResolvedValue(null);
+    redisMget = jest.fn().mockImplementation(async (keys: string[]) => {
+      return Promise.all(keys.map((k) => redisGet(k)));
+    });
     redisDelete = jest.fn().mockResolvedValue(1);
     redisScanKeys = jest.fn().mockResolvedValue([]);
-    redisEval = jest.fn().mockResolvedValue(1);
+    redisEval = jest
+      .fn()
+      .mockImplementation(
+        async (script: string, keys: string[], args?: unknown[]) => {
+          if (script.includes("session.refreshTokenHash == new_hash")) {
+            const sessionKey = keys[0];
+            const newHash = args?.[0] as string;
+            const nowIso = args?.[1] as string;
+            const raw = await redisGet(sessionKey);
+            if (!raw) return null;
+            const session = JSON.parse(raw) as AuthSession;
+            if (session.refreshTokenHash === newHash) {
+              await redisDelete(sessionKey);
+              return "REPLAY";
+            }
+            session.refreshTokenHash = newHash;
+            session.lastUsedAt = nowIso;
+            await redisSet(sessionKey, JSON.stringify(session));
+            return JSON.stringify(session);
+          }
+          return 1;
+        },
+      );
 
     service = new AuthSessionService(
       {
         set: redisSet,
         get: redisGet,
+        mget: redisMget,
         delete: redisDelete,
         scanKeys: redisScanKeys,
         eval: redisEval,
@@ -382,6 +409,204 @@ describe("AuthSessionService", () => {
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${gen1SessionId}`);
       expect(redisDelete).not.toHaveBeenCalledWith(
         `auth:session:${gen2SessionId}`,
+      );
+    });
+
+    it("отзывает legacy-сессии без ZSET-индекса через fallback scanKeys (§CWE-613)", async () => {
+      const legacySessionId = randomUUID();
+      const legacySession: AuthSession = {
+        ...createStoredSession("legacy-hash"),
+        userId: USER_ID,
+      };
+
+      redisEval.mockResolvedValue([]); // Пустой ZSET
+      redisScanKeys.mockResolvedValue([`auth:session:${legacySessionId}`]);
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:session:${legacySessionId}`) {
+          return JSON.stringify(legacySession);
+        }
+        return null;
+      });
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${legacySessionId}`,
+      );
+    });
+
+    it("обрабатывает смешанное состояние: сессии в ZSET и legacy-сессии из SCAN (§CWE-613)", async () => {
+      const indexedSessionId = randomUUID();
+      const legacySessionId = randomUUID();
+      const otherUserSessionId = randomUUID();
+
+      const indexedSession: AuthSession = {
+        ...createStoredSession("indexed-hash"),
+        userId: USER_ID,
+      };
+      const legacySession: AuthSession = {
+        ...createStoredSession("legacy-hash"),
+        userId: USER_ID,
+      };
+      const otherUserSession: AuthSession = {
+        ...createStoredSession("other-hash"),
+        userId: "other-user-uuid",
+      };
+
+      redisEval.mockImplementation(async (_script: string, keys: string[]) => {
+        if (keys[0] === `auth:user:${USER_ID}:sessions`) {
+          return [indexedSessionId];
+        }
+        return 1;
+      });
+      redisScanKeys.mockResolvedValue([
+        `auth:session:${legacySessionId}`,
+        `auth:session:${otherUserSessionId}`,
+      ]);
+
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:session:${indexedSessionId}`) {
+          return JSON.stringify(indexedSession);
+        }
+        if (key === `auth:session:${legacySessionId}`) {
+          return JSON.stringify(legacySession);
+        }
+        if (key === `auth:session:${otherUserSessionId}`) {
+          return JSON.stringify(otherUserSession);
+        }
+        return null;
+      });
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${indexedSessionId}`,
+      );
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${legacySessionId}`,
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:session:${otherUserSessionId}`,
+      );
+    });
+
+    it("отзывает legacy-сессию без поля generation при передаче maxGeneration (§CWE-613)", async () => {
+      const legacySessionId = randomUUID();
+      const newGenSessionId = randomUUID();
+
+      const legacySession: AuthSession = {
+        ...createStoredSession("legacy-hash"),
+        userId: USER_ID,
+        // generation отсутствует
+      };
+      const newGenSession: AuthSession = {
+        ...createStoredSession("new-gen-hash"),
+        userId: USER_ID,
+        generation: 3,
+      };
+
+      redisEval.mockImplementation(async (_script: string, keys: string[]) => {
+        if (keys[0] === `auth:user:${USER_ID}:sessions`) {
+          return [newGenSessionId];
+        }
+        return 1;
+      });
+      redisScanKeys.mockResolvedValue([`auth:session:${legacySessionId}`]);
+
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:session:${legacySessionId}`) {
+          return JSON.stringify(legacySession);
+        }
+        if (key === `auth:session:${newGenSessionId}`) {
+          return JSON.stringify(newGenSession);
+        }
+        return null;
+      });
+
+      await service.revokeAllUserSessions(USER_ID, undefined, 2);
+
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${legacySessionId}`,
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:session:${newGenSessionId}`,
+      );
+    });
+
+    it("одновременно применяет фильтры maxGeneration и maxCreatedAt (§SessionRevocationCron)", async () => {
+      const legacyOldSessionId = randomUUID();
+      const legacyNewSessionId = randomUUID();
+      const gen1OldSessionId = randomUUID();
+      const gen2OldSessionId = randomUUID();
+
+      const cutoff = new Date("2026-08-01T12:00:00.000Z");
+
+      // 1. Legacy сессия (generation undefined), создана ДО cutoff -> должна быть отозвана
+      const legacyOldSession: AuthSession = {
+        ...createStoredSession("h-leg-old"),
+        userId: USER_ID,
+        createdAt: "2026-08-01T10:00:00.000Z",
+      };
+
+      // 2. Legacy сессия (generation undefined), создана ПОСЛЕ cutoff -> НЕ должна быть отозвана
+      const legacyNewSession: AuthSession = {
+        ...createStoredSession("h-leg-new"),
+        userId: USER_ID,
+        createdAt: "2026-08-01T14:00:00.000Z",
+      };
+
+      // 3. Gen 1 сессия (generation <= 1), создана ДО cutoff -> должна быть отозвана
+      const gen1OldSession: AuthSession = {
+        ...createStoredSession("h-gen1-old"),
+        userId: USER_ID,
+        generation: 1,
+        createdAt: "2026-08-01T10:00:00.000Z",
+      };
+
+      // 4. Gen 2 сессия (generation > 1), создана ДО cutoff -> НЕ должна быть отозвана (поколение новее)
+      const gen2OldSession: AuthSession = {
+        ...createStoredSession("h-gen2-old"),
+        userId: USER_ID,
+        generation: 2,
+        createdAt: "2026-08-01T10:00:00.000Z",
+      };
+
+      redisEval.mockImplementation(async (_script: string, keys: string[]) => {
+        if (keys[0] === `auth:user:${USER_ID}:sessions`) {
+          return [gen1OldSessionId, gen2OldSessionId];
+        }
+        return 1;
+      });
+      redisScanKeys.mockResolvedValue([
+        `auth:session:${legacyOldSessionId}`,
+        `auth:session:${legacyNewSessionId}`,
+      ]);
+
+      redisGet.mockImplementation(async (key: string) => {
+        if (key === `auth:session:${legacyOldSessionId}`)
+          return JSON.stringify(legacyOldSession);
+        if (key === `auth:session:${legacyNewSessionId}`)
+          return JSON.stringify(legacyNewSession);
+        if (key === `auth:session:${gen1OldSessionId}`)
+          return JSON.stringify(gen1OldSession);
+        if (key === `auth:session:${gen2OldSessionId}`)
+          return JSON.stringify(gen2OldSession);
+        return null;
+      });
+
+      await service.revokeAllUserSessions(USER_ID, cutoff, 1);
+
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${legacyOldSessionId}`,
+      );
+      expect(redisDelete).toHaveBeenCalledWith(
+        `auth:session:${gen1OldSessionId}`,
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:session:${legacyNewSessionId}`,
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:session:${gen2OldSessionId}`,
       );
     });
   });

@@ -60,20 +60,20 @@ apps/web/src/
 ├── entities/
 │   └── admin-user/
 │       ├── api/
-│       │   ├── admin-users.api.ts                         # Вызовы REST API (getUsers, getUser, createUser, updateUser, toggleStatus)
+│       │   ├── admin-users.api.ts                         # Вызовы REST API (getUsers, getUser, createUser, updateUser, toggleStatus, resetPassword, deleteUser, restoreUser)
 │       │   └── admin-users.queries.ts                     # TanStack Query хуки: useAdminUsers, useAdminUserDetail
 │       ├── model/
 │       │   └── types.ts                                   # Типы фильтров, таблицы, статусов
 │       ├── ui/
 │       │   ├── UserRoleBadge.tsx                          # Бейдж роли: "ADMIN" (фиолетовый) / "USER" (серый)
-│       │   ├── UserStatusBadge.tsx                        # Бейдж статуса: "Активен" (зеленый) / "Деактивирован" (красный)
+│       │   ├── UserStatusBadge.tsx                        # Бейдж статуса: "Активен" (зеленый) / "Деактивирован" (красный) / "Удален" (серый)
 │       │   └── UserAvatarCell.tsx                         # Ячейка с аватаром, именем и username
 │       └── index.ts
 │
 ├── features/
 │   ├── admin-users-filter/
 │   │   ├── ui/
-│   │   │   ├── AdminUsersFilter.tsx                       # Поисковая строка (debounced), селекторы роли и активности, сброс
+│   │   │   ├── AdminUsersFilter.tsx                       # Поисковая строка (debounced), селекторы роли, активности и статуса удаления (isDeleted), сброс
 │   │   │   └── AdminUsersFilter.test.tsx
 │   │   ├── model/
 │   │   │   └── useAdminUsersFilterState.ts                # Синхронизация фильтров с URLSearchParams
@@ -81,16 +81,16 @@ apps/web/src/
 │   │
 │   ├── admin-user-create/
 │   │   ├── ui/
-│   │   │   ├── CreateUserDialog.tsx                       # Модальное окно создания пользователя (email, password, role, etc.)
+│   │   │   ├── CreateUserDialog.tsx                       # Модальное окно создания пользователя (email, role, username, displayName — БЕЗ пароля)
 │   │   │   └── CreateUserDialog.test.tsx
 │   │   ├── model/
-│   │   │   ├── useCreateUserForm.ts                       # React Hook Form + Zod валидация
+│   │   │   ├── useCreateUserForm.ts                       # React Hook Form + Zod валидация (createUserAdminSchema)
 │   │   │   └── useCreateUserMutation.ts                   # TanStack Mutation + toast + инвалидация кэша
 │   │   └── index.ts
 │   │
 │   ├── admin-user-edit/
 │   │   ├── ui/
-│   │   │   ├── EditUserDialog.tsx                         # Модальное окно редактирования (без пароля!)
+│   │   │   ├── EditUserDialog.tsx                         # Модальное окно редактирования (без пароля, с блокировкой смены роли для самого себя)
 │   │   │   └── EditUserDialog.test.tsx
 │   │   ├── model/
 │   │   │   ├── useEditUserForm.ts
@@ -99,10 +99,28 @@ apps/web/src/
 │   │
 │   ├── admin-user-status/
 │   │   ├── ui/
-│   │   │   ├── ToggleStatusDialog.tsx                     # Диалог подтверждения деактивации/активации
+│   │   │   ├── ToggleStatusDialog.tsx                     # Диалог подтверждения деактивации/активации (с Self-Lockout защитой)
 │   │   │   └── ToggleStatusDialog.test.tsx
 │   │   ├── model/
 │   │   │   └── useToggleStatusMutation.ts
+│   │   └── index.ts
+│   │
+│   ├── admin-user-reset-password/
+│   │   ├── ui/
+│   │   │   ├── ResetPasswordDialog.tsx                    # Диалог подтверждения сброса пароля сервером
+│   │   │   └── ResetPasswordDialog.test.tsx
+│   │   ├── model/
+│   │   │   └── useResetPasswordMutation.ts
+│   │   └── index.ts
+│   │
+│   ├── admin-user-lifecycle/
+│   │   ├── ui/
+│   │   │   ├── DeleteUserDialog.tsx                       # Диалог мягкого удаления (с Self-Deletion защитой)
+│   │   │   ├── RestoreUserDialog.tsx                      # Диалог восстановления удаленного аккаунта
+│   │   │   └── DeleteUserDialog.test.tsx
+│   │   ├── model/
+│   │   │   ├── useDeleteUserMutation.ts
+│   │   │   └── useRestoreUserMutation.ts
 │   │   └── index.ts
 │   │
 │   └── admin-user-details/
@@ -119,7 +137,7 @@ apps/web/src/
 │   │   ├── ui/
 │   │   │   ├── AdminUsersTable.tsx                        # Таблица на базе @packages/ui/DataTable
 │   │   │   ├── AdminUsersTableColumns.tsx                 # Описание колонок, сортировки, форматирования дат
-│   │   │   ├── AdminUsersTableRowActions.tsx              # Меню действий (DropdownMenu: Просмотр, Редактировать, Активировать/Деактивировать)
+│   │   │   ├── AdminUsersTableRowActions.tsx              # Меню действий (DropdownMenu: Просмотр, Редактировать, Сбросить пароль, Статус, Удалить/Восстановить)
 │   │   │   └── AdminUsersTable.test.tsx
 │   │   └── index.ts
 │   │
@@ -144,13 +162,9 @@ apps/web/src/
 | **Пользователь** | Аватар + `displayName` + `@username` | `sortBy=username` |
 | **Email** | Почтовый адрес пользователя | `sortBy=email` |
 | **Роль** | Бейдж `<UserRoleBadge>` (`ADMIN` / `USER`) | `sortBy=role` |
-| **Статус** | Бейдж `<UserStatusBadge>` (`Активен` / `Деактивирован`) | `sortBy=isActive` |
+| **Статус** | Бейдж `<UserStatusBadge>` (`Активен` / `Деактивирован` / `Удален`) | `sortBy=isActive` |
 | **Дата регистрации** | Форматированная дата (`dd.MM.yyyy HH:mm`) | `sortBy=createdAt` |
-| **Действия** | `<DropdownMenu>`: Детали, Редактировать, Активировать/Деактивировать | — |
-
-> [!IMPORTANT]
-> **Физическое удаление пользователя (`DELETE`) отсутствует в UI.**
-> В меню действий доступна только мягкая деактивация/активация. Кнопка "Удалить" не отображается.
+| **Действия** | `<DropdownMenu>`: Детали, Редактировать, Сбросить пароль, Деактивировать/Активировать, Удалить/Восстановить | — |
 
 ---
 
@@ -161,33 +175,44 @@ apps/web/src/
    - Автоматический сброс страницы на `page: 1` при изменении поисковой строки.
 2. **Селектор роли (`Select`):**
    - Опции: *Все роли*, *USER*, *ADMIN*.
-3. **Селектор статуса (`Select`):**
+3. **Селектор активности (`Select`):**
    - Опции: *Все статусы*, *Только активные*, *Только деактивированные*.
-4. **Сортировка:**
+4. **Селектор удаления (`Select` / `Tabs`):**
+   - Опции: *Все пользователи*, *Только действующие* (`isDeleted=false`), *Только удаленные* (`isDeleted=true`).
+5. **Сортировка:**
    - Выбор поля и направления через клик по заголовкам колонок таблицы.
-5. **Сброс фильтров:**
+6. **Сброс фильтров:**
    - Кнопка "Сбросить", возвращающая значения по умолчанию.
-6. **URL State Synchronization:**
-   - Все параметры (`page`, `limit`, `search`, `role`, `isActive`, `sortBy`, `sortOrder`) синхронизируются с `URLSearchParams` через Next.js Router (`useSearchParams`, `useRouter`).
+7. **URL State Synchronization:**
+   - Все параметры (`page`, `limit`, `search`, `role`, `isActive`, `isDeleted`, `sortBy`, `sortOrder`) синхронизируются с `URLSearchParams` через Next.js Router (`useSearchParams`, `useRouter`).
 
 ---
 
 ### 3.3. Модальные окна и формы
 
 #### 1. Модалка создания (`CreateUserDialog`):
-- **Поля:** `email` (input), `password` (password input с генератором/показом пароля), `role` (select: USER/ADMIN), `username` (input), `displayName` (input).
+- **Поля:** `email` (input), `role` (select: USER/ADMIN), `username` (input), `displayName` (input).
+- **Zero-Knowledge Парольная политика:** Поле пароля **отсутствует**. Администратор не придумывает пароль; сервер генерирует временный пароль и отправляет его пользователю на почту.
 - **Валидация:** Zod-схема (`createUserAdminSchema` из `@packages/dto`).
-- **После сохранения:** закрытие диалога, всплывающий toast "Пользователь успешно создан", инвалидация кэша списка.
+- **После сохранения:** закрытие диалога, всплывающий toast "Пользователь успешно создан. Временный пароль отправлен на email", инвалидация кэша списка.
 
 #### 2. Модалка редактирования (`EditUserDialog`):
 - **Поля:** `email`, `role`, `username`, `displayName`, `telegramUsername`, `gitUrl`.
-- **Особенность:** поле пароля **отсутствует** (пароль не редактируется через общий CRUD).
+- **Особенность:** поле пароля **отсутствует**.
+- **Self-Role Guard:** Если редактируется собственный аккаунт администратора (`currentUserId === user.id`), селектор роли отключен (`disabled`) с подсказкой *"Нельзя изменить собственную роль"*.
 - **Инвалидация:** при смене роли пользователю сбрасываются сессии (информирование админа в Toast).
 
-#### 3. Диалог подтверждения деактивации (`ToggleStatusDialog`):
-- Предупреждение:
-  > *"Вы уверены, что хотите деактивировать пользователя **{email}**? Все его активные сессии будут немедленно завершены, и он потеряет доступ к платформе."*
+#### 3. Диалог сброса пароля (`ResetPasswordDialog`):
+- Предупреждение: *"Вы уверены, что хотите сбросить пароль для {email}? Пользователю будет сгенерирован новый временный пароль и отправлен на email, а все текущие сессии будут завершены."*
+- Вызывает `POST /api/v1/admin/users/:id/reset-password`.
+
+#### 4. Диалог деактивации (`ToggleStatusDialog`):
+- Предупреждение: *"Вы уверены, что хотите деактивировать пользователя {email}? Все его активные сессии будут немедленно завершены, и он потеряет доступ к платформе."*
 - **Self-Lockout защита:** Если текущий авторизованный администратор (`currentUserId === targetUserId`), кнопка деактивации в интерфейсе блокируется (`disabled`) с тултипом *"Нельзя деактивировать собственный аккаунт администратора"*.
+
+#### 5. Диалог удаления и восстановления (`DeleteUserDialog` / `RestoreUserDialog`):
+- Удаление: мягкое удаление (`DELETE /api/v1/admin/users/:id`), кнопка заблокирована для собственного аккаунта.
+- Восстановление: сброс `deletedAt` и повторная активация (`POST /api/v1/admin/users/:id/restore`).
 
 ---
 
@@ -197,17 +222,20 @@ apps/web/src/
 
 - [ ] **API Клиент (`entities/admin-user/api/admin-users.api.ts`):**
   - Метод `getAdminUsers(params: AdminUsersQueryParams): Promise<PaginatedResponse<UserAdminDto>>`.
-  - Метод `getAdminUserById(id: string): Promise<UserAdminDetailDto>`.
-  - Метод `createAdminUser(data: CreateUserAdminDto): Promise<UserAdminDto>`.
-  - Метод `updateAdminUser(id: string, data: UpdateUserAdminDto): Promise<UserAdminDto>`.
-  - Метод `toggleAdminUserStatus(id: string, isActive: boolean): Promise<UserAdminDto>`.
+  - Метод `getAdminUserById(id: string): Promise<UserAdminResponseDto>`.
+  - Метод `createAdminUser(data: CreateUserAdminDto): Promise<UserAdminResponseDto>`.
+  - Метод `updateAdminUser(id: string, data: UpdateUserAdminDto): Promise<UserAdminResponseDto>`.
+  - Метод `toggleAdminUserStatus(id: string, isActive: boolean): Promise<UserAdminResponseDto>`.
+  - Метод `resetAdminUserPassword(id: string): Promise<{ message: string }>`.
+  - Метод `deleteAdminUser(id: string): Promise<{ message: string }>`.
+  - Метод `restoreAdminUser(id: string): Promise<UserAdminResponseDto>`.
 - [ ] **TanStack Query хуки (`entities/admin-user/api/admin-users.queries.ts`):**
-  - Хук `useAdminUsers(params)` с поддержкой `keepPreviousData: true` (для плавной пагинации).
-  - Мутации: `useCreateAdminUserMutation`, `useUpdateAdminUserMutation`, `useToggleAdminUserStatusMutation`.
+  - Хук `useAdminUsers(params)` с поддержкой `keepPreviousData: true`.
+  - Мутации: `useCreateAdminUserMutation`, `useUpdateAdminUserMutation`, `useToggleAdminUserStatusMutation`, `useResetPasswordMutation`, `useDeleteAdminUserMutation`, `useRestoreAdminUserMutation`.
   - Инвалидация ключа запроса `['admin', 'users']` при любых мутациях.
 - [ ] **UI-компоненты сущности (`entities/admin-user/ui/`):**
   - `UserRoleBadge`: фиолетовый для `ADMIN`, нейтральный серый для `USER`.
-  - `UserStatusBadge`: зеленый с точкой для `Активен`, красный для `Деактивирован`.
+  - `UserStatusBadge`: зеленый для `Активен`, красный для `Деактивирован`, серый для `Удален`.
   - `UserAvatarCell`: аватар с fallback инициалами, имя и юзернейм.
 
 ---
@@ -215,44 +243,44 @@ apps/web/src/
 ### 🔍 Часть 2: Панель фильтрации и поиска (`features/admin-users-filter`)
 
 - [ ] **Хук синхронизации с URL (`useAdminUsersFilterState`):**
-  - Чтение и запись параметров в URL search query.
-  - Поддержка быстрого копирования и шаринга ссылки с фильтрами.
+  - Чтение и запись параметров в URL search query (`search`, `role`, `isActive`, `isDeleted`, `page`, `limit`, `sortBy`, `sortOrder`).
 - [ ] **Компонент фильтров (`AdminUsersFilter.tsx`):**
   - Debounced Input (300ms) для поиска по подстроке.
-  - Select-фильтры по роли и статусу.
+  - Select-фильтры по роли, активности и статусу удаления `isDeleted`.
   - Кнопка сброса при наличии активных фильтров.
-  - Написание unit-тестов `AdminUsersFilter.test.tsx`.
+  - Unit-тесты `AdminUsersFilter.test.tsx`.
 
 ---
 
 ### 📊 Часть 3: Таблица пользователей и пагинация (`widgets/admin-users-table`)
 
 - [ ] **Колонки и рендер (`AdminUsersTableColumns.tsx`):**
-  - Настройка форматирования дат через `date-fns` / `Intl.DateTimeFormat`.
-  - Настройка интерактивной сортировки по клику на заголовки.
+  - Форматирование дат, поддержка сортировки по колонкам.
 - [ ] **Меню действий строки (`AdminUsersTableRowActions.tsx`):**
-  - `DropdownMenu`: Просмотр информации (Drawer), Редактировать (Modal), Деактивировать / Активировать (Modal).
-  - Блокировка деактивации для текущего пользователя (`currentUserId === row.id`).
+  - Меню: Детали, Редактировать, Сбросить пароль, Деактивировать/Активировать, Удалить/Восстановить.
+  - Блокировка деактивации, смены роли и удаления для текущего пользователя (`currentUserId === row.id`).
 - [ ] **Таблица (`AdminUsersTable.tsx`):**
-  - Использование `DataTable` / `Table` из `@packages/ui`.
-  - Состояния: Skeleton-загрузка при запросе, Empty-стейт "Пользователи не найдены".
-  - Пагинация: выбор страницы и лимита элементов (`10, 20, 50, 100`).
+  - Использование `DataTable` из `@packages/ui`.
+  - Состояния: Skeleton-загрузка, Empty-стейт.
+  - Пагинация с выбором страниц и размера (`10, 20, 50, 100`).
 
 ---
 
 ### 🪟 Часть 4: Модальные окна действий (`features/admin-user-*`)
 
 - [ ] **Создание пользователя (`features/admin-user-create`):**
-  - Модалка `CreateUserDialog` с формой `react-hook-form` + `@hookform/resolvers/zod`.
-  - Валидация пароля (мин 8 символов), уникальности email.
-  - Обработка серверных ошибок (409 Conflict $\to$ подсветка поля `email`/`username`).
+  - Модалка `CreateUserDialog` с формой `react-hook-form` + Zod (БЕЗ пароля).
+  - Toast-уведомление об отправке временного пароля на почту.
 - [ ] **Редактирование пользователя (`features/admin-user-edit`):**
-  - Модалка `EditUserDialog` с предзаполнением начальных данных пользователя.
-  - Отсутствие полей пароля.
+  - Модалка `EditUserDialog` с предзаполнением данных и блокировкой смены собственной роли.
+- [ ] **Сброс пароля (`features/admin-user-reset-password`):**
+  - Модалка `ResetPasswordDialog` с вызовом API сброса пароля.
 - [ ] **Управление статусом (`features/admin-user-status`):**
-  - Модалка подтверждения `ToggleStatusDialog` с описанием последствий деактивации.
+  - Модалка подтверждения `ToggleStatusDialog` с защитой от самодеактивации.
+- [ ] **Удаление и восстановление (`features/admin-user-lifecycle`):**
+  - Модалки `DeleteUserDialog` и `RestoreUserDialog`.
 - [ ] **Просмотр детальной информации (`features/admin-user-details`):**
-  - Компонент `UserDetailsDrawer` с датами создания, обновления, статусом, ID, соцсетями (GitHub, Telegram).
+  - Боковой `UserDetailsDrawer`.
 
 ---
 
@@ -260,38 +288,28 @@ apps/web/src/
 
 - [ ] **Админский лейаут (`app/(protected)/admin/layout.tsx`):**
   - Обертка `<RoleBoundary allowedRoles={[UserRole.ADMIN]}>`.
-  - Хедер с навигацией и кнопками быстрых действий.
 - [ ] **Страница пользователей (`app/(protected)/admin/users/page.tsx`):**
   - Размещение `AdminHeader`, `AdminUsersFilter` и `AdminUsersTable`.
-  - Кнопка "+ Создать пользователя" в верхнем тулбаре, открывающая `CreateUserDialog`.
 
 ---
 
 ### 🧪 Часть 6: Тестирование (Vitest & Playwright E2E)
 
 - [ ] **Unit & Component тесты (Vitest):**
-  - Тест `AdminUsersTable`: корректный рендер строк, пагинации и бейджей.
-  - Тест `AdminUsersFilter`: debounce поиска и вызов функции обновления параметров.
-  - Тест `CreateUserDialog`: валидация обязательных полей, отправка мутации.
-  - Тест `ToggleStatusDialog`: блокировка кнопки деактивации для себя.
+  - `AdminUsersTable`, `AdminUsersFilter`, `CreateUserDialog`, `ToggleStatusDialog`, `DeleteUserDialog`.
 - [ ] **E2E тесты (Playwright):**
-  - Авторизация под ADMIN $\to$ переход на `/admin/users`.
-  - Поиск пользователя по имени $\to$ отображение отфильтрованного результата.
-  - Создание нового пользователя через диалог $\to$ проверка появления в таблице.
-  - Редактирование роли пользователя $\to$ обновление бейджа на `ADMIN`.
-  - Деактивация пользователя $\to$ проверка смены статуса на `Деактивирован`.
-  - Попытка обычного пользователя перейти на `/admin/users` $\to$ редирект на `/dashboard`.
+  - Полный сценарий управления пользователями в браузере.
 
 ---
 
 ## 5. Критерии приемки (Definition of Done)
 
-1. Страница `/admin/users` доступна только администраторам (`ADMIN`) и открывается без мерцания.
-2. Таблица пользователей отображает все поля, поддерживает серверную пагинацию, сортировку и фильтрацию.
+1. Страница `/admin/users` доступна только администраторам (`ADMIN`).
+2. Таблица пользователей поддерживает серверную пагинацию, сортировку и фильтрацию (включая `isDeleted`).
 3. Поиск работает с debounce (300ms) и обновляет URL-параметры страницы.
-4. Создание пользователя работает через модальное окно с Zod-валидацией.
-5. Редактирование пользователя работает без раскрытия и изменения пароля.
-6. Активация и деактивация работают надежно с подтверждением в диалоге; деактивация самого себя заблокирована.
-7. Физическое удаление пользователей **полностью отсутствует** в интерфейсе.
+4. Создание пользователя работает по принципу Zero-Knowledge (без ручного ввода пароля).
+5. Присутствует возможность сброса пароля пользователя сервером.
+6. Действуют защитные блокировки от модификации собственной роли, самодеактивации и самоудаления администратора.
+7. Поддерживается мягкое удаление и последующее восстановление аккаунтов.
 8. Все мутации сопровождаются Toast-уведомлениями и автоматической инвалидацией кэша TanStack Query.
-9. Все unit- и e2e-тесты проходят без ошибок (`pnpm test`, `pnpm test:e2e`).
+9. Все unit- и e2e-тесты проходят без ошибок.

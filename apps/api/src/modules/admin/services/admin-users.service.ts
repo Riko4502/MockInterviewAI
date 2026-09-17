@@ -21,7 +21,7 @@ import { SystemRole } from "@packages/types";
 import argon2 from "argon2";
 import { USER_ADMIN_SELECT } from "../../../common/constants/user-select.constants";
 import { publishUserRevocationOrThrow } from "../../../common/pubsub/revocation";
-import type { Prisma } from "../../../generated/prisma/client";
+import { Prisma } from "../../../generated/prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { RedisService } from "../../../redis/redis.service";
 import { AuthSessionService } from "../../auth/services/auth-session.service";
@@ -196,7 +196,8 @@ export class AdminUsersService {
       throw new BadRequestException(`Role "${roleSlug}" not found`);
     }
 
-    const passwordHash = await this.hashPassword(dto.password);
+    const tempPassword = this.generateTemporaryPassword();
+    const passwordHash = await this.hashPassword(tempPassword);
 
     try {
       const user = await this.prisma.user.create({
@@ -213,20 +214,20 @@ export class AdminUsersService {
 
       return this.mapToUserAdminResponse(user);
     } catch (error) {
-      // TODO улучшить проверку
       if (
-        (error instanceof Error && "code" in error && error.code === "P2002") ||
-        (typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          (error as { code: unknown }).code === "P2002")
+        (error instanceof Prisma.PrismaClientKnownRequestError ||
+          (typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code: unknown }).code === "P2002")) &&
+        (error as { code: string }).code === "P2002"
       ) {
         const target = (error as { meta?: { target?: string[] | string } }).meta
           ?.target;
 
         const targetStr = Array.isArray(target)
           ? target.join(",")
-          : (target ?? "");
+          : String(target ?? "");
 
         if (targetStr.includes("username")) {
           throw new ConflictException(
@@ -403,17 +404,18 @@ export class AdminUsersService {
       return this.mapToUserAdminResponse(updated.user);
     } catch (error) {
       if (
-        (error instanceof Error && "code" in error && error.code === "P2002") ||
-        (typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          (error as { code: unknown }).code === "P2002")
+        (error instanceof Prisma.PrismaClientKnownRequestError ||
+          (typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code: unknown }).code === "P2002")) &&
+        (error as { code: string }).code === "P2002"
       ) {
         const target = (error as { meta?: { target?: string[] | string } }).meta
           ?.target;
         const targetStr = Array.isArray(target)
           ? target.join(",")
-          : (target ?? "");
+          : String(target ?? "");
         if (targetStr.includes("username")) {
           throw new ConflictException(
             dto.username
@@ -522,7 +524,6 @@ export class AdminUsersService {
   /**
    * Сбрасывает пароль пользователя, генерирует криптографически стойкий временный пароль,
    * инкрементирует generation и немедленно отзывает все активные сессии.
-   * Временный пароль логируется в консоль (до подключения email-сервиса).
    *
    * @param id - UUID целевого пользователя.
    * @returns DTO обновленного пользователя.
@@ -588,10 +589,6 @@ export class AdminUsersService {
         error instanceof Error ? error.message : String(error),
       );
     }
-
-    this.logger.log(
-      `[TEMP PASSWORD] Reset password for user ${existing.email} (${id}): ${tempPassword}`,
-    );
 
     return this.mapToUserAdminResponse(updated.user);
   }

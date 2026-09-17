@@ -121,6 +121,63 @@ end
 return current_min_gen
 `;
 
+/**
+ * Lua-скрипт для атомарной ротации refresh token с защитой от race conditions (TOCTOU) и replay detection (§30, §32 SPEC.md).
+ * KEYS[1]: auth:session:{sessionId}
+ * ARGV[1]: newRefreshTokenHash (string)
+ * ARGV[2]: nowIso (string)
+ * ARGV[3]: nowMs (number)
+ * ARGV[4]: ttlSeconds (number)
+ * ARGV[5]: sessionId (string)
+ *
+ * Возвращает:
+ * - nil: сессия не найдена
+ * - "REPLAY": обнаружена повторная попытка использования старого токена (сессия удалена)
+ * - JSON-строка обновленной сессии в случае успеха
+ */
+export const ROTATE_SESSION_LUA = `
+local session_key = KEYS[1]
+local new_hash = ARGV[1]
+local now_iso = ARGV[2]
+local now_ms = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+local session_id = ARGV[5]
+
+local raw = redis.call('get', session_key)
+if not raw then
+    return nil
+end
+
+local session = cjson.decode(raw)
+if session.refreshTokenHash == new_hash then
+    redis.call('del', session_key)
+    if session.userId then
+        local user_sessions_key = "auth:user:" .. session.userId .. ":sessions"
+        redis.call('zrem', user_sessions_key, session_id)
+    end
+    return "REPLAY"
+end
+
+session.refreshTokenHash = new_hash
+session.lastUsedAt = now_iso
+local updated_raw = cjson.encode(session)
+
+if ttl and ttl > 0 then
+    redis.call('set', session_key, updated_raw, 'EX', ttl)
+    if session.userId and now_ms then
+        local user_sessions_key = "auth:user:" .. session.userId .. ":sessions"
+        local expire_at_ms = now_ms + (ttl * 1000)
+        redis.call('zremrangebyscore', user_sessions_key, '-inf', '(' .. now_ms)
+        redis.call('zadd', user_sessions_key, expire_at_ms, session_id)
+        redis.call('expire', user_sessions_key, ttl)
+    end
+else
+    redis.call('set', session_key, updated_raw)
+end
+
+return updated_raw
+`;
+
 @Injectable()
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
@@ -301,36 +358,43 @@ export class AuthSessionService {
   }
 
   /**
-   * Выполняет rotation refresh token с replay detection (§30, §32 SPEC.md).
+   * Выполняет атомарную ротацию refresh token с replay detection (§30, §32 SPEC.md).
    *
+   * Использует Lua-скрипт для атомарной проверки, предотвращая TOCTOU race conditions.
    * Сравнивает входящий `newRefreshTokenHash` с сохранённым. При совпадении
    * — replay detected → revoke session → возвращает `null`.
-   * При несовпадении — обновляет хеш и `lastUsedAt`, продлевает TTL.
+   * При несовпадении — обновляет хеш и `lastUsedAt`, продлевает TTL в сессии и ZSET.
    *
    * @param sessionId - UUID сессии.
    * @param newRefreshTokenHash - HMAC-SHA-256 хеш нового refresh token.
-   * @returns Обновлённая session или `null` при replay detection.
+   * @returns Обновлённая session или `null` при replay detection / отсутствии сессии.
    * @throws {Error} При ошибке Redis.
    */
   async rotateSession(
     sessionId: string,
     newRefreshTokenHash: string,
   ): Promise<AuthSession | null> {
-    const session = await this.getSession(sessionId);
-    if (!session) {
+    const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
+    const sessionKey = this.key(sessionId);
+
+    const result = await this.redisService.eval<string | null>(
+      ROTATE_SESSION_LUA,
+      [sessionKey],
+      [newRefreshTokenHash, nowIso, nowMs, ttlSeconds, sessionId],
+    );
+
+    if (!result) {
       return null;
     }
 
-    if (session.refreshTokenHash === newRefreshTokenHash) {
+    if (result === "REPLAY") {
       this.logger.warn(`Replay detected for session ${sessionId} — revoking`);
-      await this.deleteSession(sessionId);
       return null;
     }
 
-    return this.updateSession(sessionId, {
-      refreshTokenHash: newRefreshTokenHash,
-      lastUsedAt: new Date().toISOString(),
-    });
+    return JSON.parse(result) as AuthSession;
   }
 
   /**
@@ -344,10 +408,11 @@ export class AuthSessionService {
   }
 
   /**
-   * Отзывает (удаляет) authentication sessions конкретного пользователя (§66 SPEC.md, Task 7).
+   * Отзывает все сессии пользователя (logout all / смена пароля / деактивация).
    *
-   * Использует индексированный Sorted Set (`ZSET`) `auth:user:{userId}:sessions` для $O(1)$ выборки
-   * сессий конкретного пользователя, полностью исключая глобальный `SCAN auth:session:*`.
+   * Выбирает актуальные сессии из ZSET `auth:user:{userId}:sessions` и выполняет
+   * fallback-сканирование `auth:session:*` для гарантированного отзыва legacy-сессий,
+   * созданных до внедрения ZSET-индексации или во время rolling deployment (§CWE-613).
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
    * @param maxCreatedAt - Опциональная временная граница создания сессий.
@@ -374,51 +439,51 @@ export class AuthSessionService {
     const userSessionsKey = this.userSessionsKey(userId);
     const nowMs = Date.now();
 
-    const sessionIds = await this.redisService.eval<string[]>(
-      GET_USER_ACTIVE_SESSIONS_LUA,
-      [userSessionsKey],
-      [nowMs],
+    const indexedSessionIds =
+      (await this.redisService.eval<string[]>(
+        GET_USER_ACTIVE_SESSIONS_LUA,
+        [userSessionsKey],
+        [nowMs],
+      )) || [];
+
+    // Fallback и обработка смешанного состояния (§CWE-613):
+    // Сканируем auth:session:* для обнаружения legacy-сессий без ZSET-индекса.
+    const scannedKeys = await this.redisService.scanKeys(
+      `${REDIS_SESSION_PREFIX}*`,
     );
 
-    if (!sessionIds || sessionIds.length === 0) {
+    const allSessionKeysSet = new Set<string>();
+    if (Array.isArray(indexedSessionIds)) {
+      for (const sid of indexedSessionIds) {
+        allSessionKeysSet.add(this.key(sid));
+      }
+    }
+    if (Array.isArray(scannedKeys)) {
+      for (const key of scannedKeys) {
+        allSessionKeysSet.add(key);
+      }
+    }
+
+    const allSessionKeys = Array.from(allSessionKeysSet);
+    if (allSessionKeys.length === 0) {
       return;
     }
 
-    for (const sessionId of sessionIds) {
-      const sessionKey = this.key(sessionId);
-      const raw = await this.redisService.get(sessionKey);
-      if (!raw) {
-        // Ключ сессии уже истек или удален — удаляем из ZSET
-        await this.redisService
-          .eval(
-            `redis.call('zrem', KEYS[1], ARGV[1])`,
-            [userSessionsKey],
-            [sessionId],
-          )
-          .catch(() => undefined);
-        continue;
-      }
+    // Обрабатываем сессии пачками через MGET для предотвращения N сетевых roundtrip (§Performance)
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < allSessionKeys.length; i += BATCH_SIZE) {
+      const chunkKeys = allSessionKeys.slice(i, i + BATCH_SIZE);
+      const rawSessions = await this.redisService.mget(chunkKeys);
 
-      try {
-        const session = JSON.parse(raw) as AuthSession;
-        if (session.userId === userId) {
-          if (maxGeneration !== undefined && session.generation !== undefined) {
-            if (session.generation > maxGeneration) {
-              continue;
-            }
-          } else if (maxCreatedAt !== undefined) {
-            const sessionCreatedAtMs = new Date(session.createdAt).getTime();
-            const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
-            if (
-              !Number.isNaN(sessionCreatedAtMs) &&
-              !Number.isNaN(maxCreatedAtMs) &&
-              sessionCreatedAtMs > maxCreatedAtMs
-            ) {
-              continue;
-            }
-          }
+      for (let j = 0; j < chunkKeys.length; j++) {
+        const sessionKey = chunkKeys[j];
+        const raw = rawSessions[j];
+        const sessionId = sessionKey.startsWith(REDIS_SESSION_PREFIX)
+          ? sessionKey.slice(REDIS_SESSION_PREFIX.length)
+          : sessionKey;
 
-          await this.redisService.delete(sessionKey);
+        if (!raw) {
+          // Ключ сессии уже истек или удален — удаляем из ZSET
           await this.redisService
             .eval(
               `redis.call('zrem', KEYS[1], ARGV[1])`,
@@ -426,12 +491,49 @@ export class AuthSessionService {
               [sessionId],
             )
             .catch(() => undefined);
-          this.logger.debug(
-            `Session revoked for user ${userId}: ${sessionKey}`,
-          );
+          continue;
         }
-      } catch {
-        this.logger.warn(`Skipped invalid session payload at ${sessionKey}`);
+
+        try {
+          const session = JSON.parse(raw) as AuthSession;
+          if (session.userId === userId) {
+            // Проверка поколения: если задан maxGeneration и generation > maxGeneration — пропускаем
+            if (
+              maxGeneration !== undefined &&
+              session.generation !== undefined &&
+              session.generation > maxGeneration
+            ) {
+              continue;
+            }
+
+            // Проверка даты создания: если задан maxCreatedAt и sessionCreatedAtMs > maxCreatedAtMs — пропускаем
+            if (maxCreatedAt !== undefined) {
+              const sessionCreatedAtMs = new Date(session.createdAt).getTime();
+              const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
+              if (
+                !Number.isNaN(sessionCreatedAtMs) &&
+                !Number.isNaN(maxCreatedAtMs) &&
+                sessionCreatedAtMs > maxCreatedAtMs
+              ) {
+                continue;
+              }
+            }
+
+            await this.redisService.delete(sessionKey);
+            await this.redisService
+              .eval(
+                `redis.call('zrem', KEYS[1], ARGV[1])`,
+                [userSessionsKey],
+                [sessionId],
+              )
+              .catch(() => undefined);
+            this.logger.debug(
+              `Session revoked for user ${userId}: ${sessionKey}`,
+            );
+          }
+        } catch {
+          this.logger.warn(`Skipped invalid session payload at ${sessionKey}`);
+        }
       }
     }
 

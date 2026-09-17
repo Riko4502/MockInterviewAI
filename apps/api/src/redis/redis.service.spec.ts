@@ -9,6 +9,7 @@ const mockRedisInstance = {
   disconnect: jest.fn(),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
+  mget: jest.fn().mockResolvedValue([]),
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
@@ -125,6 +126,23 @@ describe("RedisService", () => {
       await service.onModuleInit();
       const result = await service.get("missing");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("mget", () => {
+    it("возвращает массив значений", async () => {
+      mockRedisInstance.mget.mockResolvedValue(["val1", "val2"]);
+      await service.onModuleInit();
+      const result = await service.mget(["k1", "k2"]);
+      expect(result).toEqual(["val1", "val2"]);
+      expect(mockRedisInstance.mget).toHaveBeenCalledWith("k1", "k2");
+    });
+
+    it("возвращает пустой массив если передан пустой список ключей", async () => {
+      await service.onModuleInit();
+      const result = await service.mget([]);
+      expect(result).toEqual([]);
+      expect(mockRedisInstance.mget).not.toHaveBeenCalled();
     });
   });
 

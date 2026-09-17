@@ -14,18 +14,38 @@ sequenceDiagram
     participant Ctrl as 🎮 AdminUsersController (/api/v1/admin/users)
     participant Svc as ⚙️ AdminUsersService
     participant Redis as ⚡ Redis (Revocation / Sessions)
-    participant DB as 🗄️ PostgreSQL (Prisma)
+    participant DB as 🗄️ PostgreSQL (Prisma + pg_trgm)
 
     %% 1. Получение списка с пагинацией и фильтрами
-    Admin->>Guard: GET /api/v1/admin/users?page=1&limit=20&search=alex&role=USER&isActive=true
+    Admin->>Guard: GET /api/v1/admin/users?page=1&limit=20&search=alex&role=USER&isActive=true&isDeleted=false
     Guard-->>Ctrl: Авторизация ADMIN подтверждена
     Ctrl->>Svc: getUsersList(query)
-    Svc->>DB: prisma.user.findMany + count (с фильтрами, пагинацией, безопасным select)
+    Svc->>DB: prisma.user.findMany + count (GIN Trigram поиск, фильтры, пагинация, select)
     DB-->>Svc: users[], totalCount
     Svc-->>Ctrl: { items: UserAdminDto[], meta: PaginationMetaDto }
     Ctrl-->>Admin: 200 OK (список пользователей БЕЗ passwordHash)
 
-    %% 2. Деактивация пользователя
+    %% 2. Создание пользователя (Zero-Knowledge парольная политика)
+    Admin->>Guard: POST /api/v1/admin/users { email, role, username, displayName }
+    Guard-->>Ctrl: Проверка прав ADMIN
+    Ctrl->>Svc: createUser(dto)
+    Note over Svc: Генерация криптостойкого пароля (16 симв), хеш Argon2id, отправка на email
+    Svc->>DB: prisma.user.create(...)
+    DB-->>Svc: createdUser
+    Svc-->>Ctrl: UserAdminDto
+    Ctrl-->>Admin: 201 Created (пароль отправлен на почту)
+
+    %% 3. Сброс пароля пользователя
+    Admin->>Guard: POST /api/v1/admin/users/:id/reset-password
+    Guard-->>Ctrl: Проверка прав ADMIN
+    Ctrl->>Svc: resetPassword(userId)
+    Note over Svc: Генерация временного пароля, Argon2id, increment generation
+    Svc->>DB: prisma.$transaction(update user + authRevocationTask)
+    Svc->>Redis: revokeSessionsWithRetry(userId)
+    Svc-->>Ctrl: { message: "Пароль успешно сброшен..." }
+    Ctrl-->>Admin: 200 OK
+
+    %% 4. Деактивация пользователя
     Admin->>Guard: PATCH /api/v1/admin/users/:id/status { isActive: false }
     Guard-->>Ctrl: Проверка прав ADMIN
     Ctrl->>Svc: updateUserStatus(userId, { isActive: false }, currentAdminId)
@@ -33,9 +53,18 @@ sequenceDiagram
     Svc->>DB: prisma.user.update({ where: { id }, data: { isActive: false, deactivatedAt: now() } })
     DB-->>Svc: updatedUser
     Svc->>Redis: authSessionService.revokeAllUserSessions(userId)
-    Note over Redis: Инвалидация всех active refresh/access сессий пользователя
     Svc-->>Ctrl: UserAdminDto
     Ctrl-->>Admin: 200 OK (пользователь деактивирован, сессии сброшены)
+
+    %% 5. Мягкое удаление пользователя
+    Admin->>Guard: DELETE /api/v1/admin/users/:id
+    Guard-->>Ctrl: Проверка прав ADMIN
+    Ctrl->>Svc: deleteUser(userId, currentAdminId)
+    Note over Svc: Проверка Self-Deletion (защита от удаления самого себя)
+    Svc->>DB: prisma.user.update(deletedAt: now, isActive: false, generation++)
+    Svc->>Redis: revokeSessionsWithRetry(userId)
+    Svc-->>Ctrl: { message: "Пользователь успешно удален" }
+    Ctrl-->>Admin: 200 OK
 ```
 
 ---
@@ -53,19 +82,20 @@ MockInterviewAI/
 │   └── dto/
 │       └── src/
 │           ├── admin/
-│           │   ├── admin-users-query.dto.ts   # Zod-схема и DTO query-параметров: page, limit, search, role, isActive, sortBy, sortOrder
-│           │   ├── create-user-admin.dto.ts   # Zod-схема создания пользователя админом
-│           │   ├── update-user-admin.dto.ts   # Zod-схема обновления полей и роли
+│           │   ├── admin-users-query.dto.ts   # Zod-схема и DTO query-параметров: page, limit, search, role, isActive, isDeleted, sortBy, sortOrder
+│           │   ├── create-user-admin.dto.ts   # Zod-схема создания пользователя админом (БЕЗ пароля - Zero-Knowledge)
+│           │   ├── update-user-admin.dto.ts   # Zod-схема обновления полей и роли (с валидацией email)
 │           │   ├── user-status-admin.dto.ts   # Zod-схема изменения статуса (isActive: boolean)
-│           │   ├── user-admin-response.dto.ts # DTO ответа пользователя (без passwordHash)
+│           │   ├── user-admin-response.dto.ts # DTO ответа пользователя (без passwordHash, с ISO-датами и deletedAt)
 │           │   └── index.ts
 │           └── index.ts
 │
 └── apps/api/
     ├── prisma/
-    │   ├── schema.prisma                      # Добавление полей isActive: Boolean @default(true), deactivatedAt: DateTime?
+    │   ├── schema.prisma                      # Поля isActive, deactivatedAt, generation, deletedAt
     │   └── migrations/
-    │       └── YYYYMMDDHHMMSS_add_user_active_status/
+    │       ├── 20260914150000_add_generation_fields/
+    │       └── 20260914160000_add_trigram_search_indices/ # pg_trgm + GIN индексы
     │
     ├── src/
     │   ├── common/
@@ -79,14 +109,14 @@ MockInterviewAI/
     │       │   │   ├── admin-users.controller.ts      # REST-эндпоинты /api/v1/admin/users
     │       │   │   └── admin-users.controller.spec.ts # Unit-тесты контроллера
     │       │   └── services/
-    │       │       ├── admin-users.service.ts         # Бизнес-логика CRUD, пагинации, фильтрации, сброса сессий
+    │       │       ├── admin-users.service.ts         # Бизнес-логика CRUD, сброса пароля, восстановления, Trigram поиска
     │       │       └── admin-users.service.spec.ts    # Unit-тесты сервиса
     │       │
     │       └── auth/
     │           └── auth.service.ts            # Проверка флага isActive при авторизации (блокировка входа деактивированным)
     │
     └── test/
-        └── admin-users.e2e-spec.ts            # E2E-тесты: пагинация, поиск, CRUD, защита пароля, деактивация + 403/401
+        └── admin-users.e2e-spec.ts            # E2E-тесты: пагинация, поиск, CRUD, сброс пароля, удаление/восстановление
 ```
 
 ---
@@ -138,9 +168,10 @@ model User {
 - **Query параметры (`AdminUsersQueryDto`):**
   - `page`: `number` (опционально, default: `1`, min: `1`);
   - `limit`: `number` (опционально, default: `20`, min: `1`, max: `100`);
-  - `search`: `string` (опционально, поиск без учета регистра по `email`, `username`, `displayName`);
+  - `search`: `string` (опционально, поиск без учета регистра по `email`, `username`, `displayName` с поддержкой Trigram GIN-индексов);
   - `role`: `UserRole` (`USER` | `ADMIN`, опционально);
-  - `isActive`: `boolean` (опционально, фильтр активных / деактивированных);
+  - `isActive`: `boolean` (опционально, `z.union([z.boolean(), z.enum(["true", "false"])]).transform(...)`);
+  - `isDeleted`: `boolean` (опционально, фильтр по удаленным `deletedAt !== null` / активным `deletedAt === null`);
   - `sortBy`: `createdAt` | `email` | `username` | `displayName` | `role` | `updatedAt` (default: `createdAt`);
   - `sortOrder`: `asc` | `desc` (default: `desc`).
 - **Ответ (200 OK):**
@@ -158,6 +189,7 @@ model User {
         "avatarUrl": "https://s3.storage.com/avatars/alex.png",
         "telegramUsername": "alex_tg",
         "gitUrl": "https://github.com/alexdev",
+        "deletedAt": null,
         "createdAt": "2026-09-01T10:00:00.000Z",
         "updatedAt": "2026-09-10T12:00:00.000Z"
       }
@@ -177,37 +209,40 @@ model User {
 
 #### 2. `GET /api/v1/admin/users/:id` — Детальная информация о пользователе
 - **URL Params:** `id` (UUID пользователя).
-- **Ответ (200 OK):** `UserAdminDetailResponseDto` (базовая инфо + статистика: количество проведенных сессий, дата последней активности).
+- **Ответ (200 OK):** `UserAdminResponseDto` (базовая инфо, статус активности, статус удаления, социальные профили).
 - **Ошибки:** `404 Not Found` если пользователь не существует.
 
 ---
 
-#### 3. `POST /api/v1/admin/users` — Создание нового пользователя администратором
+#### 3. `POST /api/v1/admin/users` — Создание нового пользователя администратором (Zero-Knowledge)
+> [!IMPORTANT]
+> **Zero-Knowledge парольная политика:** Администратор **не задает пароль** вручную.
+> Поле `password` исключено из `CreateUserAdminDto`. Сервер генерирует криптографически стойкий временный пароль (16 символов, алфавит: `a-zA-Z0-9!@#$%^&*`), хеширует его через Argon2id, а сам пароль отправляет на email пользователя.
+
 - **Body (`CreateUserAdminDto`):**
-  - `email`: `string` (валидный email, обязательное, trim + lowercase);
-  - `password`: `string` (min 8 символов, обязательное);
+  - `email`: `string` (валидация: `.min(1, "Email обязателен").pipe(z.email("Некорректный email")).transform(normalizeEmail)`);
   - `role`: `UserRole` (опционально, default: `USER`);
   - `username`: `string` (опционально, 3-30 символов, `^[a-zA-Z0-9_-]+$`);
   - `displayName`: `string` (опционально, 1-100 символов);
   - `isActive`: `boolean` (опционально, default: `true`).
-- **Поведение:** пароль хешируется через `Argon2id`. Поле `passwordHash` **никогда не возвращается в ответе**.
-- **Ответ (201 Created):** `UserAdminResponseDto`.
+- **Ответ (201 Created):** `UserAdminResponseDto` (`passwordHash` **строго исключен**).
 - **Ошибки:** `409 Conflict` (если `email` или `username` уже заняты).
 
 ---
 
 #### 4. `PATCH /api/v1/admin/users/:id` — Обновление данных и роли пользователя
 - **Body (`UpdateUserAdminDto`):**
-  - `email?`: `string`;
+  - `email?`: `string` (валидация: `.pipe(z.email("Некорректный email")).transform(normalizeEmail)`);
   - `displayName?`: `string | null`;
   - `username?`: `string | null`;
   - `role?`: `UserRole`;
   - `avatarUrl?`: `string | null`;
   - `telegramUsername?`: `string | null`;
   - `gitUrl?`: `string | null`.
-- **Поведение:**
-  - Пароль через данный метод **не передается и не изменяется**.
-  - Если у пользователя изменяется `role`, все его текущие сессии в Redis принудительно инвалидируются (`authSessionService.revokeAllUserSessions(userId)`), чтобы пользователь переавторизовался с новым JWT-токеном.
+- **Бизнес-правила и безопасность:**
+  1. **Self-Role Modification Guard:** Администратор не может изменить свою собственную роль (`currentAdminId === id && roleChanged` $\to$ `400 Bad Request` `"Cannot change own administrator role"`).
+  2. **Инвалидация сессий:** При изменении учетных данных (`role`, `email`, `username`, включая сброс `username: null`) инкрементируется `generation: { increment: 1 }` и вызывается немедленный отзыв сессий в Redis (`revokeSessionsWithRetry`).
+  3. **Очистка S3:** При замене или удалении аватара старый файл удаляется из S3 хранилища (`storageService.deleteFile`).
 - **Ответ (200 OK):** `UserAdminResponseDto`.
 
 ---
@@ -216,21 +251,43 @@ model User {
 - **Body (`UserStatusAdminDto`):**
   - `isActive`: `boolean` (обязательное).
 - **Бизнес-правила и безопасность:**
-  1. **Self-Deactivation Protection:** Администратор не может деактивировать сам себя (проверка `currentAdminId === targetUserId` $\to$ `400 Bad Request` / `403 Forbidden`).
+  1. **Self-Deactivation Protection:** Администратор не может деактивировать сам себя (проверка `currentAdminId === targetUserId` $\to$ `400 Bad Request`).
   2. **При деактивации (`isActive: false`):**
-     - Поле `isActive` устанавливается в `false`, `deactivatedAt` устанавливается в текущий timestamp `new Date()`.
-     - Вызывается инвалидация всех сессий пользователя в Redis (`authSessionService.revokeAllUserSessions(userId)` и `publishUserRevocation(userId)`).
+     - Поле `isActive` устанавливается в `false`, `deactivatedAt` устанавливается в `new Date()`.
+     - Вызывается инвалидация всех сессий пользователя в Redis (`authSessionService.revokeAllUserSessions(userId)`).
   3. **При повторной активации (`isActive: true`):**
      - Поле `isActive` устанавливается в `true`, `deactivatedAt` сбрасывается в `null`.
-  4. **Авторизация деактивированного пользователя:** В `AuthService.login` и `AuthService.refreshSession` добавляется проверка: если `!user.isActive`, возвращать `403 Forbidden` ("Ваш аккаунт деактивирован. Обратитесь к администратору").
+  4. **Авторизация деактивированного пользователя:** В `AuthService.login` и `AuthService.refreshSession` проверка: если `!user.isActive`, возвращается `403 Forbidden` ("Ваш аккаунт деактивирован. Обратитесь к администратору").
 - **Ответ (200 OK):** `UserAdminResponseDto`.
 
 ---
 
-#### 6. Попытка удаления (`DELETE /api/v1/admin/users/:id`)
-- **Поведение:** Метод **НЕ реализуется** в контроллере.
-- Запросы `DELETE` возвращают стандартный `405 Method Not Allowed` / `404 Not Found`.
-- В документации и спецификации фиксируется запрет на физическое удаление сущности `User`.
+#### 6. `POST /api/v1/admin/users/:id/reset-password` — Сброс пароля пользователя
+- **URL Params:** `id` (UUID пользователя).
+- **Поведение:**
+  - Сервер генерирует случайный 16-значный временный пароль;
+  - Хеширует через Argon2id и обновляет в БД с инкрементом `generation: { increment: 1 }`;
+  - Немедленно отзывает все активные сессии пользователя в Redis;
+  - Отправляет временный пароль на почту пользователя.
+- **Ответ (200 OK):** `{ "message": "Пароль успешно сброшен и отправлен пользователю" }`.
+
+---
+
+#### 7. `DELETE /api/v1/admin/users/:id` — Мягкое удаление пользователя
+- **URL Params:** `id` (UUID пользователя).
+- **Бизнес-правила и безопасность:**
+  1. **Self-Deletion Guard:** Администратор не может удалить сам себя (`currentAdminId === id` $\to$ `400 Bad Request` `"Cannot delete own administrator account"`).
+  2. **Мягкое удаление:** Устанавливает `deletedAt: new Date()`, `isActive: false`, инкрементирует `generation` и отзывает все активные сессии пользователя в Redis.
+- **Ответ (200 OK):** `{ "message": "Пользователь успешно удален" }`.
+
+---
+
+#### 8. `POST /api/v1/admin/users/:id/restore` — Восстановление пользователя
+- **URL Params:** `id` (UUID пользователя).
+- **Поведение:**
+  - Проверяет наличие пользователя; если аккаунт не был удален (`deletedAt === null`), возвращает `400 Bad Request` `"User is not deleted"`;
+  - Сбрасывает `deletedAt: null` и восстанавливает активность `isActive: true`.
+- **Ответ (200 OK):** `UserAdminResponseDto`.
 
 ---
 
@@ -250,11 +307,12 @@ export const USER_ADMIN_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 ```
-2. Все запросы в `AdminUsersService` (`findMany`, `findUnique`, `create`, `update`) используют `select: USER_ADMIN_SELECT`.
+2. Все запросы в `AdminUsersService` (`findMany`, `findUnique`, `create`, `update`, `restore`) используют `select: USER_ADMIN_SELECT`.
 3. Схемы DTO в `packages/dto` строго типизированы через Zod и не содержат полей `passwordHash` или `password` в схемах ответов.
 
 ---
@@ -263,114 +321,112 @@ export const USER_ADMIN_SELECT = {
 
 ### 📦 Часть 1: Схемы DTO и типы (`packages/types`, `packages/dto`)
 
-- [ ] **Общие типы пагинации (`packages/types`):**
-  - Описать интерфейс `PaginationMeta` (`total`, `page`, `limit`, `totalPages`, `hasNextPage`, `hasPreviousPage`).
-  - Описать `PaginatedResponse<T>`.
-- [ ] **Zod-схемы и DTO (`packages/dto/src/admin`):**
-  - Создать `adminUsersQuerySchema` и `AdminUsersQueryDto` (валидация query-параметров с приведением типов `page` / `limit` к `number`, `isActive` к `boolean`).
-  - Создать `createUserAdminSchema` и `CreateUserAdminDto`.
-  - Создать `updateUserAdminSchema` и `UpdateUserAdminDto`.
-  - Создать `userStatusAdminSchema` и `UserStatusAdminDto`.
-  - Создать `userAdminResponseSchema` и `UserAdminResponseDto`.
-  - Зарегистрировать и экспортировать DTO в `packages/dto/src/index.ts`.
+- [x] **Общие типы пагинации (`packages/types`):**
+  - Интерфейс `PaginationMeta` (`total`, `page`, `limit`, `totalPages`, `hasNextPage`, `hasPreviousPage`).
+  - Обобщенный тип `PaginatedResponse<T>`.
+- [x] **Zod-схемы и DTO (`packages/dto/src/admin`):**
+  - `adminUsersQuerySchema` и `AdminUsersQueryDto` (строгая валидация `page`, `limit`, `isActive`, `isDeleted`, `search`, `role`, `sortBy`, `sortOrder`).
+  - `createUserAdminSchema` (Zero-Knowledge: БЕЗ пароля, валидация email `.pipe(z.email("Некорректный email"))`).
+  - `updateUserAdminSchema` (обновление полей профиля и роли).
+  - `userStatusAdminSchema` (изменение статуса `isActive: boolean`).
+  - `userAdminResponseSchema` (ISO-даты `z.iso.datetime()`, включено поле `deletedAt`).
+  - Экспорт DTO и схем в `packages/dto/src/index.ts`.
 
 ---
 
 ### 🗄️ Часть 2: Схема базы данных и миграции (`apps/api/prisma`)
 
-- [ ] **Добавление полей статуса в `schema.prisma`:**
-  - Добавить `isActive Boolean @default(true)`.
-  - Добавить `deactivatedAt DateTime?`.
-  - Добавить индекс `@@index([isActive])`.
-  - Добавить индекс `@@index([createdAt])` для оптимизации пагинации и сортировки.
-- [ ] **Миграция БД:**
-  - Сгенерировать и применить миграцию: `pnpm prisma migrate dev --name add_user_active_status`.
-  - Выполнить `pnpm prisma generate`.
+- [x] **Добавление полей и индексов в `schema.prisma`:**
+  - `isActive Boolean @default(true)`.
+  - `deactivatedAt DateTime?`.
+  - `deletedAt DateTime?`.
+  - `generation Int @default(1)`.
+  - Индексы `@@index([isActive])`, `@@index([deletedAt])`, `@@index([createdAt])`.
+- [x] **Миграции БД:**
+  - `20260914150000_add_generation_fields`: добавление столбцов `generation` в таблицы `users` и `auth_revocation_tasks`.
+  - `20260914160000_add_trigram_search_indices`: подключение `pg_trgm` и GIN-индексов для `email`, `username`, `displayName`.
 
 ---
 
 ### 🚀 Часть 3: Сервисный слой бэкенда (`AdminUsersService`)
 
-- [ ] **Реализация метода `getUsersList(query: AdminUsersQueryDto)`:**
-  - Формирование Prisma `where` объекта:
-    - Поиск `search`: `OR: [{ email: { contains: search, mode: 'insensitive' } }, { username: { contains: search, mode: 'insensitive' } }, { displayName: { contains: search, mode: 'insensitive' } }]`;
-    - Фильтр по `role`;
-    - Фильтр по `isActive`.
-  - Выполнение параллельного запроса `prisma.$transaction([findMany, count])` с `skip = (page - 1) * limit` и `take = limit`.
-  - Расчет `totalPages`, `hasNextPage`, `hasPreviousPage`.
-- [ ] **Реализация метода `getUserById(id: string)`:**
-  - Поиск пользователя по `id` через `USER_ADMIN_SELECT`.
-  - Выброс `NotFoundException('Пользователь не найден')` при отсутствии.
-- [ ] **Реализация метода `createUser(dto: CreateUserAdminDto)`:**
-  - Проверка уникальности `email` и `username`.
-  - Хеширование пароля через Argon2id (`hashPassword`).
-  - Создание записи через `prisma.user.create` с `USER_ADMIN_SELECT`.
-- [ ] **Реализация метода `updateUser(id: string, dto: UpdateUserAdminDto)`:**
-  - Обновление профиля.
-  - При смене `role` $\to$ инвалидация сессий в Redis (`authSessionService.revokeAllUserSessions(id)`).
-- [ ] **Реализация метода `updateStatus(id: string, dto: UserStatusAdminDto, currentAdminId: string)`:**
-  - Защита: `if (id === currentAdminId && !dto.isActive)` $\to$ выброс `BadRequestException('Нельзя деактивировать собственный аккаунт администратора')`.
-  - Обновление `isActive` и `deactivatedAt`.
-  - Если `!dto.isActive` $\to$ сброс сессий в Redis (`authSessionService.revokeAllUserSessions(id)`).
-- [ ] **Unit-тесты `admin-users.service.spec.ts`:**
-  - Покрытие тестами всех методов, фильтрации, пагинации, обработки конфликтов и исключений.
+- [x] **Реализация метода `getUsersList(query: AdminUsersQueryDto)`:**
+  - Оптимизированный поиск через `ILIKE` и Trigram-индексы;
+  - Фильтры по `role`, `isActive`, `isDeleted` (`deletedAt: null / not: null`);
+  - Параллельный `prisma.$transaction([findMany, count])` с пагинацией и `USER_ADMIN_SELECT`.
+- [x] **Реализация метода `getUserById(id: string)`:**
+  - Поиск через `USER_ADMIN_SELECT`, выброс `NotFoundException` при отсутствии.
+- [x] **Реализация метода `createUser(dto: CreateUserAdminDto)`:**
+  - Zero-Knowledge: генерация криптостойкого пароля (16 символов) на сервере;
+  - Хеширование через Argon2id;
+  - Отправка пароля на email пользователя;
+  - Создание записи с `USER_ADMIN_SELECT`.
+- [x] **Реализация метода `updateUser(id: string, dto: UpdateUserAdminDto, currentAdminId: string)`:**
+  - Self-Role Guard: запрет смены роли самому себе;
+  - Отзыв сессий и инкремент `generation` при изменении учетных данных (`role`, `email`, `username`);
+  - Очистка старого аватара в S3 через `storageService.deleteFile`.
+- [x] **Реализация метода `updateStatus(id: string, dto: UserStatusAdminDto, currentAdminId: string)`:**
+  - Self-Deactivation Guard: запрет блокировки самого себя;
+  - Установка `isActive` / `deactivatedAt` и отзыв активных сессий в Redis.
+- [x] **Реализация метода `resetPassword(id: string)`:**
+  - Генерация 16-значного временного пароля, хеш Argon2id, инкремент `generation`, отзыв сессий и отправка на email.
+- [x] **Реализация методов `deleteUser(id: string, currentAdminId: string)` и `restoreUser(id: string)`:**
+  - Self-Deletion Guard при удалении;
+  - Мягкое удаление (`deletedAt = now()`, `isActive = false`, отзыв сессий);
+  - Восстановление (`deletedAt = null`, `isActive = true`).
+- [x] **Unit-тесты `admin-users.service.spec.ts` (100% прохождение).**
 
 ---
 
 ### 🎮 Часть 4: Контроллер и модуль (`AdminUsersController` & `AdminModule`)
 
-- [ ] **Создание `AdminUsersController` (`/api/v1/admin/users`):**
-  - Декораторы класса: `@ApiTags('Admin / Users')`, `@ApiBearerAuth()`, `@Roles(UserRole.ADMIN)`, `@Controller('admin/users')`.
-  - `GET /` — получение пагинированного списка.
-  - `GET /:id` — получение деталей пользователя.
-  - `POST /` — создание пользователя.
-  - `PATCH /:id` — обновление данных пользователя.
-  - `PATCH /:id/status` — активация / деактивация.
-  - Использование `@CurrentUser('sub')` для получения ID текущего администратора в `updateStatus`.
-- [ ] **Регистрация в `AdminModule`:**
-  - Создать `apps/api/src/modules/admin/admin.module.ts`.
-  - Подключить `AdminUsersController`, `AdminUsersService`.
-  - Импортировать `AdminModule` в `AppModule`.
+- [x] **Контроллер `AdminUsersController` (`/api/v1/admin/users`):**
+  - `GET /` — пагинированный список с фильтрами (`isDeleted`, `isActive`, `role`, `search`);
+  - `GET /:id` — детальный просмотр пользователя;
+  - `POST /` — создание пользователя (Zero-Knowledge);
+  - `PATCH /:id` — редактирование профиля и роли (с `currentAdminId`);
+  - `PATCH /:id/status` — активация / деактивация (с `currentAdminId`);
+  - `POST /:id/reset-password` — сброс пароля;
+  - `DELETE /:id` — мягкое удаление (с `currentAdminId`);
+  - `POST /:id/restore` — восстановление.
+- [x] **Unit-тесты `admin-users.controller.spec.ts`.**
 
 ---
 
 ### 🔒 Часть 5: Блокировка деактивированных пользователей в Auth-модуле
 
-- [ ] **Проверка `isActive` в `AuthService`:**
-  - При попытке логина (`loginByPassword`, `loginByGithub`, `loginByTelegram`): если `user.isActive === false`, выбрасывать `ForbiddenException('Аккаунт деактивирован администратором')`.
-  - В `AccessTokenGuard` или при обновлении refresh-токена проверять активность пользователя.
+- [x] **Проверка `isActive` в `AuthService`:**
+  - При логине (`loginByPassword`, `loginByGithub`, `loginByTelegram`): если `!user.isActive`, возвращается `403 Forbidden`.
+  - При `refreshSession`: проверка актуального флага `isActive` и `generation`.
 
 ---
 
 ### 📜 Часть 6: OpenAPI / Swagger документация
 
-- [ ] **Swagger аннотации эндпоинтов:**
-  - Подробные описания query-параметров (`@ApiQuery`) и ответов (`@ApiResponse`).
-  - Документирование статусов: 200, 201, 400, 401, 403, 404, 409.
-  - Регистрация Zod-схем в Swagger (`registerSchema`).
+- [x] **Swagger аннотации и генерация клиента:**
+  - Подробные описания всех 8 эндпоинтов, параметров и DTO схем.
+  - Автоматическая кодогенерация `@packages/api` через `pnpm codegen`.
 
 ---
 
 ### 🧪 Часть 7: E2E Тестирование (`apps/api/test/admin-users.e2e-spec.ts`)
 
-- [ ] **Тестовые сценарии:**
-  - Попытка доступа обычного пользователя (`role: USER`) $\to$ `403 Forbidden`.
-  - Попытка доступа неавторизованного пользователя $\to$ `401 Unauthorized`.
-  - Администратор: успешное получение списка пользователей с пагинацией и поиском по подстроке.
-  - Администратор: создание пользователя и проверка, что в ответе нет поля `password` или `passwordHash`.
-  - Администратор: редактирование данных пользователя.
-  - Администратор: попытка деактивировать самого себя $\to$ `400 Bad Request`.
-  - Администратор: деактивация другого пользователя $\to$ пользователь деактивирован, его сессии сброшены, вход под его учетной записью блокируется с кодом 403.
-  - Администратор: повторная активация пользователя $\to$ пользователь снова может войти в систему.
+- [x] **E2E сценарии:**
+  - RBAC: 401 для анонимов, 403 для `role: USER`, 200 для `role: ADMIN`;
+  - Пагинация, фильтрация по `isDeleted`, Trigram поиск;
+  - Создание пользователя без пароля в DTO (пароль генерируется и хешируется);
+  - Сброс пароля с генерацией временного пароля;
+  - Self-Protection: попытка сменить свою роль $\to$ 400; деактивировать себя $\to$ 400; удалить себя $\to$ 400;
+  - Мягкое удаление и восстановление аккаунта.
 
 ---
 
 ## 5. Критерии приемки (Definition of Done)
 
-1. Эндпоинты `/api/v1/admin/users` доступны **исключительно** пользователям с ролью `ADMIN`.
-2. Список пользователей корректно пагинируется (`page`, `limit`) и фильтруется (`search`, `role`, `isActive`, сортировка).
-3. Пароль и `passwordHash` **никогда не возвращаются** ни в одном из ответов API.
-4. Физическое удаление пользователя **запрещено**; поддерживается только деактивация (`isActive: false`).
-5. При деактивации пользователя все его активные сессии в Redis мгновенно отзываются, а повторный вход блокируется.
-6. Действует защита от блокировки администратором самого себя.
-7. Все unit- и e2e-тесты успешно проходят (`pnpm test`).
+1. Эндпоинты `/api/v1/admin/users` доступны **исключительно** администраторам (`@Roles(UserRole.ADMIN)`).
+2. Парольная политика соответствует Zero-Knowledge: администратор не передает и не видит пароли пользователей.
+3. Валидация email единообразна и содержит понятные русскоязычные сообщения об ошибках.
+4. Поиск пользователей ускорен через PostgreSQL Trigram GIN-индексы (`pg_trgm`).
+5. Сессии пользователя немедленно отзываются в Redis при деактивации, удалении, сбросе пароля или смене учетных данных.
+6. Действуют защитные механизмы от действий администратора над своим собственным аккаунтом (Self-Role, Self-Deactivation, Self-Deletion).
+7. Все unit- и e2e-тесты монорепозитория успешно проходят.

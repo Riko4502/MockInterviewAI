@@ -1401,12 +1401,8 @@ components:
       properties:
         email:
           type: string
+          minLength: 1
           format: email
-          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
-        password:
-          type: string
-          minLength: 12
-          maxLength: 128
         role:
           default: USER
           type: string
@@ -1422,7 +1418,6 @@ components:
           type: boolean
       required:
         - email
-        - password
     UserAdminResponseDto:
       type: object
       properties:
@@ -1490,8 +1485,7 @@ components:
       properties:
         email:
           type: string
-          format: email
-          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+          minLength: 1
         displayName:
           nullable: true
           type: string

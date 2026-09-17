@@ -151,7 +151,6 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
         email: newUserEmail,
-        password: "NewUserPassword123!",
         displayName: "Admin Created User",
         username: `user_${Date.now().toString().slice(-8)}`,
         role: SystemRole.USER,

@@ -14,7 +14,8 @@ export const updateUserAdminSchema = z.object({
   email: z
     .string()
     .trim()
-    .email("Email must be a valid email address")
+    .min(1, "Email обязателен")
+    .pipe(z.email("Некорректный email"))
     .transform(normalizeEmail)
     .optional(),
   displayName: z

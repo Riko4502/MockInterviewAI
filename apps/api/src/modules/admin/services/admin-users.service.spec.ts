@@ -264,7 +264,6 @@ describe("AdminUsersService", () => {
   describe("createUser", () => {
     const createDto: CreateUserAdminDto = {
       email: "newuser@example.com",
-      password: "StrongPassword123!",
       role: "USER",
       username: "newuser",
       displayName: "New User",

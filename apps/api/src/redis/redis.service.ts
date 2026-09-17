@@ -118,6 +118,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Получает значения по массиву ключей (MGET).
+   *
+   * @param keys - Массив имен ключей.
+   * @returns Массив значений (строка или `null` для отсутствующих ключей).
+   * @throws {Error} При ошибке Redis.
+   */
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) {
+      return [];
+    }
+    return this.client.mget(...keys);
+  }
+
+  /**
    * Атомарно возвращает и удаляет ключ (GETDEL).
    *
    * @param key - Имя ключа.

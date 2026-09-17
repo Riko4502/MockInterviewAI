@@ -1,30 +1,18 @@
 import { z } from "zod";
 import { normalizeEmail } from "../auth/email";
-import {
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from "../auth/password-policy";
 import { USERNAME_REGEX } from "../profile/update-profile.dto";
 
 /**
  * Zod-схема создания пользователя администратором.
+ * Пароль генерируется сервером (Zero-Knowledge) и отправляется на email.
  */
 export const createUserAdminSchema = z.object({
   email: z
     .string()
     .trim()
-    .email("Email must be a valid email address")
+    .min(1, "Email обязателен")
+    .pipe(z.email("Некорректный email"))
     .transform(normalizeEmail),
-  password: z
-    .string()
-    .min(
-      PASSWORD_MIN_LENGTH,
-      `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
-    )
-    .max(
-      PASSWORD_MAX_LENGTH,
-      `Password must be at most ${PASSWORD_MAX_LENGTH} characters`,
-    ),
   role: z.string().trim().optional().default("USER"),
   username: z
     .string()
