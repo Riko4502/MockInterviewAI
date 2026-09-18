@@ -80,7 +80,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         // Разрешаем цифры, знак минуса и десятичную точку
         const isDigit = /^[0-9]$/.test(e.key);
-        const isMinus = e.key === "-" && (!min || Number(min) < 0);
+        const isMinus =
+          e.key === "-" && (min === undefined || min === "" || Number(min) < 0);
         const isDot =
           (e.key === "." || e.key === ",") &&
           (step === undefined || String(step).includes("."));
@@ -193,7 +194,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {inputElement}
           <button
             type="button"
-            tabIndex={-1}
             disabled={disabled}
             onClick={() => setIsPasswordVisible((prev) => !prev)}
             aria-label={

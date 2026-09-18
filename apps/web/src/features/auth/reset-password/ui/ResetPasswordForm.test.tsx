@@ -96,16 +96,45 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
     ).toBeInTheDocument();
   });
 
-  it("toggles password visibility with localized aria labels", async () => {
+  it("toggles password visibility with localized aria labels for both fields", async () => {
     renderWithClient(<ResetPasswordForm token="valid-token-123" />);
 
-    const toggleBtn = screen.getByRole("button", { name: "Показать пароль" });
-    expect(toggleBtn).toBeInTheDocument();
+    const showButtons = screen.getAllByRole("button", {
+      name: "Показать пароль",
+    });
+    expect(showButtons).toHaveLength(2);
 
-    fireEvent.click(toggleBtn);
+    // Переключаем первое поле пароля
+    fireEvent.click(showButtons[0]);
     expect(
       screen.getByRole("button", { name: "Скрыть пароль" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Показать пароль" }),
+    ).toBeInTheDocument();
+
+    // Переключаем второе поле пароля
+    fireEvent.click(showButtons[1]);
+    expect(
+      screen.getAllByRole("button", { name: "Скрыть пароль" }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Показать пароль" }),
+    ).not.toBeInTheDocument();
+
+    // Переключаем оба поля обратно
+    const hideButtons = screen.getAllByRole("button", {
+      name: "Скрыть пароль",
+    });
+    fireEvent.click(hideButtons[0]);
+    fireEvent.click(hideButtons[1]);
+
+    expect(
+      screen.getAllByRole("button", { name: "Показать пароль" }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Скрыть пароль" }),
+    ).not.toBeInTheDocument();
   });
 
   it("submits valid passwords correctly", async () => {

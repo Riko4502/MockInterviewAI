@@ -97,6 +97,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             placeholder={t("fields.newPasswordConfirmation.placeholder")}
             data-invalid={!!errors.newPasswordConfirmation}
             aria-invalid={!!errors.newPasswordConfirmation}
+            showPasswordLabel={t("fields.showPassword")}
+            hidePasswordLabel={t("fields.hidePassword")}
             {...register("newPasswordConfirmation")}
           />
           <Field.Error>{errors.newPasswordConfirmation?.message}</Field.Error>
