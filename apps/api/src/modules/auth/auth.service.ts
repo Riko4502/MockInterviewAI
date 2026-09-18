@@ -585,7 +585,7 @@ export class AuthService implements OnModuleInit {
    * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
    *    - При успехе: удаление durable-задачи из PostgreSQL.
    *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
-   * 8. Возврат `{ message: "Пароль успешно изменен" }`.
+   * 8. Возврат `{ message: "The password has been successfully changed" }`.
    *
    * @param dto - DTO с токеном и новым паролем.
    * @returns Сообщение об успешном сбросе пароля.
