@@ -14,4 +14,6 @@ import type { JoinSessionResponseDtoRole } from './joinSessionResponseDtoRole';
 export interface JoinSessionResponseDto {
   /** Роль пользователя в сессии */
   role: JoinSessionResponseDtoRole;
+  /** Инвайт-токен сессии */
+  inviteToken: string;
 }

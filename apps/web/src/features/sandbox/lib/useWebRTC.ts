@@ -152,6 +152,7 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
           track.enabled = false;
         }
         localStreamRef.current = synthetic;
+        cameraTrackRef.current = synthetic.getVideoTracks()[0] ?? null;
         setLocalStream(synthetic);
         return synthetic;
       } catch {
@@ -162,6 +163,7 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
           track.enabled = false;
         }
         localStreamRef.current = synthetic;
+        cameraTrackRef.current = synthetic.getVideoTracks()[0] ?? null;
         setLocalStream(synthetic);
         return synthetic;
       }
@@ -268,8 +270,11 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
       screenTrackRef.current = null;
     }
 
-    if (syntheticAudioCtxRef.current) {
-      syntheticAudioCtxRef.current.close().catch(() => {});
+    if (
+      syntheticAudioCtxRef.current &&
+      syntheticAudioCtxRef.current.state !== "closed"
+    ) {
+      void syntheticAudioCtxRef.current.close().catch(() => {});
       syntheticAudioCtxRef.current = null;
     }
 

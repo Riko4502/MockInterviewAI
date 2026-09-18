@@ -2,9 +2,12 @@
 
 import { WandIcon } from "@packages/icons";
 import { Button, Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 export function SandboxTaskHints() {
+  const { t } = useTranslation("interview");
   const task = useSandboxStore((s) => s.getCurrentTask());
   const revealedHints = useSandboxStore((s) => s.revealedHints);
   const revealNextHint = useSandboxStore((s) => s.revealNextHint);
@@ -14,11 +17,10 @@ export function SandboxTaskHints() {
       <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4 text-xs text-purple-300">
         <div className="flex items-center gap-2 font-semibold">
           <WandIcon className="size-4 text-purple-400" />
-          Виртуальный AI-интервьюер
+          {t("sandbox.hints.title")}
         </div>
         <Typography.Muted className="mt-1 text-purple-300/80">
-          Если вы застряли во время решения, открывайте подсказки
-          последовательно, как на реальном техническом собеседовании.
+          {t("sandbox.hints.description")}
         </Typography.Muted>
       </div>
 
@@ -36,16 +38,16 @@ export function SandboxTaskHints() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold">
-                  Подсказка #{idx + 1}
+                  {t("sandbox.hints.hintNumber", { number: idx + 1 })}
                 </span>
                 {isRevealed && (
                   <span className="text-[10px] text-purple-400 font-medium">
-                    Открыта ✓
+                    {t("sandbox.hints.revealed")}
                   </span>
                 )}
               </div>
               <div className="mt-2 text-xs leading-relaxed">
-                {isRevealed ? hint : "🔒 Нажмите кнопку ниже, чтобы открыть"}
+                {isRevealed ? hint : t("sandbox.hints.locked")}
               </div>
             </div>
           );
@@ -60,7 +62,10 @@ export function SandboxTaskHints() {
           className="w-full gap-2 border-purple-500/30 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
         >
           <WandIcon className="size-3.5 text-purple-400" />
-          Открыть следующую подсказку ({revealedHints + 1}/{task.hints.length})
+          {t("sandbox.hints.revealNext", {
+            current: revealedHints + 1,
+            total: task.hints.length,
+          })}
         </Button>
       )}
     </div>

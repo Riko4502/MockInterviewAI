@@ -25,6 +25,7 @@
     "@packages/icons": "workspace:*",
     "@packages/tailwind-config": "workspace:*",
     "@packages/ui": "workspace:*",
+    "@packages/utils": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
     "i18next": "^26.4.0",
     "jwt-decode": "^4.0.0",

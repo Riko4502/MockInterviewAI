@@ -75,8 +75,12 @@ export type {
   SystemErrorPayload,
 } from "./realtime/websocket-events.dto";
 export {
+  type CreateSessionResponseDto,
+  createSessionResponseSchema,
+  type JoinSessionDto,
   type JoinSessionResponseDto,
   joinSessionResponseSchema,
+  joinSessionSchema,
 } from "./sessions/join-session.dto";
 export {
   type AddParticipantDto,

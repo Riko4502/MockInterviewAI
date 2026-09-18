@@ -2,6 +2,8 @@
 
 import { ClockIcon, UndoIcon } from "@packages/icons";
 import { Button, Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 function formatTime(seconds: number): string {
@@ -11,6 +13,7 @@ function formatTime(seconds: number): string {
 }
 
 export function SandboxHeaderTimer() {
+  const { t } = useTranslation("interview");
   const timerSeconds = useSandboxStore((s) => s.timerSeconds);
   const isTimerRunning = useSandboxStore((s) => s.isTimerRunning);
   const toggleTimer = useSandboxStore((s) => s.toggleTimer);
@@ -42,14 +45,16 @@ export function SandboxHeaderTimer() {
         onClick={toggleTimer}
         className="h-6 px-1.5 text-[11px]"
       >
-        {isTimerRunning ? "Пауза" : "Старт"}
+        {isTimerRunning
+          ? t("sandbox.header.timerPause")
+          : t("sandbox.header.timerStart")}
       </Button>
       <Button
         variant="ghost"
         size="sm"
         onClick={resetTimer}
         className="h-6 px-1 text-[11px] text-muted-foreground"
-        title="Сбросить таймер (45 мин)"
+        title={t("sandbox.header.timerResetTooltip")}
       >
         <UndoIcon className="size-3" />
       </Button>

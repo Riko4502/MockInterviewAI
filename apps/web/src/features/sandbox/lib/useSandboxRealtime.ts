@@ -29,6 +29,17 @@ import {
 } from "./mapPeerToCollaborator";
 import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
 
+interface PendingCodeState {
+  id: string;
+  code: string;
+  language: LanguageId;
+}
+
+interface PendingTaskState {
+  id: string;
+  taskId: string;
+}
+
 interface UseSandboxRealtimeOptions {
   roomId: string;
   onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
@@ -59,12 +70,8 @@ export function useSandboxRealtime({
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const pendingCodeRef = useRef<{
-    code: string;
-    language: LanguageId;
-  } | null>(null);
-
-  const pendingTaskRef = useRef<string | null>(null);
+  const pendingCodeRef = useRef<PendingCodeState | null>(null);
+  const pendingTaskRef = useRef<PendingTaskState | null>(null);
 
   const isSelfServerPeer = useCallback(
     (peerId: string) => {
@@ -168,10 +175,12 @@ export function useSandboxRealtime({
     (
       type: SandboxRealtimeMessage["type"],
       payload: SandboxRealtimeMessage["payload"] = {},
+      customId?: string,
     ) => {
-      if (!roomId) return;
+      if (!roomId) return "";
+      const msgId = customId || uuidv4();
       const msg: SandboxRealtimeMessage = {
-        id: uuidv4(),
+        id: msgId,
         type,
         roomId,
         senderId: userId,
@@ -198,14 +207,17 @@ export function useSandboxRealtime({
           // Игнорируем
         }
       }
+
+      return msgId;
     },
     [roomId, userId, userName],
   );
 
   const broadcastCodeUpdate = useCallback(
     (code: string, language: LanguageId) => {
-      pendingCodeRef.current = { code, language };
-      sendMessage("code-update", { code, language });
+      const id = uuidv4();
+      pendingCodeRef.current = { id, code, language };
+      sendMessage("code-update", { code, language }, id);
     },
     [sendMessage],
   );
@@ -219,8 +231,9 @@ export function useSandboxRealtime({
 
   const broadcastTaskChange = useCallback(
     (taskId: string) => {
-      pendingTaskRef.current = taskId;
-      sendMessage("task-change", { taskId });
+      const id = uuidv4();
+      pendingTaskRef.current = { id, taskId };
+      sendMessage("task-change", { taskId }, id);
     },
     [sendMessage],
   );
@@ -257,6 +270,19 @@ export function useSandboxRealtime({
           return;
 
         switch (envelope.type) {
+          case "system.ack": {
+            const targetId = envelope.payload?.targetRequestId;
+            if (targetId) {
+              if (pendingCodeRef.current?.id === targetId) {
+                pendingCodeRef.current = null;
+              }
+              if (pendingTaskRef.current?.id === targetId) {
+                pendingTaskRef.current = null;
+              }
+            }
+            break;
+          }
+
           case "room.sync": {
             const participants = envelope.payload.participants || [];
             peersRef.current.clear();
@@ -275,9 +301,22 @@ export function useSandboxRealtime({
 
             // Восстановление начального состояния кода при синхронизации комнаты
             if (envelope.payload.codeState?.content !== undefined) {
-              if (pendingCodeRef.current) {
+              if (
+                pendingCodeRef.current &&
+                pendingCodeRef.current.code ===
+                  envelope.payload.codeState.content
+              ) {
+                pendingCodeRef.current = null;
+              } else if (pendingCodeRef.current) {
                 // Если есть неподтвержденные локальные изменения, повторно отправляем их
-                sendMessage("code-update", pendingCodeRef.current);
+                sendMessage(
+                  "code-update",
+                  {
+                    code: pendingCodeRef.current.code,
+                    language: pendingCodeRef.current.language,
+                  },
+                  pendingCodeRef.current.id,
+                );
               } else {
                 callbacksRef.current.onRemoteCodeUpdate?.(
                   envelope.payload.codeState.content,
@@ -342,8 +381,12 @@ export function useSandboxRealtime({
           }
 
           case "code.update": {
-            if (markMessageSeen(envelope.requestId)) {
+            const reqId = envelope.requestId;
+            const isOwnPending = pendingCodeRef.current?.id === reqId;
+            if (isOwnPending) {
               pendingCodeRef.current = null;
+            }
+            if (markMessageSeen(reqId) || isOwnPending) {
               break;
             }
             const p = envelope.payload;
@@ -357,6 +400,10 @@ export function useSandboxRealtime({
           }
 
           case "chat.message": {
+            const reqId = envelope.requestId;
+            if (pendingTaskRef.current?.id === reqId) {
+              pendingTaskRef.current = null;
+            }
             const serverSenderId = envelope.payload.senderId;
             if (!serverSenderId) {
               break;
@@ -366,6 +413,9 @@ export function useSandboxRealtime({
             if (text && typeof text === "string" && text.startsWith("{")) {
               try {
                 const parsed = JSON.parse(text) as SandboxRealtimeMessage;
+                if (pendingTaskRef.current?.id === parsed.id) {
+                  pendingTaskRef.current = null;
+                }
                 parsed.senderId = serverSenderId;
                 if (serverSenderName) {
                   parsed.senderName = serverSenderName;
@@ -411,10 +461,21 @@ export function useSandboxRealtime({
           setWsConnected(true);
           // Отправка неподтвержденных локальных изменений после восстановления соединения
           if (pendingCodeRef.current) {
-            sendMessage("code-update", pendingCodeRef.current);
+            sendMessage(
+              "code-update",
+              {
+                code: pendingCodeRef.current.code,
+                language: pendingCodeRef.current.language,
+              },
+              pendingCodeRef.current.id,
+            );
           }
           if (pendingTaskRef.current) {
-            sendMessage("task-change", { taskId: pendingTaskRef.current });
+            sendMessage(
+              "task-change",
+              { taskId: pendingTaskRef.current.taskId },
+              pendingTaskRef.current.id,
+            );
           }
         }
       })

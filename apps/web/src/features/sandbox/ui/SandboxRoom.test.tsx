@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { ToastProvider } from "@packages/ui";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authToken } from "@/shared/api";
 import { SandboxRoom } from "./SandboxRoom";
@@ -88,7 +88,10 @@ vi.mock("@packages/api", async (importOriginal) => {
   return {
     ...actual,
     sessionsControllerCreateSession: () => createSessionMock(),
-    sessionsControllerJoinSession: (id: string) => joinSessionMock(id),
+    sessionsControllerJoinSession: (
+      id: string,
+      body?: { inviteToken?: string },
+    ) => joinSessionMock(id, body),
   };
 });
 
@@ -104,7 +107,10 @@ describe("SandboxRoom", () => {
   });
 
   it("создает новую сессию, если параметр room отсутствует", async () => {
-    createSessionMock.mockResolvedValue({ sessionId: "new-session-uuid" });
+    createSessionMock.mockResolvedValue({
+      sessionId: "new-session-uuid",
+      inviteToken: "inv-token-123",
+    });
 
     render(
       <ToastProvider>
@@ -115,7 +121,7 @@ describe("SandboxRoom", () => {
     await waitFor(() => {
       expect(createSessionMock).toHaveBeenCalledTimes(1);
       expect(replaceMock).toHaveBeenCalledWith(
-        "/dashboard/sandbox?room=new-session-uuid",
+        "/dashboard/sandbox?room=new-session-uuid&invite=inv-token-123",
       );
       expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
       expect(screen.getByTestId("sandbox-task-panel")).toBeInTheDocument();
@@ -127,9 +133,12 @@ describe("SandboxRoom", () => {
 
   it("присоединяется к сессии, если параметр room указан в URL", async () => {
     mockSearchParams = new URLSearchParams(
-      "room=11111111-1111-4111-a111-111111111111",
+      "room=11111111-1111-4111-a111-111111111111&invite=inv-token-123",
     );
-    joinSessionMock.mockResolvedValue({ role: "CANDIDATE" });
+    joinSessionMock.mockResolvedValue({
+      role: "CANDIDATE",
+      inviteToken: "inv-token-123",
+    });
 
     render(
       <ToastProvider>
@@ -140,6 +149,7 @@ describe("SandboxRoom", () => {
     await waitFor(() => {
       expect(joinSessionMock).toHaveBeenCalledWith(
         "11111111-1111-4111-a111-111111111111",
+        { inviteToken: "inv-token-123" },
       );
       expect(createSessionMock).not.toHaveBeenCalled();
       expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
@@ -161,12 +171,45 @@ describe("SandboxRoom", () => {
     await waitFor(() => {
       expect(joinSessionMock).toHaveBeenCalledWith(
         "22222222-2222-4222-b222-222222222222",
+        { inviteToken: undefined },
       );
       expect(screen.getByTestId("sandbox-error")).toBeInTheDocument();
       expect(screen.getByText("Session is closed")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Создать новую сессию/i }),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("повторяет попытку создания сессии при клике на кнопку после ошибки создания", async () => {
+    createSessionMock
+      .mockRejectedValueOnce(new Error("Server creation failed"))
+      .mockResolvedValueOnce({ sessionId: "retry-session-uuid" });
+
+    render(
+      <ToastProvider>
+        <SandboxRoom />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(createSessionMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("sandbox-error")).toBeInTheDocument();
+      expect(screen.getByText("Server creation failed")).toBeInTheDocument();
+    });
+
+    const createButton = screen.getByRole("button", {
+      name: /Создать новую сессию/i,
+    });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(createSessionMock).toHaveBeenCalledTimes(2);
+      expect(replaceMock).toHaveBeenCalledWith(
+        "/dashboard/sandbox?room=retry-session-uuid",
+      );
+      expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
+      expect(screen.getByTestId("sandbox-task-panel")).toBeInTheDocument();
     });
   });
 });

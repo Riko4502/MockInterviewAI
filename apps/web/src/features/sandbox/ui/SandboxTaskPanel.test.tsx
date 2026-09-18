@@ -1,11 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import i18n from "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxTaskPanel } from "./SandboxTaskPanel";
 
 describe("SandboxTaskPanel", () => {
   beforeEach(() => {
+    i18n.changeLanguage("ru");
     useSandboxStore.getState().resetStore();
   });
 
@@ -48,5 +50,22 @@ describe("SandboxTaskPanel", () => {
     fireEvent.change(textarea, { target: { value: "Updated note" } });
 
     expect(useSandboxStore.getState().notes).toBe("Updated note");
+  });
+
+  it("should render English localized strings when locale is set to en", () => {
+    i18n.changeLanguage("en");
+
+    render(<SandboxTaskPanel />);
+
+    expect(screen.getByText("Description")).toBeInTheDocument();
+    expect(screen.getByText("AI Hints")).toBeInTheDocument();
+    expect(screen.getByText("Notes")).toBeInTheDocument();
+
+    expect(screen.getByText(/Category:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Examples:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Example 1:/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Input:/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Output:/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Constraints:/i)).toBeInTheDocument();
   });
 });

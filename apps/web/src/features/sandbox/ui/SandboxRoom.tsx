@@ -29,6 +29,7 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const routerRef = useRef(router);
@@ -37,76 +38,93 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const onSessionReadyRef = useRef(onSessionReady);
   onSessionReadyRef.current = onSessionReady;
 
+  const createSession = useCallback(async () => {
+    setStatus("initializing");
+    setErrorMessage(null);
+
+    try {
+      const res = await sessionsControllerCreateSession();
+      if (res?.sessionId) {
+        setRoomId(res.sessionId);
+        setRole("INTERVIEWER");
+        if (res.inviteToken) {
+          setInviteToken(res.inviteToken);
+        }
+        setStatus("joined");
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("room", res.sessionId);
+        if (res.inviteToken) {
+          params.set("invite", res.inviteToken);
+        }
+        routerRef.current.replace(`${pathname}?${params.toString()}`);
+
+        onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
+      }
+    } catch (err) {
+      console.error("[SandboxRoom] Failed to create session:", err);
+      setStatus("error");
+      setErrorMessage(
+        err instanceof Error ? err.message : t("sandbox.createError"),
+      );
+    }
+  }, [pathname, searchParams, t]);
+
+  const joinSession = useCallback(
+    async (roomParam: string, inviteParam?: string) => {
+      setStatus("initializing");
+      setErrorMessage(null);
+
+      try {
+        const res = await sessionsControllerJoinSession(roomParam, {
+          inviteToken: inviteParam || undefined,
+        });
+        setRoomId(roomParam);
+        setRole(res.role);
+        if (res.inviteToken) {
+          setInviteToken(res.inviteToken);
+        } else if (inviteParam) {
+          setInviteToken(inviteParam);
+        }
+        setStatus("joined");
+        onSessionReadyRef.current?.(roomParam, res.role);
+      } catch (err) {
+        console.error("[SandboxRoom] Failed to join session:", err);
+        setStatus("error");
+        setErrorMessage(
+          err instanceof Error ? err.message : t("sandbox.joinError"),
+        );
+      }
+    },
+    [t],
+  );
+
   // Инициализация / Join Flow
   useEffect(() => {
-    let cancelled = false;
-
     const token = authToken.get();
     if (!token) {
       return;
     }
 
     const roomParam = searchParams.get("room");
+    const inviteParam = searchParams.get("invite");
 
     if (roomParam && isValidUUID(roomParam)) {
-      setStatus("initializing");
-
-      sessionsControllerJoinSession(roomParam)
-        .then((res) => {
-          if (cancelled) return;
-          setRoomId(roomParam);
-          setRole(res.role);
-          setStatus("joined");
-          onSessionReadyRef.current?.(roomParam, res.role);
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          console.error("[SandboxRoom] Failed to join session:", err);
-          setStatus("error");
-          setErrorMessage(
-            err instanceof Error ? err.message : t("sandbox.joinError"),
-          );
-        });
+      joinSession(roomParam, inviteParam ?? undefined);
     } else {
-      setStatus("initializing");
-
-      sessionsControllerCreateSession()
-        .then((res) => {
-          if (cancelled) return;
-          if (res?.sessionId) {
-            setRoomId(res.sessionId);
-            setRole("INTERVIEWER");
-            setStatus("joined");
-
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("room", res.sessionId);
-            routerRef.current.replace(`${pathname}?${params.toString()}`);
-
-            onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
-          }
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          console.error("[SandboxRoom] Failed to create session:", err);
-          setStatus("error");
-          setErrorMessage(
-            err instanceof Error ? err.message : t("sandbox.createError"),
-          );
-        });
+      createSession();
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams, pathname, t]);
+  }, [searchParams, joinSession, createSession]);
 
   const handleCreateNewSession = useCallback(() => {
-    setStatus("idle");
     setRoomId(null);
+    setInviteToken(null);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("room");
+    params.delete("invite");
     routerRef.current.replace(`${pathname}?${params.toString()}`);
-  }, [searchParams, pathname]);
+    createSession();
+  }, [searchParams, pathname, createSession]);
 
   // Error State
   if (status === "error") {
@@ -125,6 +143,11 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
 
   // Active Workspace
   return (
-    <SandboxRoomWorkspace roomId={roomId} role={role} pathname={pathname} />
+    <SandboxRoomWorkspace
+      roomId={roomId}
+      role={role}
+      pathname={pathname}
+      inviteToken={inviteToken ?? undefined}
+    />
   );
 }

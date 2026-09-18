@@ -19,6 +19,53 @@
     "errorTitle": "Connection Error",
     "joinError": "Failed to connect to the session. It might be closed or does not exist.",
     "createError": "Failed to create a new session.",
-    "createNew": "Create New Session"
+    "createNew": "Create New Session",
+    "header": {
+      "taskLabel": "Task:",
+      "taskPlaceholder": "Select a task",
+      "inviteTooltip": "Copy link for collaborative solving and call",
+      "inviteButton": "Invite participant",
+      "inviteCopied": "Link copied! ✓",
+      "onlineCount": "Online: {{count}}",
+      "singleParticipant": "1 participant",
+      "timerStart": "Start",
+      "timerPause": "Pause",
+      "timerResetTooltip": "Reset timer (45 min)",
+      "videoPanelTooltip": "Video call panel",
+      "inCall": "In call",
+      "videoCall": "Video call",
+      "themeTooltip": "Current editor theme: {{theme}}. Click to switch",
+      "resetCodeTooltip": "Reset code to starter template",
+      "resetCode": "Reset",
+      "runCodeTooltip": "Code execution is temporarily unavailable",
+      "runCode": "Run Code"
+    },
+    "tabs": {
+      "description": "Description",
+      "hints": "AI Hints",
+      "notes": "Notes"
+    },
+    "task": {
+      "category": "Category: {{category}}",
+      "examples": "Examples:",
+      "example": "Example {{number}}:",
+      "input": "Input:",
+      "output": "Output:",
+      "explanation": "Explanation: {{explanation}}",
+      "constraints": "Constraints:"
+    },
+    "hints": {
+      "title": "Virtual AI Interviewer",
+      "description": "If you get stuck while solving, reveal hints sequentially, just like in a real technical interview.",
+      "hintNumber": "Hint #{{number}}",
+      "revealed": "Revealed ✓",
+      "locked": "🔒 Click the button below to reveal",
+      "revealNext": "Reveal next hint ({{current}}/{{total}})"
+    },
+    "notes": {
+      "title": "Your draft for recording thoughts, algorithms, and edge cases:",
+      "placeholder": "Notes:\n1. Algorithmic complexity (Time/Space O(...))\n2. Edge cases (empty array, duplicates, overflow)\n3. Optimization ideas",
+      "disclaimer": "Notes are stored in memory only and will be lost after page reload."
+    }
   }
 }

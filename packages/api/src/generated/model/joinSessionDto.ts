@@ -10,7 +10,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateSessionResponseDto {
-  sessionId: string;
-  inviteToken: string;
+export interface JoinSessionDto {
+  inviteToken?: string;
 }

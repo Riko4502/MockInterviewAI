@@ -16,12 +16,14 @@ export interface SandboxRoomWorkspaceProps {
   roomId: string;
   role: string | null;
   pathname: string;
+  inviteToken?: string;
 }
 
 export function SandboxRoomWorkspace({
   roomId,
   role,
   pathname,
+  inviteToken,
 }: SandboxRoomWorkspaceProps) {
   const code = useSandboxStore((s) => s.code);
   const setCode = useSandboxStore((s) => s.setCode);
@@ -86,6 +88,7 @@ export function SandboxRoomWorkspace({
     <SandboxMediaProvider
       roomId={roomId}
       pathname={pathname}
+      inviteToken={inviteToken}
       realtime={realtime}
     >
       <div

@@ -1,3 +1,4 @@
+import type { AnyWebSocketEnvelope } from "@packages/dto";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebRTCSignal } from "../model/types";
@@ -300,5 +301,273 @@ describe("useSandboxRealtime deduplication", () => {
     expect(onRemoteWebRTCSignal).not.toHaveBeenCalled();
 
     unmount();
+  });
+
+  it("should track pending code update by requestId and clear it upon server code.update echo", async () => {
+    const onRemoteCodeUpdate = vi.fn();
+
+    let hookResult!: { current: ReturnType<typeof useSandboxRealtime> };
+    let unmountHook!: () => void;
+
+    await act(async () => {
+      const { result, unmount } = renderHook(() =>
+        useSandboxRealtime({
+          roomId: "test-room-pending-code",
+          onRemoteCodeUpdate,
+        }),
+      );
+      hookResult = result;
+      unmountHook = unmount;
+    });
+
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // 1. Broadcast local code update
+    mockWsSend.mockClear();
+    act(() => {
+      hookResult.current.broadcastCodeUpdate("const a = 10;", "typescript");
+    });
+
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const sentEnvelope = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    const sentRequestId = sentEnvelope.requestId;
+    expect(sentRequestId).toBeDefined();
+
+    // 2. Server echoes back the code.update with matching requestId
+    const echoEnvelope = {
+      sessionId: "test-room-pending-code",
+      requestId: sentRequestId,
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "code.update",
+      payload: {
+        filePath: "main",
+        language: "typescript",
+        content: "const a = 10;",
+        version: 1,
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(echoEnvelope) });
+    });
+
+    // onRemoteCodeUpdate should not be called for own echo
+    expect(onRemoteCodeUpdate).not.toHaveBeenCalled();
+
+    // 3. Simulate room.sync (e.g. after reconnect); pending code was acknowledged, so it should NOT resend old code
+    mockWsSend.mockClear();
+    const syncEnvelope = {
+      sessionId: "test-room-pending-code",
+      requestId: "sync_req_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "room.sync",
+      payload: {
+        sessionId: "test-room-pending-code",
+        participants: [],
+        codeState: {
+          filePath: "main",
+          language: "typescript",
+          content: "const a = 10;",
+          version: 1,
+        },
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(syncEnvelope) });
+    });
+
+    expect(mockWsSend).not.toHaveBeenCalled();
+    expect(onRemoteCodeUpdate).toHaveBeenCalledWith(
+      "const a = 10;",
+      "typescript",
+    );
+
+    unmountHook();
+  });
+
+  it("should not clear pending code when receiving a duplicate message from another user", async () => {
+    const onRemoteCodeUpdate = vi.fn();
+
+    let hookResult!: { current: ReturnType<typeof useSandboxRealtime> };
+    let unmountHook!: () => void;
+
+    await act(async () => {
+      const { result, unmount } = renderHook(() =>
+        useSandboxRealtime({
+          roomId: "test-room-pending-code-remote-dup",
+          onRemoteCodeUpdate,
+        }),
+      );
+      hookResult = result;
+      unmountHook = unmount;
+    });
+
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // 1. Broadcast local code update (unacknowledged)
+    mockWsSend.mockClear();
+    act(() => {
+      hookResult.current.broadcastCodeUpdate(
+        "const pending = true;",
+        "typescript",
+      );
+    });
+
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const sentEnvelope = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    const myRequestId = sentEnvelope.requestId;
+
+    // 2. Receive a remote code.update from another user twice (duplicate)
+    const remoteEnvelope = {
+      sessionId: "test-room-pending-code-remote-dup",
+      requestId: "remote-user-req-999",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "code.update",
+      payload: {
+        filePath: "main",
+        language: "typescript",
+        content: "const remote = true;",
+        version: 1,
+      },
+    };
+
+    // First arrival
+    act(() => {
+      handler({ data: JSON.stringify(remoteEnvelope) });
+    });
+    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(1);
+
+    // Second arrival (duplicate)
+    act(() => {
+      handler({ data: JSON.stringify(remoteEnvelope) });
+    });
+    // Should still be called only once
+    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(1);
+
+    // 3. Now simulate room.sync (reconnect); our pending code should STILL be pending and resent
+    mockWsSend.mockClear();
+    const syncEnvelope = {
+      sessionId: "test-room-pending-code-remote-dup",
+      requestId: "sync_req_2",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "room.sync",
+      payload: {
+        sessionId: "test-room-pending-code-remote-dup",
+        participants: [],
+        codeState: {
+          filePath: "main",
+          language: "typescript",
+          content: "const remote = true;",
+          version: 1,
+        },
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(syncEnvelope) });
+    });
+
+    // Pending code should be resent on room.sync
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const resentEnvelope = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    expect(resentEnvelope.requestId).toBe(myRequestId);
+    expect((resentEnvelope.payload as { content: string }).content).toBe(
+      "const pending = true;",
+    );
+
+    unmountHook();
+  });
+
+  it("should clear pending task change upon matching server chat.message echo and system.ack", async () => {
+    const onRemoteTaskChange = vi.fn();
+
+    let hookResult!: { current: ReturnType<typeof useSandboxRealtime> };
+    let unmountHook!: () => void;
+
+    await act(async () => {
+      const { result, unmount } = renderHook(() =>
+        useSandboxRealtime({
+          roomId: "test-room-pending-task",
+          onRemoteTaskChange,
+        }),
+      );
+      hookResult = result;
+      unmountHook = unmount;
+    });
+
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // 1. Broadcast task change
+    mockWsSend.mockClear();
+    act(() => {
+      hookResult.current.broadcastTaskChange("task-binary-search");
+    });
+
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const sentEnvelope = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    const sentTaskId = sentEnvelope.requestId;
+
+    // 2. Server responds with system.ack for this requestId
+    const ackEnvelope = {
+      sessionId: "test-room-pending-task",
+      requestId: "server_ack_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "system.ack",
+      payload: {
+        targetRequestId: sentTaskId,
+        status: "ok",
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(ackEnvelope) });
+    });
+
+    // 3. Receive another remote task change from peer
+    const remoteTaskMessage = {
+      id: "remote_task_msg_1",
+      type: "task-change" as const,
+      roomId: "test-room-pending-task",
+      senderId: "remote-peer-42",
+      senderName: "Interviewer",
+      payload: { taskId: "task-quick-sort" },
+    };
+
+    const remoteChatEnvelope = {
+      sessionId: "test-room-pending-task",
+      requestId: "remote_task_req_1",
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: "chat.message",
+      payload: {
+        messageId: "msg_remote_task_msg_1",
+        senderId: "remote-peer-42",
+        senderName: "Interviewer",
+        text: JSON.stringify(remoteTaskMessage),
+        sentAt: new Date().toISOString(),
+      },
+    };
+
+    act(() => {
+      handler({ data: JSON.stringify(remoteChatEnvelope) });
+    });
+
+    expect(onRemoteTaskChange).toHaveBeenCalledWith("task-quick-sort");
+
+    unmountHook();
   });
 });

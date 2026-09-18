@@ -1,5 +1,9 @@
+"use client";
+
 import { UsersIcon } from "@packages/icons";
 import { Badge, Button, Select, Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
 
@@ -10,6 +14,7 @@ export interface SandboxHeaderTaskSelectorProps {
 export function SandboxHeaderTaskSelector({
   onTaskChange,
 }: SandboxHeaderTaskSelectorProps = {}) {
+  const { t } = useTranslation("interview");
   const { peerCount, onCopyInvite, isInviteCopied } = useSandboxMedia();
   const tasks = useSandboxStore((s) => s.tasks);
   const currentTaskId = useSandboxStore((s) => s.currentTaskId);
@@ -28,12 +33,12 @@ export function SandboxHeaderTaskSelector({
   return (
     <div className="flex items-center gap-3">
       <Typography.Muted className="text-xs font-semibold">
-        Задача:
+        {t("sandbox.header.taskLabel")}
       </Typography.Muted>
 
       <Select value={currentTaskId} onValueChange={handleTaskChange}>
         <Select.Trigger className="h-9 w-[260px]">
-          <Select.Value placeholder="Выберите задачу" />
+          <Select.Value placeholder={t("sandbox.header.taskPlaceholder")} />
         </Select.Trigger>
         <Select.Content>
           {tasks.map((task) => (
@@ -66,10 +71,12 @@ export function SandboxHeaderTaskSelector({
         className={`h-8 gap-1.5 px-2.5 text-xs transition-all ${
           isInviteCopied ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
         }`}
-        title="Скопировать ссылку для совместного решения и созвона"
+        title={t("sandbox.header.inviteTooltip")}
       >
         <UsersIcon className="size-3.5" />
-        {isInviteCopied ? "Ссылка скопирована! ✓" : "Пригласить собеседника"}
+        {isInviteCopied
+          ? t("sandbox.header.inviteCopied")
+          : t("sandbox.header.inviteButton")}
       </Button>
 
       {/* Индикатор онлайна (фиксированная стабильная плашка) */}
@@ -80,7 +87,9 @@ export function SandboxHeaderTaskSelector({
           }`}
         />
         <span className="font-mono text-[11px] whitespace-nowrap">
-          {peerCount > 1 ? `Онлайн: ${peerCount}` : "1 участник"}
+          {peerCount > 1
+            ? t("sandbox.header.onlineCount", { count: peerCount })
+            : t("sandbox.header.singleParticipant")}
         </span>
       </div>
     </div>

@@ -434,6 +434,13 @@ paths:
           schema:
             format: uuid
             type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinSessionDto"
       responses:
         "200":
           description: Успешное присоединение к сессии
@@ -444,7 +451,8 @@ paths:
         "401":
           description: Не авторизован
         "403":
-          description: Сессия закрыта
+          description: Доступ запрещен (сессия закрыта или пользователь не является
+            участником)
         "404":
           description: Сессия не найдена
       security: *a4
@@ -1079,8 +1087,17 @@ components:
         sessionId:
           type: string
           format: uuid
+        inviteToken:
+          type: string
       required:
         - sessionId
+        - inviteToken
+    JoinSessionDto:
+      default: {}
+      type: object
+      properties:
+        inviteToken:
+          type: string
     JoinSessionResponseDto:
       type: object
       properties:
@@ -1091,8 +1108,12 @@ components:
             - INTERVIEWER
             - OBSERVER
           description: Роль пользователя в сессии
+        inviteToken:
+          type: string
+          description: Инвайт-токен сессии
       required:
         - role
+        - inviteToken
     AddParticipantDto:
       type: object
       properties:

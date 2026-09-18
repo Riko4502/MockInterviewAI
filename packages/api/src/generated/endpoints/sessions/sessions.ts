@@ -22,6 +22,7 @@ import type {
 import type {
   AddParticipantDto,
   CreateSessionResponseDto,
+  JoinSessionDto,
   JoinSessionResponseDto
 } from '../../model';
 
@@ -120,14 +121,21 @@ export const useSessionsControllerCreateSession = <TError = void,
 /**
  * @summary Присоединиться к интервью-сессии
  */
-export const sessionsControllerJoinSession = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<JoinSessionResponseDto> => {
+export const sessionsControllerJoinSession = async (id: string,
+    joinSessionDto: JoinSessionDto, options?: Parameters<typeof customInstance>[1]): Promise<JoinSessionResponseDto> => {
 
-  return customInstance<JoinSessionResponseDto>(getSessionsControllerJoinSessionUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<JoinSessionResponseDto>(getSessionsControllerJoinSessionUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(joinSessionDto)
   }
 );}
 
@@ -152,9 +160,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerJoinSession>>, SessionsControllerJoinSessionMutationVariables> = (props) => {
-          const {id} = props ?? {};
+          const {id,data} = props ?? {};
 
-          return  sessionsControllerJoinSession(id,requestOptions)
+          return  sessionsControllerJoinSession(id,data,requestOptions)
         }
 
 
@@ -165,9 +173,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type SessionsControllerJoinSessionMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerJoinSession>>>
-
+    export type SessionsControllerJoinSessionMutationBody = JoinSessionDto
     export type SessionsControllerJoinSessionMutationError = void
-    export type SessionsControllerJoinSessionMutationVariables = {id: string}
+    export type SessionsControllerJoinSessionMutationVariables = {id: string;data: JoinSessionDto}
 
     /**
  * @summary Присоединиться к интервью-сессии

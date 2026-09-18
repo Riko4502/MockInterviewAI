@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { useLiveKitRoom } from "@/features/realtime";
+import { buildAppUrl } from "@/shared/lib/url";
 import type { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { type ConnectionState, useWebRTC } from "../lib/useWebRTC";
 import { useSandboxStore } from "./useSandboxStore";
@@ -57,6 +58,7 @@ export function useSandboxMedia(): SandboxMediaContextValue {
 interface SandboxMediaProviderProps {
   roomId: string;
   pathname: string;
+  inviteToken?: string;
   realtime: ReturnType<typeof useSandboxRealtime>;
   children: ReactNode;
 }
@@ -64,6 +66,7 @@ interface SandboxMediaProviderProps {
 export function SandboxMediaProvider({
   roomId,
   pathname,
+  inviteToken,
   realtime,
   children,
 }: SandboxMediaProviderProps) {
@@ -89,7 +92,10 @@ export function SandboxMediaProvider({
   const handleCopyInvite = useCallback(() => {
     if (typeof window === "undefined") return;
 
-    const url = `${window.location.origin}${pathname}?room=${roomId}`;
+    const url = buildAppUrl(pathname, {
+      room: roomId,
+      ...(inviteToken ? { invite: inviteToken } : {}),
+    });
     navigator.clipboard
       .writeText(url)
       .then(() => {
@@ -125,7 +131,7 @@ export function SandboxMediaProvider({
           duration: 4000,
         });
       });
-  }, [pathname, roomId, toast]);
+  }, [pathname, roomId, inviteToken, toast]);
 
   // WebRTC P2P видео/аудио звонок
   const webrtc = useWebRTC({

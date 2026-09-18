@@ -18,8 +18,11 @@ import {
 import {
   type AddParticipantDto,
   addParticipantSchema,
+  type CreateSessionResponseDto,
   type InterviewParticipantRole,
+  type JoinSessionDto,
   type JoinSessionResponseDto,
+  joinSessionSchema,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
@@ -43,7 +46,7 @@ export class SessionsController {
    * и участником с ролью `interviewer`.
    *
    * @param userId - UUID текущего пользователя (владельца).
-   * @returns `{ sessionId }`.
+   * @returns `{ sessionId, inviteToken }`.
    */
   @Post()
   @ApiOperation({ summary: "Создать новую интервью-сессию" })
@@ -54,14 +57,15 @@ export class SessionsController {
       type: "object",
       properties: {
         sessionId: { type: "string", format: "uuid" },
+        inviteToken: { type: "string" },
       },
-      required: ["sessionId"],
+      required: ["sessionId", "inviteToken"],
     }),
   })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   async createSession(
     @CurrentUser("sub") userId: string,
-  ): Promise<{ sessionId: string }> {
+  ): Promise<CreateSessionResponseDto> {
     return this.sessionsService.createSession(userId);
   }
 
@@ -70,7 +74,8 @@ export class SessionsController {
    *
    * @param sessionId - UUID сессии из пути.
    * @param userId - UUID текущего пользователя (`sub`).
-   * @returns `{ role }` — роль пользователя в сессии.
+   * @param body - Опциональный инвайт-токен `{ inviteToken }`.
+   * @returns `{ role, inviteToken }` — роль пользователя и инвайт-токен сессии.
    */
   @Post(":id/join")
   @HttpCode(HttpStatus.OK)
@@ -81,6 +86,7 @@ export class SessionsController {
     format: "uuid",
     description: "UUID сессии",
   })
+  @ZodBody(joinSessionSchema, "JoinSessionDto")
   @ApiResponse({
     status: 200,
     description: "Успешное присоединение к сессии",
@@ -92,18 +98,31 @@ export class SessionsController {
           enum: ["CANDIDATE", "INTERVIEWER", "OBSERVER"],
           description: "Роль пользователя в сессии",
         },
+        inviteToken: {
+          type: "string",
+          description: "Инвайт-токен сессии",
+        },
       },
-      required: ["role"],
+      required: ["role", "inviteToken"],
     }),
   })
   @ApiResponse({ status: 401, description: "Не авторизован" })
-  @ApiResponse({ status: 403, description: "Сессия закрыта" })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Доступ запрещен (сессия закрыта или пользователь не является участником)",
+  })
   @ApiResponse({ status: 404, description: "Сессия не найдена" })
   async joinSession(
     @Param("id") sessionId: string,
     @CurrentUser("sub") userId: string,
+    @Body(new ZodValidationPipe(joinSessionSchema)) body?: JoinSessionDto,
   ): Promise<JoinSessionResponseDto> {
-    return this.sessionsService.joinSession(sessionId, userId);
+    return this.sessionsService.joinSession(
+      sessionId,
+      userId,
+      body?.inviteToken,
+    );
   }
 
   /**

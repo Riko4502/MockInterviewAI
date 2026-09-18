@@ -1,6 +1,10 @@
+"use client";
+
 import type { LanguageId } from "@packages/editor";
 import { CameraIcon, PlayIcon, SettingsIcon, UndoIcon } from "@packages/icons";
 import { Button, Select } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
 
@@ -22,6 +26,7 @@ export function SandboxHeaderActions({
   onLanguageChange,
   onResetCode,
 }: SandboxHeaderActionsProps) {
+  const { t } = useTranslation("interview");
   const { isCallConnected: isInCall } = useSandboxMedia();
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
@@ -62,10 +67,14 @@ export function SandboxHeaderActions({
               ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
               : ""
         }`}
-        title="Панель видеозвонка"
+        title={t("sandbox.header.videoPanelTooltip")}
       >
         <CameraIcon className="size-4" />
-        <span>{isInCall ? "В звонке" : "Видеозвонок"}</span>
+        <span>
+          {isInCall
+            ? t("sandbox.header.inCall")
+            : t("sandbox.header.videoCall")}
+        </span>
         {isInCall && (
           <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
         )}
@@ -91,7 +100,7 @@ export function SandboxHeaderActions({
         size="icon"
         onClick={toggleTheme}
         className="size-9"
-        title={`Текущая тема редактора: ${theme}. Нажмите для переключения`}
+        title={t("sandbox.header.themeTooltip", { theme })}
       >
         <SettingsIcon className="size-4" />
       </Button>
@@ -102,10 +111,10 @@ export function SandboxHeaderActions({
         size="sm"
         onClick={handleReset}
         className="h-9 gap-1.5 px-2.5 text-xs text-muted-foreground"
-        title="Сбросить код к начальному шаблону"
+        title={t("sandbox.header.resetCodeTooltip")}
       >
         <UndoIcon className="size-3.5" />
-        Сброс
+        {t("sandbox.header.resetCode")}
       </Button>
 
       {/* Запуск кода (временно отключено) */}
@@ -114,10 +123,10 @@ export function SandboxHeaderActions({
         size="sm"
         disabled={true}
         className="h-9 gap-1.5 bg-emerald-600/50 px-4 text-xs text-white/70 cursor-not-allowed shadow-xs"
-        title="Запуск кода временно недоступен"
+        title={t("sandbox.header.runCodeTooltip")}
       >
         <PlayIcon className="size-3.5 fill-current" />
-        Run Code
+        {t("sandbox.header.runCode")}
       </Button>
     </div>
   );
