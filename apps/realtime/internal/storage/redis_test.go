@@ -83,6 +83,6 @@ func TestObservePubSubLag(t *testing.T) {
 	}
 
 	// Nil-наблюдатель не должен ронять замеры.
-	store.SetPubSubLagObserver(nil)
+	store = &RedisStore{}
 	store.observePubSubLag(time.Now().UnixMilli())
 }
