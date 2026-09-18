@@ -12,6 +12,7 @@ export { normalizeEmail } from "./string/email";
 export {
   type BuildUrlOptions,
   buildUrl,
+  buildUrlWithOptions,
   type QueryParamsRecord,
   type QueryParamValue,
 } from "./url";

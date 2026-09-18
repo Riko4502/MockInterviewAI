@@ -1,9 +1,14 @@
+"use client";
+
 import { AlertCircleIcon, MicIcon, UserIcon } from "@packages/icons";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useAudioVolumeMeter } from "../lib/useAudioVolumeMeter";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 
 export function SandboxVideoWidgetScreen() {
+  const { t } = useTranslation("interview");
   const {
     localStream,
     remoteStream,
@@ -96,8 +101,8 @@ export function SandboxVideoWidgetScreen() {
                   }`}
                   title={
                     isRemoteAudioMuted
-                      ? "Микрофон выключен"
-                      : "Микрофон активен"
+                      ? t("sandbox.videoWidget.screen.micMutedTooltip")
+                      : t("sandbox.videoWidget.screen.micActiveTooltip")
                   }
                 />
               </div>
@@ -106,8 +111,8 @@ export function SandboxVideoWidgetScreen() {
               </span>
               <span className="mt-0.5 text-[11px] text-zinc-400">
                 {connectionState === "calling"
-                  ? "Соединение..."
-                  : "Камера выключена"}
+                  ? t("sandbox.videoWidget.screen.connecting")
+                  : t("sandbox.videoWidget.screen.cameraOff")}
               </span>
             </div>
           ) : localStream ? (
@@ -127,12 +132,14 @@ export function SandboxVideoWidgetScreen() {
                   <div className="flex size-14 items-center justify-center rounded-full bg-zinc-800 shadow-inner">
                     <UserIcon className="size-7 text-zinc-400" />
                   </div>
-                  <span className="mt-2 text-xs">Камера выключена</span>
+                  <span className="mt-2 text-xs">
+                    {t("sandbox.videoWidget.screen.cameraOff")}
+                  </span>
                 </div>
               )}
               <div className="absolute bottom-2 left-2 flex items-center gap-2">
                 <span className="rounded bg-black/70 px-2 py-0.5 text-[10px] text-white backdrop-blur-xs">
-                  Вы • Ожидание собеседника
+                  {t("sandbox.videoWidget.screen.waitingForPeer")}
                 </span>
                 {!hasPeerOnline && onCopyInvite && (
                   <button
@@ -141,8 +148,8 @@ export function SandboxVideoWidgetScreen() {
                     className="rounded bg-emerald-600/90 hover:bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white transition-colors shadow-xs"
                   >
                     {isInviteCopied
-                      ? "Ссылка скопирована! ✓"
-                      : "📋 Пригласить во 2-ю вкладку"}
+                      ? t("sandbox.videoWidget.screen.linkCopied")
+                      : t("sandbox.videoWidget.screen.inviteSecondTab")}
                   </button>
                 )}
               </div>
@@ -154,11 +161,11 @@ export function SandboxVideoWidgetScreen() {
               </div>
               <span className="mt-2.5 text-xs font-medium text-zinc-300">
                 {connectionState === "calling"
-                  ? "Соединение с собеседником..."
-                  : "Звонок не начат"}
+                  ? t("sandbox.videoWidget.screen.connectingWithPeer")
+                  : t("sandbox.videoWidget.screen.callNotStarted")}
               </span>
               <span className="mt-1 text-[11px] text-zinc-500">
-                Нажмите «Позвонить», чтобы связаться
+                {t("sandbox.videoWidget.screen.clickCallToConnect")}
               </span>
             </div>
           )}
@@ -177,11 +184,11 @@ export function SandboxVideoWidgetScreen() {
               ) : (
                 <div className="flex size-full flex-col items-center justify-center bg-zinc-800 text-[10px] text-zinc-400">
                   <UserIcon className="size-4 mb-0.5 text-zinc-500" />
-                  <span>Камера выкл</span>
+                  <span>{t("sandbox.videoWidget.screen.cameraOffShort")}</span>
                 </div>
               )}
               <span className="absolute bottom-1 left-1.5 rounded bg-black/60 px-1 py-0.2 text-[9px] text-white">
-                Вы
+                {t("sandbox.videoWidget.screen.you")}
               </span>
             </div>
           )}
@@ -214,7 +221,9 @@ export function SandboxVideoWidgetScreen() {
                   isAudioMuted ? "text-rose-400" : "text-emerald-400"
                 }`}
               />
-              <span className="text-[10px]">Вы</span>
+              <span className="text-[10px]">
+                {t("sandbox.videoWidget.screen.you")}
+              </span>
               {!isAudioMuted && (
                 <div
                   className="size-2 rounded-full bg-emerald-400 transition-all"

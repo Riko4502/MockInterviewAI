@@ -46,4 +46,27 @@ describe("buildUrl", () => {
     });
     expect(url).toBe("https://example.com/docs?page=2#section-1");
   });
+
+  it("не теряет параметры запроса и не трактует hash как фрагмент при наличии других ключей", () => {
+    const url = buildUrl("https://example.com", "/sandbox", {
+      hash: "abc",
+      room: "1",
+    });
+    expect(url).toBe("https://example.com/sandbox?hash=abc&room=1");
+  });
+
+  it("корректно сериализует query-параметр с именем params, если он является примитивом или массивом", () => {
+    const urlString = buildUrl("https://example.com", "/search", {
+      params: "filter-value",
+      sort: "asc",
+    });
+    expect(urlString).toBe(
+      "https://example.com/search?params=filter-value&sort=asc",
+    );
+
+    const urlArray = buildUrl("https://example.com", "/search", {
+      params: ["a", "b"],
+    });
+    expect(urlArray).toBe("https://example.com/search?params=a&params=b");
+  });
 });

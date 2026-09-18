@@ -66,6 +66,53 @@
       "title": "Ваш черновик для фиксации мыслей, алгоритмов и краевых случаев (Edge Cases):",
       "placeholder": "Записывайте сюда:\n1. Алгоритмическая сложность (Time/Space O(...))\n2. Граничные случаи (пустой массив, дубликаты, переполнение)\n3. Идеи по оптимизации",
       "disclaimer": "Заметки хранятся только в памяти страницы и будут потеряны после перезагрузки."
+    },
+    "videoWidget": {
+      "header": {
+        "videoOnline": "Видеозвонок онлайн",
+        "calling": "Вызов...",
+        "videoCall": "Видеосвязь",
+        "badgeInCall": "В звонке 🟢",
+        "badgeConnecting": "Соединение...",
+        "badgePeerOnline": "Собеседник в сети",
+        "badgeWaitingPeer": "Ожидание собеседника",
+        "expandTooltip": "Развернуть",
+        "collapseTooltip": "Свернуть",
+        "closeTooltip": "Закрыть панель видео"
+      },
+      "controls": {
+        "endCallTooltip": "Завершить видеозвонок",
+        "endCall": "Завершить",
+        "startCallTooltip": "Позвонить собеседнику по WebRTC",
+        "calling": "Вызов...",
+        "startCall": "Позвонить",
+        "unmuteMicTooltip": "Включить микрофон",
+        "muteMicTooltip": "Выключить микрофон",
+        "micMuted": "Мут",
+        "micOn": "Вкл",
+        "turnOnCamTooltip": "Включить камеру",
+        "turnOffCamTooltip": "Выключить камеру",
+        "screenShareTooltip": "Демонстрация экрана",
+        "screenShare": "Экран",
+        "statusInCall": "🟢 В звонке",
+        "statusCalling": "🟡 Вызов...",
+        "statusPeerWaiting": "Собеседник ждет",
+        "statusAlone": "Один"
+      },
+      "screen": {
+        "micMutedTooltip": "Микрофон выключен",
+        "micActiveTooltip": "Микрофон активен",
+        "connecting": "Соединение...",
+        "cameraOff": "Камера выключена",
+        "waitingForPeer": "Ожидание собеседника",
+        "linkCopied": "Ссылка скопирована! ✓",
+        "inviteSecondTab": "📋 Пригласить во 2-ю вкладку",
+        "connectingWithPeer": "Соединение с собеседником...",
+        "callNotStarted": "Звонок не начат",
+        "clickCallToConnect": "Нажмите «Позвонить», чтобы связаться",
+        "cameraOffShort": "Камера выкл",
+        "you": "Вы"
+      }
     }
   }
 }

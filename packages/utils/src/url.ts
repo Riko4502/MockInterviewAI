@@ -14,6 +14,40 @@ export interface BuildUrlOptions {
 }
 
 /**
+ * Проверяет, является ли объект расширенной формой опций BuildUrlOptions.
+ *
+ * Расширенная форма содержит только ключи `params` и/или `hash`.
+ * При этом если передан `params`, он должен быть вложенным объектом параметров или undefined,
+ * чтобы примитивные query-параметры с именем `params` (например, `{ params: "123" }`)
+ * не интерпретировались ошибочно как BuildUrlOptions.
+ */
+function isBuildUrlOptions(
+  optionsOrParams: QueryParamsRecord | BuildUrlOptions,
+): optionsOrParams is BuildUrlOptions {
+  const keys = Object.keys(optionsOrParams);
+  if (keys.length === 0) {
+    return false;
+  }
+
+  const hasOnlyAllowedKeys = keys.every((k) => k === "params" || k === "hash");
+  if (!hasOnlyAllowedKeys) {
+    return false;
+  }
+
+  if ("params" in optionsOrParams && optionsOrParams.params !== undefined) {
+    if (
+      typeof optionsOrParams.params !== "object" ||
+      optionsOrParams.params === null ||
+      Array.isArray(optionsOrParams.params)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Универсальный билдер URL на базе нативного Web API (URL).
  *
  * - Безопасно объединяет базовый URL и путь, нормализуя слеши.
@@ -39,8 +73,8 @@ export function buildUrl(
     return url.toString();
   }
 
-  const isExtendedOptions =
-    "params" in optionsOrParams || "hash" in optionsOrParams;
+  // Расширенная форма содержит только ключи params/hash
+  const isExtendedOptions = isBuildUrlOptions(optionsOrParams);
 
   const params: QueryParamsRecord | undefined = isExtendedOptions
     ? (optionsOrParams as BuildUrlOptions).params
@@ -72,4 +106,15 @@ export function buildUrl(
   }
 
   return url.toString();
+}
+
+/**
+ * Билдер URL со строго типизированными расширенными опциями `{ params, hash }`.
+ */
+export function buildUrlWithOptions(
+  baseUrl: string,
+  pathname: string,
+  options?: BuildUrlOptions,
+): string {
+  return buildUrl(baseUrl, pathname, options);
 }

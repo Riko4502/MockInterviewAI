@@ -21,6 +21,9 @@ const ACTIVE_VALUE = "true";
 const CLOSED_VALUE = "closed";
 const MAX_SESSION_PARTICIPANTS = 10;
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Управляет интервью-сессиями и их Redis-зеркалом (источник правды о членстве).
  *
@@ -119,23 +122,37 @@ export class SessionsService {
   /**
    * Присоединяет пользователя к сессии.
    *
-   * 1. В транзакции проверяет существование сессии (404) и статус (403 если CLOSED).
-   * 2. Если пользователь уже участник — сохраняет его существующую роль и возвращает токен.
-   * 3. Если пользователь новый:
+   * 1. В транзакции эксклюзивно блокирует строку сессии (FOR UPDATE) для сериализации
+   *    проверки лимита участников и предотвращения race conditions при параллельных запросах.
+   * 2. Проверяет существование сессии (404) и статус (403 если CLOSED).
+   * 3. Если пользователь уже участник — сохраняет его существующую роль и возвращает токен.
+   * 4. Если пользователь новый:
    *    - Проверяет лимит участников (< 10).
    *    - Проверяет валидность HMAC inviteToken (403 если невалиден).
    *    - Регистрирует в Postgres с ролью CANDIDATE.
-   * 4. Перед записью зеркала проверяет, что сессия не закрыта (не перезаписывает closed).
-   * 5. Прогревает / обновляет запись в Redis-зеркале для авторизации в realtime.
+   * 5. Перед записью зеркала проверяет, что сессия не закрыта (не перезаписывает closed).
+   * 6. Прогревает / обновляет запись в Redis-зеркале для авторизации в realtime.
    */
   async joinSession(
     sessionId: string,
     userId: string,
     inviteToken?: string,
   ): Promise<{ role: InterviewParticipantRole; inviteToken: string }> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
     const generatedInviteToken = this.generateInviteToken(sessionId);
 
     const participant = await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "interview_sessions" WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("Session not found");
+      }
+
       const fresh = await tx.interviewSession.findUnique({
         where: { id: sessionId },
         include: {

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CameraIcon,
   CloseIcon,
@@ -7,9 +9,12 @@ import {
   ScreenIcon,
 } from "@packages/icons";
 import { Button } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 
 export function SandboxVideoWidgetControls() {
+  const { t } = useTranslation("interview");
   const {
     localStream,
     isInCall,
@@ -33,10 +38,10 @@ export function SandboxVideoWidgetControls() {
             size="sm"
             onClick={onEndCall}
             className="h-8 gap-1.5 px-3 text-xs shadow-xs"
-            title="Завершить видеозвонок"
+            title={t("sandbox.videoWidget.controls.endCallTooltip")}
           >
             <CloseIcon className="size-3.5" />
-            Завершить
+            {t("sandbox.videoWidget.controls.endCall")}
           </Button>
         ) : (
           <Button
@@ -45,10 +50,12 @@ export function SandboxVideoWidgetControls() {
             onClick={onStartCall}
             disabled={connectionState === "calling"}
             className="h-8 gap-1.5 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700 shadow-xs"
-            title="Позвонить собеседнику по WebRTC"
+            title={t("sandbox.videoWidget.controls.startCallTooltip")}
           >
             <CameraIcon className="size-3.5" />
-            {connectionState === "calling" ? "Вызов..." : "Позвонить"}
+            {connectionState === "calling"
+              ? t("sandbox.videoWidget.controls.calling")
+              : t("sandbox.videoWidget.controls.startCall")}
           </Button>
         )}
 
@@ -59,10 +66,16 @@ export function SandboxVideoWidgetControls() {
               size="sm"
               onClick={onToggleAudio}
               className="h-8 gap-1 px-2 text-xs"
-              title={isAudioMuted ? "Включить микрофон" : "Выключить микрофон"}
+              title={
+                isAudioMuted
+                  ? t("sandbox.videoWidget.controls.unmuteMicTooltip")
+                  : t("sandbox.videoWidget.controls.muteMicTooltip")
+              }
             >
               <MicIcon className="size-3.5" />
-              {isAudioMuted ? "Мут" : "Вкл"}
+              {isAudioMuted
+                ? t("sandbox.videoWidget.controls.micMuted")
+                : t("sandbox.videoWidget.controls.micOn")}
             </Button>
 
             <Button
@@ -70,7 +83,11 @@ export function SandboxVideoWidgetControls() {
               size="sm"
               onClick={onToggleVideo}
               className="h-8 px-2 text-xs"
-              title={isVideoOff ? "Включить камеру" : "Выключить камеру"}
+              title={
+                isVideoOff
+                  ? t("sandbox.videoWidget.controls.turnOnCamTooltip")
+                  : t("sandbox.videoWidget.controls.turnOffCamTooltip")
+              }
             >
               {isVideoOff ? (
                 <EyeOffIcon className="size-3.5" />
@@ -88,10 +105,10 @@ export function SandboxVideoWidgetControls() {
                   ? "bg-indigo-600 text-white hover:bg-indigo-700"
                   : ""
               }`}
-              title="Демонстрация экрана"
+              title={t("sandbox.videoWidget.controls.screenShareTooltip")}
             >
               <ScreenIcon className="size-3.5" />
-              Экран
+              {t("sandbox.videoWidget.controls.screenShare")}
             </Button>
           </>
         )}
@@ -99,12 +116,12 @@ export function SandboxVideoWidgetControls() {
 
       <span className="text-[11px] font-medium text-muted-foreground">
         {connectionState === "connected"
-          ? "🟢 В звонке"
+          ? t("sandbox.videoWidget.controls.statusInCall")
           : connectionState === "calling"
-            ? "🟡 Вызов..."
+            ? t("sandbox.videoWidget.controls.statusCalling")
             : hasPeerOnline
-              ? "Собеседник ждет"
-              : "Один"}
+              ? t("sandbox.videoWidget.controls.statusPeerWaiting")
+              : t("sandbox.videoWidget.controls.statusAlone")}
       </span>
     </div>
   );

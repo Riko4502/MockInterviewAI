@@ -16,6 +16,7 @@ describe("SessionsService", () => {
       upsert: jest.Mock;
       delete: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let redisMock: {
@@ -44,6 +45,7 @@ describe("SessionsService", () => {
         upsert: jest.fn(),
         delete: jest.fn(),
       },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: sessionId }]),
       $transaction: jest
         .fn()
         .mockImplementation(async (cb: (tx: unknown) => unknown) =>
@@ -262,11 +264,37 @@ describe("SessionsService", () => {
     });
 
     it("бросает NotFoundException если сессия не найдена", async () => {
+      prismaMock.$queryRaw.mockResolvedValue([]);
       prismaMock.interviewSession.findUnique.mockResolvedValue(null);
 
       await expect(
         service.joinSession(sessionId, "candidate-1"),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("бросает NotFoundException если передан невалидный UUID сессии", async () => {
+      await expect(
+        service.joinSession("invalid-uuid-string", "candidate-1"),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("выполняет блокировку строки сессии через SELECT FOR UPDATE внутри транзакции", async () => {
+      const validToken = service.generateInviteToken(sessionId);
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+      prismaMock.interviewParticipant.upsert.mockResolvedValue({
+        sessionId,
+        userId: "cand-1",
+        role: "CANDIDATE",
+      });
+
+      await service.joinSession(sessionId, "cand-1", validToken);
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
     });
   });
 
