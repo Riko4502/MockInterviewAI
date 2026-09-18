@@ -131,6 +131,11 @@ redis-экспортер, alert-правила активны; правки `das
 
 ## Изменения
 
+### 0.7.10 — 2026-09-18
+- **HTTP-учёт (apps/api):** `MetricsInterceptor` → `MetricsMiddleware`: guards
+  выполняются раньше interceptors, и отклонённые запросы (401/403/429) не
+  учитывались бы. Добавлен `metrics.middleware.spec.ts`.
+
 ### 0.7.9 — 2026-09-17
 - **Sentry Init (apps/realtime):** `EnableTracing: TracesSampleRate > 0` — без
   него sentry-go v0.49 всегда отбрасывает span'ы (rule #1), транзакции не

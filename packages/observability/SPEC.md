@@ -81,12 +81,12 @@ packages/observability/
   `@sentry/profiling-node`, `prom-client`.
 - `src/instrument.ts` — первый импорт в `main.ts`; `Sentry.init(sentryNestjsConfig())`
   выполняется до импорта `AppModule`, **guard по `SENTRY_DSN`** (без DSN Sentry
-  не активируется). `@sentry/nestjs` v10 не предоставляет `SentryModule` —
-  вместо него глобальный `MetricsModule` + `APP_INTERCEPTOR`.
+не активируется). `@sentry/nestjs` v10 не предоставляет `SentryModule` —
+   вместо него глобальный `MetricsModule` + `MetricsMiddleware`.
 - `MetricsModule` (`@Global`) — `prom-client` (коллекция по умолчанию):
   - `http_requests_total` / `http_request_duration_seconds` (histogram) /
-    `nestjs_active_requests` — снимаются через `MetricsInterceptor`
-    (route из `request.route?.path`).
+    `nestjs_active_requests` — снимаются через `MetricsMiddleware`
+    (глобальный, до guards; route из `req.route?.path` на `finish`).
   - `redis_connection_status` (gauge: `ready`/`error`/`close`/`reconnecting`)
     и `redis_client_errors_total` (`NOAUTH`, `ECONNREFUSED`, `ECONNRESET`,
     `ETIMEDOUT`, `other`) — из `RedisService` (слушатели событий ioredis,
@@ -341,6 +341,15 @@ alert-правила монтируются из `infra/` и `dashboards/` и п
 ---
 
 ## Изменения
+
+### 0.8.2 — 2026-09-18
+- **HTTP-учёт (apps/api):** `MetricsInterceptor` заменён на
+  `MetricsMiddleware` (глобальный middleware). NestJS выполняет guards
+  (AccessTokenGuard/RolesGuard/OriginCheckGuard, AuthThrottlerGuard) раньше
+  interceptors, поэтому отклонённые запросы (401/403/429) не попадали в
+  `http_requests_total`/`nestjs_active_requests`. Middleware срабатывает до
+  guards; маршрут берётся из `req.route?.path` в обработчике `finish`.
+  Добавлен `metrics.middleware.spec.ts`.
 
 ### 0.8.1 — 2026-09-17
 - **Sentry Init (apps/realtime):** добавлен `EnableTracing: TracesSampleRate > 0`.
