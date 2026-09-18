@@ -14,7 +14,7 @@ export interface BuildUrlOptions {
 }
 
 /**
- * Универсальный билдер URL.
+ * Универсальный билдер URL на базе нативного Web API (URL).
  *
  * - Безопасно объединяет базовый URL и путь, нормализуя слеши.
  * - Сериализует параметры запроса (`queryParams`), игнорируя `null`, `undefined` и пустые строки.
@@ -31,12 +31,12 @@ export function buildUrl(
   pathname: string,
   optionsOrParams?: QueryParamsRecord | BuildUrlOptions,
 ): string {
-  const cleanBase = baseUrl.replace(/\/+$/, "");
-  const cleanPath = pathname ? `/${pathname.replace(/^\/+/, "")}` : "";
-  const fullPath = `${cleanBase}${cleanPath}`;
+  const cleanPath = pathname ? pathname.replace(/^\/+/, "") : "";
+  const url = new URL(cleanPath, baseUrl);
+  url.pathname = url.pathname.replace(/\/+/g, "/");
 
   if (!optionsOrParams) {
-    return fullPath;
+    return url.toString();
   }
 
   const isExtendedOptions =
@@ -50,8 +50,6 @@ export function buildUrl(
     ? (optionsOrParams as BuildUrlOptions).hash
     : undefined;
 
-  const query = new URLSearchParams();
-
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value === undefined || value === null || value === "") {
@@ -60,25 +58,18 @@ export function buildUrl(
       if (Array.isArray(value)) {
         for (const item of value) {
           if (item !== undefined && item !== null && item !== "") {
-            query.append(key, String(item));
+            url.searchParams.append(key, String(item));
           }
         }
       } else {
-        query.append(key, String(value));
+        url.searchParams.append(key, String(value));
       }
     }
   }
 
-  const queryString = query.toString();
-  const cleanHash = hash ? `#${hash.replace(/^#+/, "")}` : "";
-
-  let result = fullPath;
-  if (queryString) {
-    result += `?${queryString}`;
-  }
-  if (cleanHash) {
-    result += cleanHash;
+  if (hash) {
+    url.hash = hash.startsWith("#") ? hash : `#${hash}`;
   }
 
-  return result;
+  return url.toString();
 }
