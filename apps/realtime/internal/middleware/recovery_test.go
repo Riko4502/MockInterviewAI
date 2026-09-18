@@ -64,6 +64,13 @@ func TestRecovererCapturesPanicViaRequestHub(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("sentry.Init: %v", err)
 	}
+	t.Cleanup(func() {
+		sentry.Flush(2 * time.Second)
+		if client := sentry.CurrentHub().Client(); client != nil {
+			client.Close()
+		}
+		sentry.CurrentHub().BindClient(nil)
+	})
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := Sentry(logger)(Recoverer(logger)(http.HandlerFunc(func(

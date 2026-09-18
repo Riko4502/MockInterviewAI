@@ -53,7 +53,10 @@ func TestSentryMiddlewarePropagatesSpanToHandler(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		sentry.Flush(2 * time.Second)
-		sentry.CurrentHub().Client().Close()
+		if client := sentry.CurrentHub().Client(); client != nil {
+			client.Close()
+		}
+		sentry.CurrentHub().BindClient(nil)
 	})
 
 	logger := slog.New(slog.NewTextHandler(nil, nil))
