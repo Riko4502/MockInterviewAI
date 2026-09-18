@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     "@packages/icons",
     "@packages/utils",
     "@packages/tailwind-config",
+    "@packages/editor",
   ],
 };
 

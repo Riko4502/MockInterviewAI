@@ -1,6 +1,7 @@
 "use client";
 
-import { Avatar, Badge } from "@packages/ui";
+import { DotIcon } from "@packages/icons";
+import { Avatar, Badge, Card } from "@packages/ui";
 import { cn } from "@packages/utils";
 
 interface ParticipantFeedProps {
@@ -23,22 +24,24 @@ export function ParticipantFeed({
   isLead = false,
 }: ParticipantFeedProps) {
   return (
-    <div
+    <Card
       className={cn(
-        "relative rounded-xl bg-slate-900/90 p-4 aspect-video flex flex-col justify-between overflow-hidden shadow-inner group",
-        isLead ? "border border-violet-500/40" : "border border-white/10",
+        "relative rounded-2xl p-4 aspect-video flex flex-col justify-between overflow-hidden group transition-all duration-300 backdrop-blur-xl shadow-none ring-0",
+        "bg-black/[0.03] dark:bg-[#07070c]/90 border",
+        isLead
+          ? "border-rose-500/40 dark:border-rose-400/40 shadow-lg shadow-rose-500/5 dark:shadow-rose-950/40"
+          : "border-black/[0.06] dark:border-white/[0.08]",
       )}
     >
-      {isLead && <div className="absolute inset-0 bg-radial-hero opacity-60" />}
-      <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-300">
-        <span className="flex items-center gap-1.5 font-medium text-white">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          {name}
+      <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5 font-semibold text-foreground min-w-0">
+          <DotIcon className="w-3.5 h-3.5 text-emerald-500 animate-pulse shrink-0" />
+          <span className="truncate">{name}</span>
         </span>
         {roleBadge && (
           <Badge
             variant="statusInfo"
-            className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono text-[10px] border border-violet-500/30"
+            className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-300 font-mono text-[10px] border border-rose-500/25 whitespace-nowrap shrink-0"
           >
             {roleBadge}
           </Badge>
@@ -60,18 +63,20 @@ export function ParticipantFeed({
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-400">
-        <div className="flex items-center gap-1.5 text-emerald-400">
+      <div className="relative z-10 flex items-center justify-between text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
           <div className="flex items-end gap-0.5 h-3">
-            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-1" />
-            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-2" />
-            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-3" />
-            <span className="w-0.5 bg-emerald-400 rounded-full animate-equalizer-4" />
+            <span className="w-0.5 bg-emerald-500 rounded-full animate-equalizer-1" />
+            <span className="w-0.5 bg-emerald-500 rounded-full animate-equalizer-2" />
+            <span className="w-0.5 bg-emerald-500 rounded-full animate-equalizer-3" />
+            <span className="w-0.5 bg-emerald-500 rounded-full animate-equalizer-4" />
           </div>
           <span>{micActiveText}</span>
         </div>
-        <span className="text-violet-300 font-mono">{videoQualityText}</span>
+        <span className="text-muted-foreground font-mono">
+          {videoQualityText}
+        </span>
       </div>
-    </div>
+    </Card>
   );
 }

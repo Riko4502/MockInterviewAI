@@ -1,6 +1,5 @@
-import { Logo, Typography } from "@packages/ui";
+import { DynamicBackground, Logo, ThemeToggle, Typography } from "@packages/ui";
 import type * as React from "react";
-import { DynamicBackground } from "@/shared/ui";
 
 export interface AuthCardProps {
   title: string;
@@ -11,15 +10,20 @@ export interface AuthCardProps {
 /**
  * Презентационный Server Component карточки аутентификации (Login / Register).
  * Инкапсулирует позиционирование логотипа с перекрытием (40–50% overlap),
- * полупрозрачную подложку с размытием (glassmorphism) и слоты для формы и подвала.
+ * полупрозрачную подложку с размытием (glassmorphism), переключатель тем и слоты для формы и подвала.
  */
 export function AuthCard({ title, children, footer }: AuthCardProps) {
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center px-4 py-16">
+    <main className="relative flex min-h-screen flex-col items-center justify-center px-4 py-16 selection:bg-violet-500/20 selection:text-violet-600 dark:selection:text-violet-300">
       {/* 1. Атмосферный динамический фон */}
       <DynamicBackground />
 
-      {/* 2. Контейнер карточки с позиционированием Logo */}
+      {/* 2. Переключатель тем в верхнем правом углу */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
+      {/* 3. Контейнер карточки с позиционированием Logo */}
       <div className="relative w-full max-w-sm">
         {/* Брендовый Logo, выступающий на 40–50% над верхней гранью карточки */}
         <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 z-10">
@@ -27,7 +31,7 @@ export function AuthCard({ title, children, footer }: AuthCardProps) {
         </div>
 
         {/* Премиальная стеклянная карточка */}
-        <div className="w-full rounded-2xl border border-white/[0.08] bg-card/75 backdrop-blur-xl p-8 pt-12 shadow-2xl shadow-violet-950/25">
+        <div className="w-full rounded-2xl border border-border/80 dark:border-white/[0.08] bg-card/90 dark:bg-card/75 backdrop-blur-xl p-8 pt-12 shadow-2xl shadow-black/5 dark:shadow-violet-950/25">
           <Typography.H1 className="mb-6 text-center text-2xl lg:text-3xl font-semibold text-foreground">
             {title}
           </Typography.H1>

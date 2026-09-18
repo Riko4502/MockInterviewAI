@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@packages/tailwind-config/globals.css";
+@import "./fonts.css";
 
 @source "../**/*.{ts,tsx}";
 
