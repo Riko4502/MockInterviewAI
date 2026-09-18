@@ -75,6 +75,14 @@ export {
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
 export {
+  type CreateShowcaseCardDto,
+  createShowcaseCardSchema,
+  type UpdateShowcaseCardDto,
+  type UpdateShowcaseCardStatusDto,
+  updateShowcaseCardSchema,
+  updateShowcaseCardStatusSchema,
+} from "./showcase/manage-showcase-card.dto";
+export {
   normalizeSkill,
   type ParsedSearchQuery,
   parseSearchQuery,
@@ -96,6 +104,10 @@ export {
   showcaseSortByEnum,
   specializationEnum,
 } from "./showcase/showcase.enums";
+export {
+  type ShowcaseQueryDto,
+  showcaseQuerySchema,
+} from "./showcase/showcase-query.dto";
 export type {
   PaginatedResponseDto,
   PublicUserCardDto,

@@ -46,10 +46,10 @@ export interface ShowcaseCardResponseDto {
   isUrgent: boolean;
   status: ShowcaseCardStatus;
   autoRenew: boolean;
-  bumpedAt: Date | string;
-  expiresAt: Date | string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  bumpedAt: Date;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 
   /** Дополнительная статистика (заполняется только для автора в GET /showcase/my) */
   stats?: ShowcaseCardStatsDto;

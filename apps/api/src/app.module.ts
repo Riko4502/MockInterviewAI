@@ -14,6 +14,7 @@ import { MailModule } from "./modules/mail/mail.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
+import { ShowcaseModule } from "./modules/showcase/showcase.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -59,6 +60,7 @@ import { RedisModule } from "./redis/redis.module";
     SessionsModule,
     RealtimeModule,
     NotificationsModule,
+    ShowcaseModule,
   ],
   providers: [
     {
