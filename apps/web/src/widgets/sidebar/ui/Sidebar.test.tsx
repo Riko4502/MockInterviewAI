@@ -24,7 +24,7 @@ vi.mock("@/entities/user", () => ({
   UserAvatar: () => <span>avatar</span>,
 }));
 
-const logoutMock = vi.fn();
+const logoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/features/auth", () => ({
   useLogout: () => ({

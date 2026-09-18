@@ -7,37 +7,45 @@ import {
 } from "@packages/dto";
 import { z } from "zod";
 
-export const profileFormSchema = z.object({
-  displayName: z
-    .string()
-    .trim()
-    .min(2, "Имя должно содержать минимум 2 символа")
-    .max(50, "Имя должно содержать максимум 50 символов"),
-  username: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(
-      USERNAME_REGEX,
-      "Имя пользователя: 3–30 символов, латиница, цифры, _ и -",
-    ),
-  telegramUsername: z
-    .string()
-    .trim()
-    .refine(
-      (value) => value === "" || TELEGRAM_USERNAME_REGEX.test(value),
-      "Telegram: 5–32 символа, латиница, цифры и _",
-    ),
-  gitUrl: z
-    .string()
-    .trim()
-    .refine(
-      (value) => value === "" || GIT_URL_REGEX.test(value),
-      "Укажите ссылку на профиль GitHub или GitLab",
-    ),
-});
+type ProfileErrorKey =
+  | "profile.errors.displayNameMin"
+  | "profile.errors.displayNameMax"
+  | "profile.errors.username"
+  | "profile.errors.telegram"
+  | "profile.errors.gitUrl";
 
-export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+export function createProfileFormSchema(t: (key: ProfileErrorKey) => string) {
+  return z.object({
+    displayName: z
+      .string()
+      .trim()
+      .min(2, t("profile.errors.displayNameMin"))
+      .max(50, t("profile.errors.displayNameMax")),
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(USERNAME_REGEX, t("profile.errors.username")),
+    telegramUsername: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === "" || TELEGRAM_USERNAME_REGEX.test(value),
+        t("profile.errors.telegram"),
+      ),
+    gitUrl: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === "" || GIT_URL_REGEX.test(value),
+        t("profile.errors.gitUrl"),
+      ),
+  });
+}
+
+export type ProfileFormValues = z.infer<
+  ReturnType<typeof createProfileFormSchema>
+>;
 
 export function toUpdateProfileDto(
   values: ProfileFormValues,

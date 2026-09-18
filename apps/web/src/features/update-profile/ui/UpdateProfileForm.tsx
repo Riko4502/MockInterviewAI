@@ -3,13 +3,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileDto } from "@packages/api";
 import { Button, Card, Field, Input, Skeleton } from "@packages/ui";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
 import {
+  createProfileFormSchema,
   type ProfileFormValues,
-  profileFormSchema,
   toUpdateProfileDto,
 } from "../model/profile-form-schema";
 import { useUpdateProfile } from "../model/use-profile-mutations";
@@ -18,13 +19,14 @@ import { AvatarUploadField } from "./AvatarUploadField";
 function ProfileFields({ user }: { user: UserProfileDto }) {
   const { t } = useTranslation("common");
   const updateProfile = useUpdateProfile();
+  const schema = useMemo(() => createProfileFormSchema(t), [t]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       displayName: user.displayName ?? "",
       username: user.username ?? "",

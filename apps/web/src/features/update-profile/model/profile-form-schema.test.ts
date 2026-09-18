@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { profileFormSchema, toUpdateProfileDto } from "./profile-form-schema";
+import {
+  createProfileFormSchema,
+  toUpdateProfileDto,
+} from "./profile-form-schema";
 
-describe("profileFormSchema", () => {
+const schema = createProfileFormSchema((key) => key);
+
+describe("createProfileFormSchema", () => {
   it("принимает валидные поля и нормализует пустые опциональные значения", () => {
-    const parsed = profileFormSchema.parse({
+    const parsed = schema.parse({
       displayName: "  Иван  ",
       username: "Ivan_Dev",
       telegramUsername: " @ivan_dev ",
@@ -19,7 +24,7 @@ describe("profileFormSchema", () => {
   });
 
   it("отправляет null, если telegram и git не заполнены", () => {
-    const parsed = profileFormSchema.parse({
+    const parsed = schema.parse({
       displayName: "Иван",
       username: "ivan",
       telegramUsername: "  ",
@@ -35,7 +40,7 @@ describe("profileFormSchema", () => {
   });
 
   it("отклоняет слишком короткое отображаемое имя", () => {
-    const result = profileFormSchema.safeParse({
+    const result = schema.safeParse({
       displayName: "И",
       username: "ivan",
       telegramUsername: "",
@@ -43,5 +48,10 @@ describe("profileFormSchema", () => {
     });
 
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        "profile.errors.displayNameMin",
+      );
+    }
   });
 });

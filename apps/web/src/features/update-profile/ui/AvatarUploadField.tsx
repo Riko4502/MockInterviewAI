@@ -25,7 +25,7 @@ export function AvatarUploadField({
     const file = event.target.files?.[0];
     event.target.value = "";
 
-    if (!file) {
+    if (!file || uploadAvatar.isPending) {
       return;
     }
 
