@@ -1,4 +1,4 @@
-import { type NestMiddleware } from "@nestjs/common";
+import { Injectable, type NestMiddleware } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
 
 import { MetricsService } from "./metrics.service";
@@ -16,6 +16,7 @@ import { MetricsService } from "./metrics.service";
  * входа в middleware роутер ещё не выполнил matching, а к моменту завершения
  * ответа Express уже заполнил `req.route`.
  */
+@Injectable()
 export class MetricsMiddleware implements NestMiddleware {
   constructor(private readonly metricsService: MetricsService) {}
 
