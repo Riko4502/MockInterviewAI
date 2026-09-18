@@ -47,7 +47,11 @@ const envSchema = z.object({
     .min(32)
     .default("dev-local-secret-change-me-0123456789"),
   LIVEKIT_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
-  SENTRY_DSN: z.string().url("SENTRY_DSN must be a valid URL").optional(),
+  SENTRY_DSN: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().url("SENTRY_DSN must be a valid URL").optional(),
+  ),
   SENTRY_AUTH_TOKEN: z.string().optional(),
   SENTRY_ORG: z.string().default("mockinterviewai"),
   SENTRY_PROJECT: z.string().optional(),
