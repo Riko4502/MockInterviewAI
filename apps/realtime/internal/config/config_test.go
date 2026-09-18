@@ -143,8 +143,7 @@ func TestSSEDefaultsAndOverrides(t *testing.T) {
 }
 
 func TestSentryTracesRateRejectsNaN(t *testing.T) {
-	os.Setenv("SENTRY_TRACES_SAMPLE_RATE", "NaN")
-	defer os.Unsetenv("SENTRY_TRACES_SAMPLE_RATE")
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "NaN")
 
 	if _, err := Load(); err == nil {
 		t.Error("expected error for NaN SENTRY_TRACES_SAMPLE_RATE, got nil")
@@ -153,7 +152,7 @@ func TestSentryTracesRateRejectsNaN(t *testing.T) {
 
 func TestSentryTracesRateClampsOutOfRange(t *testing.T) {
 	// Значения за пределами [0, 1] клампятся, а не отвергаются.
-	os.Setenv("SENTRY_TRACES_SAMPLE_RATE", "-1.5")
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "-1.5")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("expected valid config, got error: %v", err)
@@ -162,7 +161,7 @@ func TestSentryTracesRateClampsOutOfRange(t *testing.T) {
 		t.Errorf("expected clamped rate 0, got %v", cfg.SentryTracesRate)
 	}
 
-	os.Setenv("SENTRY_TRACES_SAMPLE_RATE", "2.5")
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "2.5")
 	cfg, err = Load()
 	if err != nil {
 		t.Fatalf("expected valid config, got error: %v", err)
