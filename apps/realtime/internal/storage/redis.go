@@ -200,7 +200,8 @@ type RedisPoolStats struct {
 
 // PoolStats возвращает статистику пула соединений клиента Redis. Возвращает nil
 // в disabled-режиме (клиент не создан — пула не существует). Hits/Misses/Timeouts
-// кумулятивны с момента создания клиента, поэтому экспортируются как счетчики.
+// и StaleConns кумулятивны с момента создания клиента, поэтому экспортируются
+// как счетчики.
 func (r *RedisStore) PoolStats() *RedisPoolStats {
 	if !r.Enabled() {
 		return nil

@@ -171,8 +171,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "targets": [
         { "expr": "redis_pool_total", "legendFormat": "total", "refId": "A" },
-        { "expr": "redis_pool_idle", "legendFormat": "idle", "refId": "B" },
-        { "expr": "redis_pool_stale", "legendFormat": "stale", "refId": "C" }
+        { "expr": "redis_pool_idle", "legendFormat": "idle", "refId": "B" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -203,6 +202,11 @@
           "expr": "rate(redis_pool_timeouts_total[5m])",
           "legendFormat": "timeouts",
           "refId": "C"
+        },
+        {
+          "expr": "rate(redis_pool_stale_total[5m])",
+          "legendFormat": "stale",
+          "refId": "D"
         }
       ],
       "fieldConfig": {

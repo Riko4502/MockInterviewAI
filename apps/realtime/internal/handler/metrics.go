@@ -105,8 +105,8 @@ func (h *MetricsHandler) writeRedisPool(buf *strings.Builder) {
 
 	writeGauge(buf, "redis_pool_total", "Number of connections in the Redis pool", labels, int64(stats.TotalConns))
 	writeGauge(buf, "redis_pool_idle", "Number of idle connections in the Redis pool", labels, int64(stats.IdleConns))
-	writeGauge(buf, "redis_pool_stale", "Number of stale connections removed from the Redis pool", labels, int64(stats.StaleConns))
 
+	writeCounter(buf, "redis_pool_stale_total", "Total number of stale connections removed from the Redis pool", labels, int64(stats.StaleConns))
 	writeCounter(buf, "redis_pool_hits_total", "Total number of pool hits (free conn found)", labels, stats.Hits)
 	writeCounter(buf, "redis_pool_misses_total", "Total number of pool misses (new conn dialed)", labels, stats.Misses)
 	writeCounter(buf, "redis_pool_timeouts_total", "Total number of pool wait timeouts", labels, stats.Timeouts)
