@@ -2,7 +2,8 @@
 
 Платформа наблюдается на двух уровнях: **Sentry** — ошибки и трассировки,
 **Prometheus + Grafana** — метрики приложений и серверного Redis.
-Инфраструктура описана в [`packages/observability/SPEC.md`](../../../packages/observability/SPEC.md) (детально)
+Пакет описан в [`packages/observability/README.md`](../../../packages/observability/README.md);
+инфраструктура детально — в [`packages/observability/SPEC.md`](../../../packages/observability/SPEC.md)
 и [`packages/observability/PLAN.md`](../../../packages/observability/PLAN.md) (статусы и roadmap).
 
 ---
@@ -98,8 +99,9 @@ Scrape-таргеты: api на `host.docker.internal:3001`, realtime на `host
 Дашборды (`packages/observability/dashboards/`): `api-http.json`, `realtime-sse.json`, `redis.json`.
 
 Alert-правила (`packages/observability/infra/prometheus/alerting/redis.yml`):
-`RedisTargetDown`, `RedisStreamLagHigh`, `RedisEvictions`, `RealtimePubSubLagHigh`,
-`ApiTargetDown`, `RealtimeTargetDown`. Alertmanager-нотификация (Telegram) — вне этапа.
+`RedisTargetDown`, `RedisMemoryHigh`, `RedisEvictions`, `RealtimePubSubLagHigh`,
+`RedisStreamDeliveryLagHigh`, `ApiTargetDown`, `RealtimeTargetDown`.
+Alertmanager-нотификация (Telegram) — вне этапа.
 
 Известное исключение: `prisma_pool_connections_*` не реализованы (адаптер
 PrismaPg не даёт доступа к пулу `pg`) — панель в дашборде удалена.
@@ -108,6 +110,7 @@ PrismaPg не даёт доступа к пулу `pg`) — панель в да
 
 ## 6. Куда дальше
 
+- `packages/observability/README.md` — обзор пакета, публичный API и env-переменные;
 - `packages/observability/SPEC.md` — архитектура и все метрики;
 - `packages/observability/PLAN.md` — статус реализации и §7 (dev-контур);
 - `docker-compose.prod.yml` и `packages/observability/infra/` — конфиги
