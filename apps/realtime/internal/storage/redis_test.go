@@ -2,9 +2,12 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"testing"
+
+	redis "github.com/redis/go-redis/v9"
 )
 
 // TestRedactRedisAddr закрывает регрессию: строка подключения писалась в лог
@@ -88,9 +91,14 @@ func TestCheckMinGeneration_FailClosed(t *testing.T) {
 	})
 
 	t.Run("empty userID returns error", func(t *testing.T) {
+		rdb := redis.NewClient(&redis.Options{
+			Addr: "127.0.0.1:0",
+		})
+		defer rdb.Close()
+
 		store := &RedisStore{
 			enabled: true,
-			client:  nil, // nil-клиент сработает раньше, но тест документирует намерение
+			client:  rdb,
 			logger:  logger,
 		}
 		ok, err := store.CheckMinGeneration(context.Background(), "", 5)
@@ -98,7 +106,10 @@ func TestCheckMinGeneration_FailClosed(t *testing.T) {
 			t.Error("expected ok=false for empty userID, got true")
 		}
 		if err == nil {
-			t.Error("expected non-nil error for empty userID, got nil")
+			t.Fatal("expected non-nil error for empty userID, got nil")
+		}
+		if errors.Is(err, ErrRedisUnavailable) {
+			t.Errorf("expected validation error for empty userID, got ErrRedisUnavailable: %v", err)
 		}
 	})
 }

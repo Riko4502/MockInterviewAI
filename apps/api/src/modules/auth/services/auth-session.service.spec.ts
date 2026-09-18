@@ -437,6 +437,18 @@ describe("AuthSessionService", () => {
       );
     });
 
+    it("не изменяет min_generation fence, если maxGeneration не передано (undefined)", async () => {
+      redisEval.mockResolvedValue([]);
+
+      await service.revokeAllUserSessions(USER_ID);
+
+      expect(redisEval).not.toHaveBeenCalledWith(
+        expect.any(String),
+        [`auth:user:${USER_ID}:min_generation`],
+        expect.anything(),
+      );
+    });
+
     it("отзывает legacy-сессию без поля generation при передаче maxGeneration (§CWE-613)", async () => {
       const legacySessionId = randomUUID();
       const newGenSessionId = randomUUID();

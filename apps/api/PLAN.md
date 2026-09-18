@@ -341,7 +341,7 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [x] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
+- [x] `AuthSessionService.revokeAllUserSessions(userId)`: чтение индекса `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation`, удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration` (без keyspace SCAN).
 - [x] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
 - [x] `AuthController.logoutAll()`: `@Post("logout-all")`, защищён глобальным `AccessTokenGuard` (без `@Public()`; явный `@UseGuards` избыточен), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
 - [x] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).

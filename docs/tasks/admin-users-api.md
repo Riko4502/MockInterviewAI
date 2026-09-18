@@ -22,7 +22,7 @@ sequenceDiagram
     Ctrl->>Svc: getUsersList(query)
     Svc->>DB: prisma.user.findMany + count (GIN Trigram поиск, фильтры, пагинация, select)
     DB-->>Svc: users[], totalCount
-    Svc-->>Ctrl: { items: UserAdminDto[], meta: PaginationMetaDto }
+    Svc-->>Ctrl: { items: UserAdminResponseDto[], meta: PaginationMetaDto }
     Ctrl-->>Admin: 200 OK (список пользователей БЕЗ passwordHash)
 
     %% 2. Создание пользователя (Zero-Knowledge парольная политика)
@@ -32,7 +32,7 @@ sequenceDiagram
     Note over Svc: Генерация криптостойкого пароля (16 симв), хеш Argon2id, отправка на email
     Svc->>DB: prisma.user.create(...)
     DB-->>Svc: createdUser
-    Svc-->>Ctrl: UserAdminDto
+    Svc-->>Ctrl: UserAdminResponseDto
     Ctrl-->>Admin: 201 Created (пароль отправлен на почту)
 
     %% 3. Сброс пароля пользователя
@@ -42,7 +42,7 @@ sequenceDiagram
     Note over Svc: Генерация временного пароля, Argon2id, increment generation
     Svc->>DB: prisma.$transaction(update user + authRevocationTask)
     Svc->>Redis: revokeSessionsWithRetry(userId)
-    Svc-->>Ctrl: { message: "Пароль успешно сброшен..." }
+    Svc-->>Ctrl: UserAdminResponseDto
     Ctrl-->>Admin: 200 OK
 
     %% 4. Деактивация пользователя
@@ -53,7 +53,7 @@ sequenceDiagram
     Svc->>DB: prisma.user.update({ where: { id }, data: { isActive: false, deactivatedAt: now() } })
     DB-->>Svc: updatedUser
     Svc->>Redis: authSessionService.revokeAllUserSessions(userId)
-    Svc-->>Ctrl: UserAdminDto
+    Svc-->>Ctrl: UserAdminResponseDto
     Ctrl-->>Admin: 200 OK (пользователь деактивирован, сессии сброшены)
 
     %% 5. Мягкое удаление пользователя

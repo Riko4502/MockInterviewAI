@@ -441,15 +441,15 @@ export class AuthSessionService {
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
     const minGenKey = `auth:user:${userId}:min_generation`;
 
-    const targetMinGenArg =
-      maxGeneration !== undefined ? maxGeneration + 1 : "";
-
-    // Атомарно устанавливаем min_generation fence до чтения снимка ZSET (§CWE-362, §CWE-613)
-    await this.redisService.eval<number>(
-      UPDATE_MIN_GEN_LUA,
-      [minGenKey],
-      [targetMinGenArg, ttlSeconds],
-    );
+    // Атомарно устанавливаем min_generation fence до чтения снимка ZSET (§CWE-362, §CWE-613).
+    // Без известного поколения fence не изменяется.
+    if (maxGeneration !== undefined) {
+      await this.redisService.eval<number>(
+        UPDATE_MIN_GEN_LUA,
+        [minGenKey],
+        [maxGeneration + 1, ttlSeconds],
+      );
+    }
 
     const userSessionsKey = this.userSessionsKey(userId);
     const nowMs = Date.now();

@@ -4,18 +4,20 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.6.0 | 2026-08-28 | Актуальный |
-| 1.5.0 | 2026-08-26 | Актуальный |
-| 1.4.0 | 2026-08-23 | Актуальный |
-| 1.3.0 | 2026-08-23 | Актуальный |
-| 1.2.0 | 2026-08-22 | Актуальный |
-| 1.1.0 | 2026-08-14 | Актуальный |
-| 1.0.0 | 2026-08-14 | Актуальный |
+| 1.7.0 | 2026-09-18 | Актуальный |
+| 1.6.0 | 2026-08-28 | Архивный |
+| 1.5.0 | 2026-08-26 | Архивный |
+| 1.4.0 | 2026-08-23 | Архивный |
+| 1.3.0 | 2026-08-23 | Архивный |
+| 1.2.0 | 2026-08-22 | Архивный |
+| 1.1.0 | 2026-08-14 | Архивный |
+| 1.0.0 | 2026-08-14 | Архивный |
 
 ## Change Log
 
 | Версия | Дата | Изменения |
 |---|---|---|
+| 1.7.0 | 2026-09-18 | Актуализация описания механизма отзыва сессий (§15, §39, §66, §67): keyspace SCAN заменён на чтение пользовательского индекса `auth:user:{userId}:sessions` (ZSET), установку fence `auth:user:{userId}:min_generation` и удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration`. |
 | 1.6.0 | 2026-08-28 | Phase 15 «Auth: Change Password» (§67): реализован `/auth/change-password`; сообщения 4xx переведены на русский; уточнён шаг 6 §67 — отзываются ВСЕ сессии (включая текущую). |
 | 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
 | 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
@@ -249,9 +251,9 @@ model User {
 
 ### 15. Redis Key
 
-Формат: `auth:session:{sessionId}`
-
-Пример: `auth:session:550e8400-e29b-41d4-a716-446655440000`
+- Сессия: `auth:session:{sessionId}` (пример: `auth:session:550e8400-e29b-41d4-a716-446655440000`).
+- Индекс сессий пользователя: `auth:user:{userId}:sessions` (ZSET).
+- Fence поколений сессий: `auth:user:{userId}:min_generation`.
 
 ### 16. Redis Session
 
@@ -464,6 +466,7 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 - `deleteSession()`
 - `rotateSession()`
 - `revokeSession()`
+- `revokeAllUserSessions()`
 
 Ответственность: Redis key, Redis session, TTL, refresh token hash, token family, replay detection.
 
@@ -737,7 +740,7 @@ Production secrets хранятся вне исходного кода (Secret M
 - Тело запроса отсутствует.
 - Алгоритм:
   1. Извлечь `userId` из payload access token (`request.user.sub`).
-  2. `SCAN 0 MATCH auth:session:*` → для каждой сессии `GET` → проверка `session.userId === userId` → `DELETE` при совпадении.
+  2. Вызов `AuthSessionService.revokeAllUserSessions(userId)`: чтение индекса сессий `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation` и удаление только сессий из этого индекса с фильтрами `maxCreatedAt` и `maxGeneration` (keyspace не сканируется).
   3. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`.
@@ -758,7 +761,7 @@ Production secrets хранятся вне исходного кода (Secret M
   3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Неверные учётные данные"`.
   4. Если `currentPassword === newPassword` → `400 "Новый пароль должен отличаться от текущего"`.
   5. `hashPassword(newPassword)` → обновить `passwordHash` в PostgreSQL.
-  6. Отозвать ВСЕ сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (включая текущую) — refresh cookie сбрасывается, а access token становится недействительным сразу после отзыва (AccessTokenGuard получает null из getSession и выбрасывает UnauthorizedException, а не после истечения TTL); клиент вынужден пройти аутентификацию заново.
+  6. Отозвать ВСЕ сессии пользователя через `AuthSessionService.revokeAllUserSessions(userId)` (включая текущую: чтение индекса `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation` и удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration` без сканирования keyspace) — refresh cookie сбрасывается, а access token становится недействительным сразу после отзыва (AccessTokenGuard получает null из getSession и выбрасывает UnauthorizedException, а не после истечения TTL); клиент вынужден пройти аутентификацию заново.
   7. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`, пароль не меняется (транзакция PostgreSQL + best-effort Redis).
