@@ -3,7 +3,11 @@ export { ForgotPasswordForm } from "./forgot-password";
 export type { LoginFormValues, RegisterFormValues } from "./lib/schemas";
 export { useLogout } from "./model/use-logout";
 export type { ResetPasswordFormValues } from "./reset-password";
-export { InvalidTokenAlert, ResetPasswordForm } from "./reset-password";
+export {
+  InvalidTokenAlert,
+  ResetPasswordForm,
+  ResetPasswordPageClient,
+} from "./reset-password";
 export type {
   AuthBoundaryMode,
   AuthBoundaryProps,
