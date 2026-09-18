@@ -114,18 +114,23 @@ describe("search-parser", () => {
   });
 
   describe("stripHtmlTags", () => {
-    it("должен удалять HTML теги (защита от XSS)", () => {
+    it("должен удалять угловые скобки < и > (защита от XSS)", () => {
       expect(stripHtmlTags("<b>Жирный</b> <i>курсив</i>")).toBe(
-        "Жирный курсив",
+        "bЖирный/b iкурсив/i",
       );
       expect(stripHtmlTags("<div class='box'><p>Текст</p></div>")).toBe(
-        "Текст",
+        "div class='box'pТекст/p/div",
       );
-      expect(stripHtmlTags("<script>alert(1)</script>")).toBe("alert(1)");
+      expect(stripHtmlTags("<script>alert(1)</script>")).toBe(
+        "scriptalert(1)/script",
+      );
+      expect(stripHtmlTags("<script")).toBe("script");
     });
 
     it("должен убирать лишние пробелы по краям", () => {
-      expect(stripHtmlTags("   <span>Привет</span>   ")).toBe("Привет");
+      expect(stripHtmlTags("   <span>Привет</span>   ")).toBe(
+        "spanПривет/span",
+      );
     });
 
     it("не должен изменять чистый текст", () => {

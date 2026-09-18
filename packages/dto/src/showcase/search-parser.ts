@@ -19,9 +19,9 @@ export function sanitizeSearchTerm(term: string): string {
 }
 
 // Нужно при создани карточки
-/** Очистка строк от потенциально опасных HTML-тегов (XSS prevention) */
+/** Очистка строк от потенциально опасных символов HTML (XSS prevention) */
 export function stripHtmlTags(input: string): string {
-  return input.replace(/<[^>]*>?/gm, "").trim();
+  return input.replace(/[<>]/g, "").trim();
 }
 
 // Нужно при создани карточки
