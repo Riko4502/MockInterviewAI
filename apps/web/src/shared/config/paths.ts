@@ -8,6 +8,7 @@ export const paths = {
   statistics: "/dashboard/statistics",
   resources: "/dashboard/resources",
   profile: "/dashboard/profile",
+  forgotPassword: "/forgot-password",
 } as const;
 
 export const ROUTES = paths;

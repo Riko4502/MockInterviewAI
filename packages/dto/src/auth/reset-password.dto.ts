@@ -37,3 +37,17 @@ export const resetPasswordSchema = z
 
 /** Типизированный DTO установки нового пароля. */
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
+
+/** Коды ошибок сброса пароля */
+export const RESET_PASSWORD_ERROR_CODES = {
+  INVALID_TOKEN: "INVALID_RESET_TOKEN",
+} as const;
+
+export type ResetPasswordErrorCode =
+  (typeof RESET_PASSWORD_ERROR_CODES)[keyof typeof RESET_PASSWORD_ERROR_CODES];
+
+export interface ResetPasswordErrorPayload {
+  code?: ResetPasswordErrorCode | string;
+  message?: string;
+  [key: string]: unknown;
+}
