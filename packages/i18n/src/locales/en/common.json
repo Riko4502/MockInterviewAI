@@ -13,6 +13,7 @@
   "navigation": {
     "home": "Home",
     "dashboard": "Dashboard",
+    "notifications": "Notifications",
     "interviews": "Interviews",
     "findPartners": "Find Partners",
     "statistics": "Statistics",
@@ -23,5 +24,28 @@
     "login": "Log in",
     "register": "Sign up",
     "logout": "Log out"
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Update your account details here.",
+    "email": "Email",
+    "displayName": "Name",
+    "username": "Username",
+    "telegram": "Telegram",
+    "gitUrl": "GitHub / GitLab",
+    "avatar": "Avatar",
+    "uploadAvatar": "Upload photo",
+    "saving": "Saving...",
+    "loadError": "Failed to load profile.",
+    "saveError": "Failed to save profile.",
+    "saveSuccess": "Profile saved.",
+    "avatarError": "Failed to upload avatar.",
+    "errors": {
+      "displayNameMin": "Name must be at least 2 characters",
+      "displayNameMax": "Name must be at most 50 characters",
+      "username": "Username: 3–30 characters, letters, numbers, _ and -",
+      "telegram": "Telegram: 5–32 characters, letters, numbers and _",
+      "gitUrl": "Enter a GitHub or GitLab profile URL"
+    }
   }
 }

@@ -1,8 +1,19 @@
 "use client";
 
+import { cn } from "@packages/utils";
 import { useEffect, useState } from "react";
 
-export function GlobalSpotlight() {
+export interface GlobalSpotlightProps {
+  className?: string;
+  size?: number;
+  color?: string;
+}
+
+export function GlobalSpotlight({
+  className,
+  size = 900,
+  color = "rgba(139, 92, 246, 0.07), rgba(99, 102, 241, 0.03)",
+}: GlobalSpotlightProps) {
   const [mousePosition, setMousePosition] = useState({ x: -1000, y: -1000 });
   const [isVisible, setIsVisible] = useState(false);
 
@@ -34,11 +45,16 @@ export function GlobalSpotlight() {
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none z-30 transition-opacity duration-500 overflow-hidden"
+      className={cn(
+        "fixed inset-0 pointer-events-none z-30 transition-opacity duration-500 overflow-hidden",
+        className,
+      )}
       style={{
         opacity: isVisible ? 1 : 0,
-        background: `radial-gradient(900px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(139, 92, 246, 0.07), rgba(99, 102, 241, 0.03), transparent 70%)`,
+        background: `radial-gradient(${size}px circle at ${mousePosition.x}px ${mousePosition.y}px, ${color}, transparent 70%)`,
       }}
     />
   );
 }
+
+export default GlobalSpotlight;

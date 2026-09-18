@@ -38,8 +38,14 @@
     "./fonts/*": "./fonts/*"
   },
   "peerDependencies": {
+    "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next-themes": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",

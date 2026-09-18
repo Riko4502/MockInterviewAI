@@ -2,11 +2,10 @@
 
 import { type Locale, langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
-import { Button, Logo } from "@packages/ui";
+import { Button, Logo, ThemeToggle } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
-import { ThemeToggle } from "@/features/theme-switcher";
 import { getAuthUrl, getRegisterUrl } from "@/shared/config";
 import { NavLinks } from "./NavLinks";
 import { NavMobileMenu } from "./NavMobileMenu";
@@ -41,7 +40,11 @@ export function Navbar({ locale: propLocale }: NavbarProps = {}) {
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <NavLanguageSwitcher locale={locale} />
-          <ThemeToggle />
+          <ThemeToggle
+            tooltipLight={t("nav.themeLight")}
+            tooltipDark={t("nav.themeDark")}
+            ariaLabel={t("nav.toggleTheme")}
+          />
 
           <Button
             asChild

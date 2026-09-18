@@ -1,4 +1,4 @@
-import { ThemeProvider } from "@/shared/providers/ThemeProvider";
+import { ThemeProvider } from "@packages/ui";
 import "@/shared/styles/globals.css";
 import type { ReactNode } from "react";
 

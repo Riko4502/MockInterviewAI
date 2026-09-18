@@ -2,6 +2,7 @@
 
 import { DialogProvider } from "@model/DialogProvider";
 import { DrawerProvider } from "@model/DrawerProvider";
+import { ThemeProvider } from "@model/ThemeProvider";
 import { ToastProvider } from "@model/ToastProvider";
 import type { PropsWithChildren } from "react";
 
@@ -9,6 +10,7 @@ import type { PropsWithChildren } from "react";
  * Единый UI-провайдер библиотеки `@packages/ui`.
  *
  * Объединяет провайдеры контекстов:
+ * - `ThemeProvider` (управление темной/светлой темой через `next-themes`)
  * - `DialogProvider` (хук `useDialog`)
  * - `DrawerProvider` (хук `useDrawer`)
  * - `ToastProvider` (хук `useToast` и встроенный `Toast.Viewport`)
@@ -25,10 +27,12 @@ import type { PropsWithChildren } from "react";
  */
 export function UIProvider({ children }: PropsWithChildren) {
   return (
-    <DialogProvider>
-      <DrawerProvider>
-        <ToastProvider>{children}</ToastProvider>
-      </DrawerProvider>
-    </DialogProvider>
+    <ThemeProvider>
+      <DialogProvider>
+        <DrawerProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </DrawerProvider>
+      </DialogProvider>
+    </ThemeProvider>
   );
 }
