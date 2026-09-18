@@ -13,6 +13,7 @@ import {
 export interface TokenPayload {
   sub: string;
   sid: string;
+  permissions?: number | string;
   typ: string;
   iss: string;
   aud: string;
@@ -33,7 +34,7 @@ const REALTIME_TICKET_TTL: StringValue = "5m";
  * Сервис генерации и верификации JWT токенов (§33, §34, §38 SPEC.md).
  *
  * Отвечает за:
- * - Генерацию access и refresh JWT с claims `sub`, `sid`, `typ`, `iss`, `aud`, `iat`, `exp`, `jti`.
+ * - Генерацию access и refresh JWT с claims `sub`, `sid`, `permissions` (числовая битовая маска), `typ`, `iss`, `aud`, `iat`, `exp`, `jti`.
  * - Верификацию токенов с проверкой алгоритма (`HS256`), issuer, audience, expiration, typ.
  * - Хеширование refresh token через HMAC-SHA-256 для хранения в Redis.
  */
@@ -51,15 +52,28 @@ export class TokenService {
    *
    * @param userId - UUID пользователя (`sub`).
    * @param sessionId - UUID сессии (`sid`).
+   * @param permissions - Битовая маска прав пользователя (BigInt, number или строка).
    * @returns Подписанный JWT access token.
    */
-  generateAccessToken(userId: string, sessionId: string): string {
+  generateAccessToken(
+    userId: string,
+    sessionId: string,
+    permissions: bigint | number | string = 0,
+  ): string {
+    const rawBitmask =
+      typeof permissions === "bigint" ? permissions : BigInt(permissions);
+    const serializedPermissions =
+      rawBitmask <= BigInt(Number.MAX_SAFE_INTEGER)
+        ? Number(rawBitmask)
+        : rawBitmask.toString();
+
     const payload: Omit<TokenPayload, "iat" | "exp"> = {
       sub: userId,
       sid: sessionId,
+      permissions: serializedPermissions,
       typ: TOKEN_TYP_ACCESS,
-      iss: this.configService.getOrThrow<string>("jwt.issuer"),
-      aud: this.configService.getOrThrow<string>("jwt.audience"),
+      iss: this.configService.get<string>("jwt.issuer") || "",
+      aud: this.configService.get<string>("jwt.audience") || "",
       jti: randomUUID(),
     };
 

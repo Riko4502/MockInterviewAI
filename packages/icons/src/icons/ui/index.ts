@@ -1,6 +1,7 @@
 export { AlertCircleIcon } from "./alert-circle-icon";
 export { AlertTriangleIcon, WarningIcon } from "./alert-triangle-icon";
 export { ArrowDownIcon } from "./arrow-down-icon";
+export { ArrowLeftIcon } from "./arrow-left-icon";
 export { ArrowRightIcon } from "./arrow-right-icon";
 export { ArrowUpIcon } from "./arrow-up-icon";
 export { BellIcon } from "./bell-icon";
@@ -8,11 +9,13 @@ export { BookIcon } from "./book-icon";
 export { BugIcon } from "./bug-icon";
 export { CalendarIcon } from "./calendar-icon";
 export { CheckIcon } from "./check-icon";
+export { ChevronLeftIcon } from "./chevron-left-icon";
 export { ChevronRightIcon } from "./chevron-right-icon";
 export { ClockIcon } from "./clock-icon";
 export { CloseIcon } from "./close-icon";
 export { CodeIcon } from "./code-icon";
 export { CopyIcon } from "./copy-icon";
+export { CircleDotIcon, DotIcon } from "./dot-icon";
 export { EditIcon } from "./edit-icon";
 export { EyeIcon } from "./eye-icon";
 export { EyeOffIcon } from "./eye-off-icon";
@@ -31,6 +34,7 @@ export { MaximizeIcon } from "./maximize-icon";
 export { MenuIcon } from "./menu-icon";
 export { MessageSquareIcon } from "./message-square-icon";
 export { MinimizeIcon } from "./minimize-icon";
+export { MoonIcon } from "./moon-icon";
 export {
   EllipsisIcon,
   MoreHorizontalIcon,
@@ -42,6 +46,7 @@ export {
 export { MoveHorizontalIcon } from "./move-horizontal-icon";
 export { PackageIcon } from "./package-icon";
 export { PaperclipIcon } from "./paperclip-icon";
+export { PauseIcon } from "./pause-icon";
 export { PlayIcon } from "./play-icon";
 export { PlusIcon } from "./plus-icon";
 export { RedoIcon } from "./redo-icon";
@@ -50,6 +55,7 @@ export { SettingsIcon } from "./settings-icon";
 export { SlidersIcon } from "./sliders-icon";
 export { SpinnerIcon } from "./spinner-icon";
 export { SplitIcon } from "./split-icon";
+export { SunIcon } from "./sun-icon";
 export { TrashIcon } from "./trash-icon";
 export { TrendUpIcon } from "./trend-up-icon";
 export { UndoIcon } from "./undo-icon";

@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { getAppUrl, getAuthUrl, navigationConfig } from "@/shared/config";
+import { getAppUrl, getAuthUrl } from "@/shared/config";
 
 export type TranslationFn = TFunction<"landing">;
 
@@ -69,13 +69,14 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
         getLabel: (t) => t("footer.about"),
         getHref: () => getAppUrl("/about"),
       },
-      {
-        key: "github",
-        getLabel: () => "GitHub",
-        getHref: () => navigationConfig.githubUrl,
-        icon: "github",
-        isExternal: true,
-      },
+      // TODO временно убрал ссылку
+      // {
+      //   key: "github",
+      //   getLabel: () => "GitHub",
+      //   getHref: () => navigationConfig.githubUrl,
+      //   icon: "github",
+      //   isExternal: true,
+      // },
     ],
   },
   {

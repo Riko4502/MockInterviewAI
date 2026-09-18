@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -10,12 +10,25 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { ChangePasswordDto, LoginDto, RegisterDto } from "@packages/dto";
+import type {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RegisterDto,
+  ResetPasswordDto,
+} from "@packages/dto";
+import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { MailService } from "../mail/mail.service";
 import { UsersService } from "../users/users.service";
+import {
+  PASSWORD_RESET_TOKEN_TTL_SECONDS,
+  REDIS_DUMMY_PASSWORD_RESET_PREFIX,
+  REDIS_PASSWORD_RESET_PREFIX,
+} from "./auth.constants";
 import { AuthSessionService } from "./services/auth-session.service";
 import { TokenService } from "./services/token.service";
 
@@ -69,6 +82,7 @@ export class AuthService implements OnModuleInit {
    * @param prisma - Глобальный `PrismaService` для компенсации (§48 SPEC.md).
    * @param configService - Конфигурация приложения (секция `argon2`).
    * @param redisService - Глобальный `RedisService` для публикации ревокаций.
+   * @param mailService - Сервис отправки почтовых сообщений.
    */
   constructor(
     private readonly usersService: UsersService,
@@ -77,6 +91,7 @@ export class AuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -86,10 +101,11 @@ export class AuthService implements OnModuleInit {
    * 1. Нормализация email (выполнена DTO-схемой).
    * 2. Проверка существования пользователя → `409 Conflict`.
    * 3. Хеширование пароля через Argon2id.
-   * 4. Создание пользователя в PostgreSQL (catch `P2002` → `409`).
-   * 5. Генерация access и refresh JWT.
-   * 6. Создание Redis session с HMAC-хешем refresh token.
-   * 7. Возврат `{ accessToken, refreshToken }`.
+   * 4. Создание пользователя в PostgreSQL с дефолтной ролью USER (catch `P2002` → `409`).
+   * 5. Извлечение роли и прав пользователя.
+   * 6. Генерация access и refresh JWT.
+   * 7. Создание Redis session с HMAC-хешем refresh token.
+   * 8. Возврат `{ accessToken, refreshToken }`.
    *
    * Компенсация (§48 SPEC.md): при ошибке Redis после создания user —
    * best-effort удаление user, `500` без внутренних деталей.
@@ -120,12 +136,17 @@ export class AuthService implements OnModuleInit {
       throw error;
     }
 
+    const userWithRole = await this.usersService.findUserWithRoleById(userId);
+    const permissions =
+      userWithRole?.role?.permissions ?? SystemPermission.NONE;
+
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
     const accessToken = this.tokenService.generateAccessToken(
       userId,
       sessionId,
+      permissions,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
       userId,
@@ -157,13 +178,13 @@ export class AuthService implements OnModuleInit {
    * Выполняет вход пользователя (§58 SPEC.md).
    *
    * Алгоритм:
-   * 1. Поиск пользователя по email → не найден → фиктивная argon2-проверка
+   * 1. Поиск пользователя по email (с ролью и правами) → не найден → фиктивная argon2-проверка
    *    против `DUMMY_PASSWORD_HASH` (выравнивание времени ответа) → generic `401`.
    * 2. Проверка пароля через `argon2.verify()` → не совпал → тот же generic `401`
    *    (§59 SPEC.md: тела ответов байт-в-байт совпадают, причина не раскрывается).
    * 3. Успех: новая authentication session — каждый логин порождает новый
    *    `sessionId` и новый `tokenFamilyId` (§13–17 SPEC.md); генерация access +
-   *    refresh JWT; запись session в Redis с HMAC-хешем refresh token.
+   *    refresh JWT с актуальной ролью и правами; запись session в Redis с HMAC-хешем refresh token.
    *
    * При ошибке Redis компенсация не требуется — пользователь не создаётся.
    *
@@ -176,7 +197,7 @@ export class AuthService implements OnModuleInit {
   async login(dto: LoginDto): Promise<LoginResult> {
     const { email, password } = dto;
 
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findUserWithRoleByEmail(email);
 
     // Единый кодовый путь: ровно одна argon2-проверка против хеша реального
     // пользователя либо против dummy-хеша — идентичный ответ и время для
@@ -203,9 +224,12 @@ export class AuthService implements OnModuleInit {
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
+    const permissions = user.role?.permissions ?? SystemPermission.NONE;
+
     const accessToken = this.tokenService.generateAccessToken(
       user.id,
       sessionId,
+      permissions,
     );
     const refreshToken = this.tokenService.generateRefreshToken(
       user.id,
@@ -400,8 +424,8 @@ export class AuthService implements OnModuleInit {
    * 7. Hash не совпадает → replay detected → `revokeSession(sid)` → `401`,
    *    clear cookie.
    * 8. Успех: `revokeSession(sid)`, создать новую сессию (новый `sessionId`,
-   *    `tokenFamilyId`), новые access/refresh JWT, запись в Redis,
-   *    Set-Cookie с новым refresh token.
+   *    `tokenFamilyId`), извлечь актуальную роль и права пользователя из БД,
+   *    новые access/refresh JWT, запись в Redis, Set-Cookie с новым refresh token.
    *
    * Ошибки Redis → `500 Internal Server Error`, cookie не сбрасывается (§60).
    *
@@ -442,14 +466,23 @@ export class AuthService implements OnModuleInit {
         throw new UnauthorizedException("Invalid credentials");
       }
 
+      const user = await this.usersService.findUserWithRoleById(session.userId);
+      if (!user || user.deletedAt) {
+        await this.sessionService.revokeSession(payload.sid);
+        throw new UnauthorizedException("Invalid credentials");
+      }
+
       await this.sessionService.revokeSession(payload.sid);
 
       const newSessionId = randomUUID();
       const newTokenFamilyId = randomUUID();
 
+      const permissions = user.role?.permissions ?? SystemPermission.NONE;
+
       const newAccessToken = this.tokenService.generateAccessToken(
         session.userId,
         newSessionId,
+        permissions,
       );
       const newRefreshToken = this.tokenService.generateRefreshToken(
         session.userId,
@@ -476,6 +509,173 @@ export class AuthService implements OnModuleInit {
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();
+    }
+  }
+
+  /**
+   * Инициирует процедуру сброса пароля (Forgot Password).
+   *
+   * Алгоритм:
+   * 1. Поиск пользователя по email.
+   * 2. Если пользователь найден (и активен):
+   *    a. Генерация криптографически стойкого случайного raw токена (32 байта, hex).
+   *    b. Вычисление SHA-256 хеша токена.
+   *    c. Сохранение `auth:password-reset:{tokenHash}` = `userId` в Redis с TTL 15 минут.
+   *    d. Отправка письма со ссылкой для восстановления через `MailService`.
+   * 3. Если пользователь не найден — намеренно не выбрасывается ошибка (anti-enumeration).
+   * 4. Возвращается единый 200 OK ответ с сообщением.
+   *
+   * @param dto - DTO с email пользователя.
+   * @returns Сообщение о подтверждении отправки письма.
+   */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(dto.email);
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+
+    if (user && !user.deletedAt) {
+      try {
+        const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
+
+        await this.redisService.set(
+          key,
+          user.id,
+          PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        );
+
+        // TODO: Заменить мок-отправку на продакшн MailService с react-email шаблонами после настройки SMTP
+        await this.mailService.sendPasswordResetEmail(user.email, rawToken);
+      } catch (error) {
+        this.logger.error(
+          "Failed to process forgotPassword background actions (Redis/Mail)",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    } else {
+      // Безопасная неперсистентная Redis round-trip операция со случайным временным ключом (anti-enumeration / timing attack mitigation)
+      try {
+        const dummyKey = `${REDIS_DUMMY_PASSWORD_RESET_PREFIX}${tokenHash}`;
+        await this.redisService.set(dummyKey, "0", 1);
+        await this.redisService.delete(dummyKey);
+      } catch (error) {
+        this.logger.error(
+          "Failed to process forgotPassword dummy background actions (Redis)",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+
+    return {
+      message:
+        "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
+    };
+  }
+
+  /**
+   * Устанавливает новый пароль по токену сброса (Reset Password).
+   *
+   * Алгоритм:
+   * 1. Вычисление SHA-256 хеша переданного raw токена.
+   * 2. Атомарное чтение и удаление ключа из Redis (`getdel`).
+   * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
+   * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
+   * 5. Хеширование нового пароля через Argon2id.
+   * 6. В единой транзакции PostgreSQL: обновление `passwordHash` и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
+   * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
+   *    - При успехе: удаление durable-задачи из PostgreSQL.
+   *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
+   * 8. Возврат `{ message: "Пароль успешно изменен" }`.
+   *
+   * @param dto - DTO с токеном и новым паролем.
+   * @returns Сообщение об успешном сбросе пароля.
+   * @throws {BadRequestException} Если токен недействителен или истек.
+   * @throws {InternalServerErrorException} При ошибке Redis до потребления токена.
+   */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword } = dto;
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const key = `${REDIS_PASSWORD_RESET_PREFIX}${tokenHash}`;
+
+    let userId: string | null;
+    try {
+      userId = await this.redisService.getdel(key);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during resetPassword",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    if (!userId) {
+      throw new BadRequestException(
+        "Недействительный или истекший токен сброса пароля",
+      );
+    }
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new BadRequestException("Пользователь не найден");
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+
+    // Создаем durable-задачу в той же транзакции PostgreSQL, что и изменение пароля
+    let taskId: string | undefined;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash: newPasswordHash },
+      });
+      const task = await tx.authRevocationTask.create({
+        data: { userId },
+      });
+      taskId = task.id;
+    });
+
+    try {
+      await this.revokeSessionsWithRetry(userId);
+
+      // При успешной ревокации удаляем durable задачу
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({
+            where: { id: taskId },
+          })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      // При сбое Redis задача остаётся в PostgreSQL и будет обработана воркером повторно
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${userId} during resetPassword (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    return {
+      message: "Пароль успешно изменен",
+    };
+  }
+
+  /**
+   * Отзывает все активные сессии пользователя с повторными попытками.
+   */
+  private async revokeSessionsWithRetry(
+    userId: string,
+    retries = 3,
+    delayMs = 50,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.sessionService.revokeAllUserSessions(userId);
+        await publishUserRevocation(this.redisService, userId);
+        return;
+      } catch (error) {
+        if (attempt === retries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
     }
   }
 

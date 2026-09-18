@@ -9,6 +9,8 @@ const config: Config = {
   },
   moduleNameMapper: {
     "^@packages/dto$": "<rootDir>/../../../packages/dto/src",
+    "^@packages/types$": "<rootDir>/../../../packages/types/src",
+    "^@packages/utils$": "<rootDir>/../../../packages/utils/src",
   },
   collectCoverageFrom: [
     "**/*.ts",

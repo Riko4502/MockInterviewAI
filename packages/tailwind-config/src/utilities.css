@@ -81,6 +81,54 @@
 }
 
 /* Custom animations */
+@keyframes orb-float-1 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(40px, -60px) scale(1.08);
+  }
+  66% {
+    transform: translate(-30px, 30px) scale(0.95);
+  }
+}
+
+@keyframes orb-float-2 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(-50px, 40px) scale(1.05);
+  }
+  66% {
+    transform: translate(35px, -35px) scale(0.92);
+  }
+}
+
+@keyframes orb-float-3 {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(40px, 50px) scale(1.12);
+  }
+}
+
+.animate-orb-1 {
+  animation: orb-float-1 18s ease-in-out infinite;
+}
+
+.animate-orb-2 {
+  animation: orb-float-2 22s ease-in-out infinite;
+}
+
+.animate-orb-3 {
+  animation: orb-float-3 20s ease-in-out infinite;
+}
+
 @keyframes pulse-slow {
   0%,
   100% {
@@ -109,4 +157,31 @@
 
 .animate-float {
   animation: float-cursor 3s ease-in-out infinite;
+}
+
+/* View Transitions for Theme Toggle Circular Ripple */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-image-pair(root) {
+  isolation: isolate;
+}
+
+html[data-theme-transition="light-to-dark"]::view-transition-old(root) {
+  z-index: 1;
+}
+
+html[data-theme-transition="light-to-dark"]::view-transition-new(root) {
+  z-index: 9999;
+}
+
+html[data-theme-transition="dark-to-light"]::view-transition-old(root) {
+  z-index: 9999;
+}
+
+html[data-theme-transition="dark-to-light"]::view-transition-new(root) {
+  z-index: 1;
 }

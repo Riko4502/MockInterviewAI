@@ -3,11 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerLogin } from "@packages/api";
 import { loginSchema } from "@packages/dto";
-import { Button, Field, Input } from "@packages/ui";
+import { Button, Field, Input, Typography } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
+import { getErrorMessage } from "../lib/getErrorMessage";
 import type { LoginFormValues } from "../lib/schemas";
 
 export function LoginForm() {
@@ -75,9 +76,12 @@ export function LoginForm() {
       </Button>
 
       {loginMutation.isError && (
-        <p className="text-sm text-destructive">
-          Ошибка входа. Проверьте данные.
-        </p>
+        <Typography.P className="text-sm text-destructive">
+          {getErrorMessage(
+            loginMutation.error,
+            "Ошибка входа. Проверьте данные.",
+          )}
+        </Typography.P>
       )}
     </form>
   );
