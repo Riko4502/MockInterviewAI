@@ -204,7 +204,7 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
     );
   });
 
-  it("ADM-08: Администратор деактивирует пользователя -> сессии сброшены, вход блокируется (403 Forbidden)", async () => {
+  it("ADM-08: Администратор деактивирует пользователя -> сессии сброшены, существующий токен недействителен (401), вход блокируется (401 Unauthorized)", async () => {
     const targetEmail = uniqueEmail();
     usedEmails.push(targetEmail);
 
@@ -233,13 +233,20 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
     expect(deactRes.body.isActive).toBe(false);
     expect(deactRes.body.deactivatedAt).not.toBeNull();
 
-    // Попытка входа деактивированным пользователем -> 403 Forbidden
+    // Запрос с ранее выданным access token к защищённому endpoint -> 401 Unauthorized (сессия отозвана в Redis / generation fence)
+    const revokedTokenRes = await request(started.app.getHttpServer())
+      .get("/api/v1/profile/me")
+      .set("Authorization", `Bearer ${regRes.body.accessToken}`);
+
+    expect(revokedTokenRes.status).toBe(401);
+
+    // Попытка входа деактивированным пользователем -> 401 Unauthorized
     const loginAttempt = await request(started.app.getHttpServer())
       .post(LOGIN_PATH)
       .send({ email: targetEmail, password: PASSWORD });
 
-    expect(loginAttempt.status).toBe(403);
-    expect(loginAttempt.body.message).toContain("Account has been deactivated");
+    expect(loginAttempt.status).toBe(401);
+    expect(loginAttempt.body.message).toContain("Invalid credentials");
 
     // Повторно активируем пользователя
     const reactRes = await request(started.app.getHttpServer())

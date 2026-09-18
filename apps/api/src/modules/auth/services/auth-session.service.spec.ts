@@ -22,7 +22,10 @@ function createConfigService(refreshExpiresIn?: string): ConfigService {
   } as unknown as ConfigService;
 }
 
-function createStoredSession(refreshTokenHash: string): AuthSession {
+function createStoredSession(
+  refreshTokenHash: string,
+  generation = 1,
+): AuthSession {
   const now = "2026-08-01T00:00:00.000Z";
   return {
     userId: USER_ID,
@@ -30,6 +33,7 @@ function createStoredSession(refreshTokenHash: string): AuthSession {
     tokenFamilyId: FAMILY_ID,
     createdAt: now,
     lastUsedAt: now,
+    generation,
   };
 }
 
@@ -96,7 +100,7 @@ describe("AuthSessionService", () => {
 
   describe("createSession", () => {
     it("сохраняет session под ключом auth:session:{sessionId} и индексирует в ZSET (§CWE-362, Task 7)", async () => {
-      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
+      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID, 1);
 
       expect(redisEval).toHaveBeenCalledTimes(1);
       expect(redisEval.mock.calls[0][1][0]).toBe(
@@ -106,6 +110,7 @@ describe("AuthSessionService", () => {
       expect(redisEval.mock.calls[0][1][2]).toBe(
         `auth:user:${USER_ID}:sessions`,
       );
+      expect(redisEval.mock.calls[0][2][0]).toBe(1);
       expect(redisEval.mock.calls[0][2][3]).toBe(SESSION_ID);
     });
 
@@ -115,6 +120,7 @@ describe("AuthSessionService", () => {
         USER_ID,
         "hash",
         FAMILY_ID,
+        1,
       );
 
       const [, , [, raw]] = redisEval.mock.calls[0];
@@ -124,6 +130,7 @@ describe("AuthSessionService", () => {
       expect(stored.refreshTokenHash).toBe("hash");
       expect(stored.tokenFamilyId).toBe(FAMILY_ID);
       expect(stored.createdAt).toBe(stored.lastUsedAt);
+      expect(stored.generation).toBe(1);
       expect(stored.createdAt).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
       );
@@ -131,7 +138,7 @@ describe("AuthSessionService", () => {
     });
 
     it("устанавливает TTL по умолчанию 7 дней", async () => {
-      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
+      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID, 1);
 
       expect(redisEval.mock.calls[0][2][2]).toBe(604800);
     });
@@ -147,7 +154,7 @@ describe("AuthSessionService", () => {
         createConfigService("1h"),
       );
 
-      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID);
+      await service.createSession(SESSION_ID, USER_ID, "hash", FAMILY_ID, 1);
 
       expect(redisEval.mock.calls[0][2][2]).toBe(3600);
     });
@@ -421,11 +428,12 @@ describe("AuthSessionService", () => {
       const legacySessionId = randomUUID();
       const newGenSessionId = randomUUID();
 
-      const legacySession: AuthSession = {
+      const legacySession = {
         ...createStoredSession("legacy-hash"),
         userId: USER_ID,
-        // generation отсутствует
       };
+      delete (legacySession as { generation?: number }).generation;
+
       const newGenSession: AuthSession = {
         ...createStoredSession("new-gen-hash"),
         userId: USER_ID,
@@ -467,17 +475,19 @@ describe("AuthSessionService", () => {
 
       const cutoff = new Date("2026-08-01T12:00:00.000Z");
 
-      const legacyOldSession: AuthSession = {
+      const legacyOldSession = {
         ...createStoredSession("h-leg-old"),
         userId: USER_ID,
         createdAt: "2026-08-01T10:00:00.000Z",
       };
+      delete (legacyOldSession as { generation?: number }).generation;
 
-      const legacyNewSession: AuthSession = {
+      const legacyNewSession = {
         ...createStoredSession("h-leg-new"),
         userId: USER_ID,
         createdAt: "2026-08-01T14:00:00.000Z",
       };
+      delete (legacyNewSession as { generation?: number }).generation;
 
       const gen1OldSession: AuthSession = {
         ...createStoredSession("h-gen1-old"),

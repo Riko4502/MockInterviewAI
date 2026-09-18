@@ -11,8 +11,8 @@ export interface AuthSession {
   tokenFamilyId: string;
   createdAt: string;
   lastUsedAt: string;
-  /** Поколение авторизации для предотвращения race conditions (§CWE-362). */
-  generation?: number;
+  /** Поколение авторизации для предотвращения race conditions (§CWE-362, §CWE-613). */
+  generation: number;
 }
 
 /**
@@ -104,12 +104,9 @@ local target_min_gen = tonumber(ARGV[1])
 local ttl = tonumber(ARGV[2])
 
 local current_val = redis.call('get', min_gen_key)
-local current_min_gen = 0
-if current_val then
-    current_min_gen = tonumber(current_val) or 0
-end
+local current_gen = tonumber(current_val)
 
-if target_min_gen > current_min_gen then
+if current_gen == nil or target_min_gen > current_gen then
     if ttl and ttl > 0 then
         redis.call('set', min_gen_key, tostring(target_min_gen), 'EX', ttl)
     else
@@ -118,22 +115,22 @@ if target_min_gen > current_min_gen then
     return target_min_gen
 end
 
-return current_min_gen
+return current_gen
 `;
 
 /**
- * Lua-скрипт для атомарной ротации refresh token с защитой от race conditions (TOCTOU) и replay detection (§30, §32 SPEC.md).
+ * Lua-скрипт для атомарной ротации refresh token с replay detection (§30, §32 SPEC.md).
  * KEYS[1]: auth:session:{sessionId}
- * ARGV[1]: newRefreshTokenHash (string)
- * ARGV[2]: nowIso (string)
- * ARGV[3]: nowMs (number)
- * ARGV[4]: ttlSeconds (number)
- * ARGV[5]: sessionId (string)
+ * ARGV[1]: newRefreshTokenHash
+ * ARGV[2]: nowIso
+ * ARGV[3]: nowMs
+ * ARGV[4]: ttlSeconds
+ * ARGV[5]: sessionId
  *
  * Возвращает:
- * - nil: сессия не найдена
- * - "REPLAY": обнаружена повторная попытка использования старого токена (сессия удалена)
- * - JSON-строка обновленной сессии в случае успеха
+ * - nil, если сессия не найдена;
+ * - "REPLAY", если replay detected (сессия немедленно удаляется);
+ * - обновлённый JSON сессии при успехе.
  */
 export const ROTATE_SESSION_LUA = `
 local session_key = KEYS[1]
@@ -149,10 +146,11 @@ if not raw then
 end
 
 local session = cjson.decode(raw)
+
 if session.refreshTokenHash == new_hash then
     redis.call('del', session_key)
-    if session.userId then
-        local user_sessions_key = "auth:user:" .. session.userId .. ":sessions"
+    if session.userId and session_id then
+        local user_sessions_key = 'auth:user:' .. session.userId .. ':sessions'
         redis.call('zrem', user_sessions_key, session_id)
     end
     return "REPLAY"
@@ -160,12 +158,13 @@ end
 
 session.refreshTokenHash = new_hash
 session.lastUsedAt = now_iso
+
 local updated_raw = cjson.encode(session)
 
 if ttl and ttl > 0 then
     redis.call('set', session_key, updated_raw, 'EX', ttl)
-    if session.userId and now_ms then
-        local user_sessions_key = "auth:user:" .. session.userId .. ":sessions"
+    if session.userId and session_id and now_ms then
+        local user_sessions_key = 'auth:user:' .. session.userId .. ':sessions'
         local expire_at_ms = now_ms + (ttl * 1000)
         redis.call('zremrangebyscore', user_sessions_key, '-inf', '(' .. now_ms)
         redis.call('zadd', user_sessions_key, expire_at_ms, session_id)
@@ -183,8 +182,8 @@ export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
 
   /**
-   * @param redisService - Глобальный `RedisService` для доступа к Redis.
-   * @param configService - Конфигурация приложения (секция `jwt.refreshExpiresIn`).
+   * @param redisService - Сервис работы с Redis.
+   * @param configService - Конфигурация приложения.
    */
   constructor(
     private readonly redisService: RedisService,
@@ -202,7 +201,7 @@ export class AuthSessionService {
    * @param userId - UUID пользователя.
    * @param refreshTokenHash - HMAC-SHA-256 хеш refresh token.
    * @param tokenFamilyId - UUID семейства токенов.
-   * @param generation - Опциональное поколение авторизации пользователя.
+   * @param generation - Поколение авторизации пользователя (§CWE-362, §CWE-613).
    * @returns Созданная session.
    * @throws {Error} При ошибке Redis.
    */
@@ -211,7 +210,7 @@ export class AuthSessionService {
     userId: string,
     refreshTokenHash: string,
     tokenFamilyId: string,
-    generation?: number,
+    generation: number,
   ): Promise<AuthSession> {
     const now = new Date().toISOString();
     const nowMs = Date.now();
@@ -222,7 +221,7 @@ export class AuthSessionService {
       tokenFamilyId,
       createdAt: now,
       lastUsedAt: now,
-      ...(generation !== undefined && { generation }),
+      generation,
     };
 
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
@@ -234,13 +233,7 @@ export class AuthSessionService {
     const result = await this.redisService.eval<number>(
       CREATE_SESSION_LUA,
       [minGenKey, sessionKey, userSessionsKey],
-      [
-        generation !== undefined ? generation : "",
-        JSON.stringify(session),
-        ttlSeconds,
-        sessionId,
-        nowMs,
-      ],
+      [generation, JSON.stringify(session), ttlSeconds, sessionId, nowMs],
     );
 
     if (result === -1) {

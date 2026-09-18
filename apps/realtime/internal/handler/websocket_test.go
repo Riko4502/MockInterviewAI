@@ -147,14 +147,9 @@ func dialWebSocket(
 	ctx context.Context,
 	url string,
 	opts *websocket.DialOptions,
-) (*websocket.Conn, error) {
+) (*websocket.Conn, *http.Response, error) {
 	conn, resp, err := websocket.Dial(ctx, url, opts)
-
-	if err != nil && resp != nil {
-		_ = resp.Body.Close()
-	}
-
-	return conn, err
+	return conn, resp, err
 }
 
 func TestE2EWebSocketSessionWorkflow(t *testing.T) {
@@ -196,6 +191,9 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected dial without token to fail with 401, but succeeded")
 	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %v", http.StatusUnauthorized, resp)
+	}
 
 	// 3. Тест: Отклонение не-участника активной сессии (403 Forbidden, fail-closed)
 	// intruder не входит в roles → нет роли → "not a member of this session".
@@ -208,13 +206,19 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 			"Cookie": []string{"access_token=" + badToken},
 		},
 	}
-	_, err = dialWebSocket(
+	_, resp, err = dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsBad,
 	)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected dial by non-member to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 
 	// 4. Подключение Кандидата с токеном в Cookie (User A)
@@ -229,7 +233,7 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connCandidate, err := dialWebSocket(
+	connCandidate, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsCandidate,
@@ -264,7 +268,7 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connInterviewer, err := dialWebSocket(
+	connInterviewer, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsInterviewer,
@@ -402,7 +406,7 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts1 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok1}},
 	}
-	conn1, err := dialWebSocket(
+	conn1, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOpts1,
@@ -418,13 +422,19 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts2 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok2}},
 	}
-	_, err = dialWebSocket(
+	_, resp, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOpts2,
 	)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected second user to be rejected because room is full, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -463,9 +473,15 @@ func TestWebSocketClosedSessionRejected(t *testing.T) {
 	dialOpts := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	}
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected dial to a closed session to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -490,9 +506,15 @@ func TestWebSocketNonMemberRejected(t *testing.T) {
 	dialOpts := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	}
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected non-member dial to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -518,7 +540,7 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	// 1-е использование тикета — успешно. Клиент предлагает два подпротокола:
 	// "realtime" (для согласования) и сам тикет; заголовок получается
 	// "realtime,<ticket>", откуда хендлер извлекает тикет.
-	conn1, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	conn1, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
 	})
 	if err != nil {
@@ -527,10 +549,15 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	conn1.Close(websocket.StatusNormalClosure, "done")
 
 	// Повторное использование того же тикета — отклоняется (ConsumeTicket=false → 401).
-	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
 	}); err == nil {
 		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
 	}
 }
 
@@ -553,11 +580,17 @@ func TestWebSocketTicketBoundToAnotherSession(t *testing.T) {
 		t.Fatalf("failed to generate ticket: %v", err)
 	}
 
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/target-room", &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/target-room", &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
 	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected ticket bound to another session to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -588,11 +621,17 @@ func TestWebSocketAccessFallbackDisabled(t *testing.T) {
 		t.Fatalf("failed to generate access token: %v", err)
 	}
 
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/room", &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/room", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected access-fallback-disabled dial to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -632,10 +671,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign no-gen ticket: %v", err)
 	}
 
-	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", noGenTicket},
 	}); err == nil {
 		t.Fatal("expected ticket without generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d for ticket without generation, got %v", http.StatusUnauthorized, resp)
 	}
 
 	// 2. Тикет без TokenID (jti) — отклоняется (401).
@@ -649,10 +693,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign no-jti ticket: %v", err)
 	}
 
-	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", noJtiTicket},
 	}); err == nil {
 		t.Fatal("expected ticket without jti/TokenID to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d for ticket without jti, got %v", http.StatusUnauthorized, resp)
 	}
 
 	// 3. Тикет с generation < minGen (gen=3 < minGen=5) — отклоняется (401).
@@ -666,10 +715,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign old-gen ticket: %v", err)
 	}
 
-	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", oldGenTicket},
 	}); err == nil {
 		t.Fatal("expected ticket with generation < min_generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d for ticket with outdated generation, got %v", http.StatusUnauthorized, resp)
 	}
 
 	// 3. Тикет с generation >= minGen (gen=5 >= minGen=5) — успешен.
@@ -683,7 +737,7 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign valid-gen ticket: %v", err)
 	}
 
-	conn, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", validGenTicket},
 	})
 	if err != nil {
