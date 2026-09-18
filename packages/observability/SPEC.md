@@ -113,8 +113,10 @@ packages/observability/
   доступе `process.env.NEXT_PUBLIC_SENTRY_DSN` и т.д., поэтому
   `sentryClientConfig()` читает их по одному (результат — фиксированные
   значения на момент сборки).
-- Source Maps: `SENTRY_AUTH_TOKEN` + script `sentry:sourcemaps` после
-  `next build`.
+- Source Maps: загружаются автоматически `withSentryConfig` во время
+  `next build` при заданных `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
+  `SENTRY_PROJECT`; клиентские source maps удаляются после загрузки
+  (`sourcemaps.deleteSourcemapsAfterUpload`).
 
 ### 5.3 apps/realtime (Go)
 

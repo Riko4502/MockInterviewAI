@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org $SENTRY_ORG --project $SENTRY_PROJECT .next/static && sentry-cli sourcemaps upload --org $SENTRY_ORG --project $SENTRY_PROJECT .next/static",
     "analyze": "next build --profile",
     "start": "next start",
     "lint": "biome check --no-errors-on-unmatched",
