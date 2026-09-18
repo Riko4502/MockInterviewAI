@@ -19,10 +19,13 @@ import { MetricsService } from "../metrics/metrics.service";
  * (именованный шаблон вместо конкретных id), чтобы не плодить кардинальность
  * лейблов на каждый url.
  *
- * Статус для метрики фиксируется в `catchError`: finalize выполняется при
+ * Статус исключения фиксируется в `catchError`: finalize выполняется при
  * teardown потока до того, как глобальный HttpExceptionFilter вызовет
  * `response.status(...)`, поэтому на момент finalize `response.statusCode` ещё
  * содержит значение по умолчанию (200) — статусы исключений попадали бы в 200.
+ * Для успешного потока статус читается из `response.statusCode` на момент
+ * finalize: хендлер мог установить его через `@Res()`/`res.status(...)` уже
+ * после старта запроса.
  */
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {
@@ -34,13 +37,13 @@ export class MetricsInterceptor implements NestInterceptor {
     const { method } = request;
     const route = request.route?.path ?? "unmatched";
     const start = process.hrtime.bigint();
-    let statusCode = response.statusCode;
+    let errorStatusCode: number | undefined;
 
     this.metricsService.requestStarted();
 
     return next.handle().pipe(
       catchError((error: unknown) => {
-        statusCode =
+        errorStatusCode =
           error instanceof HttpException
             ? error.getStatus()
             : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -48,6 +51,7 @@ export class MetricsInterceptor implements NestInterceptor {
       }),
       finalize(() => {
         const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+        const statusCode = errorStatusCode ?? response.statusCode;
         this.metricsService.requestFinished(
           { method, route, statusCode },
           durationMs,

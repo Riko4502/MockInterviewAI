@@ -1,5 +1,5 @@
 import { HttpException } from "@nestjs/common";
-import { lastValueFrom, of, throwError } from "rxjs";
+import { lastValueFrom, of, tap, throwError } from "rxjs";
 
 import { MetricsService } from "../metrics/metrics.service";
 import { MetricsInterceptor } from "./metrics.interceptor";
@@ -7,12 +7,12 @@ import { MetricsInterceptor } from "./metrics.interceptor";
 function createExecutionContext(
   method: string,
   routePath: string,
-  statusCode = 200,
+  response: { statusCode: number } = { statusCode: 200 },
 ) {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ method, route: { path: routePath } }),
-      getResponse: () => ({ statusCode }),
+      getResponse: () => response,
     }),
     // biome-ignore lint/suspicious/noExplicitAny: mock ExecutionContext for testing
   } as any;
@@ -51,13 +51,35 @@ describe("MetricsInterceptor", () => {
   });
 
   it("использует уже установленный статус ответа (201)", async () => {
-    const context = createExecutionContext("POST", "/api/v1/users", 201);
+    const context = createExecutionContext("POST", "/api/v1/users", {
+      statusCode: 201,
+    });
     const next = { handle: () => of({ id: 1 }) };
 
     await lastValueFrom(interceptor.intercept(context, next));
 
     expect(requestFinished).toHaveBeenCalledWith(
       { method: "POST", route: "/api/v1/users", statusCode: 201 },
+      expect.any(Number),
+    );
+  });
+
+  it("читает статус, установленный хендлером после старта (204)", async () => {
+    const response = { statusCode: 200 };
+    const context = createExecutionContext("GET", "/api/v1/export", response);
+    const next = {
+      handle: () =>
+        of(null).pipe(
+          tap(() => {
+            response.statusCode = 204;
+          }),
+        ),
+    };
+
+    await lastValueFrom(interceptor.intercept(context, next));
+
+    expect(requestFinished).toHaveBeenCalledWith(
+      { method: "GET", route: "/api/v1/export", statusCode: 204 },
       expect.any(Number),
     );
   });
