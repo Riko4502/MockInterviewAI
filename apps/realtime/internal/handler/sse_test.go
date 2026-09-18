@@ -576,6 +576,23 @@ func TestSSENotificationsGenerationFence(t *testing.T) {
 	server := newSSETestServer(t, store, sse.Options{})
 	defer server.Close()
 
+	// 0. Токен без generation -> 401
+	reqNoGen, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqNoGen.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", nil))
+
+	respNoGen, err := http.DefaultClient.Do(reqNoGen)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respNoGen.Body.Close()
+
+	if respNoGen.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for missing generation, got %d", respNoGen.StatusCode)
+	}
+
 	// 1. Токен с generation < minGen (gen=3 < minGen=5) -> 401
 	oldGen := 3
 	reqOld, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)

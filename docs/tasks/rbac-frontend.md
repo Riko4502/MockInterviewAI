@@ -208,7 +208,7 @@ export function useHasPermission(requiredPermission: bigint): boolean {
 ```typescript
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type PropsWithChildren, type ReactNode } from "react";
 import { SESSION_STATUS } from "@/entities/session/model/constants";
 import { useRole, useSession } from "@/entities/session";
@@ -219,6 +219,7 @@ export interface RoleBoundaryProps {
   allowedRoles: (SystemRole | string)[];
   fallback?: ReactNode;
   redirectTo?: string;
+  loginPath?: string;
 }
 
 export function RoleBoundary({
@@ -226,18 +227,33 @@ export function RoleBoundary({
   children,
   fallback = null,
   redirectTo = paths.dashboard,
+  loginPath = paths.login,
 }: PropsWithChildren<RoleBoundaryProps>) {
   const { status, isAuthenticated } = useSession();
   const currentRole = useRole();
   const router = useRouter();
+  const pathname = usePathname();
 
   const hasAccess = isAuthenticated && currentRole !== null && allowedRoles.includes(currentRole);
 
   useEffect(() => {
-    if (status === SESSION_STATUS.AUTHENTICATED && !hasAccess && !fallback) {
+    // В режиме fallback компонент рендерит fallback UI без выполнения редиректов
+    if (status === SESSION_STATUS.INITIALIZING || fallback) {
+      return;
+    }
+
+    // 1. Неаутентифицированный пользователь -> редирект на /login с returnTo
+    if (!isAuthenticated) {
+      const returnTo = pathname ? `?returnTo=${encodeURIComponent(pathname)}` : "";
+      router.replace(`${loginPath}${returnTo}`);
+      return;
+    }
+
+    // 2. Аутентифицированный пользователь с недостаточными правами -> редирект на redirectTo
+    if (!hasAccess) {
       router.replace(redirectTo);
     }
-  }, [status, hasAccess, fallback, redirectTo, router]);
+  }, [status, isAuthenticated, hasAccess, fallback, redirectTo, loginPath, pathname, router]);
 
   if (status === SESSION_STATUS.INITIALIZING) {
     return (

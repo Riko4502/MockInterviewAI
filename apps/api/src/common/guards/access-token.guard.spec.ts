@@ -252,6 +252,35 @@ describe("AccessTokenGuard", () => {
       );
     });
 
+    it("возвращает 401 если в access токене отсутствует generation claim (§CWE-613)", async () => {
+      const { guard } = createGuard({
+        verifyAccessToken: {
+          ...VALID_PAYLOAD,
+          generation: undefined,
+        },
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если в сессии отсутствует generation (§CWE-613)", async () => {
+      const { guard, authSessionService } = createGuard();
+      (authSessionService.getSession as jest.Mock).mockResolvedValue({
+        ...VALID_SESSION,
+        generation: undefined,
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
     it("пробрасывает исключение Redis (Nest → 500)", async () => {
       const { guard, authSessionService } = createGuard();
       (authSessionService.getSession as jest.Mock).mockRejectedValue(

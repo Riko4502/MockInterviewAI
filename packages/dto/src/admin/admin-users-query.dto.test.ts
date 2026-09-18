@@ -84,4 +84,89 @@ describe("adminUsersQuerySchema", () => {
       expect(result.success).toBe(false);
     }
   });
+
+  describe("границы пагинации и приведение типов (page / limit)", () => {
+    it("приводит строковые значения page и limit к числам через z.coerce (limit: '50' -> 50)", () => {
+      const result = adminUsersQuerySchema.safeParse({
+        page: "5",
+        limit: "50",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.page).toBe(5);
+        expect(result.data.limit).toBe(50);
+        expect(typeof result.data.page).toBe("number");
+        expect(typeof result.data.limit).toBe("number");
+      }
+    });
+
+    it("отклоняет limit > 100 (limit: '101' и limit: 101)", () => {
+      const resStr = adminUsersQuerySchema.safeParse({ limit: "101" });
+      expect(resStr.success).toBe(false);
+
+      const resNum = adminUsersQuerySchema.safeParse({ limit: 101 });
+      expect(resNum.success).toBe(false);
+    });
+
+    it("отклоняет page < 1 (page: '0', page: 0, page: '-1')", () => {
+      const resStrZero = adminUsersQuerySchema.safeParse({ page: "0" });
+      expect(resStrZero.success).toBe(false);
+
+      const resNumZero = adminUsersQuerySchema.safeParse({ page: 0 });
+      expect(resNumZero.success).toBe(false);
+
+      const resNegative = adminUsersQuerySchema.safeParse({ page: "-1" });
+      expect(resNegative.success).toBe(false);
+    });
+
+    it("отклоняет limit < 1 (limit: '0', limit: 0, limit: '-1')", () => {
+      const resStrZero = adminUsersQuerySchema.safeParse({ limit: "0" });
+      expect(resStrZero.success).toBe(false);
+
+      const resNumZero = adminUsersQuerySchema.safeParse({ limit: 0 });
+      expect(resNumZero.success).toBe(false);
+
+      const resNegative = adminUsersQuerySchema.safeParse({ limit: "-1" });
+      expect(resNegative.success).toBe(false);
+    });
+
+    it("отклоняет нецелочисленные и нечисловые значения page и limit", () => {
+      expect(adminUsersQuerySchema.safeParse({ page: "1.5" }).success).toBe(
+        false,
+      );
+      expect(adminUsersQuerySchema.safeParse({ limit: "20.5" }).success).toBe(
+        false,
+      );
+      expect(adminUsersQuerySchema.safeParse({ page: "abc" }).success).toBe(
+        false,
+      );
+      expect(adminUsersQuerySchema.safeParse({ limit: "xyz" }).success).toBe(
+        false,
+      );
+      expect(adminUsersQuerySchema.safeParse({ page: NaN }).success).toBe(
+        false,
+      );
+      expect(adminUsersQuerySchema.safeParse({ limit: NaN }).success).toBe(
+        false,
+      );
+    });
+
+    it("принимает граничные допустимые значения page=1, limit=1 и limit=100", () => {
+      const minBounds = adminUsersQuerySchema.safeParse({
+        page: "1",
+        limit: "1",
+      });
+      expect(minBounds.success).toBe(true);
+      if (minBounds.success) {
+        expect(minBounds.data.page).toBe(1);
+        expect(minBounds.data.limit).toBe(1);
+      }
+
+      const maxLimit = adminUsersQuerySchema.safeParse({ limit: "100" });
+      expect(maxLimit.success).toBe(true);
+      if (maxLimit.success) {
+        expect(maxLimit.data.limit).toBe(100);
+      }
+    });
+  });
 });

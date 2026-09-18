@@ -63,12 +63,13 @@ describe("TokenService", () => {
   });
 
   describe("generateAccessToken", () => {
-    it("генерирует JWT с claims sub, sid, permissions, typ=access, iss, aud, jti, iat, exp=15m", () => {
+    it("генерирует JWT с claims sub, sid, permissions, typ=access, iss, aud, jti, iat, exp=15m, generation", () => {
       const before = Math.floor(Date.now() / 1000);
       const token = service.generateAccessToken(
         USER_ID,
         SESSION_ID,
         SystemPermission.ADMINISTRATOR,
+        1,
       );
       const decoded = jwt.decode(token) as jwt.JwtPayload;
 
@@ -76,6 +77,7 @@ describe("TokenService", () => {
       expect(decoded.sub).toBe(USER_ID);
       expect(decoded.sid).toBe(SESSION_ID);
       expect(decoded.permissions).toBe(1);
+      expect(decoded.generation).toBe(1);
       expect(decoded.typ).toBe("access");
       expect(decoded.iss).toBe(ISSUER);
       expect(decoded.aud).toBe(AUDIENCE);
@@ -90,11 +92,12 @@ describe("TokenService", () => {
       });
     });
 
-    it("использует 0 permissions при отсутствии аргумента", () => {
-      const token = service.generateAccessToken(USER_ID, SESSION_ID);
+    it("использует 0 permissions при явной передаче default", () => {
+      const token = service.generateAccessToken(USER_ID, SESSION_ID, 0, 1);
       const decoded = jwt.decode(token) as jwt.JwtPayload;
 
       expect(decoded.permissions).toBe(0);
+      expect(decoded.generation).toBe(1);
     });
 
     it("включает generation в payload access token", () => {
@@ -106,12 +109,13 @@ describe("TokenService", () => {
   });
 
   describe("generateRefreshToken", () => {
-    it("генерирует JWT с typ=refresh и exp=7d", () => {
-      const token = service.generateRefreshToken(USER_ID, SESSION_ID);
+    it("генерирует JWT с typ=refresh, generation и exp=7d", () => {
+      const token = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
       const decoded = jwt.decode(token) as jwt.JwtPayload;
 
       expect(decoded.sub).toBe(USER_ID);
       expect(decoded.sid).toBe(SESSION_ID);
+      expect(decoded.generation).toBe(1);
       expect(decoded.typ).toBe("refresh");
       expect(decoded.iss).toBe(ISSUER);
       expect(decoded.aud).toBe(AUDIENCE);
@@ -135,8 +139,13 @@ describe("TokenService", () => {
 
   describe("разные JWT secrets", () => {
     it("access подписан access secret, refresh — refresh secret (cross-verify падает)", () => {
-      const accessToken = service.generateAccessToken(USER_ID, SESSION_ID);
-      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID);
+      const accessToken = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        0,
+        1,
+      );
+      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
 
       expect(() => jwt.verify(accessToken, REFRESH_SECRET)).toThrow(
         jwt.JsonWebTokenError,
@@ -147,8 +156,13 @@ describe("TokenService", () => {
     });
 
     it("jti access и refresh токенов различаются", () => {
-      const accessToken = service.generateAccessToken(USER_ID, SESSION_ID);
-      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID);
+      const accessToken = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        0,
+        1,
+      );
+      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
 
       const accessDecoded = jwt.decode(accessToken) as jwt.JwtPayload;
       const refreshDecoded = jwt.decode(refreshToken) as jwt.JwtPayload;
@@ -163,6 +177,7 @@ describe("TokenService", () => {
         {
           sub: USER_ID,
           sid: SESSION_ID,
+          generation: 1,
           typ: "access",
           iss: ISSUER,
           aud: AUDIENCE,
@@ -182,17 +197,19 @@ describe("TokenService", () => {
         USER_ID,
         SESSION_ID,
         SystemPermission.USERS_READ,
+        1,
       );
       const payload = service.verifyAccessToken(token);
 
       expect(payload.sub).toBe(USER_ID);
       expect(payload.sid).toBe(SESSION_ID);
       expect(payload.permissions).toBe(Number(SystemPermission.USERS_READ));
+      expect(payload.generation).toBe(1);
       expect(payload.typ).toBe("access");
     });
 
     it("verifyAccessToken отклоняет refresh токен по typ mismatch", () => {
-      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID);
+      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
 
       expect(() => service.verifyAccessToken(refreshToken)).toThrow(
         UnauthorizedException,
@@ -200,8 +217,13 @@ describe("TokenService", () => {
     });
 
     it("verifyRefreshToken принимает refresh и отклоняет access по typ", () => {
-      const accessToken = service.generateAccessToken(USER_ID, SESSION_ID);
-      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID);
+      const accessToken = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        0,
+        1,
+      );
+      const refreshToken = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
 
       expect(service.verifyRefreshToken(refreshToken).typ).toBe("refresh");
       expect(() => service.verifyRefreshToken(accessToken)).toThrow(
@@ -212,7 +234,7 @@ describe("TokenService", () => {
 
   describe("hashRefreshToken", () => {
     it("возвращает HMAC-SHA-256 hex от секрета refreshTokenHashSecret", () => {
-      const token = service.generateRefreshToken(USER_ID, SESSION_ID);
+      const token = service.generateRefreshToken(USER_ID, SESSION_ID, 1);
       const expected = createHmac("sha256", HASH_SECRET)
         .update(token)
         .digest("hex");
@@ -232,12 +254,13 @@ describe("TokenService", () => {
   });
 
   describe("generateRealtimeTicket / verifyRealtimeTicket", () => {
-    it("генерирует тикет с typ=realtime, bound sessionId и exp=5m", () => {
+    it("генерирует тикет с typ=realtime, bound sessionId, generation и exp=5m", () => {
       const before = Math.floor(Date.now() / 1000);
       const token = service.generateRealtimeTicket(
         USER_ID,
         SESSION_ID,
         "interview-123",
+        1,
       );
       const decoded = jwt.decode(token) as jwt.JwtPayload;
 
@@ -245,6 +268,7 @@ describe("TokenService", () => {
       expect(decoded.sub).toBe(USER_ID);
       expect(decoded.sid).toBe(SESSION_ID);
       expect(decoded.sessionId).toBe("interview-123");
+      expect(decoded.generation).toBe(1);
       expect(decoded.typ).toBe("realtime");
       expect(decoded.iss).toBe(ISSUER);
       expect(decoded.aud).toBe(AUDIENCE);
@@ -264,17 +288,24 @@ describe("TokenService", () => {
         USER_ID,
         SESSION_ID,
         "interview-123",
+        1,
       );
       const payload = service.verifyRealtimeTicket(token);
 
       expect(payload.sub).toBe(USER_ID);
       expect(payload.sid).toBe(SESSION_ID);
       expect(payload.sessionId).toBe("interview-123");
+      expect(payload.generation).toBe(1);
       expect(payload.typ).toBe("realtime");
     });
 
     it("verifyRealtimeTicket отклоняет access токен по typ mismatch", () => {
-      const accessToken = service.generateAccessToken(USER_ID, SESSION_ID);
+      const accessToken = service.generateAccessToken(
+        USER_ID,
+        SESSION_ID,
+        0,
+        1,
+      );
 
       expect(() => service.verifyRealtimeTicket(accessToken)).toThrow(
         UnauthorizedException,
@@ -286,6 +317,7 @@ describe("TokenService", () => {
         USER_ID,
         SESSION_ID,
         "interview-123",
+        1,
       );
 
       expect(() => service.verifyAccessToken(ticket)).toThrow(
@@ -298,6 +330,7 @@ describe("TokenService", () => {
         USER_ID,
         SESSION_ID,
         "interview-123",
+        1,
       );
 
       expect(() => jwt.verify(ticket, REFRESH_SECRET)).toThrow(

@@ -55,14 +55,14 @@ export class TokenService {
    * @param userId - UUID пользователя (`sub`).
    * @param sessionId - UUID сессии (`sid`).
    * @param permissions - Битовая маска прав пользователя (BigInt, number или строка).
-   * @param generation - Поколение авторизации пользователя.
+   * @param generation - Поколение авторизации пользователя (§CWE-362, §CWE-613).
    * @returns Подписанный JWT access token.
    */
   generateAccessToken(
     userId: string,
     sessionId: string,
     permissions: bigint | number | string = 0,
-    generation?: number,
+    generation: number,
   ): string {
     const rawBitmask =
       typeof permissions === "bigint" ? permissions : BigInt(permissions);
@@ -79,7 +79,7 @@ export class TokenService {
       iss: this.configService.get<string>("jwt.issuer") || "",
       aud: this.configService.get<string>("jwt.audience") || "",
       jti: randomUUID(),
-      ...(generation !== undefined && { generation }),
+      generation,
     };
 
     return jwt.sign(
@@ -98,13 +98,13 @@ export class TokenService {
    *
    * @param userId - UUID пользователя (`sub`).
    * @param sessionId - UUID сессии (`sid`).
-   * @param generation - Поколение авторизации пользователя.
+   * @param generation - Поколение авторизации пользователя (§CWE-362, §CWE-613).
    * @returns Подписанный JWT refresh token.
    */
   generateRefreshToken(
     userId: string,
     sessionId: string,
-    generation?: number,
+    generation: number,
   ): string {
     const payload: Omit<TokenPayload, "iat" | "exp"> = {
       sub: userId,
@@ -113,7 +113,7 @@ export class TokenService {
       iss: this.configService.getOrThrow<string>("jwt.issuer"),
       aud: this.configService.getOrThrow<string>("jwt.audience"),
       jti: randomUUID(),
-      ...(generation !== undefined && { generation }),
+      generation,
     };
 
     return jwt.sign(
@@ -163,14 +163,14 @@ export class TokenService {
    * @param userId - UUID пользователя (`sub`, владелец/участник сессии).
    * @param sessionId - UUID auth-сессии (`sid`, для live-проверки `auth:session:{sid}`).
    * @param interviewSessionId - UUID интервью-сессии (bound-to-room, defense-in-depth).
-   * @param generation - Поколение авторизации пользователя.
+   * @param generation - Поколение авторизации пользователя (§CWE-362, §CWE-613).
    * @returns Подписанный JWT-тикет.
    */
   generateRealtimeTicket(
     userId: string,
     sessionId: string,
     interviewSessionId: string,
-    generation?: number,
+    generation: number,
   ): string {
     const payload: Omit<TokenPayload, "iat" | "exp"> = {
       sub: userId,
@@ -180,7 +180,7 @@ export class TokenService {
       iss: this.configService.getOrThrow<string>("jwt.issuer"),
       aud: this.configService.getOrThrow<string>("jwt.audience"),
       jti: randomUUID(),
-      ...(generation !== undefined && { generation }),
+      generation,
     };
 
     return jwt.sign(

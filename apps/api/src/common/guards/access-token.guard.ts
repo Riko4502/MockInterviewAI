@@ -69,8 +69,13 @@ export class AccessTokenGuard implements CanActivate {
 
     const payload = this.tokenService.verifyAccessToken(token);
 
+    // Generation claim обязателен для всех access-токенов (§CWE-613).
+    if (payload.generation === undefined) {
+      throw new UnauthorizedException("Session has expired or been revoked");
+    }
+
     // Live-проверка сессии в Redis: logout/деактивация/ротация инвалидируют
-    // access token везде (A8). Проверяется также совпадение поколения авторизации (§CWE-362).
+    // access token везде (A8). Проверяется также совпадение поколения авторизации (§CWE-362, §CWE-613).
     const session = await this.authSessionService.getSession(payload.sid);
     if (!session) {
       throw new UnauthorizedException("Session has expired or been revoked");
@@ -81,8 +86,7 @@ export class AccessTokenGuard implements CanActivate {
     }
 
     if (
-      payload.generation !== undefined &&
-      session.generation !== undefined &&
+      session.generation === undefined ||
       payload.generation !== session.generation
     ) {
       throw new UnauthorizedException("Session has expired or been revoked");

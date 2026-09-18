@@ -119,6 +119,43 @@ return current_gen
 `;
 
 /**
+ * Lua-скрипт для атомарного обновления сессии и индексации в ZSET (§16, §30 SPEC.md).
+ * KEYS[1]: auth:session:{sessionId}
+ * KEYS[2]: auth:user:{userId}:sessions
+ * ARGV[1]: session JSON
+ * ARGV[2]: ttlSeconds (number)
+ * ARGV[3]: sessionId (string)
+ * ARGV[4]: nowMs (number)
+ *
+ * Возвращает 1 при успехе.
+ */
+export const UPDATE_SESSION_LUA = `
+local session_key = KEYS[1]
+local user_sessions_key = KEYS[2]
+local session_json = ARGV[1]
+local ttl = tonumber(ARGV[2])
+local session_id = ARGV[3]
+local now_ms = tonumber(ARGV[4])
+
+if ttl and ttl > 0 then
+    redis.call('set', session_key, session_json, 'EX', ttl)
+    if user_sessions_key and session_id and now_ms then
+        local expire_at_ms = now_ms + (ttl * 1000)
+        redis.call('zremrangebyscore', user_sessions_key, '-inf', '(' .. now_ms)
+        redis.call('zadd', user_sessions_key, expire_at_ms, session_id)
+        redis.call('expire', user_sessions_key, ttl)
+    end
+else
+    redis.call('set', session_key, session_json)
+    if user_sessions_key and session_id then
+        redis.call('zadd', user_sessions_key, '+inf', session_id)
+    end
+end
+
+return 1
+`;
+
+/**
  * Lua-скрипт для атомарной ротации refresh token с replay detection (§30, §32 SPEC.md).
  * KEYS[1]: auth:session:{sessionId}
  * ARGV[1]: newRefreshTokenHash
@@ -297,33 +334,14 @@ export class AuthSessionService {
 
     const updated: AuthSession = { ...existing, ...fields };
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
-    await this.redisService.set(
-      this.key(sessionId),
-      JSON.stringify(updated),
-      ttlSeconds,
-    );
-
     const nowMs = Date.now();
-    const expireAtMs = nowMs + ttlSeconds * 1000;
-    const userSessionsKey = this.userSessionsKey(updated.userId);
-    await this.redisService
-      .eval(
-        `
-        local now_ms = tonumber(ARGV[1])
-        local expire_at_ms = tonumber(ARGV[2])
-        local session_id = ARGV[3]
-        local ttl = tonumber(ARGV[4])
-        redis.call('zremrangebyscore', KEYS[1], '-inf', '(' .. now_ms)
-        redis.call('zadd', KEYS[1], expire_at_ms, session_id)
-        if ttl and ttl > 0 then
-            redis.call('expire', KEYS[1], ttl)
-        end
-        return 1
-        `,
-        [userSessionsKey],
-        [nowMs, expireAtMs, sessionId, ttlSeconds],
-      )
-      .catch(() => undefined);
+
+    // Один атомарный скрипт: set(session) + zadd(index) + expire(index); ошибки не подавляются (§CWE-613).
+    await this.redisService.eval(
+      UPDATE_SESSION_LUA,
+      [this.key(sessionId), this.userSessionsKey(updated.userId)],
+      [JSON.stringify(updated), ttlSeconds, sessionId, nowMs],
+    );
 
     return updated;
   }

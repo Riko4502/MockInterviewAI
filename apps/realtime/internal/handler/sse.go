@@ -111,7 +111,16 @@ func (h *SSEHandler) HandleNotifications(w http.ResponseWriter, r *http.Request)
 	}
 
 	// 3b. Проверка поколения токена (generation fence в Redis, §CWE-613).
-	if h.sessionStore != nil && claims.Generation != nil {
+	if claims.Generation == nil {
+		metrics.IncConnections(sse.ConnStatusRejected)
+		h.logger.Warn("sse connection rejected: missing generation claim",
+			slog.String("userId", claims.UserID),
+		)
+		http.Error(w, "Unauthorized: missing generation claim", http.StatusUnauthorized)
+		return
+	}
+
+	if h.sessionStore != nil {
 		validGen, genErr := h.sessionStore.CheckMinGeneration(r.Context(), claims.UserID, *claims.Generation)
 		if genErr != nil || !validGen {
 			metrics.IncConnections(sse.ConnStatusRejected)

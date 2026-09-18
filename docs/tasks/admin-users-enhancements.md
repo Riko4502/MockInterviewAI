@@ -35,8 +35,8 @@
    - *Решение:* Разрешить передачу `deletedAt: null` в `UpdateUserAdminDto` или реализовать выделенный эндпоинт `POST /api/v1/admin/users/:id/restore`.
 
 4. **Производительность составного поиска через OR:**
-   - *Проблема:* Условие `where.OR: [email, username, displayName]` при стандартном B-Tree индексе приводит к сканированию всей таблицы.
-   - *Решение:* Использование PostgreSQL `gin_trgm_ops` индексов позволяет ускорить `ILIKE` поиск по подстроке до $O(\log N)$.
+   - *Проблема:* Условие `where.OR: [email, username, displayName]` при стандартном B-Tree индексе приводит к последовательному сканированию (`Seq Scan`) всей таблицы при `ILIKE '%...%'`.
+   - *Решение:* Использование PostgreSQL `gin_trgm_ops` индексов оптимизирует `ILIKE` поиск по подстроке (стоимость зависит от селективности триграмм и числа совпадений; ожидаемый план `Bitmap Index Scan` подтверждается через `EXPLAIN ANALYZE`).
 
 ---
 
@@ -149,3 +149,4 @@
   CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_display_name_trgm_idx" ON "users" USING gin ("displayName" gin_trgm_ops);
   ```
 - [x] **6.2.** Миграция подготовлена в `apps/api/prisma/migrations/20260914160000_add_trigram_search_indices`.
+- [x] **6.3.** Подтверждать ожидаемый план выполнения (`Bitmap Index Scan` vs `Bitmap Heap Scan` / `Seq Scan` в зависимости от селективности триграмм и размера таблицы) через `EXPLAIN (ANALYZE, BUFFERS)`.

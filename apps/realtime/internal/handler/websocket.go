@@ -188,8 +188,17 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 			http.Error(w, "Forbidden: access-token fallback is disabled", http.StatusForbidden)
 			return
 		}
-		// Проверка min_generation fence если generation присутствует.
-		if h.sessionStore != nil && claims.Generation != nil {
+		// Generation claim обязателен для access-токенов (§CWE-613).
+		if claims.Generation == nil {
+			h.logger.Warn("websocket connection rejected: missing generation in access token",
+				slog.String("sessionId", sessionID),
+				slog.String("userId", claims.UserID),
+			)
+			http.Error(w, "Unauthorized: missing generation claim", http.StatusUnauthorized)
+			return
+		}
+		// Проверка min_generation fence в Redis: generation < min_generation отклоняется.
+		if h.sessionStore != nil {
 			validGen, genErr := h.sessionStore.CheckMinGeneration(r.Context(), claims.UserID, *claims.Generation)
 			if genErr != nil || !validGen {
 				h.logger.Warn("websocket connection rejected: token generation is outdated",

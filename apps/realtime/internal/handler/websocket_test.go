@@ -745,3 +745,120 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 	}
 	conn.Close(websocket.StatusNormalClosure, "done")
 }
+
+// TestWebSocketAccessFallbackGeneration проверяет обязательность generation claim в access token fallback (§CWE-613).
+func TestWebSocketAccessFallbackGeneration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	secret := "access-gen-test-secret"
+	tokenVerifier := auth.NewTokenVerifier(secret)
+	sessionID := "interview-session-acc-gen"
+	userID := "user-acc-gen"
+
+	sessionStore := &mockSessionStore{
+		roles: map[string]string{
+			userID: "candidate",
+		},
+		active: map[string]bool{
+			sessionID: true,
+		},
+		minGen: map[string]int{
+			userID: 5,
+		},
+	}
+	hub := ws.NewHub(ctx, nil, sessionStore, logger)
+	wsHandler := NewWebSocketHandler(hub, tokenVerifier, sessionStore, logger, []string{"*"}, "access_token", 100, 10, true)
+
+	r := chi.NewRouter()
+	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// 1. Access-токен без generation — отклоняется (401).
+	now := time.Now().UTC()
+	noGenClaims := auth.UserClaims{
+		UserID:    userID,
+		Username:  "tester",
+		SessionID: sessionID,
+		TokenID:   fmt.Sprintf("tok-nogen-%d", now.UnixNano()),
+		Type:      "access",
+		SID:       "sid-" + userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			ID:        fmt.Sprintf("tok-nogen-%d", now.UnixNano()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(1 * time.Hour)),
+		},
+	}
+	noGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noGenClaims)
+	noGenJWT, err := noGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign access token: %v", err)
+	}
+
+	reqHeader := http.Header{}
+	reqHeader.Set("Authorization", "Bearer "+noGenJWT)
+
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeader,
+	}); err == nil {
+		t.Fatal("expected access token without generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d for access token without generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 2. Access-токен с generation < minGen (gen=3 < minGen=5) — отклоняется (401).
+	oldGen := 3
+	oldGenClaims := noGenClaims
+	oldGenClaims.TokenID = fmt.Sprintf("tok-oldgen-%d", now.UnixNano())
+	oldGenClaims.Generation = &oldGen
+	oldGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, oldGenClaims)
+	oldGenJWT, err := oldGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign old-gen access token: %v", err)
+	}
+
+	reqHeaderOld := http.Header{}
+	reqHeaderOld.Set("Authorization", "Bearer "+oldGenJWT)
+
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeaderOld,
+	}); err == nil {
+		t.Fatal("expected access token with outdated generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d for access token with outdated generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 3. Access-токен с generation >= minGen (gen=5 >= minGen=5) — успешен.
+	validGen := 5
+	validGenClaims := noGenClaims
+	validGenClaims.TokenID = fmt.Sprintf("tok-validgen-%d", now.UnixNano())
+	validGenClaims.Generation = &validGen
+	validGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, validGenClaims)
+	validGenJWT, err := validGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign valid-gen access token: %v", err)
+	}
+
+	reqHeaderValid := http.Header{}
+	reqHeaderValid.Set("Authorization", "Bearer "+validGenJWT)
+
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeaderValid,
+	})
+	if err != nil {
+		t.Fatalf("expected valid generation access token to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+}

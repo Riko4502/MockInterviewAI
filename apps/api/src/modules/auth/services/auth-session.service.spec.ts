@@ -191,7 +191,7 @@ describe("AuthSessionService", () => {
   });
 
   describe("updateSession", () => {
-    it("мержит поля и перезаписывает JSON с TTL", async () => {
+    it("мержит поля и атомарно обновляет ключ сессии и ZSET через UPDATE_SESSION_LUA (§CWE-613)", async () => {
       redisGet.mockResolvedValue(JSON.stringify(createStoredSession("old")));
 
       const updated = await service.updateSession(SESSION_ID, {
@@ -202,10 +202,14 @@ describe("AuthSessionService", () => {
       expect(updated?.userId).toBe(USER_ID);
       expect(updated?.tokenFamilyId).toBe(FAMILY_ID);
 
-      const [key, raw, ttl] = redisSet.mock.calls[0];
-      expect(key).toBe(`auth:session:${SESSION_ID}`);
-      expect(ttl).toBe(604800);
-      expect(JSON.parse(raw)).toMatchObject({
+      expect(redisEval).toHaveBeenCalledTimes(1);
+      const [_script, keys, args] = redisEval.mock.calls[0];
+      expect(keys[0]).toBe(`auth:session:${SESSION_ID}`);
+      expect(keys[1]).toBe(`auth:user:${USER_ID}:sessions`);
+      expect(args[1]).toBe(604800);
+      expect(args[2]).toBe(SESSION_ID);
+      expect(typeof args[3]).toBe("number");
+      expect(JSON.parse(args[0])).toMatchObject({
         userId: USER_ID,
         refreshTokenHash: "new",
       });
@@ -219,7 +223,16 @@ describe("AuthSessionService", () => {
       });
 
       expect(updated).toBeNull();
-      expect(redisSet).not.toHaveBeenCalled();
+      expect(redisEval).not.toHaveBeenCalled();
+    });
+
+    it("пробрасывает ошибку при сбое в Redis и не подавляет исключение (§CWE-613)", async () => {
+      redisGet.mockResolvedValue(JSON.stringify(createStoredSession("old")));
+      redisEval.mockRejectedValue(new Error("Redis connection failure"));
+
+      await expect(
+        service.updateSession(SESSION_ID, { refreshTokenHash: "new" }),
+      ).rejects.toThrow("Redis connection failure");
     });
   });
 
