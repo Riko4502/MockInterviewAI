@@ -14,7 +14,11 @@ import {
 export function getAppUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (envUrl && envUrl.trim() !== "") {
-    return buildUrl(envUrl, "");
+    let clean = envUrl.trim();
+    while (clean.endsWith("/")) {
+      clean = clean.slice(0, -1);
+    }
+    return clean;
   }
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
