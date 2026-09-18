@@ -47,6 +47,17 @@ func Sentry(logger *slog.Logger) func(next http.Handler) http.Handler {
 			}, nil)
 
 			next.ServeHTTP(w, r)
+
+			// chi заполняет r.Pattern шаблоном маршрута ("/api/v1/sessions/{id}")
+			// уже после маршрутизации. Используем его как имя транзакции, чтобы
+			// path-параметры (sessionId) не раздували cardinality; для
+			// неизвестных путей — фиксированное имя.
+			if r.Pattern != "" {
+				span.Name = r.Method + " " + r.Pattern
+				span.Source = sentry.SourceRoute
+			} else {
+				span.Name = r.Method + " unknown"
+			}
 		})
 	}
 }
