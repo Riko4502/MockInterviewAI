@@ -3,8 +3,11 @@ import {
   forgotPasswordSchema,
   type LoginDto,
   loginSchema,
+  RESET_PASSWORD_ERROR_CODES,
   type RegisterDto,
   type ResetPasswordDto,
+  type ResetPasswordErrorCode,
+  type ResetPasswordErrorPayload,
   registerSchema,
   resetPasswordSchema,
 } from "@packages/dto";
@@ -19,6 +22,9 @@ export {
   type RegisterDto,
   type ForgotPasswordDto,
   type ResetPasswordDto,
+  type ResetPasswordErrorCode,
+  type ResetPasswordErrorPayload,
+  RESET_PASSWORD_ERROR_CODES,
 };
 
 export type RegisterFormValues = z.input<typeof registerSchema>;

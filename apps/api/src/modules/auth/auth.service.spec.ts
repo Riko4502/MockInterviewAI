@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import { RESET_PASSWORD_ERROR_CODES } from "@packages/dto";
 import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
 import type { PrismaService } from "../../prisma/prisma.service";
@@ -1154,16 +1155,22 @@ describe("AuthService", () => {
       });
     });
 
-    it("невалидный или просроченный токен (getdel вернул null) → BadRequestException", async () => {
+    it("невалидный или просроченный токен (getdel вернул null) → BadRequestException с кодом INVALID_RESET_TOKEN", async () => {
       redisGetdel.mockResolvedValue(null);
 
-      await expect(
-        service.resetPassword({
+      try {
+        await service.resetPassword({
           token: "invalid-or-expired-token",
           newPassword: NEW_PASS,
           newPasswordConfirmation: NEW_PASS,
-        }),
-      ).rejects.toThrow(BadRequestException);
+        });
+        expect(false).toBe(true);
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).getResponse()).toMatchObject({
+          code: RESET_PASSWORD_ERROR_CODES.INVALID_TOKEN,
+        });
+      }
 
       expect(prismaMock.user.update).not.toHaveBeenCalled();
       expect(revokeAllUserSessions).not.toHaveBeenCalled();

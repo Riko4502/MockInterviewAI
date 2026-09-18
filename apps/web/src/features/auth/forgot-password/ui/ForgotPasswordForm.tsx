@@ -5,13 +5,16 @@ import { useAuthControllerForgotPassword } from "@packages/api";
 import { Button, Field, Input } from "@packages/ui";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import {
   type ForgotPasswordFormValues,
   forgotPasswordSchema,
 } from "../../lib/schemas";
-import { ForgotPasswordSuccess } from "./ForgotPasswordSuccess.tsx";
+import { ForgotPasswordSuccess } from "./ForgotPasswordSuccess";
 
 export function ForgotPasswordForm() {
+  const { t } = useTranslation("auth");
   const forgotPasswordMutation = useAuthControllerForgotPassword();
 
   const {
@@ -40,11 +43,11 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <Field invalid={!!errors.email}>
-        <Field.Label>Email</Field.Label>
+        <Field.Label>{t("fields.email.label")}</Field.Label>
         <Field.Content>
           <Input
             type="email"
-            placeholder="example@mail.com"
+            placeholder={t("fields.email.placeholder")}
             data-invalid={!!errors.email}
             aria-invalid={!!errors.email}
             {...register("email")}
@@ -60,21 +63,19 @@ export function ForgotPasswordForm() {
         className="w-full mt-4"
       >
         {forgotPasswordMutation.isPending
-          ? "Отправка..."
-          : "Отправить ссылку для сброса"}
+          ? t("forgotPassword.submitting")
+          : t("forgotPassword.submit")}
       </Button>
 
       {forgotPasswordMutation.isError && (
-        <p className="text-sm text-destructive">
-          Не удалось отправить письмо. Проверьте email и попробуйте снова.
-        </p>
+        <p className="text-sm text-destructive">{t("forgotPassword.error")}</p>
       )}
 
       <Link
         href="/login"
         className="text-sm text-center text-muted-foreground hover:text-foreground hover:underline"
       >
-        Вернуться ко входу
+        {t("forgotPassword.backToLogin")}
       </Link>
     </form>
   );

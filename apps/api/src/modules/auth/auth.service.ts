@@ -10,12 +10,13 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type {
-  ChangePasswordDto,
-  ForgotPasswordDto,
-  LoginDto,
-  RegisterDto,
-  ResetPasswordDto,
+import {
+  type ChangePasswordDto,
+  type ForgotPasswordDto,
+  type LoginDto,
+  RESET_PASSWORD_ERROR_CODES,
+  type RegisterDto,
+  type ResetPasswordDto,
 } from "@packages/dto";
 import { SystemPermission } from "@packages/types";
 import argon2 from "argon2";
@@ -608,14 +609,18 @@ export class AuthService implements OnModuleInit {
     }
 
     if (!userId) {
-      throw new BadRequestException(
-        "Недействительный или истекший токен сброса пароля",
-      );
+      throw new BadRequestException({
+        code: RESET_PASSWORD_ERROR_CODES.INVALID_TOKEN,
+        message: "Invalid or expired reset token",
+      });
     }
 
     const user = await this.usersService.findById(userId);
     if (!user) {
-      throw new BadRequestException("Пользователь не найден");
+      throw new BadRequestException({
+        code: RESET_PASSWORD_ERROR_CODES.INVALID_TOKEN,
+        message: "User not found",
+      });
     }
 
     const newPasswordHash = await this.hashPassword(newPassword);
@@ -653,7 +658,7 @@ export class AuthService implements OnModuleInit {
     }
 
     return {
-      message: "Пароль успешно изменен",
+      message: "The password has been successfully changed",
     };
   }
 

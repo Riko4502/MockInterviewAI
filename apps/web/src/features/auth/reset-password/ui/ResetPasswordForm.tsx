@@ -5,10 +5,16 @@ import { useAuthControllerResetPassword } from "@packages/api";
 import { EyeIcon, EyeOffIcon } from "@packages/icons";
 import { Button, Field, Input, useToast } from "@packages/ui";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { HttpError } from "@/shared/api";
+import { paths } from "@/shared/config";
+import "@/shared/lib/i18n";
+import { getErrorMessage } from "../../lib/getErrorMessage";
 import {
+  RESET_PASSWORD_ERROR_CODES,
+  type ResetPasswordErrorPayload,
   type ResetPasswordFormValues,
   resetPasswordSchema,
 } from "../../lib/schemas";
@@ -23,19 +29,25 @@ const REDIRECT_DELAY_MS = 2000;
 export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const router = useRouter();
   const toast = useToast();
+  const { t } = useTranslation("auth");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
-  const resetPasswordMutation = useAuthControllerResetPassword({
-    mutation: {
-      onSuccess: () => {
-        toast.push({
-          status: "success",
-          title: "Пароль успешно обновлен",
-        });
-        setTimeout(() => router.push("/login"), REDIRECT_DELAY_MS);
-      },
-    },
-  });
+  const resetPasswordMutation = useAuthControllerResetPassword();
+
+  useEffect(() => {
+    if (!resetPasswordMutation.isSuccess) return;
+
+    toast.push({
+      status: "success",
+      title: t("resetPassword.successToast"),
+    });
+
+    const timer = setTimeout(() => {
+      router.push(paths.login);
+    }, REDIRECT_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [resetPasswordMutation.isSuccess, router, t, toast]);
 
   const {
     register,
@@ -52,7 +64,9 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
   const isTokenInvalid =
     resetPasswordMutation.error instanceof HttpError &&
-    resetPasswordMutation.error.status === 400;
+    resetPasswordMutation.error.status === 400 &&
+    (resetPasswordMutation.error.data as ResetPasswordErrorPayload | undefined)
+      ?.code === RESET_PASSWORD_ERROR_CODES.INVALID_TOKEN;
 
   if (isTokenInvalid) {
     return <InvalidTokenAlert />;
@@ -61,24 +75,26 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <Field invalid={!!errors.newPassword}>
-        <Field.Label>Новый пароль</Field.Label>
+        <Field.Label>{t("fields.newPassword.label")}</Field.Label>
         <Field.Content>
-          <Field.Description>Минимум 12 символов</Field.Description>
+          <Field.Description>{t("fields.newPassword.hint")}</Field.Description>
           <div className="relative">
             <Input
               type={isPasswordVisible ? "text" : "password"}
-              placeholder="Введите новый пароль"
+              placeholder={t("fields.newPassword.placeholder")}
               data-invalid={!!errors.newPassword}
               aria-invalid={!!errors.newPassword}
               className="pr-10"
               {...register("newPassword")}
             />
-            <button
+            <Button
               type="button"
               onClick={() => setIsPasswordVisible((prev) => !prev)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               aria-label={
-                isPasswordVisible ? "Скрыть пароль" : "Показать пароль"
+                isPasswordVisible
+                  ? t("fields.hidePassword")
+                  : t("fields.showPassword")
               }
             >
               {isPasswordVisible ? (
@@ -86,18 +102,18 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
               ) : (
                 <EyeIcon className="size-4" />
               )}
-            </button>
+            </Button>
           </div>
           <Field.Error>{errors.newPassword?.message}</Field.Error>
         </Field.Content>
       </Field>
 
       <Field invalid={!!errors.newPasswordConfirmation}>
-        <Field.Label>Подтверждение пароля</Field.Label>
+        <Field.Label>{t("fields.newPasswordConfirmation.label")}</Field.Label>
         <Field.Content>
           <Input
             type="password"
-            placeholder="Повторите новый пароль"
+            placeholder={t("fields.newPasswordConfirmation.placeholder")}
             data-invalid={!!errors.newPasswordConfirmation}
             aria-invalid={!!errors.newPasswordConfirmation}
             {...register("newPasswordConfirmation")}
@@ -113,13 +129,16 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         className="w-full mt-4"
       >
         {resetPasswordMutation.isPending
-          ? "Сохранение..."
-          : "Сохранить новый пароль"}
+          ? t("resetPassword.submitting")
+          : t("resetPassword.submit")}
       </Button>
 
       {resetPasswordMutation.isError && !isTokenInvalid && (
         <p className="text-sm text-destructive">
-          Не удалось сохранить пароль. Попробуйте снова.
+          {getErrorMessage(
+            resetPasswordMutation.error,
+            t("resetPassword.error"),
+          )}
         </p>
       )}
     </form>

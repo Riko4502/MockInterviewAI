@@ -3,6 +3,9 @@
 import { Button } from "@packages/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
+import { paths } from "@/shared/config";
 
 const RESEND_TIMEOUT_SECONDS = 60;
 
@@ -17,6 +20,7 @@ export function ForgotPasswordSuccess({
   isResending,
   onResend,
 }: ForgotPasswordSuccessProps) {
+  const { t } = useTranslation("auth");
   const [secondsLeft, setSecondsLeft] = useState(RESEND_TIMEOUT_SECONDS);
 
   useEffect(() => {
@@ -37,8 +41,7 @@ export function ForgotPasswordSuccess({
   return (
     <div className="flex flex-col items-center gap-4 text-center">
       <p className="text-sm text-foreground">
-        Проверьте вашу почту! Мы отправили инструкции по восстановлению пароля
-        на адрес <span className="font-medium">{email}</span>.
+        {t("forgotPassword.success.message", { email })}
       </p>
 
       <Button
@@ -50,17 +53,19 @@ export function ForgotPasswordSuccess({
         className="w-full"
       >
         {isResending
-          ? "Отправка..."
+          ? t("forgotPassword.success.resending")
           : secondsLeft > 0
-            ? `Отправить повторно (${secondsLeft}с)`
-            : "Отправить повторно"}
+            ? t("forgotPassword.success.resendWithTimer", {
+                seconds: secondsLeft,
+              })
+            : t("forgotPassword.success.resend")}
       </Button>
 
       <Link
-        href="/login"
+        href={paths.login}
         className="text-sm text-muted-foreground hover:text-foreground hover:underline"
       >
-        Вернуться ко входу
+        {t("forgotPassword.backToLogin")}
       </Link>
     </div>
   );
