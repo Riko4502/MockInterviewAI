@@ -75,7 +75,7 @@
           "refId": "A"
         },
         {
-          "expr": "redis_maxclients",
+          "expr": "redis_config_maxclients",
           "legendFormat": "max",
           "refId": "B"
         }
