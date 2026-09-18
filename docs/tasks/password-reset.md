@@ -28,13 +28,15 @@ sequenceDiagram
     API-->>Web: 6. 200 OK (Одинаковый ответ для защиты от перечисления пользователей)
 
     Note over User, MQ: Шаг 2: Установка нового пароля (Reset Password)
-    User->>Web: 7. Переход по ссылке /reset-password?token=RAW_TOKEN
+    User->>Web: 7. Переход по ссылке /reset-password#token=RAW_TOKEN
+    Note over Web: Токен читается из window.location.hash (клиент).
+    Note over Web: Fragment никогда не отправляется на сервер и не логируется прокси.
     User->>Web: 8. Ввод newPassword и newPasswordConfirmation
     Web->>API: 9. POST /api/v1/auth/reset-password { token, newPassword, newPasswordConfirmation }
     API->>Redis: 10. redis.getdel(reset_token:SHA256(token))
     API->>DB: 11. Обновление passwordHash = Argon2id.hash(newPassword)
     API->>Redis: 12. Инвалидация всех активных refresh-сессий пользователя
-    API-->>Web: 13. 200 OK ("Пароль успешно изменен")
+    API-->>Web: 13. 200 OK ("The password has been successfully changed")
     Web-->>User: 14. Toast + автоматический редирект на /login
 ```
 
@@ -122,7 +124,8 @@ apps/web/src/
   - Мутация `POST /api/v1/auth/forgot-password`.
   - Экран подтверждения отправки письма с таймером повторной отправки (60 сек).
 - [ ] **Страница `/reset-password`:**
-  - Считывание и проверка наличия `token` в URL query.
+  - Считывание `token` из URL-фрагмента (`#token=...`) на клиенте (`window.location.hash`).
+    Fragment не передаётся на сервер, не логируется прокси — защита от CWE-598.
   - Форма ввода нового пароля и подтверждения с иконкой `Eye`/`EyeOff`.
   - Мутация `POST /api/v1/auth/reset-password`.
   - Обработка истекшего токена и успешного сброса с редиректом на `/login`.

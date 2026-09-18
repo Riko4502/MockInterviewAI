@@ -1,1 +1,1 @@
-export { DynamicBackground } from "./DynamicBackground";
+export { DynamicBackground, GlobalSpotlight } from "@packages/ui";

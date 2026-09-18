@@ -22,7 +22,10 @@ export {
 } from "./auth/password-policy";
 export { type RegisterDto, registerSchema } from "./auth/register.dto";
 export {
+  RESET_PASSWORD_ERROR_CODES,
   type ResetPasswordDto,
+  type ResetPasswordErrorCode,
+  type ResetPasswordErrorPayload,
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
 export {

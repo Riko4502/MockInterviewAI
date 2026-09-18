@@ -1,15 +1,20 @@
 @import "tailwindcss";
 @import "@packages/ui/globals.css";
+@import "@packages/ui/fonts.css";
 @import "@packages/icons/globals.css";
 
 @layer base {
+  html,
   body {
-    background-color: #06070d;
-    color: #f1f5f9;
+    overflow-x: clip;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
     font-family:
-      "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    overflow-x: hidden;
+      var(--font-sf-pro), "SF Pro Display", "SF Pro Text", -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 }
 
@@ -118,10 +123,20 @@
 }
 
 .glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.05),
+    0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+:is(.dark, [data-theme="dark"]) .glass-panel,
+.dark.glass-panel {
   background: rgba(12, 14, 25, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 .glow-card {
@@ -130,10 +145,16 @@
 
 .glow-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 20px 40px -15px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 20px 40px -15px rgba(124, 58, 237, 0.18);
 }
 
 .text-gradient-purple {
+  background: linear-gradient(135deg, #9333ea 0%, #6366f1 50%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:is(.dark, [data-theme="dark"]) .text-gradient-purple {
   background: linear-gradient(135deg, #a855f7 0%, #6366f1 50%, #38bdf8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -142,8 +163,140 @@
 .bg-grid-pattern {
   background-size: 40px 40px;
   background-image:
+    linear-gradient(to right, rgba(99, 102, 241, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
+}
+
+:is(.dark, [data-theme="dark"]) .bg-grid-pattern,
+.dark.bg-grid-pattern {
+  background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+}
+
+.text-gradient-titanium {
+  background: linear-gradient(180deg, #111827 0%, #4b5563 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:is(.dark, [data-theme="dark"]) .text-gradient-titanium {
+  background: linear-gradient(180deg, #ffffff 0%, #9ca3af 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-intelligence {
+  background: linear-gradient(
+    135deg,
+    #f43f5e 0%,
+    #ec4899 25%,
+    #8b5cf6 55%,
+    #3b82f6 85%,
+    #06b6d4 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.apple-border {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:is(.dark, [data-theme="dark"]) .apple-border {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.apple-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+}
+
+:is(.dark, [data-theme="dark"]) .apple-glass {
+  background: rgba(10, 10, 15, 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 16px 40px -12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+.apple-glow-button {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-glow-button::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(236, 72, 153, 0.6),
+    rgba(139, 92, 246, 0.6),
+    rgba(59, 130, 246, 0.6),
+    rgba(6, 182, 212, 0.6)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.75;
+  transition: opacity 0.3s ease;
+}
+
+.apple-glow-button:hover::before {
+  opacity: 1;
+}
+
+.apple-badge-intelligence {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  box-shadow: 0 2px 12px -2px rgba(139, 92, 246, 0.15);
+}
+
+:is(.dark, [data-theme="dark"]) .apple-badge-intelligence {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 20px -4px rgba(168, 85, 247, 0.3);
+}
+
+@keyframes wave-siri {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-siri-1 {
+  animation: wave-siri 1.2s ease-in-out infinite;
+}
+.animate-siri-2 {
+  animation: wave-siri 0.9s ease-in-out infinite 0.15s;
+}
+.animate-siri-3 {
+  animation: wave-siri 1.5s ease-in-out infinite 0.3s;
+}
+.animate-siri-4 {
+  animation: wave-siri 1.1s ease-in-out infinite 0.45s;
+}
+.animate-siri-5 {
+  animation: wave-siri 1.3s ease-in-out infinite 0.2s;
+}
+.animate-siri-6 {
+  animation: wave-siri 0.8s ease-in-out infinite 0.35s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -155,4 +308,30 @@
     transition-duration: 0.01ms;
     scroll-behavior: auto;
   }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-image-pair(root) {
+  isolation: isolate;
+}
+
+html[data-theme-transition="light-to-dark"]::view-transition-old(root) {
+  z-index: 1;
+}
+
+html[data-theme-transition="light-to-dark"]::view-transition-new(root) {
+  z-index: 9999;
+}
+
+html[data-theme-transition="dark-to-light"]::view-transition-old(root) {
+  z-index: 9999;
+}
+
+html[data-theme-transition="dark-to-light"]::view-transition-new(root) {
+  z-index: 1;
 }

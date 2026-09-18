@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@packages/ui";
 import "@/shared/styles/globals.css";
 import type { ReactNode } from "react";
 
@@ -9,9 +10,11 @@ export function BaseLayout({
   lang: string;
 }) {
   return (
-    <html lang={lang} className="scroll-smooth">
-      <body className="bg-background text-foreground font-sans antialiased selection:bg-primary selection:text-primary-foreground min-h-screen flex flex-col justify-between">
-        {children}
+    <html lang={lang} suppressHydrationWarning>
+      <body className="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground min-h-screen flex flex-col justify-between">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

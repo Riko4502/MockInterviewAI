@@ -4,30 +4,78 @@
  * внутри компонентов через useTranslation("landing").
  */
 
+export const GRADE_DEFINITIONS = [
+  { id: "junior", labelKey: "howItWorks.gradeJunior", level: "L3" },
+  { id: "middle", labelKey: "howItWorks.gradeMiddle", level: "L4" },
+  { id: "senior", labelKey: "howItWorks.gradeSenior", level: "L5" },
+  { id: "lead", labelKey: "howItWorks.gradeLead", level: "L6" },
+] as const;
+
+export type GradeId = (typeof GRADE_DEFINITIONS)[number]["id"];
+
 export const TRACK_DEFINITIONS = [
   {
     id: "track-frontend",
     titleKey: "howItWorks.track1Title",
     descriptionKey: "howItWorks.track1Desc",
     duration: "60 min",
+    focusTags: ["React 19", "Next.js", "TypeScript", "Web Vitals"],
+    tasksByGrade: {
+      junior: "howItWorks.taskFrontendJunior",
+      middle: "howItWorks.taskFrontendMiddle",
+      senior: "howItWorks.taskFrontendSenior",
+      lead: "howItWorks.taskFrontendLead",
+    },
+    accentColor:
+      "border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    gradient: "from-violet-600 to-indigo-600",
   },
   {
     id: "track-backend",
     titleKey: "howItWorks.track2Title",
     descriptionKey: "howItWorks.track2Desc",
-    duration: "45 min",
+    duration: "60 min",
+    focusTags: ["Golang", "PostgreSQL", "Redis", "gRPC"],
+    tasksByGrade: {
+      junior: "howItWorks.taskBackendJunior",
+      middle: "howItWorks.taskBackendMiddle",
+      senior: "howItWorks.taskBackendSenior",
+      lead: "howItWorks.taskBackendLead",
+    },
+    accentColor: "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    gradient: "from-sky-600 to-blue-600",
   },
   {
     id: "track-system-design",
     titleKey: "howItWorks.track3Title",
     descriptionKey: "howItWorks.track3Desc",
-    duration: "60 min",
+    duration: "45 min",
+    focusTags: ["High Load", "Kafka", "Sharding", "WebSockets"],
+    tasksByGrade: {
+      junior: "howItWorks.taskSysDesignJunior",
+      middle: "howItWorks.taskSysDesignMiddle",
+      senior: "howItWorks.taskSysDesignSenior",
+      lead: "howItWorks.taskSysDesignLead",
+    },
+    accentColor:
+      "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    gradient: "from-amber-600 to-orange-600",
   },
   {
     id: "track-algorithms",
     titleKey: "howItWorks.track4Title",
     descriptionKey: "howItWorks.track4Desc",
     duration: "45 min",
+    focusTags: ["Dynamic Programming", "Graphs", "Trees", "Big-O O(1)"],
+    tasksByGrade: {
+      junior: "howItWorks.taskAlgoJunior",
+      middle: "howItWorks.taskAlgoMiddle",
+      senior: "howItWorks.taskAlgoSenior",
+      lead: "howItWorks.taskAlgoLead",
+    },
+    accentColor:
+      "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    gradient: "from-emerald-600 to-teal-600",
   },
 ] as const;
 
