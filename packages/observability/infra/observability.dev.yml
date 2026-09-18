@@ -1,6 +1,6 @@
 # Dev-контур наблюдения (см. packages/observability/PLAN.md §7).
 # Запуск только по требованию, НЕ в predev:
-#   docker compose -f packages/observability/infra/observability.dev.yml up -d
+#   docker compose --env-file .env -f packages/observability/infra/observability.dev.yml up -d
 # api/realtime/redis работают на хосте -> scrape-таргеты через host.docker.internal.
 services:
   prometheus:
@@ -26,10 +26,9 @@ services:
     image: oliver006/redis_exporter:v1.61.0
     container_name: mock-interview-observability-dev-redis-exporter
     restart: unless-stopped
-    env_file:
-      - ../../../.env
     environment:
       - REDIS_ADDR=redis://host.docker.internal:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-mock-interview-redis}
       - REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications
       - REDIS_EXPORTER_CHECK_KEYS=session:*:active
     ports:

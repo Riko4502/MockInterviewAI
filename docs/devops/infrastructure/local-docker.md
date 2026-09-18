@@ -89,10 +89,10 @@ Dev-контур Prometheus/Grafana/redis-exporter не входит в `docker-
 
 ```bash
 # Запуск dev-контура наблюдения (требует запущенные api/realtime через turbo dev)
-docker compose -f packages/observability/infra/observability.dev.yml up -d
+docker compose --env-file .env -f packages/observability/infra/observability.dev.yml up -d
 
 # Остановка (данные volumes сохраняются)
-docker compose -f packages/observability/infra/observability.dev.yml down
+docker compose --env-file .env -f packages/observability/infra/observability.dev.yml down
 ```
 
 | Сервис | Порт хоста | Назначение |

@@ -326,7 +326,7 @@ Dev-контур реализован (PLAN §7): композ
 (`127.0.0.1:3002`) по команде:
 
 ```bash
-docker compose -f packages/observability/infra/observability.dev.yml up -d
+docker compose --env-file .env -f packages/observability/infra/observability.dev.yml up -d
 ```
 
 Запуск по требованию, в `predev` НЕ подключён. api/realtime скрейпятся через

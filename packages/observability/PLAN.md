@@ -117,7 +117,7 @@ GRAFANA_ADMIN_PASSWORD=
    сервиса в сети композа; `extra_hosts: host.docker.internal:host-gateway`
    для Linux.
 3. Запуск только по требованию:
-   `docker compose -f packages/observability/infra/observability.dev.yml up -d`.
+   `docker compose --env-file .env -f packages/observability/infra/observability.dev.yml up -d`.
    НЕ подключён в `predev` api — dev-инфра остаётся лёгкой и не тянет
    мониторинг каждому разработчику. По умолчанию стек выключен, включается
    явной командой.

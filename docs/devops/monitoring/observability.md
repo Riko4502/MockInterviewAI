@@ -39,8 +39,8 @@ curl http://localhost:8080/metrics          # realtime (Go)
 Запускается **по требованию**, в `predev` не подключён:
 
 ```bash
-docker compose -f packages/observability/infra/observability.dev.yml up -d
-# остановка: docker compose -f packages/observability/infra/observability.dev.yml down
+docker compose --env-file .env -f packages/observability/infra/observability.dev.yml up -d
+# остановка: docker compose --env-file .env -f packages/observability/infra/observability.dev.yml down
 ```
 
 | Сервис | Адрес | Логин/Пароль |
