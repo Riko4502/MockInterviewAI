@@ -1,6 +1,6 @@
 import type { Locale } from "@packages/i18n";
+import { DynamicBackground, GlobalSpotlight } from "@packages/ui";
 import { I18nClientProvider } from "@/shared/lib/i18n/I18nClientProvider";
-import { DynamicBackground, GlobalSpotlight } from "@/shared/ui";
 import { LiveActivityToast } from "@/widgets/activity-toast";
 import { CTA } from "@/widgets/cta";
 import { Features } from "@/widgets/features";

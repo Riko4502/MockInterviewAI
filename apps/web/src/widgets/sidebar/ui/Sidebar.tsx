@@ -7,7 +7,7 @@ import {
   TrendUpIcon,
   UsersIcon,
 } from "@packages/icons";
-import { Logo } from "@packages/ui";
+import { Logo, ThemeToggle } from "@packages/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -71,6 +71,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="border-t border-sidebar-border p-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground font-medium px-2">
+          {t("common.theme", "Тема")}
+        </span>
+        <ThemeToggle
+          tooltipLight={t("theme.light", "Светлая тема")}
+          tooltipDark={t("theme.dark", "Темная тема")}
+          ariaLabel={t("theme.toggle", "Переключить тему")}
+        />
+      </div>
     </aside>
   );
 }
