@@ -162,21 +162,9 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		// Одноразовый тикет: атомарно потребляем (ConsumeTicket) и,
-		// если он уже был использован — отклоняем (replay-protection).
-		if h.sessionStore != nil {
-			consumed, consumeErr := h.sessionStore.ConsumeTicket(r.Context(), claims.TokenID)
-			if consumeErr != nil || !consumed {
-				h.logger.Warn("websocket connection rejected: ticket already used",
-					slog.String("userId", claims.UserID),
-					slog.String("tokenId", claims.TokenID),
-				)
-				http.Error(w, "Unauthorized: ticket already used", http.StatusUnauthorized)
-				return
-			}
-		}
 		// Тикет не проверяется через IsTokenRevoked: одноразовость обеспечивается
-		// ConsumeTicket, а TTL тикета короткий (5m).
+		// ConsumeTicket (вызывается непосредственно перед Accept после всех проверок доступа),
+		// а TTL тикета короткий (5m).
 
 	case "access":
 		// 2b. Access-токен — только как временный fallback (P9). При выключенном
@@ -268,13 +256,29 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 		role = storeRole
 	}
 
+	// 5. Одноразовый тикет: атомарно потребляем (ConsumeTicket) непосредственно перед
+	//    апгрейдом соединения, после всех проверок доступа (auth-сессия, активность
+	//    интервью, членство в сессии). Если любая из этих проверок отклонит запрос,
+	//    тикет не расходуется, и повторная попытка с исправленными параметрами не получит 401 (§CWE-613).
+	if claims.Type == "realtime" && h.sessionStore != nil {
+		consumed, consumeErr := h.sessionStore.ConsumeTicket(r.Context(), claims.TokenID)
+		if consumeErr != nil || !consumed {
+			h.logger.Warn("websocket connection rejected: ticket already used",
+				slog.String("userId", claims.UserID),
+				slog.String("tokenId", claims.TokenID),
+			)
+			http.Error(w, "Unauthorized: ticket already used", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// Продлеваем TTL зеркала при успешном подключении (молчаливое интервью
 	// дольше TTL не теряет доступ к реконнектам, P).
 	if h.sessionStore != nil {
 		_ = h.sessionStore.TouchMirror(r.Context(), sessionID, mirrorTouchTTL)
 	}
 
-	// 5. Настройка параметров апгрейда
+	// 6. Настройка параметров апгрейда
 	opts := &websocket.AcceptOptions{
 		OriginPatterns: h.allowedOrigins,
 		Subprotocols:   []string{"realtime"},

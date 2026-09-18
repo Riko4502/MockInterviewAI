@@ -1408,7 +1408,7 @@ describe("AuthService", () => {
       });
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
       expect(result).toEqual({
-        message: "Пароль успешно изменен",
+        message: "The password has been successfully changed",
       });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         `Failed to revoke sessions / publish revocation for user ${USER.id} during resetPassword (persisted for worker retry)`,

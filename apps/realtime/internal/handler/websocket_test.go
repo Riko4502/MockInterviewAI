@@ -561,6 +561,63 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	}
 }
 
+// TestWebSocketTicketNotConsumedOnAccessRejection проверяет, что если запрос
+// отклонён проверками доступа (например, комната закрыта или пользователь не участник),
+// тикет не расходуется (ConsumeTicket не вызывается) и повторная попытка успешна.
+func TestWebSocketTicketNotConsumedOnAccessRejection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket-rejection"
+	sessionID := "room-access-reject"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{sessionID: false}, // комната изначально закрыта
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+
+	ticket, err := generateTestTicket(secret, "user-1", "User1", sessionID)
+	if err != nil {
+		t.Fatalf("failed to generate ticket: %v", err)
+	}
+
+	// 1-я попытка: сессия закрыта -> 403 Forbidden. Тикет НЕ должен сгореть.
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	}); err == nil {
+		t.Fatal("expected failure on closed session, got success")
+	} else if resp == nil || resp.StatusCode != http.StatusForbidden {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d on closed session, got %v", http.StatusForbidden, resp)
+	}
+
+	// Открываем сессию
+	store.active[sessionID] = true
+
+	// 2-я попытка с тем же тикетом: должна пройти успешно, так как тикет не был израсходован.
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if err != nil {
+		t.Fatalf("expected retry with unconsumed ticket to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+
+	// 3-я попытка: теперь тикет уже использован -> 401 Unauthorized.
+	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	}); err == nil {
+		t.Fatal("expected ticket reuse to fail with 401, got success")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
+	}
+}
+
 // TestWebSocketTicketBoundToAnotherSession проверяет, что тикет, привязанный
 // к другой комнате, не позволяет подключиться к текущей (→ 403).
 func TestWebSocketTicketBoundToAnotherSession(t *testing.T) {
