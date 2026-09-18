@@ -23,7 +23,6 @@ groups:
       - alert: RedisEvictions
         expr: |
           increase(redis_evicted_keys_total[5m]) > 0
-        for: 5m
         labels:
           severity: warning
         annotations:
