@@ -136,7 +136,7 @@
 - **Риск / Impact:** Если аккаунт передается другому владельцу или меняется email в связи с компрометацией, ранее выданные JWT/Refresh токены продолжают действовать до 7 дней, сохраняя несанкционированный доступ.
 
 #### 🛠️ План решения
-- [x] **6.1.** В [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts) расширить условие инвалидации: `const credentialsChanged = roleChanged || (dto.email && dto.email !== existing.email) || (dto.username && dto.username !== existing.username)`.
+- [x] **6.1.** В [`apps/api/src/modules/admin/services/admin-users.service.ts`](../../apps/api/src/modules/admin/services/admin-users.service.ts) расширить условие инвалидации: `const credentialsChanged = roleChanged || (dto.email !== undefined && dto.email !== existing.email) || (dto.username !== undefined && dto.username !== existing.username)`.
 - [x] **6.2.** Инкрементировать `generation` и отправлять команду ревокации `revokeSessionsWithRetry` при `credentialsChanged`.
 - [x] **6.3.** Обновить unit-тесты `admin-users.service.spec.ts` для проверки отзыва сессий при смене `email` и `username`.
 

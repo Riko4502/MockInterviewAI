@@ -2,7 +2,6 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -218,9 +217,7 @@ export class AuthService implements OnModuleInit {
     }
 
     if (user.isActive === false) {
-      throw new ForbiddenException(
-        "Account has been deactivated. Please contact an administrator",
-      );
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Ре-верификация пользователя после ресурсоёмкого argon2.verify для устранения CWE-362 гонок
@@ -288,25 +285,22 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
-   * Выполняет выход пользователя (§60 SPEC.md).
+   * Выполняет выход пользователя из текущей сессии (§60 SPEC.md).
    *
-   * Строгая семантика — logout успешен только при одновременном выполнении:
-   * 1. refresh token присутствует (cookie);
-   * 2. JWT валиден (HS256, подпись, issuer, audience, expiration,
-   *    typ = `refresh` — проверяет `TokenService.verifyRefreshToken`);
-   * 3. session `auth:session:{sid}` существует в Redis;
-   * 4. `hashRefreshToken(token)` совпадает с сохранённым
-   *    `session.refreshTokenHash` (защита от отзыва ротированной сессии
-   *    старым токеном, §30–32 SPEC.md).
+   * Алгоритм:
+   * 1. Извлечь refresh token из cookie.
+   * 2. Валидация токена через `verifyRefreshToken`.
+   * 3. Найти session в Redis по `sid` из payload.
+   * 4. Сверить HMAC-хеш токена с сохранённым `session.refreshTokenHash`.
+   * 5. Удалить session из Redis.
+   * 6. Вызывающий код сбрасывает HTTP-only cookie.
    *
-   * Нарушение любого условия → generic `401`. При ошибке Redis → `500`
-   * без внутренних деталей; компенсация не требуется.
+   * Все условия отказа 1–4 возвращают generic `401 Unauthorized` (§60 SPEC.md).
+   * Ошибки Redis → `500 Internal Server Error`, cookie НЕ сбрасывается (§60).
    *
-   * @param refreshToken - JWT refresh token из cookie (может отсутствовать).
-   * @returns `void` — сессия отозвана в Redis.
-   * @throws {UnauthorizedException} Если любое из условий 1–4 не выполнено
-   *   (generic-ответ без указания причины).
-   * @throws {InternalServerErrorException} При ошибке Redis.
+   * @param refreshToken - Refresh token из cookie.
+   * @throws {UnauthorizedException} При невалидном токене или несовпадении сессии (§60).
+   * @throws {InternalServerErrorException} При ошибке Redis (§60).
    */
   async logout(refreshToken?: string): Promise<void> {
     if (!refreshToken) {
@@ -379,23 +373,20 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
-   * Сменяет пароль авторизованного пользователя (§67 SPEC.md).
+   * Изменяет пароль авторизованного пользователя (§67 SPEC.md).
    *
-   * ИНФОРМАЦИЯ: вызывается для авторизованного пользователя (access token
-   * валиден, `request.user.sub` — его UUID). Алгоритм:
-   * 1. Поиск пользователя по `userId` → не найден → `404 Not Found`.
-   * 2. `argon2.verify(user.passwordHash, currentPassword)` → не совпал →
-   *    generic `401` «Неверные учётные данные».
-   * 3. `currentPassword === newPassword` → `400 Bad Request`.
-   * 4. Хеширование нового пароля → обновление `passwordHash` в PostgreSQL.
-   * 5. Отзыв ВСЕХ session пользователя в Redis (включая текущую) через
+   * Алгоритм:
+   * 1. Поиск пользователя по `userId`.
+   * 2. Проверка `currentPassword` через `argon2.verify()`.
+   * 3. Проверка `currentPassword !== newPassword` (400, если совпадают).
+   * 4. Хеширование `newPassword` через Argon2id.
+   * 5. Обновление `passwordHash` в PostgreSQL.
+   * 6. Отзыв всех active authentication sessions пользователя в Redis
    *    `revokeAllUserSessions` (доступ token остаётся валидным до TTL,
-   *    stateless; refresh cookie в любом случае сбрасывается контроллером).
+   *    refresh-сессии сбрасываются).
+   * 7. Вызывающий код сбрасывает HTTP-only cookie.
    *
-   * Ошибки Redis на шаге 5 → `500` без внутренних деталей; пароль уже
-   * обновлён в PostgreSQL (транзакция PostgreSQL + best-effort Redis, §67).
-   *
-   * @param userId - UUID пользователя из payload access token.
+   * @param userId - UUID пользователя из `request.user.sub`.
    * @param dto - Валидированный DTO (currentPassword, newPassword).
    * @throws {NotFoundException} Если пользователь не найден (404).
    * @throws {UnauthorizedException} Если текущий пароль неверен (401).
@@ -431,17 +422,22 @@ export class AuthService implements OnModuleInit {
     let taskGeneration: number | undefined;
 
     await this.prisma.$transaction(async (tx) => {
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
+      const updateResult = await tx.user.updateMany({
+        where: {
+          id: userId,
+          generation: user.generation,
+        },
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
         },
-        select: {
-          generation: true,
-        },
       });
-      const preIncrementGeneration = updatedUser.generation - 1;
+
+      if (updateResult.count === 0) {
+        throw new ConflictException("User state has changed, please try again");
+      }
+
+      const preIncrementGeneration = user.generation;
       const task = await tx.authRevocationTask.create({
         data: {
           userId,
@@ -527,21 +523,20 @@ export class AuthService implements OnModuleInit {
 
       if (
         payload.generation !== undefined &&
-        session.generation !== undefined &&
-        payload.generation !== session.generation
+        (session.generation ?? 1) !== payload.generation
       ) {
         await this.sessionService.revokeSession(payload.sid);
         throw new UnauthorizedException("Invalid credentials");
       }
 
       const user = await this.usersService.findUserWithRoleById(session.userId);
+      const userGeneration = user?.generation ?? 1;
+      const sessionGeneration = session.generation ?? 1;
       if (
         !user ||
         user.deletedAt ||
         user.isActive === false ||
-        (session.generation !== undefined &&
-          user.generation !== undefined &&
-          session.generation !== user.generation)
+        sessionGeneration !== userGeneration
       ) {
         await this.sessionService.revokeSession(payload.sid);
         throw new UnauthorizedException("Invalid credentials");

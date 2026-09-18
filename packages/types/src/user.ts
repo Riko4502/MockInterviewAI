@@ -18,12 +18,13 @@ export interface UserAdminView {
   displayName: string | null;
   role: string;
   isActive: boolean;
-  deactivatedAt: Date | string | null;
+  deactivatedAt: string | null;
+  deletedAt: string | null;
   avatarUrl: string | null;
   telegramUsername: string | null;
   gitUrl: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

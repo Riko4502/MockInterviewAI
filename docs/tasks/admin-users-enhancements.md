@@ -144,8 +144,8 @@
 - [x] **6.1.** Создать SQL-миграцию:
   ```sql
   CREATE EXTENSION IF NOT EXISTS pg_trgm;
-  CREATE INDEX IF NOT EXISTS "users_email_trgm_idx" ON "users" USING gin ("email" gin_trgm_ops);
-  CREATE INDEX IF NOT EXISTS "users_username_trgm_idx" ON "users" USING gin ("username" gin_trgm_ops);
-  CREATE INDEX IF NOT EXISTS "users_display_name_trgm_idx" ON "users" USING gin ("displayName" gin_trgm_ops);
+  CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_email_trgm_idx" ON "users" USING gin ("email" gin_trgm_ops);
+  CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_username_trgm_idx" ON "users" USING gin ("username" gin_trgm_ops);
+  CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_display_name_trgm_idx" ON "users" USING gin ("displayName" gin_trgm_ops);
   ```
 - [x] **6.2.** Миграция подготовлена в `apps/api/prisma/migrations/20260914160000_add_trigram_search_indices`.

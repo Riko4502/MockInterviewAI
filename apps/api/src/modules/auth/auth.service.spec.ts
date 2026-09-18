@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
@@ -90,7 +89,7 @@ describe("AuthService", () => {
   let redisDelete: jest.Mock;
   let sendPasswordResetEmail: jest.Mock;
   let prismaMock: {
-    user: { delete: jest.Mock; update: jest.Mock };
+    user: { delete: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
     authRevocationTask: { create: jest.Mock; delete: jest.Mock };
     $transaction: jest.Mock;
   };
@@ -188,6 +187,7 @@ describe("AuthService", () => {
       user: {
         delete: deleteUser,
         update: jest.fn().mockResolvedValue({ ...USER, generation: 2 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       authRevocationTask: {
         create: jest.fn().mockResolvedValue({
@@ -454,7 +454,7 @@ describe("AuthService", () => {
       expect(serialized).not.toContain("stored.hmac.hash");
     });
 
-    it("отклоняет вход с 403 Forbidden если аккаунт деактивирован (isActive: false)", async () => {
+    it("отклоняет вход с 401 Unauthorized если аккаунт деактивирован (isActive: false)", async () => {
       findByEmail.mockResolvedValue({
         ...USER,
         passwordHash: USER_PASSWORD_HASH,
@@ -462,7 +462,7 @@ describe("AuthService", () => {
       });
       (argon2.verify as jest.Mock).mockResolvedValue(true);
 
-      await expect(service.login(DTO)).rejects.toThrow(ForbiddenException);
+      await expect(service.login(DTO)).rejects.toThrow(UnauthorizedException);
     });
 
     it("отклоняет вход с 401 Unauthorized если generation изменился во время проверки пароля (§CWE-362)", async () => {
@@ -996,14 +996,14 @@ describe("AuthService", () => {
         parallelism: 1,
       });
       expect(prismaMock.$transaction).toHaveBeenCalled();
-      expect(prismaMock.user.update).toHaveBeenCalledWith({
-        where: { id: USER.id },
+      expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: USER.id,
+          generation: 1,
+        },
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
-        },
-        select: {
-          generation: true,
         },
       });
       expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
@@ -1051,6 +1051,16 @@ describe("AuthService", () => {
       });
       expect(argon2.verify).not.toHaveBeenCalled();
       expect(updatePassword).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
+    it("параллельное изменение состояния пользователя (OCC) → ConflictException", async () => {
+      prismaMock.user.updateMany.mockResolvedValue({ count: 0 });
+
+      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getStatus()).toBe(409);
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 

@@ -819,6 +819,7 @@ describe("AdminUsersService", () => {
         data: {
           deletedAt: null,
           isActive: true,
+          deactivatedAt: null,
         },
         select: expect.any(Object),
       });

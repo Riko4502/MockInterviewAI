@@ -231,12 +231,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
-        "403":
-          description: Аккаунт деактивирован.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponseDto"
       summary: Вход пользователя (§58)
       tags: *a3
   /api/v1/auth/logout:
@@ -526,6 +520,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       responses:
         "200":
@@ -551,6 +546,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       requestBody:
         required: true
@@ -587,6 +583,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       responses:
         "200":
@@ -615,6 +612,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       requestBody:
         required: true
@@ -650,6 +648,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       responses:
         "200":
@@ -676,6 +675,7 @@ paths:
           in: path
           description: UUID пользователя
           schema:
+            format: uuid
             type: string
       responses:
         "200":
@@ -1486,6 +1486,7 @@ components:
         email:
           type: string
           minLength: 1
+          format: email
         displayName:
           nullable: true
           type: string

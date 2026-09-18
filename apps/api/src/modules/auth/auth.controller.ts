@@ -220,11 +220,6 @@ export class AuthController {
     description: "Неверные учётные данные (единый ответ без деталей, §59).",
     schema: errorResponseRef,
   })
-  @ApiResponse({
-    status: 403,
-    description: "Аккаунт деактивирован.",
-    schema: errorResponseRef,
-  })
   async login(
     @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
     @Res({ passthrough: true }) response: Response,

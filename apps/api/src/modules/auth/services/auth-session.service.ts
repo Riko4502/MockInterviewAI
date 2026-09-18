@@ -410,9 +410,8 @@ export class AuthSessionService {
   /**
    * Отзывает все сессии пользователя (logout all / смена пароля / деактивация).
    *
-   * Выбирает актуальные сессии из ZSET `auth:user:{userId}:sessions` и выполняет
-   * fallback-сканирование `auth:session:*` для гарантированного отзыва legacy-сессий,
-   * созданных до внедрения ZSET-индексации или во время rolling deployment (§CWE-613).
+   * Выбирает актуальные сессии из ZSET `auth:user:{userId}:sessions` ($O(1)$)
+   * и удаляет их пачками через MGET без глобального сканирования (§Performance).
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
    * @param maxCreatedAt - Опциональная временная граница создания сессий.
@@ -446,28 +445,13 @@ export class AuthSessionService {
         [nowMs],
       )) || [];
 
-    // Fallback и обработка смешанного состояния (§CWE-613):
-    // Сканируем auth:session:* для обнаружения legacy-сессий без ZSET-индекса.
-    const scannedKeys = await this.redisService.scanKeys(
-      `${REDIS_SESSION_PREFIX}*`,
-    );
+    const deletionErrors: Error[] = [];
 
-    const allSessionKeysSet = new Set<string>();
-    if (Array.isArray(indexedSessionIds)) {
-      for (const sid of indexedSessionIds) {
-        allSessionKeysSet.add(this.key(sid));
-      }
-    }
-    if (Array.isArray(scannedKeys)) {
-      for (const key of scannedKeys) {
-        allSessionKeysSet.add(key);
-      }
-    }
-
-    const allSessionKeys = Array.from(allSessionKeysSet);
-    if (allSessionKeys.length === 0) {
+    if (!Array.isArray(indexedSessionIds) || indexedSessionIds.length === 0) {
       return;
     }
+
+    const allSessionKeys = indexedSessionIds.map((sid) => this.key(sid));
 
     // Обрабатываем сессии пачками через MGET для предотвращения N сетевых roundtrip (§Performance)
     const BATCH_SIZE = 100;
@@ -484,62 +468,97 @@ export class AuthSessionService {
 
         if (!raw) {
           // Ключ сессии уже истек или удален — удаляем из ZSET
-          await this.redisService
-            .eval(
+          try {
+            await this.redisService.eval(
               `redis.call('zrem', KEYS[1], ARGV[1])`,
               [userSessionsKey],
               [sessionId],
-            )
-            .catch(() => undefined);
+            );
+          } catch (error) {
+            deletionErrors.push(
+              error instanceof Error ? error : new Error(String(error)),
+            );
+          }
           continue;
         }
 
+        let session: AuthSession;
         try {
-          const session = JSON.parse(raw) as AuthSession;
-          if (session.userId === userId) {
-            // Проверка поколения: если задан maxGeneration и generation > maxGeneration — пропускаем
+          session = JSON.parse(raw) as AuthSession;
+        } catch {
+          this.logger.warn(`Skipped invalid session payload at ${sessionKey}`);
+          try {
+            await this.redisService.delete(sessionKey);
+            await this.redisService.eval(
+              `redis.call('zrem', KEYS[1], ARGV[1])`,
+              [userSessionsKey],
+              [sessionId],
+            );
+          } catch (error) {
+            deletionErrors.push(
+              error instanceof Error ? error : new Error(String(error)),
+            );
+          }
+          continue;
+        }
+
+        if (session.userId === userId) {
+          // Проверка поколения: если задан maxGeneration и generation > maxGeneration — пропускаем
+          if (
+            maxGeneration !== undefined &&
+            session.generation !== undefined &&
+            session.generation > maxGeneration
+          ) {
+            continue;
+          }
+
+          // Проверка даты создания: если задан maxCreatedAt и sessionCreatedAtMs > maxCreatedAtMs — пропускаем
+          if (maxCreatedAt !== undefined) {
+            const sessionCreatedAtMs = new Date(session.createdAt).getTime();
+            const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
             if (
-              maxGeneration !== undefined &&
-              session.generation !== undefined &&
-              session.generation > maxGeneration
+              !Number.isNaN(sessionCreatedAtMs) &&
+              !Number.isNaN(maxCreatedAtMs) &&
+              sessionCreatedAtMs > maxCreatedAtMs
             ) {
               continue;
             }
+          }
 
-            // Проверка даты создания: если задан maxCreatedAt и sessionCreatedAtMs > maxCreatedAtMs — пропускаем
-            if (maxCreatedAt !== undefined) {
-              const sessionCreatedAtMs = new Date(session.createdAt).getTime();
-              const maxCreatedAtMs = new Date(maxCreatedAt).getTime();
-              if (
-                !Number.isNaN(sessionCreatedAtMs) &&
-                !Number.isNaN(maxCreatedAtMs) &&
-                sessionCreatedAtMs > maxCreatedAtMs
-              ) {
-                continue;
-              }
-            }
-
+          try {
             await this.redisService.delete(sessionKey);
-            await this.redisService
-              .eval(
-                `redis.call('zrem', KEYS[1], ARGV[1])`,
-                [userSessionsKey],
-                [sessionId],
-              )
-              .catch(() => undefined);
+            await this.redisService.eval(
+              `redis.call('zrem', KEYS[1], ARGV[1])`,
+              [userSessionsKey],
+              [sessionId],
+            );
             this.logger.debug(
               `Session revoked for user ${userId}: ${sessionKey}`,
             );
+          } catch (error) {
+            deletionErrors.push(
+              error instanceof Error ? error : new Error(String(error)),
+            );
           }
-        } catch {
-          this.logger.warn(`Skipped invalid session payload at ${sessionKey}`);
         }
       }
     }
 
     // Если фильтры не были заданы (полный логаут пользователя), очищаем ZSET
     if (maxCreatedAt === undefined && maxGeneration === undefined) {
-      await this.redisService.delete(userSessionsKey).catch(() => undefined);
+      try {
+        await this.redisService.delete(userSessionsKey);
+      } catch (error) {
+        deletionErrors.push(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+
+    if (deletionErrors.length > 0) {
+      throw new Error(
+        `Failed to revoke sessions for user ${userId}: ${deletionErrors.map((e) => e.message).join("; ")}`,
+      );
     }
   }
 

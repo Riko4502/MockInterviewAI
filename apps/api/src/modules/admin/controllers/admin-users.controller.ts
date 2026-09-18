@@ -150,6 +150,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ApiResponse({
@@ -224,6 +225,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ZodBody(updateUserAdminSchema, "UpdateUserAdminDto")
@@ -271,6 +273,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ZodBody(userStatusAdminSchema, "UserStatusAdminDto")
@@ -314,6 +317,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ApiResponse({
@@ -350,6 +354,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ApiResponse({
@@ -390,6 +395,7 @@ export class AdminUsersController {
   @ApiParam({
     name: "id",
     type: String,
+    format: "uuid",
     description: "UUID пользователя",
   })
   @ApiResponse({

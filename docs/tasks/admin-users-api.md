@@ -142,6 +142,7 @@ model User {
   telegramUsername String?
   gitUrl           String?
   deletedAt        DateTime?
+  generation       Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

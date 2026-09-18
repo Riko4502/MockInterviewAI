@@ -699,6 +699,7 @@ export class AdminUsersService {
       data: {
         deletedAt: null,
         isActive: true,
+        deactivatedAt: null,
       },
       select: USER_ADMIN_SELECT,
     });

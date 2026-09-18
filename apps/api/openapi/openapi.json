@@ -364,16 +364,6 @@
                 }
               }
             }
-          },
-          "403": {
-            "description": "Аккаунт деактивирован.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
           }
         },
         "summary": "Вход пользователя (§58)",
@@ -813,6 +803,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -855,6 +846,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -914,6 +906,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -961,6 +954,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -1019,6 +1013,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -1063,6 +1058,7 @@
             "in": "path",
             "description": "UUID пользователя",
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -2178,7 +2174,8 @@
         "properties": {
           "email": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "format": "email"
           },
           "displayName": {
             "nullable": true,

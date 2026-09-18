@@ -23,7 +23,7 @@ function isZodEmail(node: unknown): boolean {
 
 /**
  * Ищет `ZodEmail` где угодно в поддереве схемы (обе стороны pipe:
- * `.in` и `.out`, любая вложенность).
+ * `.in` и `.out`, обёртки `.optional()`, `.nullable()` и любая вложенность).
  */
 function containsZodEmail(node: unknown, depth = 0): boolean {
   if (!node || typeof node !== "object" || depth > 10) {
@@ -32,10 +32,59 @@ function containsZodEmail(node: unknown, depth = 0): boolean {
   if (isZodEmail(node)) {
     return true;
   }
-  const composite = node as { in?: unknown; out?: unknown };
+  const composite = node as {
+    in?: unknown;
+    out?: unknown;
+    innerType?: unknown;
+    schema?: unknown;
+    unwrap?: () => unknown;
+    def?: {
+      in?: unknown;
+      out?: unknown;
+      innerType?: unknown;
+      schema?: unknown;
+    };
+    _def?: {
+      in?: unknown;
+      out?: unknown;
+      innerType?: unknown;
+      schema?: unknown;
+    };
+    _zod?: {
+      def?: {
+        in?: unknown;
+        out?: unknown;
+        innerType?: unknown;
+        schema?: unknown;
+      };
+    };
+  };
+  if (typeof composite.unwrap === "function") {
+    try {
+      if (containsZodEmail(composite.unwrap(), depth + 1)) {
+        return true;
+      }
+    } catch {
+      // Ignore unwrap errors
+    }
+  }
   return (
     containsZodEmail(composite.in, depth + 1) ||
-    containsZodEmail(composite.out, depth + 1)
+    containsZodEmail(composite.out, depth + 1) ||
+    containsZodEmail(composite.innerType, depth + 1) ||
+    containsZodEmail(composite.schema, depth + 1) ||
+    containsZodEmail(composite.def?.in, depth + 1) ||
+    containsZodEmail(composite.def?.out, depth + 1) ||
+    containsZodEmail(composite.def?.innerType, depth + 1) ||
+    containsZodEmail(composite.def?.schema, depth + 1) ||
+    containsZodEmail(composite._def?.in, depth + 1) ||
+    containsZodEmail(composite._def?.out, depth + 1) ||
+    containsZodEmail(composite._def?.innerType, depth + 1) ||
+    containsZodEmail(composite._def?.schema, depth + 1) ||
+    containsZodEmail(composite._zod?.def?.in, depth + 1) ||
+    containsZodEmail(composite._zod?.def?.out, depth + 1) ||
+    containsZodEmail(composite._zod?.def?.innerType, depth + 1) ||
+    containsZodEmail(composite._zod?.def?.schema, depth + 1)
   );
 }
 
