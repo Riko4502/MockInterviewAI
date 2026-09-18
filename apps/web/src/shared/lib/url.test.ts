@@ -6,6 +6,7 @@ describe("url helpers", () => {
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -15,10 +16,15 @@ describe("url helpers", () => {
       expect(getAppUrl()).toBe("https://mockinterview.ai");
     });
 
-    it("fallback на localhost:3000 при отсутствии window и переменной", () => {
+    it("возвращает window.location.origin в браузере при отсутствии переменной окружения", () => {
       delete process.env.NEXT_PUBLIC_APP_URL;
-      const url = getAppUrl();
-      expect(url).toBeDefined();
+      expect(getAppUrl()).toBe(window.location.origin);
+    });
+
+    it("fallback на http://localhost:3000 в SSR/Node окружении при отсутствии window и переменной", () => {
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      vi.stubGlobal("window", undefined);
+      expect(getAppUrl()).toBe("http://localhost:3000");
     });
   });
 
