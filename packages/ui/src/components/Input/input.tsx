@@ -53,6 +53,30 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
 
+    const normalizedMin = React.useMemo(() => {
+      if (
+        min === undefined ||
+        min === null ||
+        (typeof min === "string" && min.trim() === "")
+      ) {
+        return undefined;
+      }
+      const num = Number(min);
+      return Number.isNaN(num) ? undefined : num;
+    }, [min]);
+
+    const normalizedMax = React.useMemo(() => {
+      if (
+        max === undefined ||
+        max === null ||
+        (typeof max === "string" && max.trim() === "")
+      ) {
+        return undefined;
+      }
+      const num = Number(max);
+      return Number.isNaN(num) ? undefined : num;
+    }, [max]);
+
     // Ограничение ввода только числовыми символами
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (isNumber) {
@@ -81,7 +105,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         // Разрешаем цифры, знак минуса и десятичную точку
         const isDigit = /^[0-9]$/.test(e.key);
         const isMinus =
-          e.key === "-" && (min === undefined || min === "" || Number(min) < 0);
+          e.key === "-" && (normalizedMin === undefined || normalizedMin < 0);
         const isDot =
           (e.key === "." || e.key === ",") &&
           (step === undefined || String(step).includes("."));
@@ -98,7 +122,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       if (isNumber) {
         const text = e.clipboardData.getData("text");
-        if (!/^-?\d*(\.\d+)?$/.test(text)) {
+        const isMinusAllowed = normalizedMin === undefined || normalizedMin < 0;
+        const numberRegex = isMinusAllowed
+          ? /^-?\d*(\.\d+)?$/
+          : /^\d*(\.\d+)?$/;
+
+        if (!numberRegex.test(text)) {
           e.preventDefault();
           return;
         }
@@ -111,15 +140,33 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       const input = internalRef.current;
       if (!input || disabled || readOnly) return;
 
+      const minVal = normalizedMin !== undefined ? normalizedMin : -Infinity;
+      const maxVal = normalizedMax !== undefined ? normalizedMax : Infinity;
+
+      if (input.value === "") {
+        if (direction === "down" && 0 <= minVal) {
+          return;
+        }
+      } else {
+        const currentNum = Number(input.value);
+        if (direction === "down" && currentNum <= minVal) {
+          return;
+        }
+        if (direction === "up" && currentNum >= maxVal) {
+          return;
+        }
+      }
+
       const currentVal = input.value === "" ? 0 : Number(input.value);
       const stepVal = step ? Number(step) : 1;
       const nextVal =
         direction === "up" ? currentVal + stepVal : currentVal - stepVal;
 
-      const minVal = min !== undefined ? Number(min) : -Infinity;
-      const maxVal = max !== undefined ? Number(max) : Infinity;
-
       const clampedVal = Math.min(Math.max(nextVal, minVal), maxVal);
+
+      if (input.value !== "" && clampedVal === Number(input.value)) {
+        return;
+      }
 
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,

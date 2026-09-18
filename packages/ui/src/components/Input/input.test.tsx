@@ -277,6 +277,206 @@ describe("Input Component", () => {
       expect(input.value).toBe("0");
     });
 
+    it('разрешает stepper уменьшать значение ниже нуля при пустом min=""', () => {
+      render(
+        <Input type="number" placeholder="Count" min="" defaultValue="0" />,
+      );
+      const input = screen.getByPlaceholderText("Count") as HTMLInputElement;
+      const downBtn = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+
+      fireEvent.click(downBtn);
+      expect(input.value).toBe("-1");
+    });
+
+    it("если не заданы min и max, stepper свободно изменяет значение в любую сторону (включая отрицательные числа)", () => {
+      render(<Input type="number" placeholder="CountFree" />);
+      const input = screen.getByPlaceholderText(
+        "CountFree",
+      ) as HTMLInputElement;
+      const upBtn = screen.getByRole("button", { name: "Увеличить значение" });
+      const downBtn = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+
+      // Из пустого состояния вниз -> -1, -2, -3
+      fireEvent.click(downBtn);
+      expect(input.value).toBe("-1");
+
+      fireEvent.click(downBtn);
+      expect(input.value).toBe("-2");
+
+      fireEvent.click(downBtn);
+      expect(input.value).toBe("-3");
+
+      // Вверх обратно через 0 в плюс -> -2, -1, 0, 1, 2
+      fireEvent.click(upBtn);
+      expect(input.value).toBe("-2");
+
+      fireEvent.click(upBtn);
+      expect(input.value).toBe("-1");
+
+      fireEvent.click(upBtn);
+      expect(input.value).toBe("0");
+
+      fireEvent.click(upBtn);
+      expect(input.value).toBe("1");
+
+      fireEvent.click(upBtn);
+      expect(input.value).toBe("2");
+    });
+
+    it("не разрешает stepper убавлять значение ниже min (при min={1} и min={0})", () => {
+      const handleInput = vi.fn();
+      const handleChange = vi.fn();
+
+      // 1. При значении 1 и min=1 убавление заблокировано
+      const { unmount: unmount1 } = render(
+        <Input
+          type="number"
+          placeholder="Count1"
+          min={1}
+          defaultValue="1"
+          onInput={handleInput}
+          onChange={handleChange}
+        />,
+      );
+      const input1 = screen.getByPlaceholderText("Count1") as HTMLInputElement;
+      const downBtn1 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+
+      fireEvent.click(downBtn1);
+      expect(input1.value).toBe("1");
+      expect(handleInput).not.toHaveBeenCalled();
+      expect(handleChange).not.toHaveBeenCalled();
+      unmount1();
+
+      // 2. При пустом значении и min=1 убавление заблокировано
+      const { unmount: unmount2 } = render(
+        <Input
+          type="number"
+          placeholder="EmptyMin1"
+          min={1}
+          onInput={handleInput}
+          onChange={handleChange}
+        />,
+      );
+      const input2 = screen.getByPlaceholderText(
+        "EmptyMin1",
+      ) as HTMLInputElement;
+      const downBtn2 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtn2);
+      expect(input2.value).toBe("");
+      expect(handleInput).not.toHaveBeenCalled();
+      unmount2();
+
+      // 3. При пустом значении и min=0 убавление также заблокировано
+      const { unmount: unmount3 } = render(
+        <Input
+          type="number"
+          placeholder="EmptyMin0"
+          min={0}
+          onInput={handleInput}
+          onChange={handleChange}
+        />,
+      );
+      const input3 = screen.getByPlaceholderText(
+        "EmptyMin0",
+      ) as HTMLInputElement;
+      const downBtn3 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtn3);
+      expect(input3.value).toBe("");
+      expect(handleInput).not.toHaveBeenCalled();
+      unmount3();
+
+      // 4. При значении 2 и min=1 уменьшает до 1, затем блокирует
+      render(
+        <Input
+          type="number"
+          placeholder="Count2"
+          min={1}
+          defaultValue="2"
+          onInput={handleInput}
+          onChange={handleChange}
+        />,
+      );
+      const input4 = screen.getByPlaceholderText("Count2") as HTMLInputElement;
+      const downBtn4 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtn4);
+      expect(input4.value).toBe("1");
+      expect(handleInput).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(downBtn4);
+      expect(input4.value).toBe("1");
+      expect(handleInput).toHaveBeenCalledTimes(1);
+    });
+
+    it('stepper корректно обрабатывает строковые значения min ("0", "-5", пробелы)', () => {
+      // min="0" уменьшает до 0 и далее блокирует
+      const { unmount: unmount1 } = render(
+        <Input type="number" placeholder="Count0" min="0" defaultValue="1" />,
+      );
+      const input0 = screen.getByPlaceholderText("Count0") as HTMLInputElement;
+      const downBtn0 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtn0);
+      expect(input0.value).toBe("0");
+      fireEvent.click(downBtn0);
+      expect(input0.value).toBe("0");
+      unmount1();
+
+      // min="-5" разрешает уменьшать до -5
+      const { unmount: unmount2 } = render(
+        <Input
+          type="number"
+          placeholder="CountNeg5"
+          min="-5"
+          defaultValue="0"
+        />,
+      );
+      const inputNeg5 = screen.getByPlaceholderText(
+        "CountNeg5",
+      ) as HTMLInputElement;
+      const downBtnNeg5 = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtnNeg5);
+      expect(inputNeg5.value).toBe("-1");
+
+      for (let i = 0; i < 10; i++) {
+        fireEvent.click(downBtnNeg5);
+      }
+      expect(inputNeg5.value).toBe("-5");
+      unmount2();
+
+      // min="   " (пробелы) не ограничивает отрицательные значения
+      render(
+        <Input
+          type="number"
+          placeholder="CountSpaces"
+          min="   "
+          defaultValue="0"
+        />,
+      );
+      const inputSpaces = screen.getByPlaceholderText(
+        "CountSpaces",
+      ) as HTMLInputElement;
+      const downBtnSpaces = screen.getByRole("button", {
+        name: "Уменьшить значение",
+      });
+      fireEvent.click(downBtnSpaces);
+      expect(inputSpaces.value).toBe("-1");
+    });
+
     it("stepper отключен при disabled={true} или readOnly={true}", () => {
       const { rerender } = render(
         <Input type="number" placeholder="Count" defaultValue="5" disabled />,
@@ -345,12 +545,42 @@ describe("Input Component", () => {
       // Без min - минус разрешен
       expect(fireEvent.keyDown(input, { key: "-" })).toBe(true);
 
+      // min="" - минус разрешен
+      rerender(<Input type="number" placeholder="Number" min="" />);
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(true);
+
       // min < 0 - минус разрешен
       rerender(<Input type="number" placeholder="Number" min={-10} />);
       expect(fireEvent.keyDown(input, { key: "-" })).toBe(true);
 
       // min >= 0 - минус заблокирован
       rerender(<Input type="number" placeholder="Number" min={0} />);
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(false);
+
+      // min={1} (положительный) - минус заблокирован
+      rerender(<Input type="number" placeholder="Number" min={1} />);
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(false);
+    });
+
+    it('корректно обрабатывает строковые значения min ("0", "-5", пробелы) и min > 0 при вводе минуса', () => {
+      const { rerender } = render(
+        <Input type="number" placeholder="Number" min="0" />,
+      );
+      const input = screen.getByPlaceholderText("Number");
+
+      // min="0" - минус заблокирован
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(false);
+
+      // min="-5" - минус разрешен
+      rerender(<Input type="number" placeholder="Number" min="-5" />);
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(true);
+
+      // min="   " (пробелы) - минус разрешен
+      rerender(<Input type="number" placeholder="Number" min="   " />);
+      expect(fireEvent.keyDown(input, { key: "-" })).toBe(true);
+
+      // min="1" (строковый положительный) - минус заблокирован
+      rerender(<Input type="number" placeholder="Number" min="1" />);
       expect(fireEvent.keyDown(input, { key: "-" })).toBe(false);
     });
 
@@ -399,6 +629,114 @@ describe("Input Component", () => {
         clipboardData: { getData: () => "12abc34" },
       });
       expect(invalidPaste).toBe(false); // defaultPrevented
+    });
+
+    it('блокирует вставку отрицательного значения при min={0} и разрешает при min=""', () => {
+      const handlePaste = vi.fn();
+      const { rerender } = render(
+        <Input
+          type="number"
+          placeholder="Number"
+          min={0}
+          onPaste={handlePaste}
+        />,
+      );
+      const input = screen.getByPlaceholderText("Number");
+
+      // Отрицательное число блокируется при min={0}
+      const invalidNegativePaste = fireEvent.paste(input, {
+        clipboardData: { getData: () => "-1" },
+      });
+      expect(invalidNegativePaste).toBe(false);
+      expect(handlePaste).not.toHaveBeenCalled();
+
+      // Положительное число разрешено при min={0}
+      const validPositivePaste = fireEvent.paste(input, {
+        clipboardData: { getData: () => "5" },
+      });
+      expect(validPositivePaste).toBe(true);
+      expect(handlePaste).toHaveBeenCalledTimes(1);
+
+      // При min="" вставка отрицательного числа разрешена
+      rerender(
+        <Input
+          type="number"
+          placeholder="Number"
+          min=""
+          onPaste={handlePaste}
+        />,
+      );
+      const validNegativePasteEmptyMin = fireEvent.paste(input, {
+        clipboardData: { getData: () => "-1" },
+      });
+      expect(validNegativePasteEmptyMin).toBe(true);
+      expect(handlePaste).toHaveBeenCalledTimes(2);
+    });
+
+    it("обрабатывает строковый min, положительный min={1} и дробные числа при вставке", () => {
+      const handlePaste = vi.fn();
+      const { rerender } = render(
+        <Input
+          type="number"
+          placeholder="Number"
+          min={1}
+          onPaste={handlePaste}
+        />,
+      );
+      const input = screen.getByPlaceholderText("Number");
+
+      // min={1}: отрицательное число заблокировано
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "-1" } }),
+      ).toBe(false);
+      expect(handlePaste).not.toHaveBeenCalled();
+
+      // min="0": отрицательное дробное заблокировано
+      rerender(
+        <Input
+          type="number"
+          placeholder="Number"
+          min="0"
+          onPaste={handlePaste}
+        />,
+      );
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "-0.5" } }),
+      ).toBe(false);
+      // min="0": одиночный минус заблокирован
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "-" } }),
+      ).toBe(false);
+      // min="0": положительное дробное разрешено
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "0.5" } }),
+      ).toBe(true);
+
+      // min="-5": отрицательное дробное разрешено
+      rerender(
+        <Input
+          type="number"
+          placeholder="Number"
+          min="-5"
+          onPaste={handlePaste}
+        />,
+      );
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "-4.5" } }),
+      ).toBe(true);
+
+      // min="   " (пробелы): отрицательное число разрешено
+      rerender(
+        <Input
+          type="number"
+          placeholder="Number"
+          min="   "
+          onPaste={handlePaste}
+        />,
+      );
+      expect(
+        fireEvent.paste(input, { clipboardData: { getData: () => "-10" } }),
+      ).toBe(true);
     });
   });
 });
