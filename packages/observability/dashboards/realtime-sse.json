@@ -215,13 +215,13 @@
       }
     },
     {
-      "title": "Notification Stream Backlog (approx)",
+      "title": "Notification Stream Catch-up (rate)",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "targets": [
         {
-          "expr": "realtime_sse_stream_backlog_entries_total",
+          "expr": "rate(realtime_sse_stream_backlog_entries_total[5m])",
           "legendFormat": "{{node_id}}",
           "refId": "A"
         }
@@ -230,7 +230,7 @@
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
-          "unit": "short"
+          "unit": "ops"
         },
         "overrides": []
       }
