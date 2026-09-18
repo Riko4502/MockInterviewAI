@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/shared/lib/i18n";
-import { ResetPasswordPageClient } from "./ResetPasswordPageClient";
+import {
+  _resetCachedTokenForTests,
+  ResetPasswordPageClient,
+} from "./ResetPasswordPageClient";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -44,6 +47,7 @@ describe("ResetPasswordPageClient — чтение токена из URL-фра�
   const replaceStateSpy = vi.spyOn(history, "replaceState");
 
   beforeEach(async () => {
+    _resetCachedTokenForTests();
     replaceStateSpy.mockClear();
     await i18n.changeLanguage("ru");
   });
