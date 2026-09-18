@@ -118,6 +118,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Получает значения по массиву ключей (MGET).
+   *
+   * @param keys - Массив имен ключей.
+   * @returns Массив значений (строка или `null` для отсутствующих ключей).
+   * @throws {Error} При ошибке Redis.
+   */
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) {
+      return [];
+    }
+    return this.client.mget(...keys);
+  }
+
+  /**
    * Атомарно возвращает и удаляет ключ (GETDEL).
    *
    * @param key - Имя ключа.
@@ -322,6 +336,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     return id;
+  }
+
+  /**
+   * Выполняет Lua-скрипт в Redis (EVAL).
+   *
+   * @param script - Текст Lua-скрипта.
+   * @param keys - Массив ключей.
+   * @param args - Массив аргументов (строки или числа).
+   * @returns Результат выполнения скрипта.
+   * @throws {Error} При ошибке Redis.
+   */
+  async eval<T = unknown>(
+    script: string,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T> {
+    return (await this.client.eval(script, keys.length, ...keys, ...args)) as T;
   }
 
   /**

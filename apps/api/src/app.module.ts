@@ -8,6 +8,7 @@ import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
+import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
@@ -54,6 +55,7 @@ import { RedisModule } from "./redis/redis.module";
     HealthModule,
     UsersModule,
     AuthModule,
+    AdminModule,
     MailModule,
     StorageModule,
     SessionsModule,

@@ -22,12 +22,13 @@ var (
 
 // UserClaims содержит данные аутентифицированного пользователя из JWT (Access Token / Realtime Ticket).
 type UserClaims struct {
-	UserID    string `json:"userId"`
-	Username  string `json:"username"`
-	SessionID string `json:"sessionId,omitempty"`
-	TokenID   string `json:"jti,omitempty"`
-	Type      string `json:"typ,omitempty"`
-	SID       string `json:"sid,omitempty"`
+	UserID     string `json:"userId"`
+	Username   string `json:"username"`
+	SessionID  string `json:"sessionId,omitempty"`
+	TokenID    string `json:"jti,omitempty"`
+	Type       string `json:"typ,omitempty"`
+	SID        string `json:"sid,omitempty"`
+	Generation *int   `json:"generation,omitempty"`
 	jwt.RegisteredClaims
 }
 

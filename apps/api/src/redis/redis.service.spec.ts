@@ -9,9 +9,11 @@ const mockRedisInstance = {
   disconnect: jest.fn(),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
+  mget: jest.fn().mockResolvedValue([]),
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
+  eval: jest.fn().mockResolvedValue(1),
   scanStream: jest.fn(),
 };
 
@@ -127,6 +129,23 @@ describe("RedisService", () => {
     });
   });
 
+  describe("mget", () => {
+    it("возвращает массив значений", async () => {
+      mockRedisInstance.mget.mockResolvedValue(["val1", "val2"]);
+      await service.onModuleInit();
+      const result = await service.mget(["k1", "k2"]);
+      expect(result).toEqual(["val1", "val2"]);
+      expect(mockRedisInstance.mget).toHaveBeenCalledWith("k1", "k2");
+    });
+
+    it("возвращает пустой массив если передан пустой список ключей", async () => {
+      await service.onModuleInit();
+      const result = await service.mget([]);
+      expect(result).toEqual([]);
+      expect(mockRedisInstance.mget).not.toHaveBeenCalled();
+    });
+  });
+
   describe("delete", () => {
     it("удаляет ключ", async () => {
       await service.onModuleInit();
@@ -149,6 +168,23 @@ describe("RedisService", () => {
       const result = await service.ping();
       expect(result).toBe("PONG");
       expect(mockRedisInstance.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("eval", () => {
+    it("выполняет Lua-скрипт с ключами и аргументами", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.eval("return 1", ["k1", "k2"], ["a1", 10]);
+      expect(result).toBe(1);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        "return 1",
+        2,
+        "k1",
+        "k2",
+        "a1",
+        10,
+      );
     });
   });
 
