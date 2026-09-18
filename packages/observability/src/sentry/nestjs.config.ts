@@ -25,9 +25,12 @@ export function sentryNestjsConfig(): NodeOptions {
     // Requires @sentry/profiling-node as a peer dependency.
     profilesSampleRate: 1.0,
     integrations: [nestIntegration(), nodeProfilingIntegration()],
-    // Don't report health check endpoints
+    // Don't report health check endpoints. The route lives under the
+    // configurable API prefix (default /api/v1), so compare the exact suffix
+    // (/health) instead of the full transaction name; includes("/health")
+    // would also drop unrelated routes like /healthcare.
     beforeSendTransaction(event) {
-      if (event.transaction?.includes("/health")) {
+      if (event.transaction?.endsWith("/health")) {
         return null;
       }
       return event;
