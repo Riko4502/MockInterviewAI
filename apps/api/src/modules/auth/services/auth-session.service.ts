@@ -106,6 +106,10 @@ local ttl = tonumber(ARGV[2])
 local current_val = redis.call('get', min_gen_key)
 local current_gen = tonumber(current_val)
 
+if target_min_gen == nil then
+    target_min_gen = (current_gen or 0) + 1
+end
+
 if current_gen == nil or target_min_gen > current_gen then
     if ttl and ttl > 0 then
         redis.call('set', min_gen_key, tostring(target_min_gen), 'EX', ttl)
@@ -435,16 +439,17 @@ export class AuthSessionService {
     maxGeneration?: number,
   ): Promise<void> {
     const ttlSeconds = getRefreshTokenTtlSeconds(this.configService);
-    if (maxGeneration !== undefined) {
-      // Атомарно устанавливаем max(currentMinGen, targetMinGen) без возможности уменьшения fence (§CWE-362)
-      const minGenKey = `auth:user:${userId}:min_generation`;
-      const targetMinGen = maxGeneration + 1;
-      await this.redisService.eval<number>(
-        UPDATE_MIN_GEN_LUA,
-        [minGenKey],
-        [targetMinGen, ttlSeconds],
-      );
-    }
+    const minGenKey = `auth:user:${userId}:min_generation`;
+
+    const targetMinGenArg =
+      maxGeneration !== undefined ? maxGeneration + 1 : "";
+
+    // Атомарно устанавливаем min_generation fence до чтения снимка ZSET (§CWE-362, §CWE-613)
+    await this.redisService.eval<number>(
+      UPDATE_MIN_GEN_LUA,
+      [minGenKey],
+      [targetMinGenArg, ttlSeconds],
+    );
 
     const userSessionsKey = this.userSessionsKey(userId);
     const nowMs = Date.now();

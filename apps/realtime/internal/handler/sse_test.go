@@ -489,24 +489,28 @@ func TestSSERejectsConnectionsOverUserLimit(t *testing.T) {
 func awaitComment(t *testing.T, body io.Reader) {
 	t.Helper()
 
-	done := make(chan struct{})
+	resCh := make(chan error, 1)
 
 	go func() {
-		defer close(done)
-
 		scanner := bufio.NewScanner(body)
 		for scanner.Scan() {
 			if strings.HasPrefix(scanner.Text(), ":") {
+				resCh <- nil
 				return
 			}
 		}
 		if err := scanner.Err(); err != nil {
-			_ = err
+			resCh <- err
+			return
 		}
+		resCh <- io.EOF
 	}()
 
 	select {
-	case <-done:
+	case err := <-resCh:
+		if err != nil {
+			t.Fatalf("failed waiting for sse comment frame: %v", err)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for the sse stream to open")
 	}

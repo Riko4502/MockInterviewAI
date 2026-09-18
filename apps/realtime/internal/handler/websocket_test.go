@@ -671,14 +671,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign no-gen ticket: %v", err)
 	}
 
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", noGenTicket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected ticket without generation to fail with 401, but succeeded")
 	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("expected status %d for ticket without generation, got %v", http.StatusUnauthorized, resp)
 	}
 
@@ -693,14 +694,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign no-jti ticket: %v", err)
 	}
 
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", noJtiTicket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected ticket without jti/TokenID to fail with 401, but succeeded")
 	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("expected status %d for ticket without jti, got %v", http.StatusUnauthorized, resp)
 	}
 
@@ -715,14 +717,15 @@ func TestWebSocketTicketGeneration(t *testing.T) {
 		t.Fatalf("failed to sign old-gen ticket: %v", err)
 	}
 
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", oldGenTicket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected ticket with generation < min_generation to fail with 401, but succeeded")
 	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("expected status %d for ticket with outdated generation, got %v", http.StatusUnauthorized, resp)
 	}
 
@@ -804,14 +807,15 @@ func TestWebSocketAccessFallbackGeneration(t *testing.T) {
 	reqHeader := http.Header{}
 	reqHeader.Set("Authorization", "Bearer "+noGenJWT)
 
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		HTTPHeader: reqHeader,
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected access token without generation to fail with 401, but succeeded")
 	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("expected status %d for access token without generation, got %v", http.StatusUnauthorized, resp)
 	}
 
@@ -829,14 +833,15 @@ func TestWebSocketAccessFallbackGeneration(t *testing.T) {
 	reqHeaderOld := http.Header{}
 	reqHeaderOld.Set("Authorization", "Bearer "+oldGenJWT)
 
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		HTTPHeader: reqHeaderOld,
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected access token with outdated generation to fail with 401, but succeeded")
 	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
 		t.Fatalf("expected status %d for access token with outdated generation, got %v", http.StatusUnauthorized, resp)
 	}
 

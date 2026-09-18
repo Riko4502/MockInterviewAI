@@ -350,22 +350,33 @@ export class AuthService implements OnModuleInit {
    * Отзывает все authentication session пользователя (§66 SPEC.md).
    *
    * Вызывается для авторизованного пользователя (access token валиден,
-   * `request.user.sub` — его UUID). Проходит по всем сессионным ключам
-   * в Redis через `scanKeys` и удаляет те, что принадлежат пользователю.
-   * Access token остаётся валидным до истечения (stateless, §66).
+   * `request.user.sub` — его UUID).
+   * Инкрементирует generation пользователя в БД для предотвращения гонок с параллельным логином
+   * и удаляет сессии пользователя в Redis. Access token становится недействительным
+   * сразу после отзыва, так как AccessTokenGuard проверяет валидность сессии в Redis.
    *
    * @param userId - UUID пользователя, чьи сессии отзываются.
-   * @throws {InternalServerErrorException} При ошибке Redis (§66).
+   * @throws {InternalServerErrorException} При ошибке Redis или БД (§66).
    */
   async logoutAll(userId: string): Promise<void> {
     try {
-      await this.sessionService.revokeAllUserSessions(userId);
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: { generation: { increment: 1 } },
+        select: { generation: true },
+      });
+      const preIncrementGeneration = updatedUser.generation - 1;
+      await this.sessionService.revokeAllUserSessions(
+        userId,
+        new Date(),
+        preIncrementGeneration,
+      );
       // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
       // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
       await publishUserRevocation(this.redisService, userId);
     } catch (error) {
       this.logger.error(
-        "Redis unavailable during logoutAll",
+        "Redis or database unavailable during logoutAll",
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();
@@ -382,7 +393,9 @@ export class AuthService implements OnModuleInit {
    * 4. Хеширование `newPassword` через Argon2id.
    * 5. Обновление `passwordHash` в PostgreSQL.
    * 6. Отзыв всех active authentication sessions пользователя в Redis
-   *    `revokeAllUserSessions` (доступ token остаётся валидным до TTL,
+   *    `revokeAllUserSessions` (access token становится недействительным сразу
+   *    после отзыва, так как AccessTokenGuard получает null из getSession
+   *    и выбрасывает UnauthorizedException, а не после истечения TTL;
    *    refresh-сессии сбрасываются).
    * 7. Вызывающий код сбрасывает HTTP-only cookie.
    *

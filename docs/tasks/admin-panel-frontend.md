@@ -21,7 +21,11 @@ sequenceDiagram
     Admin->>Page: Открытие страницы /admin/users
     Page->>RB: Проверка роли текущего пользователя
     alt Роль != SystemRole.ADMIN
-        RB-->>Admin: Редирект на /dashboard или 403 Forbidden
+        alt Пользователь не аутентифицирован
+            RB-->>Admin: Редирект на /login?returnTo=/admin/users
+        else Аутентифицирован, но роль != ADMIN
+            RB-->>Admin: Редирект на /dashboard или 403 Forbidden
+        end
     else Роль == SystemRole.ADMIN
         Page->>Hooks: useAdminUsersControllerGetUsersList(params)
         Hooks->>API: GET /api/v1/admin/users?page=1&limit=10...
@@ -88,7 +92,7 @@ apps/web/src/
 │   │
 │   ├── admin-user-create/
 │   │   ├── ui/
-│   │   │   ├── CreateUserDialog.tsx                       # Модальное окно создания пользователя (email, password, role, etc.)
+│   │   │   ├── CreateUserDialog.tsx                       # Модальное окно создания пользователя (email, role, username, displayName)
 │   │   │   └── CreateUserDialog.test.tsx
 │   │   ├── model/
 │   │   │   └── useCreateUserForm.ts                       # React Hook Form + createUserAdminSchema (@packages/dto)
@@ -110,7 +114,7 @@ apps/web/src/
 │   │
 │   ├── admin-user-reset-password/
 │   │   ├── ui/
-│   │   │   ├── ResetPasswordDialog.tsx                    # Диалог сброса пароля с отображением временного сгенерированного пароля
+│   │   │   ├── ResetPasswordDialog.tsx                    # Диалог подтверждения сброса пароля; после успеха показывает обновлённый UserAdminResponseDto
 │   │   │   └── ResetPasswordDialog.test.tsx
 │   │   └── index.ts
 │   │
@@ -153,7 +157,7 @@ apps/web/src/
 | **Пользователь** | `<UserAvatarCell>`: Аватар + `displayName` + `@username` | `sortBy=username` |
 | **Email** | Текстовое поле email | `sortBy=email` |
 | **Роль** | `<UserRoleBadge>` (`SystemRole.ADMIN` / `SystemRole.USER`) | `sortBy=role` |
-| **Статус** | `<UserStatusBadge>` (`Активен` / `Деактивирован`) | `sortBy=isActive` |
+| **Статус** | `<UserStatusBadge>` (`Активен` / `Деактивирован`) | — |
 | **Дата регистрации** | Форматированная дата (`dd.MM.yyyy HH:mm`) | `sortBy=createdAt` |
 | **Действия** | `<DropdownMenu>`: Детали, Редактировать, Сбросить пароль, Статус | — |
 
@@ -185,7 +189,8 @@ apps/web/src/
 
 #### 1. Создание пользователя (`CreateUserDialog`):
 - **Схема валидации:** `createUserAdminSchema` из `@packages/dto`.
-- **Поля:** `email`, `password` (с генератором/показом пароля), `role` (`SystemRole`), `username` (опционально), `displayName` (опционально).
+- **Поля:** `email` (обязательный), `role` (`SystemRole`, default: `USER`), `username` (опционально), `displayName` (опционально).
+- **Примечание:** Поле `password` **отсутствует** — сервер генерирует криптостойкий временный пароль самостоятельно (Zero-Knowledge).
 - **Хук:** `useAdminUsersControllerCreateUser` из `@packages/api`.
 - **Обработка ошибок:** 409 Conflict $\to$ подсветка полей `email` / `username`.
 
@@ -203,7 +208,8 @@ apps/web/src/
 
 #### 4. Сброс пароля администратором (`ResetPasswordDialog`):
 - **Хук:** `useAdminUsersControllerResetPassword` из `@packages/api`.
-- **Действие:** Генерирует криптографически стойкий временный пароль, сбрасывает сессии пользователя и выводит сгенерированный пароль в диалоге с кнопкой "Скопировать в буфер".
+- **Действие:** После подтверждения вызывает `POST /api/v1/admin/users/:id/reset-password`. Сервер генерирует временный пароль, обновляет `passwordHash` и отзывает все активные сессии.
+- **Ответ:** `UserAdminResponseDto` (обновлённые данные пользователя). Временный пароль **не возвращается** клиенту и не отображается в UI; Toast информирует об успешном сбросе.
 
 #### 5. Детальная карточка (`UserDetailsDrawer`):
 - **Хук:** `useAdminUsersControllerGetUserDetail` из `@packages/api`.
@@ -257,7 +263,8 @@ apps/web/src/
 - [ ] **Создание пользователя (`features/admin-user-create`):**
   - `CreateUserDialog` с формой `react-hook-form` + `createUserAdminSchema` (`@packages/dto`).
   - Интеграция с мутацией `useAdminUsersControllerCreateUser`.
-  - Валидация пароля (мин. 8 символов), уникальности email/username.
+  - Поле `password` отсутствует в форме (генерация на сервере).
+  - Валидация обязательного `email` и опциональных `username`, `displayName`; подсветка 409 Conflict.
   - Toast-уведомление об успешном создании, инвалидация кэша списка.
 - [ ] **Редактирование пользователя (`features/admin-user-edit`):**
   - `EditUserDialog` с формой `updateUserAdminSchema` (`@packages/dto`).
@@ -267,7 +274,8 @@ apps/web/src/
   - `ToggleStatusDialog` с подтверждением и описанием отзыва сессий.
   - Интеграция с мутацией `useAdminUsersControllerUpdateStatus`.
 - [ ] **Сброс пароля (`features/admin-user-reset-password`):**
-  - `ResetPasswordDialog` с вызовом `useAdminUsersControllerResetPassword` и безопасным показом временного пароля.
+  - `ResetPasswordDialog` с диалогом подтверждения и вызовом `useAdminUsersControllerResetPassword`.
+  - Успешный ответ — `UserAdminResponseDto`; временный пароль **не показывается** в UI. Toast сообщает об успешном сбросе.
 - [ ] **Детальная информация (`features/admin-user-details`):**
   - `UserDetailsDrawer` с интеграцией `useAdminUsersControllerGetUserDetail`.
 
@@ -289,9 +297,9 @@ apps/web/src/
 - [ ] **Unit & Component тесты (Vitest / React Testing Library):**
   - `AdminUsersTable`: корректный рендер строк, бейджей, пагинации.
   - `AdminUsersFilter`: debounce поиска, вызовы обновления фильтров.
-  - `CreateUserDialog`: валидация обязательных полей по схеме Zod, отправка мутации.
+  - `CreateUserDialog`: валидация обязательных полей (без `password`) по схеме Zod, отправка мутации.
   - `ToggleStatusDialog`: блокировка кнопки деактивации для текущего админа.
-  - `ResetPasswordDialog`: подтверждение сброса и отображение временного пароля.
+  - `ResetPasswordDialog`: подтверждение сброса; проверка Toast-уведомления вместо отображения временного пароля.
 - [ ] **E2E тесты (Playwright):**
   - Авторизация под `ADMIN` $\to$ переход на `/admin/users`.
   - Поиск пользователя по имени $\to$ отображение отфильтрованного результата.

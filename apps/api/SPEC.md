@@ -758,7 +758,7 @@ Production secrets хранятся вне исходного кода (Secret M
   3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Неверные учётные данные"`.
   4. Если `currentPassword === newPassword` → `400 "Новый пароль должен отличаться от текущего"`.
   5. `hashPassword(newPassword)` → обновить `passwordHash` в PostgreSQL.
-  6. Отозвать ВСЕ сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (включая текущую) — refresh cookie в любом случае сбрасывается, а access token (stateless) остаётся валидным до TTL; клиент вынужден пройти аутентификацию заново.
+  6. Отозвать ВСЕ сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (включая текущую) — refresh cookie сбрасывается, а access token становится недействительным сразу после отзыва (AccessTokenGuard получает null из getSession и выбрасывает UnauthorizedException, а не после истечения TTL); клиент вынужден пройти аутентификацию заново.
   7. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`, пароль не меняется (транзакция PostgreSQL + best-effort Redis).

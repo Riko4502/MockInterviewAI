@@ -151,6 +151,17 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
+		// Тикет жёстко привязан к комнате (sessionId в claims) — не разрешаем
+		// перенос на другую сессию.
+		if claims.SessionID != "" && claims.SessionID != sessionID {
+			h.logger.Warn("websocket connection rejected: ticket bound to another session",
+				slog.String("sessionId", sessionID),
+				slog.String("ticketSessionId", claims.SessionID),
+			)
+			http.Error(w, "Forbidden: ticket bound to another session", http.StatusForbidden)
+			return
+		}
+
 		// Одноразовый тикет: атомарно потребляем (ConsumeTicket) и,
 		// если он уже был использован — отклоняем (replay-protection).
 		if h.sessionStore != nil {
@@ -163,16 +174,6 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 				http.Error(w, "Unauthorized: ticket already used", http.StatusUnauthorized)
 				return
 			}
-		}
-		// Тикет жёстко привязан к комнате (sessionId в claims) — не разрешаем
-		// перенос на другую сессию.
-		if claims.SessionID != "" && claims.SessionID != sessionID {
-			h.logger.Warn("websocket connection rejected: ticket bound to another session",
-				slog.String("sessionId", sessionID),
-				slog.String("ticketSessionId", claims.SessionID),
-			)
-			http.Error(w, "Forbidden: ticket bound to another session", http.StatusForbidden)
-			return
 		}
 		// Тикет не проверяется через IsTokenRevoked: одноразовость обеспечивается
 		// ConsumeTicket, а TTL тикета короткий (5m).

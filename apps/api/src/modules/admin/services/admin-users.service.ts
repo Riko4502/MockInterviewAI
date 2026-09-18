@@ -208,6 +208,7 @@ export class AdminUsersService {
           username: dto.username,
           displayName: dto.displayName,
           isActive: dto.isActive ?? true,
+          deactivatedAt: dto.isActive === false ? new Date() : null,
         },
         select: USER_ADMIN_SELECT,
       });
@@ -627,6 +628,7 @@ export class AdminUsersService {
         data: {
           deletedAt: new Date(),
           isActive: false,
+          deactivatedAt: existing.deactivatedAt ?? new Date(),
           generation: { increment: 1 },
         },
         select: {

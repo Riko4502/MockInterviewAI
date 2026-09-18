@@ -941,8 +941,17 @@ describe("AuthService", () => {
     it("отзывает все сессии пользователя", async () => {
       await service.logoutAll(USER.id);
 
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: USER.id },
+        data: { generation: { increment: 1 } },
+        select: { generation: true },
+      });
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
-      expect(revokeAllUserSessions).toHaveBeenCalledWith(USER.id);
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(
+        USER.id,
+        expect.any(Date),
+        1,
+      );
       expect(publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(USER.id),

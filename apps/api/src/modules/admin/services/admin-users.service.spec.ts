@@ -735,6 +735,7 @@ describe("AdminUsersService", () => {
         ...mockUserRecord,
         deletedAt: new Date("2026-09-17T12:00:00.000Z"),
         isActive: false,
+        deactivatedAt: new Date("2026-09-17T12:00:00.000Z"),
         generation: 2,
       });
 
@@ -745,6 +746,7 @@ describe("AdminUsersService", () => {
 
       expect(result.deletedAt).toBe("2026-09-17T12:00:00.000Z");
       expect(result.isActive).toBe(false);
+      expect(result.deactivatedAt).toBe("2026-09-17T12:00:00.000Z");
       expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
         mockUserRecord.id,
         new Date("2026-09-10T12:00:00.000Z"),
@@ -774,6 +776,11 @@ describe("AdminUsersService", () => {
       );
 
       expect(result.id).toBe(mockUserRecord.id);
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUserRecord.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
+      );
       expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
   });

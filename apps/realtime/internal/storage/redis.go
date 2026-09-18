@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -387,15 +388,29 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 	return exists > 0, nil
 }
 
+// ErrRedisUnavailable возвращается security-критичными методами при недоступном Redis
+// или отключённом клиенте (fail-closed режим, §CWE-613).
+var ErrRedisUnavailable = errors.New("redis unavailable")
+
 // CheckMinGeneration проверяет, удовлетворяет ли generation токена минимальному активному поколению
 // пользователя в Redis (ключ "auth:user:<userId>:min_generation", §CWE-613).
 //
-// Если min_generation не установлен (redis.Nil), токен считается действительным (true, nil).
+// Fail-closed: при недоступном Redis или nil-клиенте возвращает (false, ErrRedisUnavailable),
+// чтобы SSE и WebSocket хендлеры завершили запрос с 401 вместо пропуска проверки.
+//
+// Если min_generation не установлен (redis.Nil), ключ ещё не записан — токен считается
+// действительным (true, nil): ключ появляется только при отзыве сессий.
 // Если generation < min_generation, возвращает (false, nil).
-// В disabled-режиме возвращает (true, nil). При ошибке Redis логирует и возвращает (false, err).
+// При ошибке Redis (не Nil) логирует и возвращает (false, err).
 func (r *RedisStore) CheckMinGeneration(ctx context.Context, userID string, generation int) (bool, error) {
-	if !r.enabled || r.client == nil || userID == "" {
-		return true, nil
+	if !r.enabled || r.client == nil {
+		r.logger.Warn("CheckMinGeneration: redis unavailable, rejecting (fail-closed)",
+			slog.String("userId", userID),
+		)
+		return false, ErrRedisUnavailable
+	}
+	if userID == "" {
+		return false, errors.New("CheckMinGeneration: empty userID")
 	}
 
 	key := fmt.Sprintf("auth:user:%s:min_generation", userID)
