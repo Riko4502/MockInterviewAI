@@ -1,3 +1,5 @@
+"use client";
+
 import { Sidebar as UiSidebar } from "@packages/ui";
 import type { ReactNode } from "react";
 import { NAV_ITEMS } from "../model/constants";
