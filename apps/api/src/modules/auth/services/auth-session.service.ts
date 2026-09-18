@@ -544,21 +544,16 @@ export class AuthSessionService {
       }
     }
 
-    // Если фильтры не были заданы (полный логаут пользователя), очищаем ZSET
-    if (maxCreatedAt === undefined && maxGeneration === undefined) {
-      try {
-        await this.redisService.delete(userSessionsKey);
-      } catch (error) {
-        deletionErrors.push(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      }
-    }
-
+    // Если произошли ошибки удаления — не удаляем ZSET, чтобы оставшиеся сессии были обработаны при повторе (§CWE-613)
     if (deletionErrors.length > 0) {
       throw new Error(
         `Failed to revoke sessions for user ${userId}: ${deletionErrors.map((e) => e.message).join("; ")}`,
       );
+    }
+
+    // Если все сессии успешно удалены и фильтры не были заданы (полный логаут пользователя), очищаем ZSET
+    if (maxCreatedAt === undefined && maxGeneration === undefined) {
+      await this.redisService.delete(userSessionsKey);
     }
   }
 

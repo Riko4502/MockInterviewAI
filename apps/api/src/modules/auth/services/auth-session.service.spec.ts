@@ -533,7 +533,7 @@ describe("AuthSessionService", () => {
       );
     });
 
-    it("пробрасывает ошибку при сбое удаления сессии в Redis", async () => {
+    it("пробрасывает ошибку при сбое удаления сессии в Redis и сохраняет ZSET для повтора (§CWE-613)", async () => {
       const sessionId = randomUUID();
       const session: AuthSession = {
         ...createStoredSession("h1"),
@@ -552,6 +552,9 @@ describe("AuthSessionService", () => {
 
       await expect(service.revokeAllUserSessions(USER_ID)).rejects.toThrow(
         "Failed to revoke sessions",
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:user:${USER_ID}:sessions`,
       );
     });
   });

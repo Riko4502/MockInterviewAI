@@ -258,7 +258,7 @@ model User {
      - Вызывается инвалидация всех сессий пользователя в Redis (`authSessionService.revokeAllUserSessions(userId)`).
   3. **При повторной активации (`isActive: true`):**
      - Поле `isActive` устанавливается в `true`, `deactivatedAt` сбрасывается в `null`.
-  4. **Авторизация деактивированного пользователя:** В `AuthService.login` и `AuthService.refreshSession` проверка: если `!user.isActive`, возвращается `403 Forbidden` ("Ваш аккаунт деактивирован. Обратитесь к администратору").
+  4. **Авторизация деактивированного пользователя:** В `AuthService.login` и `AuthService.refreshSession` проверка: если `!user.isActive`, возвращается единый generic `401 Unauthorized` ("Invalid credentials") для предотвращения перечисления пользователей (anti-enumeration, CWE-204).
 - **Ответ (200 OK):** `UserAdminResponseDto`.
 
 ---
@@ -397,7 +397,7 @@ export const USER_ADMIN_SELECT = {
 ### 🔒 Часть 5: Блокировка деактивированных пользователей в Auth-модуле
 
 - [x] **Проверка `isActive` в `AuthService`:**
-  - При логине (`loginByPassword`, `loginByGithub`, `loginByTelegram`): если `!user.isActive`, возвращается `403 Forbidden`.
+  - При логине (`loginByPassword`, `loginByGithub`, `loginByTelegram`): если `!user.isActive`, возвращается generic `401 Unauthorized` ("Invalid credentials", CWE-204).
   - При `refreshSession`: проверка актуального флага `isActive` и `generation`.
 
 ---

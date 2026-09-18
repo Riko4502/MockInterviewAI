@@ -391,7 +391,7 @@ export class AuthService implements OnModuleInit {
    * @throws {NotFoundException} Если пользователь не найден (404).
    * @throws {UnauthorizedException} Если текущий пароль неверен (401).
    * @throws {BadRequestException} Если новый пароль совпадает с текущим (400).
-   * @throws {InternalServerErrorException} При ошибке Redis (500).
+   * @throws {ConflictException} Если состояние пользователя изменилось параллельно (409).
    */
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
     const { currentPassword, newPassword } = dto;
@@ -457,11 +457,11 @@ export class AuthService implements OnModuleInit {
           .catch(() => undefined);
       }
     } catch (error) {
+      // При сбое Redis задача остаётся в PostgreSQL и будет обработана воркером повторно
       this.logger.error(
         `Failed to revoke sessions / publish revocation for user ${userId} during changePassword (persisted for worker retry)`,
         error instanceof Error ? error.message : String(error),
       );
-      throw new InternalServerErrorException();
     }
   }
 

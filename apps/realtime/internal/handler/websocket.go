@@ -114,14 +114,48 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 2. Ветвление по типу токена (Phase C).
+	// 2. Ветвление по типу токена (Phase C, CWE-613).
 	switch claims.Type {
 	case "realtime":
-		// 2a. Одноразовый тикет: атомарно потребляем (ConsumeTicket) и,
-		//      если он уже был использован — отклоняем (replay-protection).
-		if h.sessionStore != nil && claims.TokenID != "" {
+		// 2a. Одноразовый тикет: generation claim обязателен (§CWE-613).
+		if claims.Generation == nil {
+			h.logger.Warn("websocket connection rejected: missing generation in ticket",
+				slog.String("sessionId", sessionID),
+				slog.String("userId", claims.UserID),
+			)
+			http.Error(w, "Unauthorized: missing generation claim", http.StatusUnauthorized)
+			return
+		}
+
+		// 2b. Одноразовый тикет: tokenID (jti) обязателен для replay-защиты (§CWE-613).
+		if claims.TokenID == "" {
+			h.logger.Warn("websocket connection rejected: missing jti in ticket",
+				slog.String("sessionId", sessionID),
+				slog.String("userId", claims.UserID),
+			)
+			http.Error(w, "Unauthorized: missing ticket id", http.StatusUnauthorized)
+			return
+		}
+
+		// Проверка min_generation fence в Redis: generation < min_generation отклоняется.
+		if h.sessionStore != nil {
+			validGen, genErr := h.sessionStore.CheckMinGeneration(r.Context(), claims.UserID, *claims.Generation)
+			if genErr != nil || !validGen {
+				h.logger.Warn("websocket connection rejected: ticket generation is outdated",
+					slog.String("sessionId", sessionID),
+					slog.String("userId", claims.UserID),
+					slog.Int("generation", *claims.Generation),
+				)
+				http.Error(w, "Unauthorized: ticket generation is outdated", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		// Одноразовый тикет: атомарно потребляем (ConsumeTicket) и,
+		// если он уже был использован — отклоняем (replay-protection).
+		if h.sessionStore != nil {
 			consumed, consumeErr := h.sessionStore.ConsumeTicket(r.Context(), claims.TokenID)
-			if consumeErr == nil && !consumed {
+			if consumeErr != nil || !consumed {
 				h.logger.Warn("websocket connection rejected: ticket already used",
 					slog.String("userId", claims.UserID),
 					slog.String("tokenId", claims.TokenID),
@@ -153,6 +187,19 @@ func (h *WebSocketHandler) HandleSessionWS(w http.ResponseWriter, r *http.Reques
 			)
 			http.Error(w, "Forbidden: access-token fallback is disabled", http.StatusForbidden)
 			return
+		}
+		// Проверка min_generation fence если generation присутствует.
+		if h.sessionStore != nil && claims.Generation != nil {
+			validGen, genErr := h.sessionStore.CheckMinGeneration(r.Context(), claims.UserID, *claims.Generation)
+			if genErr != nil || !validGen {
+				h.logger.Warn("websocket connection rejected: token generation is outdated",
+					slog.String("sessionId", sessionID),
+					slog.String("userId", claims.UserID),
+					slog.Int("generation", *claims.Generation),
+				)
+				http.Error(w, "Unauthorized: token generation is outdated", http.StatusUnauthorized)
+				return
+			}
 		}
 		// Проверка отзыва access-токена в Redis (multi-use, поэтому критична).
 		if h.sessionStore != nil && claims.TokenID != "" {

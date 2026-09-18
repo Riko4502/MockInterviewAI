@@ -35,7 +35,7 @@ export const updateUserAdminSchema = z.object({
     )
     .optional()
     .nullable(),
-  role: z.string().trim().optional(),
+  role: z.string().trim().min(1, "Role must not be empty").optional(),
   avatarUrl: z
     .string()
     .trim()

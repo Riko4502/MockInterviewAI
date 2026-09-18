@@ -1,20 +1,30 @@
+import type {
+  AdminUsersQueryDto,
+  CreateUserAdminDto,
+  UpdateUserAdminDto,
+  UserAdminResponseDto,
+  UserStatusAdminDto,
+} from "@packages/dto";
 import type { AdminUsersService } from "../services/admin-users.service";
 import { AdminUsersController } from "./admin-users.controller";
 
 describe("AdminUsersController", () => {
   let controller: AdminUsersController;
-  let serviceMock: {
-    getUsersList: jest.Mock;
-    getUserById: jest.Mock;
-    createUser: jest.Mock;
-    updateUser: jest.Mock;
-    updateStatus: jest.Mock;
-    resetPassword: jest.Mock;
-    deleteUser: jest.Mock;
-    restoreUser: jest.Mock;
-  };
+  let serviceMock: jest.Mocked<
+    Pick<
+      AdminUsersService,
+      | "getUsersList"
+      | "getUserById"
+      | "createUser"
+      | "updateUser"
+      | "updateStatus"
+      | "resetPassword"
+      | "deleteUser"
+      | "restoreUser"
+    >
+  >;
 
-  const mockUserResponse = {
+  const mockUserResponse: UserAdminResponseDto = {
     id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
     email: "user@example.com",
     username: "alex_dev",
@@ -26,8 +36,8 @@ describe("AdminUsersController", () => {
     avatarUrl: null,
     telegramUsername: null,
     gitUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: "2026-09-01T10:00:00.000Z",
+    updatedAt: "2026-09-10T12:00:00.000Z",
   };
 
   beforeEach(() => {
@@ -56,17 +66,18 @@ describe("AdminUsersController", () => {
       updateStatus: jest.fn().mockResolvedValue({
         ...mockUserResponse,
         isActive: false,
-        deactivatedAt: new Date(),
+        deactivatedAt: "2026-09-18T09:00:00.000Z",
       }),
       resetPassword: jest.fn().mockResolvedValue(mockUserResponse),
       deleteUser: jest.fn().mockResolvedValue({
         ...mockUserResponse,
-        deletedAt: new Date(),
+        deletedAt: "2026-09-18T09:00:00.000Z",
         isActive: false,
       }),
       restoreUser: jest.fn().mockResolvedValue({
         ...mockUserResponse,
         deletedAt: null,
+        deactivatedAt: null,
         isActive: true,
       }),
     };
@@ -77,11 +88,11 @@ describe("AdminUsersController", () => {
   });
 
   it("getUsersList делегирует вызов сервису", async () => {
-    const query = {
+    const query: AdminUsersQueryDto = {
       page: 1,
       limit: 20,
-      sortBy: "createdAt" as const,
-      sortOrder: "desc" as const,
+      sortBy: "createdAt",
+      sortOrder: "desc",
     };
     const result = await controller.getUsersList(query);
 
@@ -99,9 +110,8 @@ describe("AdminUsersController", () => {
   });
 
   it("createUser делегирует вызов сервису", async () => {
-    const dto = {
+    const dto: CreateUserAdminDto = {
       email: "new@example.com",
-      password: "StrongPassword123!",
       role: "USER",
       isActive: true,
     };
@@ -113,7 +123,7 @@ describe("AdminUsersController", () => {
 
   it("updateUser передает id, dto и currentAdminId сервису", async () => {
     const adminId = "admin-uuid-123";
-    const dto = { displayName: "Updated Alex" };
+    const dto: UpdateUserAdminDto = { displayName: "Updated Alex" };
     const result = await controller.updateUser(
       mockUserResponse.id,
       dto,
@@ -130,7 +140,7 @@ describe("AdminUsersController", () => {
 
   it("updateStatus передает id, dto и currentAdminId сервису", async () => {
     const adminId = "admin-uuid-123";
-    const dto = { isActive: false };
+    const dto: UserStatusAdminDto = { isActive: false };
     const result = await controller.updateStatus(
       mockUserResponse.id,
       dto,

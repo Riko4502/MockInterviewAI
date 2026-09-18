@@ -31,6 +31,7 @@ type fakeStore struct {
 	history         []storage.StreamEvent
 	revoked         map[string]bool
 	revokedSessions map[string]bool
+	minGen          map[string]int
 }
 
 func newFakeStore() *fakeStore {
@@ -38,6 +39,7 @@ func newFakeStore() *fakeStore {
 		live:            make(chan storage.StreamEvent, 16),
 		revoked:         make(map[string]bool),
 		revokedSessions: make(map[string]bool),
+		minGen:          make(map[string]int),
 	}
 }
 
@@ -73,6 +75,27 @@ func (f *fakeStore) IsAuthSessionActive(_ context.Context, sid string) (bool, er
 	defer f.mu.Unlock()
 
 	return !f.revokedSessions[sid], nil
+}
+
+func (f *fakeStore) CheckMinGeneration(_ context.Context, userID string, generation int) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.minGen == nil {
+		return true, nil
+	}
+	min, ok := f.minGen[userID]
+	if !ok {
+		return true, nil
+	}
+	return generation >= min, nil
+}
+
+func (f *fakeStore) setMinGeneration(userID string, minGen int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.minGen[userID] = minGen
 }
 
 func (f *fakeStore) ConsumeTicket(context.Context, string) (bool, error) { return true, nil }
@@ -160,14 +183,20 @@ func (f *fakeStore) Enabled() bool { return true }
 
 // newTestToken выпускает валидный access-токен для тестового пользователя.
 func newTestToken(t *testing.T, userID string) string {
+	gen := 1
+	return newTestTokenWithGen(t, userID, &gen)
+}
+
+// newTestTokenWithGen выпускает access-токен с явно указанным generation.
+func newTestTokenWithGen(t *testing.T, userID string, generation *int) string {
 	t.Helper()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &auth.UserClaims{
-		UserID:   userID,
-		Username: "tester",
-		// Верификатор требует typ из набора access|realtime и непустой sid.
-		Type: "access",
-		SID:  "sid-" + userID,
+		UserID:     userID,
+		Username:   "tester",
+		Type:       "access",
+		SID:        "sid-" + userID,
+		Generation: generation,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -246,6 +275,10 @@ func readFrames(body io.Reader) <-chan sseFrame {
 			case strings.HasPrefix(line, "data: "):
 				current.Data += strings.TrimPrefix(line, "data: ")
 			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			_ = err
 		}
 	}()
 
@@ -467,6 +500,9 @@ func awaitComment(t *testing.T, body io.Reader) {
 				return
 			}
 		}
+		if err := scanner.Err(); err != nil {
+			_ = err
+		}
 	}()
 
 	select {
@@ -529,5 +565,50 @@ func TestSSEReplayDrainsHistoryBeyondOnePage(t *testing.T) {
 		if !strings.Contains(frame.Data, `"n":`+strconv.Itoa(i)) {
 			t.Fatalf("event %d: unexpected payload %q", i, frame.Data)
 		}
+	}
+}
+
+// TestSSENotificationsGenerationFence проверяет, что токен со старым поколением отклоняется (§CWE-613).
+func TestSSENotificationsGenerationFence(t *testing.T) {
+	store := newFakeStore()
+	store.setMinGeneration("user-fence", 5)
+
+	server := newSSETestServer(t, store, sse.Options{})
+	defer server.Close()
+
+	// 1. Токен с generation < minGen (gen=3 < minGen=5) -> 401
+	oldGen := 3
+	reqOld, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqOld.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &oldGen))
+
+	respOld, err := http.DefaultClient.Do(reqOld)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respOld.Body.Close()
+
+	if respOld.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for outdated generation, got %d", respOld.StatusCode)
+	}
+
+	// 2. Токен с generation >= minGen (gen=5 >= minGen=5) -> 200
+	validGen := 5
+	reqValid, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqValid.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &validGen))
+
+	respValid, err := http.DefaultClient.Do(reqValid)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = respValid.Body.Close() }()
+
+	if respValid.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid generation, got %d", respValid.StatusCode)
 	}
 }

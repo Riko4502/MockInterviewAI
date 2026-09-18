@@ -13,7 +13,12 @@ export const createUserAdminSchema = z.object({
     .min(1, "Email обязателен")
     .pipe(z.email("Некорректный email"))
     .transform(normalizeEmail),
-  role: z.string().trim().optional().default("USER"),
+  role: z
+    .string()
+    .trim()
+    .min(1, "Role must not be empty")
+    .optional()
+    .default("USER"),
   username: z
     .string()
     .trim()

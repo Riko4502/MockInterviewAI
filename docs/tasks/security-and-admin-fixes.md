@@ -14,7 +14,7 @@
 | 4 | **API Validation / DTO** | `isActive` query-параметр: `preprocess` молча отключает фильтрацию при невалидных значениях | Запрос `?isActive=1` возвращает всех пользователей (200 OK) вместо ошибки 400 | Заменить `preprocess` на `z.union([z.boolean(), z.enum(["true", "false"])])` с `transform` | ✅ Выполнено |
 | 5 | **OpenAPI / DTO** | `z.date().or(z.string())` генерирует пустой `anyOf: [{}, {"type": "string"}]` в OpenAPI | Потеря типа `date-time` в контрактах OpenAPI, генерация `any`/`unknown` в клиенте API | Использовать `z.iso.datetime()` для полей дат (`createdAt`, `updatedAt`, `deactivatedAt`) | ✅ Выполнено |
 | 6 | **Security / Admin** | Отсутствие инвалидации сессий и инкремента `generation` при смене `email` или `username` администратором | Сохранение доступа по старым JWT/Refresh токенам после смены почты или логина | Добавить проверку `credentialsChanged = roleChanged \|\| emailChanged \|\| usernameChanged`, инкрементировать `generation` и отзывать сессии | ✅ Выполнено |
-| 7 | **Performance / Redis** | Неэффективный глобальный `SCAN auth:session:*` в `revokeAllUserSessions` ($O(N)$ чтений) | Задержки и высокая сетевая нагрузка на Redis при большом числе сессий в продакшене | Использовать Redis Sorted Set (`ZSET`) `auth:user:{userId}:sessions` со score=expiration для $O(1)$ выборки, без утечек памяти | ✅ Выполнено |
+| 7 | **Performance / Redis** | Неэффективный глобальный `SCAN auth:session:*` в `revokeAllUserSessions` ($O(N)$ чтений) | Задержки и высокая сетевая нагрузка на Redis при большом числе сессий в продакшене | Использовать Redis Sorted Set (`ZSET`) `auth:user:{userId}:sessions` со score=expiration для выборки со сложностью $O(\log N + M)$ (где $M$ — число сессий пользователя), без утечек памяти | ✅ Выполнено |
 | 8 | **OpenAPI / Profile** | `z.date().or(z.string())` в `userProfileSchema` и `publicUserProfileSchema` | Генерация `createdAt: unknown \| string` в клиенте `@packages/api` для профилей | Заменить на `z.iso.datetime()` в `packages/dto/src/profile/user-profile.dto.ts` | ✅ Выполнено |
 | 9 | **API Validation** | Отсутствие `ParseUUIDPipe` в `sessions.controller.ts` и `notifications.controller.ts` | Некорректный UUID в пути вызывает `500 Internal Server Error` (Postgres syntax error) вместо `400` | Добавить `new ParseUUIDPipe()` для параметров `:id` и `:userId` | ⏳ Ожидает |
 | 10 | **DTO Validation** | `addParticipantSchema.userId` использует `min(1)` вместо валидации UUID | Передача не-UUID строки приводит к ошибке БД вместо 400 ошибки валидации | Заменить на `z.string().uuid()` в `participant.dto.ts` | ✅ Выполнено |
@@ -150,9 +150,9 @@
 - **Риск / Impact:** В продакшене при десятках тысяч сессий операция поиска имеет сложность $O(N)$ по всем сессиям, создавая пиковую нагрузку на Redis и задержки в обработке HTTP-запросов.
 
 #### 🛠️ План решения
-- [x] **7.1.** В Lua-скрипт `createSession` добавить атомарное сохранение `sessionId` в Sorted Set `auth:user:{userId}:sessions` с `score = now_ms + ttl_ms` и очистку устаревших сессий `ZREMRANGEBYSCORE auth:user:{userId}:sessions -inf now_ms`.
+- [x] **7.1.** В Lua-скрипт `createSession` добавить атомарное сохранение `sessionId` в Sorted Set `auth:user:{userId}:sessions` с `score = now_ms + ttl_ms` и очистку устаревших сессий через `ZREMRANGEBYSCORE auth:user:{userId}:sessions -inf (now_ms`.
 - [x] **7.2.** При удалении сессии (`deleteSession` / `rotateSession`) удалять `sessionId` из ZSET (`ZREM`).
-- [x] **7.3.** В `revokeAllUserSessions` запрашивать сессии конкретного пользователя через `ZRANGEBYSCORE auth:user:{userId}:sessions now_ms +inf` ($O(1)$) и удалять их пакетно через Redis pipeline.
+- [x] **7.3.** В `revokeAllUserSessions` запрашивать сессии конкретного пользователя через атомарный Lua-скрипт `GET_USER_ACTIVE_SESSIONS_LUA` (`ZREMRANGEBYSCORE` + `ZRANGE 0 -1`, сложность $O(\log N + M)$, где $M$ — размер результата), считывать данные через `MGET`, затем выполнять удаление ключей через отдельные `DEL` и `ZREM` с сохранением ZSET при ошибках удаления.
 - [x] **7.4.** Обновить unit-тесты `auth-session.service.spec.ts`.
 
 ---

@@ -1,4 +1,10 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Post,
+  UnauthorizedException,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -75,11 +81,16 @@ export class RealtimeController {
     @Body(new ZodValidationPipe(ticketSchema)) body: TicketDto,
     @CurrentUser("sub") userId: string,
     @CurrentUser("sid") sid: string,
+    @CurrentUser("generation") generation?: number,
   ): Promise<{ ticket: string }> {
+    if (generation === undefined) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
     const ticket = this.tokenService.generateRealtimeTicket(
       userId,
       sid,
       body.sessionId,
+      generation,
     );
     return { ticket };
   }

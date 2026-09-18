@@ -1082,16 +1082,16 @@ describe("AuthService", () => {
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
-    it("Redis недоступен при revoke → 500 без внутренних деталей", async () => {
+    it("Redis недоступен при revoke → логирует ошибку и успешно завершается (durable task)", async () => {
       revokeAllUserSessions.mockRejectedValue(
         new Error("connect ECONNREFUSED 127.0.0.1:6379"),
       );
 
-      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+      await expect(
+        service.changePassword(USER.id, DTO),
+      ).resolves.toBeUndefined();
 
-      expect(error).toBeInstanceOf(InternalServerErrorException);
-      expect(error.getStatus()).toBe(500);
-      expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+      expect(loggerErrorSpy).toHaveBeenCalled();
     });
 
     it("password и токены не попадают в логи (§46)", async () => {

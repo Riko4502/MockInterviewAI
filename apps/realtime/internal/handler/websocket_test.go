@@ -22,13 +22,15 @@ import (
 // generateTestJWT создает подписанный JWT токен для тестов.
 func generateTestJWT(secret, userID, username, sessionID string) (string, error) {
 	now := time.Now().UTC()
+	gen := 1
 	claims := auth.UserClaims{
-		UserID:    userID,
-		Username:  username,
-		SessionID: sessionID,
-		TokenID:   fmt.Sprintf("tok-%d", now.UnixNano()),
-		Type:      "access",
-		SID:       "sid-" + userID,
+		UserID:     userID,
+		Username:   username,
+		SessionID:  sessionID,
+		TokenID:    fmt.Sprintf("tok-%d", now.UnixNano()),
+		Type:       "access",
+		SID:        "sid-" + userID,
+		Generation: &gen,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        fmt.Sprintf("tok-%d", now.UnixNano()),
@@ -45,13 +47,15 @@ func generateTestJWT(secret, userID, username, sessionID string) (string, error)
 // с привязкой к конкретной комнате через SessionID.
 func generateTestTicket(secret, userID, username, sessionID string) (string, error) {
 	now := time.Now().UTC()
+	gen := 1
 	claims := auth.UserClaims{
-		UserID:    userID,
-		Username:  username,
-		SessionID: sessionID,
-		TokenID:   fmt.Sprintf("ticket-%d", now.UnixNano()),
-		Type:      "realtime",
-		SID:       "sid-" + userID,
+		UserID:     userID,
+		Username:   username,
+		SessionID:  sessionID,
+		TokenID:    fmt.Sprintf("ticket-%d", now.UnixNano()),
+		Type:       "realtime",
+		SID:        "sid-" + userID,
+		Generation: &gen,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        fmt.Sprintf("ticket-%d", now.UnixNano()),
@@ -70,6 +74,7 @@ type mockSessionStore struct {
 	active    map[string]bool
 	codeState map[string][]byte
 	consumed  map[string]bool
+	minGen    map[string]int
 }
 
 func (m *mockSessionStore) IsTokenRevoked(_ context.Context, _ string) (bool, error) {
@@ -94,6 +99,17 @@ func (m *mockSessionStore) GetSessionUserRole(_ context.Context, _ string, userI
 
 func (m *mockSessionStore) IsAuthSessionActive(_ context.Context, sid string) (bool, error) {
 	return sid != "", nil
+}
+
+func (m *mockSessionStore) CheckMinGeneration(_ context.Context, userID string, generation int) (bool, error) {
+	if m.minGen == nil {
+		return true, nil
+	}
+	min, ok := m.minGen[userID]
+	if !ok {
+		return true, nil
+	}
+	return generation >= min, nil
 }
 
 func (m *mockSessionStore) ConsumeTicket(_ context.Context, tokenID string) (bool, error) {
@@ -578,4 +594,100 @@ func TestWebSocketAccessFallbackDisabled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected access-fallback-disabled dial to fail with 403, but succeeded")
 	}
+}
+
+// TestWebSocketTicketGeneration проверяет проверку generation claim в realtime-тикете (§CWE-613).
+func TestWebSocketTicketGeneration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket-gen"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{"room": true},
+		minGen: map[string]int{"user-1": 5},
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+	sessionID := "room"
+
+	// 1. Тикет без generation — отклоняется (401).
+	now := time.Now().UTC()
+	noGenClaims := auth.UserClaims{
+		UserID:    "user-1",
+		Username:  "User1",
+		SessionID: sessionID,
+		TokenID:   fmt.Sprintf("ticket-nogen-%d", now.UnixNano()),
+		Type:      "realtime",
+		SID:       "sid-user-1",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "user-1",
+			ID:        fmt.Sprintf("ticket-nogen-%d", now.UnixNano()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+		},
+	}
+	noGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noGenClaims)
+	noGenTicket, err := noGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign no-gen ticket: %v", err)
+	}
+
+	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", noGenTicket},
+	}); err == nil {
+		t.Fatal("expected ticket without generation to fail with 401, but succeeded")
+	}
+
+	// 2. Тикет без TokenID (jti) — отклоняется (401).
+	gen5 := 5
+	noJtiClaims := noGenClaims
+	noJtiClaims.TokenID = ""
+	noJtiClaims.Generation = &gen5
+	noJtiToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noJtiClaims)
+	noJtiTicket, err := noJtiToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign no-jti ticket: %v", err)
+	}
+
+	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", noJtiTicket},
+	}); err == nil {
+		t.Fatal("expected ticket without jti/TokenID to fail with 401, but succeeded")
+	}
+
+	// 3. Тикет с generation < minGen (gen=3 < minGen=5) — отклоняется (401).
+	oldGen := 3
+	oldGenClaims := noGenClaims
+	oldGenClaims.TokenID = fmt.Sprintf("ticket-oldgen-%d", now.UnixNano())
+	oldGenClaims.Generation = &oldGen
+	oldGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, oldGenClaims)
+	oldGenTicket, err := oldGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign old-gen ticket: %v", err)
+	}
+
+	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", oldGenTicket},
+	}); err == nil {
+		t.Fatal("expected ticket with generation < min_generation to fail with 401, but succeeded")
+	}
+
+	// 3. Тикет с generation >= minGen (gen=5 >= minGen=5) — успешен.
+	validGen := 5
+	validGenClaims := noGenClaims
+	validGenClaims.TokenID = fmt.Sprintf("ticket-validgen-%d", now.UnixNano())
+	validGenClaims.Generation = &validGen
+	validGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, validGenClaims)
+	validGenTicket, err := validGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign valid-gen ticket: %v", err)
+	}
+
+	conn, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", validGenTicket},
+	})
+	if err != nil {
+		t.Fatalf("expected valid generation ticket to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
 }

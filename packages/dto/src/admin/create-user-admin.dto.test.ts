@@ -48,4 +48,18 @@ describe("createUserAdminSchema", () => {
       expect(result.data.email).toBe("test.admin@example.com");
     }
   });
+
+  it("отклоняет пустую строку или строку из пробелов в role", () => {
+    const result = createUserAdminSchema.safeParse({
+      ...validPayload,
+      role: "   ",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const roleError = result.error.issues.find((issue) =>
+        issue.path.includes("role"),
+      );
+      expect(roleError?.message).toBe("Role must not be empty");
+    }
+  });
 });
