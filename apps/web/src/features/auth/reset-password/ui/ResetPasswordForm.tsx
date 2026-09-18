@@ -2,10 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerResetPassword } from "@packages/api";
-import { EyeIcon, EyeOffIcon } from "@packages/icons";
 import { Button, Field, Input, useToast } from "@packages/ui";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { HttpError } from "@/shared/api";
@@ -30,7 +29,6 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const router = useRouter();
   const toast = useToast();
   const { t } = useTranslation("auth");
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const resetPasswordMutation = useAuthControllerResetPassword();
 
@@ -78,32 +76,15 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         <Field.Label>{t("fields.newPassword.label")}</Field.Label>
         <Field.Content>
           <Field.Description>{t("fields.newPassword.hint")}</Field.Description>
-          <div className="relative">
-            <Input
-              type={isPasswordVisible ? "text" : "password"}
-              placeholder={t("fields.newPassword.placeholder")}
-              data-invalid={!!errors.newPassword}
-              aria-invalid={!!errors.newPassword}
-              className="pr-10"
-              {...register("newPassword")}
-            />
-            <Button
-              type="button"
-              onClick={() => setIsPasswordVisible((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={
-                isPasswordVisible
-                  ? t("fields.hidePassword")
-                  : t("fields.showPassword")
-              }
-            >
-              {isPasswordVisible ? (
-                <EyeOffIcon className="size-4" />
-              ) : (
-                <EyeIcon className="size-4" />
-              )}
-            </Button>
-          </div>
+          <Input
+            type="password"
+            placeholder={t("fields.newPassword.placeholder")}
+            data-invalid={!!errors.newPassword}
+            aria-invalid={!!errors.newPassword}
+            showPasswordLabel={t("fields.showPassword")}
+            hidePasswordLabel={t("fields.hidePassword")}
+            {...register("newPassword")}
+          />
           <Field.Error>{errors.newPassword?.message}</Field.Error>
         </Field.Content>
       </Field>
