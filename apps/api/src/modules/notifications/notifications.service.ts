@@ -22,8 +22,18 @@ export class NotificationsService {
     private readonly redis: RedisService,
   ) {}
 
-  async getNotifications(userId: string, page = 1, limit = 20) {
-    const cacheKey = this.getNotificationsCacheKey(userId, page, limit);
+  async getNotifications(
+    userId: string,
+    page = 1,
+    limit = 20,
+    category?: NotificationType,
+  ) {
+    const cacheKey = this.getNotificationsCacheKey(
+      userId,
+      page,
+      limit,
+      category,
+    );
 
     const cached = await this.redis.get(cacheKey);
 
@@ -32,13 +42,15 @@ export class NotificationsService {
     }
 
     const skip = (page - 1) * limit;
+    const where = {
+      userId,
+      deletedAt: null,
+      ...(category ? { category } : {}),
+    };
 
     const [notifications, total] = await Promise.all([
       this.prisma.notification.findMany({
-        where: {
-          userId,
-          deletedAt: null,
-        },
+        where,
         orderBy: {
           createdAt: "desc",
         },
@@ -47,10 +59,7 @@ export class NotificationsService {
       }),
 
       this.prisma.notification.count({
-        where: {
-          userId,
-          deletedAt: null,
-        },
+        where,
       }),
     ]);
 
@@ -95,6 +104,25 @@ export class NotificationsService {
     return { count };
   }
 
+  async markAllAsRead(userId: string): Promise<{ success: true }> {
+    await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        deletedAt: null,
+      },
+      data: {
+        readAt: new Date(),
+      },
+    });
+
+    await this.scheduleNotificationSync(userId);
+
+    return {
+      success: true,
+    };
+  }
+
   async markAsRead(userId: string, id: string): Promise<{ success: true }> {
     const result = await this.prisma.notification.updateMany({
       where: {
@@ -111,7 +139,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    this.scheduleNotificationSync(userId);
+    void this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -134,7 +162,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    this.scheduleNotificationSync(userId);
+    void this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -173,8 +201,8 @@ export class NotificationsService {
     return notification;
   }
 
-  private scheduleNotificationSync(userId: string): void {
-    void this.retryRedisOperation(async () => {
+  private async scheduleNotificationSync(userId: string): Promise<void> {
+    await this.retryRedisOperation(async () => {
       await this.invalidateCache(userId);
       await this.publishUnreadCount(userId);
     }).catch((error: unknown) => {
@@ -250,8 +278,9 @@ export class NotificationsService {
     userId: string,
     page: number,
     limit: number,
+    category?: NotificationType,
   ): string {
-    return `notifications:${userId}:page:${page}:limit:${limit}`;
+    return `notifications:${userId}:page:${page}:limit:${limit}${category ? `:category:${category}` : ""}`;
   }
 
   private getUnreadCountCacheKey(userId: string): string {

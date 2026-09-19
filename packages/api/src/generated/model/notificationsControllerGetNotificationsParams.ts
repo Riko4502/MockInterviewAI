@@ -9,6 +9,7 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
+import type { NotificationsControllerGetNotificationsCategory } from './notificationsControllerGetNotificationsCategory';
 
 export type NotificationsControllerGetNotificationsParams = {
 /**
@@ -22,4 +23,8 @@ page?: number;
  * @maximum 100
  */
 limit?: number;
+/**
+ * Notification category. Omit to include all categories.
+ */
+category?: NotificationsControllerGetNotificationsCategory;
 };
