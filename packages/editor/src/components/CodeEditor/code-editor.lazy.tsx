@@ -9,7 +9,10 @@ export interface CodeEditorLazyProps extends CodeEditorProps {}
  * В Next.js (apps/web) этот компонент позволит избежать ошибок SSR (Server-Side Rendering).
  */
 const LazyEditor = lazy(() =>
-  import("./code-editor").then((mod) => ({ default: mod.CodeEditor })),
+  import("./code-editor").then(async (mod) => {
+    await mod.initMonaco();
+    return { default: mod.CodeEditor };
+  }),
 );
 
 export const CodeEditorLazy = (props: CodeEditorLazyProps) => {

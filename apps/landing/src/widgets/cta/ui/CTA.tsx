@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRightIcon } from "@packages/icons";
-import { Badge, Button, Card, Typography } from "@packages/ui";
+import { Button, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 import { getRegisterUrl } from "@/shared/config";
 import { CtaBenefits } from "./CtaBenefits";
@@ -13,55 +13,51 @@ export function CTA() {
   return (
     <section
       id="cta"
-      className="relative py-20 md:py-28 overflow-hidden bg-transparent"
+      className="relative py-24 md:py-36 overflow-hidden bg-transparent"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* CTA Card Box with Aurora Theme */}
-        <Card className="relative rounded-3xl p-8 sm:p-12 md:p-16 border border-violet-500/40 overflow-hidden shadow-2xl glow-card text-center bg-gradient-to-b from-[#141226]/80 via-[#0d1022]/80 to-[#070914]/90 backdrop-blur-xl">
-          {/* Ambient Multi-Color Aurora Glow */}
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[750px] h-[350px] bg-gradient-to-r from-violet-600/30 via-fuchsia-600/25 to-cyan-500/30 blur-[130px] pointer-events-none -z-10" />
+        {/* Apple Spotlight Grand Portal Card */}
+        <div className="relative rounded-[28px] sm:rounded-[36px] p-6 sm:p-14 md:p-20 apple-glass border border-black/[0.08] dark:border-white/[0.12] overflow-hidden shadow-2xl text-center">
+          {/* Ambient Multi-Color Aurora Spotlight Flare */}
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[850px] h-[400px] bg-gradient-to-r from-pink-500/20 via-purple-600/25 to-cyan-500/20 dark:from-pink-500/30 dark:via-purple-600/35 dark:to-cyan-400/30 blur-[140px] pointer-events-none -z-10" />
 
-          <Card.Header className="p-0 text-center">
-            {/* Badge */}
-            <div className="flex justify-center">
-              <Badge
-                variant="statusInfo"
-                className="mb-6 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border-violet-500/40 text-violet-200 font-semibold tracking-wider uppercase px-3.5 py-1.5 shadow-sm shadow-violet-500/20"
-              >
+          {/* Apple Intelligence Badge */}
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full apple-badge-intelligence backdrop-blur-md mb-6 sm:mb-8 group transition-transform hover:scale-[1.02]">
+              <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 animate-pulse" />
+              <span className="text-xs font-semibold text-gradient-intelligence tracking-wider uppercase">
                 {t("cta.badge")}
-              </Badge>
+              </span>
             </div>
+          </div>
 
-            {/* Title */}
-            <Typography.H2 className="border-b-0 pb-0 text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto mb-6 leading-tight">
-              {t("cta.title")}
-            </Typography.H2>
+          {/* Grand Headline */}
+          <Typography.H2 className="border-b-0 pb-0 text-2xl sm:text-5xl md:text-6xl font-bold tracking-[-0.03em] max-w-3xl mx-auto mb-4 sm:mb-6 leading-[1.15] sm:leading-[1.1]">
+            <span className="text-gradient-titanium">{t("cta.title")}</span>
+          </Typography.H2>
 
-            {/* Subtitle */}
-            <Typography.Lead className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-              {t("cta.subtitle")}
-            </Typography.Lead>
-          </Card.Header>
+          {/* Subtitle */}
+          <Typography.Lead className="text-sm sm:text-lg lg:text-xl text-muted-foreground font-normal max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed">
+            {t("cta.subtitle")}
+          </Typography.Lead>
 
-          <Card.Content className="p-0">
-            {/* Action Button */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-              <Button
-                asChild
-                size="lg"
-                className="w-full sm:w-auto rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:via-indigo-500 hover:to-cyan-500 text-white shadow-xl shadow-violet-600/40 hover:shadow-cyan-500/50 hover:scale-[1.03] active:scale-[0.98] transition-all px-9 py-4 h-auto text-base font-semibold group gap-2.5"
-              >
-                <a href={registerUrl}>
-                  <span>{t("cta.button")}</span>
-                  <ArrowRightIcon className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-                </a>
-              </Button>
-            </div>
+          {/* Action Button */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
+            <Button
+              asChild
+              size="lg"
+              className="w-full sm:w-auto rounded-full bg-foreground text-background hover:opacity-90 dark:bg-white dark:text-black dark:hover:bg-white/90 shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all px-10 py-4 h-auto text-base font-semibold group gap-2.5 apple-glow-button"
+            >
+              <a href={registerUrl}>
+                <span>{t("cta.button")}</span>
+                <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </a>
+            </Button>
+          </div>
 
-            {/* Key Benefits List */}
-            <CtaBenefits />
-          </Card.Content>
-        </Card>
+          {/* Key Benefits List */}
+          <CtaBenefits />
+        </div>
       </div>
     </section>
   );
