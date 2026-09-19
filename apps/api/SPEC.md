@@ -482,6 +482,12 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 AuthService → AuthSessionService → RedisService → Redis
 ```
 
+Инструментирование соединения (метрики, см. `packages/observability` SPEC.md §5.1, §8):
+на события ioredis `ready` / `error` / `close` / `reconnecting` обновляется
+gauge `redis_connection_status`; на `error` дополнительно инкрементируется
+counter `redis_client_errors_total` с классификацией по тексту ошибки:
+`NOAUTH`, `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, иначе `other`.
+
 ### 41. Rate Limiting
 
 Глобально: `ThrottlerModule` — все endpoints, `ttl: 60_000`, `limit: 100`.

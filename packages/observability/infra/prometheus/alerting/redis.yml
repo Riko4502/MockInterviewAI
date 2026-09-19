@@ -1,0 +1,78 @@
+groups:
+  - name: redis
+    rules:
+      - alert: RedisTargetDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis exporter is down"
+          description: "The redis exporter job {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes > 0.8 * redis_memory_max_bytes and redis_memory_max_bytes > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage is above 80% of maxmemory"
+          description: "Redis used {{ $value | humanize1024 }}B on {{ $labels.instance }}; under noeviction writes may start to fail once the cap is reached."
+
+      - alert: RedisEvictions
+        expr: |
+          increase(redis_evicted_keys_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is evicting keys"
+          description: "Redis evicted {{ $value | humanize }} keys in the last 5 minutes; maxmemory-policy may cause data loss."
+
+  - name: realtime
+    rules:
+      - alert: RealtimePubSubLagHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            rate(realtime_ws_pubsub_lag_seconds_bucket[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WS Pub/Sub relay lag is high"
+          description: "p95 of room event relay delay through Redis Pub/Sub exceeded 1s for 5 minutes."
+
+      - alert: RedisStreamDeliveryLagHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            rate(realtime_sse_redis_stream_lag_seconds_bucket[5m])
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis stream delivery lag is high"
+          description: "p95 event delivery delay exceeded 30s for 5 minutes; SSE readers may not keep up. Baseline includes the XREAD BLOCK interval (SSE_STREAM_BLOCK_SECONDS)."
+
+  - name: targets
+    rules:
+      - alert: ApiTargetDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API target is down"
+          description: "The api job {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: RealtimeTargetDown
+        expr: up{job="realtime"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Realtime target is down"
+          description: "The realtime job {{ $labels.instance }} has been unreachable for more than 2 minutes."
