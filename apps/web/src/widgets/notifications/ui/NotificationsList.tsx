@@ -10,7 +10,7 @@ import {
   Tabs,
   Typography,
 } from "@packages/ui";
-import { type MouseEvent, useState } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { useNotificationsQuery } from "@/entities/notification";
 import { NotificationActions } from "@/features/notification-actions";
 
@@ -31,7 +31,14 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
       category,
     });
 
-  const totalPages = Math.max(page, data?.totalPages ?? 0);
+  useEffect(() => {
+    if (data === undefined) return;
+
+    const lastPage = Math.max(1, data.totalPages);
+    if (page > lastPage) setPage(lastPage);
+  }, [data, page]);
+
+  const totalPages = Math.max(1, data?.totalPages ?? page);
   const visiblePages =
     totalPages <= 7
       ? Array.from({ length: totalPages }, (_, index) => index + 1)

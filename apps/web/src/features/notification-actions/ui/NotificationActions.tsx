@@ -40,7 +40,12 @@ export const NotificationActions = ({
   const openNotification = () => {
     const navigate = () => {
       if (notification.actionUrl) {
-        const url = new URL(notification.actionUrl, window.location.origin);
+        let url: URL;
+        try {
+          url = new URL(notification.actionUrl, window.location.origin);
+        } catch {
+          return;
+        }
         if (url.protocol !== "http:" && url.protocol !== "https:") return;
         if (url.origin === window.location.origin) {
           router.push(`${url.pathname}${url.search}${url.hash}`);

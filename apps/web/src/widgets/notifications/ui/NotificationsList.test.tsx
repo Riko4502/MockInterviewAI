@@ -29,9 +29,11 @@ const notification = (
 
 let items: NotificationsListDtoItemsItem[];
 let queryClient: QueryClient;
+let readResponse: Promise<void>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readResponse = Promise.resolve();
   resetApiTransportState();
   initApiTransport();
   items = [
@@ -43,6 +45,7 @@ beforeEach(() => {
   });
   vi.mocked(baseFetch).mockImplementation(async (url, options) => {
     if (url.endsWith("/read")) {
+      await readResponse;
       items = items.map((item) => ({
         ...item,
         readAt: new Date().toISOString(),
@@ -122,6 +125,10 @@ describe("NotificationsList", () => {
   });
 
   it("отмечает уведомление прочитанным до перехода", async () => {
+    let resolveRead!: () => void;
+    readResponse = new Promise<void>((resolve) => {
+      resolveRead = resolve;
+    });
     items = [
       {
         ...notification("Интервью", "INTERVIEW"),
@@ -133,11 +140,17 @@ describe("NotificationsList", () => {
       await screen.findByRole("button", { name: /Интервью.*Текст/ }),
     );
     await waitFor(() =>
-      expect(push).toHaveBeenCalledWith("/dashboard?interview=1"),
+      expect(baseFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/read"),
+        expect.objectContaining({ method: "PATCH" }),
+      ),
     );
-    expect(baseFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/read"),
-      expect.objectContaining({ method: "PATCH" }),
+    expect(push).not.toHaveBeenCalled();
+
+    resolveRead();
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/dashboard?interview=1"),
     );
     expect(items[0]?.readAt).not.toBeNull();
   });

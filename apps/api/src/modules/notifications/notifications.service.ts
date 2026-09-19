@@ -116,7 +116,7 @@ export class NotificationsService {
       },
     });
 
-    this.scheduleNotificationSync(userId);
+    await this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -139,7 +139,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    this.scheduleNotificationSync(userId);
+    void this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -162,7 +162,7 @@ export class NotificationsService {
       throw new NotFoundException("Notification not found");
     }
 
-    this.scheduleNotificationSync(userId);
+    void this.scheduleNotificationSync(userId);
 
     return {
       success: true,
@@ -201,8 +201,8 @@ export class NotificationsService {
     return notification;
   }
 
-  private scheduleNotificationSync(userId: string): void {
-    void this.retryRedisOperation(async () => {
+  private async scheduleNotificationSync(userId: string): Promise<void> {
+    await this.retryRedisOperation(async () => {
       await this.invalidateCache(userId);
       await this.publishUnreadCount(userId);
     }).catch((error: unknown) => {

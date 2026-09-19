@@ -1,7 +1,7 @@
 "use client";
 
 import { BellIcon } from "@packages/icons";
-import { Badge, Button, Popover, Typography } from "@packages/ui";
+import { Badge, Button, Empty, Popover, Typography } from "@packages/ui";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -16,7 +16,11 @@ const NOTIFICATIONS_PREVIEW_LIMIT = 5;
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: notificationsData } = useNotificationsQuery({
+  const {
+    data: notificationsData,
+    isPending,
+    isError,
+  } = useNotificationsQuery({
     page: 1,
     limit: NOTIFICATIONS_PREVIEW_LIMIT,
     enabled: isOpen,
@@ -73,7 +77,17 @@ export const NotificationBell = () => {
         </div>
 
         <div>
-          {notifications.length > 0 ? (
+          {isPending ? (
+            <output className="block px-4 py-6 text-center">
+              <Typography.Muted>Загрузка уведомлений...</Typography.Muted>
+            </output>
+          ) : isError ? (
+            <div role="alert" className="px-4 py-6 text-center">
+              <Typography.Muted>
+                Не удалось загрузить уведомления.
+              </Typography.Muted>
+            </div>
+          ) : notifications.length > 0 ? (
             notifications.map((notification) => (
               <NotificationItem
                 key={notification.id}
@@ -81,9 +95,7 @@ export const NotificationBell = () => {
               />
             ))
           ) : (
-            <div className="px-4 py-6 text-center">
-              <Typography.Muted>У вас пока нет уведомлений</Typography.Muted>
-            </div>
+            <Empty title="У вас пока нет уведомлений" media={<BellIcon />} />
           )}
         </div>
 
