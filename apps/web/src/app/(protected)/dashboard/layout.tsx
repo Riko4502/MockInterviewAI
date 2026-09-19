@@ -1,4 +1,4 @@
-import { NotificationBell } from "@widgets/header";
+import { NotificationBell } from "@widgets/notifications";
 import { Sidebar } from "@widgets/sidebar";
 import type { ReactNode } from "react";
 

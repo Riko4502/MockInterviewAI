@@ -9,6 +9,8 @@ import { useToast } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import type { ZodError } from "zod";
 import { useSession } from "@/entities/session";
 import { openNotificationStream } from "@/shared/api/realtime/notification-stream";
@@ -39,6 +41,7 @@ function parseEvent(data: string): unknown {
 }
 
 export function NotificationRealtime() {
+  const { t } = useTranslation("common");
   const { isAuthenticated, clearSession } = useSession();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -96,8 +99,8 @@ export function NotificationRealtime() {
         title: notification.title,
         description: notification.message,
         action: {
-          label: "Посмотреть",
-          altText: "Открыть уведомления",
+          label: t("notifications.view"),
+          altText: t("notifications.open"),
           onClick: () => {
             router.push(paths.notifications);
             toast.dismiss(toastId);
@@ -147,7 +150,7 @@ export function NotificationRealtime() {
       }
       nativeNotifications.clear();
     };
-  }, [isAuthenticated, queryClient, router, toast]);
+  }, [isAuthenticated, queryClient, router, t, toast]);
 
   return null;
 }
