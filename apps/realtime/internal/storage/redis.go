@@ -30,6 +30,7 @@ type SessionStore interface {
 	IsAuthSessionActive(ctx context.Context, sid string) (bool, error)
 	ConsumeTicket(ctx context.Context, tokenID string) (bool, error)
 	TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error
+	NextCodeVersion(ctx context.Context, sessionID string) (int64, error)
 	SaveCodeState(ctx context.Context, sessionID string, data []byte) error
 	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
@@ -390,11 +391,10 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 // использован впервые (ключ установлен), false — повторное использование.
 //
 // Отдельный namespace ticket:consumed:* (не смешивается с blacklist:token:*).
-// В disabled-режиме возвращает true (перимиссивно — не влияет, т.к.
-// fail-closed проверки активности/роли всё равно отклоняют подключение, P12).
+// Fail-closed: при выключенном Redis или пустом tokenID возвращает false.
 func (r *RedisStore) ConsumeTicket(ctx context.Context, tokenID string) (bool, error) {
 	if !r.enabled || r.client == nil || tokenID == "" {
-		return true, nil
+		return false, nil
 	}
 
 	key := fmt.Sprintf("ticket:consumed:%s", tokenID)
@@ -424,14 +424,80 @@ func (r *RedisStore) TouchMirror(ctx context.Context, sessionID string, ttl time
 	return r.client.Expire(ctx, membersKey, ttl).Err()
 }
 
-// SaveCodeState сохраняет последний снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа).
+// NextCodeVersion атомарно инкрементирует и возвращает глобальный монотонный номер версии кода для сессии в Redis.
+func (r *RedisStore) NextCodeVersion(ctx context.Context, sessionID string) (int64, error) {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return 0, nil
+	}
+
+	seqKey := fmt.Sprintf("session:%s:code:seq", sessionID)
+	savedKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
+	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
+
+	script := redis.NewScript(`
+		local seqKey = KEYS[1]
+		local savedKey = KEYS[2]
+		local ttl = tonumber(ARGV[1])
+
+		local seq = redis.call('GET', seqKey)
+		local saved = redis.call('GET', savedKey)
+		local currentSeq = seq and tonumber(seq) or 0
+		local currentSaved = saved and tonumber(saved) or 0
+
+		if currentSaved > currentSeq then
+			currentSeq = currentSaved
+		end
+
+		local nextVal = currentSeq + 1
+		redis.call('SET', seqKey, nextVal, 'EX', ttl)
+		return nextVal
+	`)
+
+	res, err := script.Run(ctx, r.client, []string{seqKey, savedKey}, ttlSeconds).Int64()
+	if err != nil {
+		r.logger.Warn("failed to allocate next code version from redis", slog.String("error", err.Error()))
+		return 0, err
+	}
+
+	return res, nil
+}
+
+// SaveCodeState условно сохраняет снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа),
+// только если версия снимка строго больше уже сохраненной в Redis (защита от race conditions между репликами).
 func (r *RedisStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
 	if !r.enabled || r.client == nil || sessionID == "" {
 		return nil
 	}
 
-	key := fmt.Sprintf("session:%s:code", sessionID)
-	return r.client.Set(ctx, key, data, 24*time.Hour).Err()
+	var payload struct {
+		Version int64 `json:"version"`
+	}
+	_ = json.Unmarshal(data, &payload)
+
+	codeKey := fmt.Sprintf("session:%s:code", sessionID)
+	savedVersionKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
+	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
+
+	script := redis.NewScript(`
+		local codeKey = KEYS[1]
+		local savedVersionKey = KEYS[2]
+		local data = ARGV[1]
+		local newVersion = tonumber(ARGV[2])
+		local ttl = tonumber(ARGV[3])
+
+		if newVersion and newVersion > 0 then
+			local currentSaved = redis.call('GET', savedVersionKey)
+			if currentSaved and tonumber(currentSaved) >= newVersion then
+				return 0
+			end
+			redis.call('SET', savedVersionKey, newVersion, 'EX', ttl)
+		end
+
+		redis.call('SET', codeKey, data, 'EX', ttl)
+		return 1
+	`)
+
+	return script.Run(ctx, r.client, []string{codeKey, savedVersionKey}, data, payload.Version, ttlSeconds).Err()
 }
 
 // GetCodeState считывает последний снимок кода сессии из Redis.

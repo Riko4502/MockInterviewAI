@@ -1,6 +1,13 @@
 package storage
 
-import "testing"
+import (
+	"context"
+	"io"
+	"log/slog"
+	"testing"
+
+	"github.com/mockinterviewai/realtime/internal/config"
+)
 
 // TestRedactRedisAddr закрывает регрессию: строка подключения писалась в лог
 // как есть, из-за чего пароль из REDIS_URL уезжал в агрегатор логов на уровне INFO.
@@ -45,3 +52,49 @@ func TestRedactRedisAddr(t *testing.T) {
 		})
 	}
 }
+
+func TestRedisStore_Disabled_FailClosed(t *testing.T) {
+	cfg := &config.Config{
+		RedisEnabled: false,
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := NewRedisStore(cfg, logger)
+	ctx := context.Background()
+
+	// 1. IsSessionActive must return false when Redis is disabled
+	active, err := store.IsSessionActive(ctx, "any-session-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if active {
+		t.Errorf("IsSessionActive should return false when Redis is disabled (fail-closed)")
+	}
+
+	// 2. GetSessionUserRole must return empty string when Redis is disabled
+	role, err := store.GetSessionUserRole(ctx, "any-session-id", "any-user-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if role != "" {
+		t.Errorf("GetSessionUserRole should return empty string when Redis is disabled (fail-closed), got %q", role)
+	}
+
+	// 3. IsAuthSessionActive must return false when Redis is disabled
+	authActive, err := store.IsAuthSessionActive(ctx, "any-sid")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if authActive {
+		t.Errorf("IsAuthSessionActive should return false when Redis is disabled (fail-closed)")
+	}
+
+	// 4. ConsumeTicket must return false when Redis is disabled
+	consumed, err := store.ConsumeTicket(ctx, "ticket-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if consumed {
+		t.Error("ConsumeTicket should return false when Redis is disabled")
+	}
+}
+

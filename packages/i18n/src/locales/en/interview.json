@@ -13,5 +13,106 @@
     "strengths": "Strengths",
     "improvements": "Areas for Improvement",
     "summary": "Meeting Summary"
+  },
+  "sandbox": {
+    "connecting": "Connecting to session...",
+    "errorTitle": "Connection Error",
+    "joinError": "Failed to connect to the session. It might be closed or does not exist.",
+    "createError": "Failed to create a new session.",
+    "createNew": "Create New Session",
+    "header": {
+      "taskLabel": "Task:",
+      "taskPlaceholder": "Select a task",
+      "inviteTooltip": "Copy link for collaborative solving and call",
+      "inviteButton": "Invite participant",
+      "inviteCopied": "Link copied! ✓",
+      "onlineCount": "Online: {{count}}",
+      "singleParticipant": "1 participant",
+      "timerStart": "Start",
+      "timerPause": "Pause",
+      "timerResetTooltip": "Reset timer (45 min)",
+      "videoPanelTooltip": "Video call panel",
+      "inCall": "In call",
+      "videoCall": "Video call",
+      "themeTooltip": "Current editor theme: {{theme}}. Click to switch",
+      "resetCodeTooltip": "Reset code to starter template",
+      "resetCode": "Reset",
+      "runCodeTooltip": "Code execution is temporarily unavailable",
+      "runCode": "Run Code"
+    },
+    "tabs": {
+      "description": "Description",
+      "hints": "AI Hints",
+      "notes": "Notes"
+    },
+    "task": {
+      "category": "Category: {{category}}",
+      "examples": "Examples:",
+      "example": "Example {{number}}:",
+      "input": "Input:",
+      "output": "Output:",
+      "explanation": "Explanation: {{explanation}}",
+      "constraints": "Constraints:"
+    },
+    "hints": {
+      "title": "Virtual AI Interviewer",
+      "description": "If you get stuck while solving, reveal hints sequentially, just like in a real technical interview.",
+      "hintNumber": "Hint #{{number}}",
+      "revealed": "Revealed ✓",
+      "locked": "🔒 Click the button below to reveal",
+      "revealNext": "Reveal next hint ({{current}}/{{total}})"
+    },
+    "notes": {
+      "title": "Your draft for recording thoughts, algorithms, and edge cases:",
+      "placeholder": "Notes:\n1. Algorithmic complexity (Time/Space O(...))\n2. Edge cases (empty array, duplicates, overflow)\n3. Optimization ideas",
+      "disclaimer": "Notes are stored in memory only and will be lost after page reload."
+    },
+    "videoWidget": {
+      "header": {
+        "videoOnline": "Video call online",
+        "calling": "Calling...",
+        "videoCall": "Video call",
+        "badgeInCall": "In call 🟢",
+        "badgeConnecting": "Connecting...",
+        "badgePeerOnline": "Peer online",
+        "badgeWaitingPeer": "Waiting for peer",
+        "expandTooltip": "Expand",
+        "collapseTooltip": "Collapse",
+        "closeTooltip": "Close video panel"
+      },
+      "controls": {
+        "endCallTooltip": "End video call",
+        "endCall": "End",
+        "startCallTooltip": "Call peer via WebRTC",
+        "calling": "Calling...",
+        "startCall": "Call",
+        "unmuteMicTooltip": "Unmute microphone",
+        "muteMicTooltip": "Mute microphone",
+        "micMuted": "Muted",
+        "micOn": "On",
+        "turnOnCamTooltip": "Turn on camera",
+        "turnOffCamTooltip": "Turn off camera",
+        "screenShareTooltip": "Screen share",
+        "screenShare": "Screen",
+        "statusInCall": "🟢 In call",
+        "statusCalling": "🟡 Calling...",
+        "statusPeerWaiting": "Peer waiting",
+        "statusAlone": "Alone"
+      },
+      "screen": {
+        "micMutedTooltip": "Microphone muted",
+        "micActiveTooltip": "Microphone active",
+        "connecting": "Connecting...",
+        "cameraOff": "Camera off",
+        "waitingForPeer": "Waiting for peer",
+        "linkCopied": "Link copied! ✓",
+        "inviteSecondTab": "📋 Invite to 2nd tab",
+        "connectingWithPeer": "Connecting with peer...",
+        "callNotStarted": "Call not started",
+        "clickCallToConnect": "Click \"Call\" to connect",
+        "cameraOffShort": "Cam off",
+        "you": "You"
+      }
+    }
   }
 }
