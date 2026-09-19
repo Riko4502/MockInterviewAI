@@ -13,6 +13,7 @@ const mockRedisInstance = {
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
   scanStream: jest.fn(),
+  xadd: jest.fn().mockResolvedValue("1724500000000-0"),
 };
 
 jest.mock("ioredis", () => {
@@ -107,6 +108,31 @@ describe("RedisService", () => {
         "EX",
         3600,
       );
+    });
+  });
+
+  describe("xadd", () => {
+    it("writes the payload field consumed by realtime", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+
+      await expect(
+        service.xadd(stream, "notification.new", payload, 100, 604800),
+      ).resolves.toBe("1724500000000-0");
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+      );
+      expect(mockRedisInstance.expire).toHaveBeenCalledWith(stream, 604800);
     });
   });
 

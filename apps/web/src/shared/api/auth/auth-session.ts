@@ -1,6 +1,6 @@
 import type { AccessTokenResponseDto } from "@packages/api";
+import { getApiUrl } from "../config/endpoints";
 import { authToken } from "./auth-token";
-import { getApiUrl } from "./endpoints";
 
 let refreshPromise: Promise<string> | null = null;
 

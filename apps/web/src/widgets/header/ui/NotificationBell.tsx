@@ -11,6 +11,8 @@ import {
   useUnreadCountQuery,
 } from "@/entities/notification";
 
+import { BrowserNotificationControl } from "@/features/notification-realtime";
+
 const NOTIFICATIONS_PREVIEW_LIMIT = 5;
 
 export const NotificationBell = () => {
@@ -75,6 +77,8 @@ export const NotificationBell = () => {
             Прочитать все
           </Button>
         </div>
+
+        <BrowserNotificationControl />
 
         <div>
           {isPending ? (

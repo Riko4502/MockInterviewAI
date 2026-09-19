@@ -313,7 +313,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       "*",
       "type",
       type,
-      "data",
+      "payload",
       JSON.stringify(data),
     );
 
