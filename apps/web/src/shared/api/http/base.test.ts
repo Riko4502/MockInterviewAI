@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RefreshSessionError, refreshAccessToken } from "./auth-session";
-import { authToken } from "./auth-token";
+import { RefreshSessionError, refreshAccessToken } from "../auth/auth-session";
+import { authToken } from "../auth/auth-token";
 import { baseFetch, HttpError } from "./base";
 
-vi.mock("./auth-session", () => ({
+vi.mock("../auth/auth-session", () => ({
   refreshAccessToken: vi.fn(),
   RefreshSessionError: class RefreshSessionError extends Error {
     constructor(

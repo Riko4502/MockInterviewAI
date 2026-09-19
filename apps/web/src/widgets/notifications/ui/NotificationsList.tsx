@@ -11,18 +11,14 @@ import {
   Typography,
 } from "@packages/ui";
 import { type MouseEvent, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useNotificationsQuery } from "@/entities/notification";
 import { NotificationActions } from "@/features/notification-actions";
 
 type Category = NotificationsControllerGetNotificationsParams["category"];
-const FILTERS: { value: "ALL" | NonNullable<Category>; label: string }[] = [
-  { value: "ALL", label: "Все" },
-  { value: "INTERVIEW", label: "Собеседования" },
-  { value: "MESSAGE", label: "Сообщения" },
-  { value: "SYSTEM", label: "Системные" },
-];
-
 const NotificationsPanel = ({ category }: { category?: Category }) => {
+  const { t } = useTranslation("common");
   const [page, setPage] = useState(1);
   const { data, isPending, isError, isFetching, refetch } =
     useNotificationsQuery({
@@ -54,7 +50,10 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
     };
   if (isPending) {
     return (
-      <output aria-label="Загрузка уведомлений" className="block space-y-3">
+      <output
+        aria-label={t("notifications.loading")}
+        className="block space-y-3"
+      >
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-20 w-full" />
@@ -64,9 +63,9 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
   if (isError) {
     return (
       <div role="alert" className="flex flex-col items-center gap-4 py-8">
-        <Typography.Muted>Не удалось загрузить уведомления.</Typography.Muted>
+        <Typography.Muted>{t("notifications.loadError")}</Typography.Muted>
         <Button variant="outline" onClick={() => void refetch()}>
-          Попробовать ещё раз
+          {t("notifications.retry")}
         </Button>
       </div>
     );
@@ -75,7 +74,7 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
   return (
     <div className="space-y-4">
       {!data?.items.length ? (
-        <Empty title="У вас пока нет уведомлений" media={<BellIcon />} />
+        <Empty title={t("notifications.empty")} media={<BellIcon />} />
       ) : (
         <ul className="overflow-hidden rounded-lg border border-border">
           {data.items.map((notification) => (
@@ -86,11 +85,13 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
         </ul>
       )}
       {(page > 1 || (data?.totalPages ?? 0) > 1) && (
-        <Pagination aria-label="Страницы уведомлений">
+        <Pagination aria-label={t("notifications.pagination.label")}>
           <Pagination.Content className="flex-wrap">
             <Pagination.Item>
               <Pagination.Previous
                 href="#"
+                label={t("actions.back")}
+                aria-label={t("notifications.pagination.previousAria")}
                 aria-disabled={previousDisabled}
                 tabIndex={previousDisabled ? -1 : 0}
                 className={
@@ -108,7 +109,9 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
                 )}
                 <Pagination.Link
                   href="#"
-                  aria-label={`Страница ${value}`}
+                  aria-label={t("notifications.pagination.page", {
+                    page: value,
+                  })}
                   isActive={page === value}
                   aria-disabled={isFetching}
                   tabIndex={isFetching ? -1 : 0}
@@ -124,7 +127,8 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
             <Pagination.Item>
               <Pagination.Next
                 href="#"
-                label="Далее"
+                label={t("notifications.pagination.next")}
+                aria-label={t("notifications.pagination.nextAria")}
                 aria-disabled={nextDisabled}
                 tabIndex={nextDisabled ? -1 : 0}
                 className={
@@ -143,21 +147,31 @@ const NotificationsPanel = ({ category }: { category?: Category }) => {
   );
 };
 
-export const NotificationsList = () => (
-  <Tabs defaultValue="ALL">
-    <div className="overflow-x-auto">
-      <Tabs.List aria-label="Категории уведомлений">
-        {FILTERS.map(({ value, label }) => (
-          <Tabs.Trigger key={value} value={value}>
-            {label}
-          </Tabs.Trigger>
-        ))}
-      </Tabs.List>
-    </div>
-    {FILTERS.map(({ value }) => (
-      <Tabs.Content key={value} value={value} className="mt-6">
-        <NotificationsPanel category={value === "ALL" ? undefined : value} />
-      </Tabs.Content>
-    ))}
-  </Tabs>
-);
+export const NotificationsList = () => {
+  const { t } = useTranslation("common");
+  const FILTERS: { value: "ALL" | NonNullable<Category>; label: string }[] = [
+    { value: "ALL", label: t("notifications.filters.all") },
+    { value: "INTERVIEW", label: t("notifications.filters.interview") },
+    { value: "MESSAGE", label: t("notifications.filters.message") },
+    { value: "SYSTEM", label: t("notifications.filters.system") },
+  ];
+
+  return (
+    <Tabs defaultValue="ALL">
+      <div className="overflow-x-auto">
+        <Tabs.List aria-label={t("notifications.categories")}>
+          {FILTERS.map(({ value, label }) => (
+            <Tabs.Trigger key={value} value={value}>
+              {label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+      </div>
+      {FILTERS.map(({ value }) => (
+        <Tabs.Content key={value} value={value} className="mt-6">
+          <NotificationsPanel category={value === "ALL" ? undefined : value} />
+        </Tabs.Content>
+      ))}
+    </Tabs>
+  );
+};
