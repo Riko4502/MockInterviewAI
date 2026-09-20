@@ -54,9 +54,7 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
 
         const params = new URLSearchParams(searchParams.toString());
         params.set("room", res.sessionId);
-        if (res.inviteToken) {
-          params.set("invite", res.inviteToken);
-        }
+        params.delete("invite");
         routerRef.current.replace(`${pathname}?${params.toString()}`);
 
         onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
@@ -107,24 +105,45 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
     }
 
     const roomParam = searchParams.get("room");
-    const inviteParam = searchParams.get("invite");
+
+    // Читаем инвайт сначала из URI-фрагмента (#invite=...), затем fallback на searchParams
+    let inviteParam: string | null = null;
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hashParams = new URLSearchParams(
+        window.location.hash.replace(/^#/, ""),
+      );
+      inviteParam = hashParams.get("invite");
+    }
+    if (!inviteParam) {
+      inviteParam = searchParams.get("invite");
+    }
+
+    // Немедленно вычищаем чувствительный invite-токен из URL и истории браузера (CWE-598)
+    if (
+      typeof window !== "undefined" &&
+      (searchParams.has("invite") || window.location.hash?.includes("invite="))
+    ) {
+      const cleanParams = new URLSearchParams(searchParams.toString());
+      cleanParams.delete("invite");
+      const cleanQuery = cleanParams.toString()
+        ? `?${cleanParams.toString()}`
+        : "";
+      const cleanUrl = `${pathname}${cleanQuery}`;
+      window.history.replaceState(null, "", cleanUrl);
+    }
 
     if (roomParam && isValidUUID(roomParam)) {
       joinSession(roomParam, inviteParam ?? undefined);
     } else {
       createSession();
     }
-  }, [searchParams, joinSession, createSession]);
+  }, [searchParams, joinSession, createSession, pathname]);
 
   const handleCreateNewSession = useCallback(() => {
     setRoomId(null);
     setInviteToken(null);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("room");
-    params.delete("invite");
-    routerRef.current.replace(`${pathname}?${params.toString()}`);
     createSession();
-  }, [searchParams, pathname, createSession]);
+  }, [createSession]);
 
   // Error State
   if (status === "error") {

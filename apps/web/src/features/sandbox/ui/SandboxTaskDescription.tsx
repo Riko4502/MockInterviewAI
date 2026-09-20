@@ -7,9 +7,9 @@ import type { TaskDifficulty } from "../model/types";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 const DIFFICULTY_LOCALIZATION: Record<TaskDifficulty, BadgeVariant> = {
-  Easy: "success",
-  Medium: "warning",
-  Hard: "error",
+  Easy: "statusSuccess",
+  Medium: "statusInfo",
+  Hard: "statusDanger",
 };
 
 export function SandboxTaskDescription() {

@@ -9,11 +9,10 @@ import { useSandboxStore } from "./useSandboxStore";
  */
 export function useSandboxTimer() {
   const isTimerRunning = useSandboxStore((s) => s.isTimerRunning);
-  const timerSeconds = useSandboxStore((s) => s.timerSeconds);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (isTimerRunning && timerSeconds > 0) {
+    if (isTimerRunning) {
       interval = setInterval(() => {
         useSandboxStore.getState().tickTimer();
       }, 1000);
@@ -21,7 +20,7 @@ export function useSandboxTimer() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isTimerRunning, timerSeconds]);
+  }, [isTimerRunning]);
 }
 
 /**

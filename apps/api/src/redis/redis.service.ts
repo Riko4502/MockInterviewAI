@@ -333,4 +333,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async ping(): Promise<string> {
     return this.client.ping();
   }
+
+  /**
+   * Выполняет произвольный Lua-скрипт в Redis (EVAL).
+   *
+   * @param script - Текст Lua-скрипта.
+   * @param numKeys - Количество ключей.
+   * @param args - Ключи и аргументы.
+   * @returns Результат выполнения скрипта.
+   * @throws {Error} При ошибке Redis.
+   */
+  async eval<T = unknown>(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<T> {
+    return (await this.client.eval(script, numKeys, ...args)) as T;
+  }
 }

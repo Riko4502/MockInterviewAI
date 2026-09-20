@@ -33,6 +33,7 @@ interface PendingCodeState {
   id: string;
   code: string;
   language: LanguageId;
+  baseVersion: number;
 }
 
 interface PendingTaskState {
@@ -70,6 +71,7 @@ export function useSandboxRealtime({
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
+  const lastServerVersionRef = useRef<number>(0);
   const pendingCodeRef = useRef<PendingCodeState | null>(null);
   const pendingTaskRef = useRef<PendingTaskState | null>(null);
 
@@ -216,7 +218,12 @@ export function useSandboxRealtime({
   const broadcastCodeUpdate = useCallback(
     (code: string, language: LanguageId) => {
       const id = uuidv4();
-      pendingCodeRef.current = { id, code, language };
+      pendingCodeRef.current = {
+        id,
+        code,
+        language,
+        baseVersion: lastServerVersionRef.current,
+      };
       sendMessage("code-update", { code, language }, id);
     },
     [sendMessage],
@@ -300,27 +307,46 @@ export function useSandboxRealtime({
             updatePeers();
 
             // Восстановление начального состояния кода при синхронизации комнаты
-            if (envelope.payload.codeState?.content !== undefined) {
-              if (
-                pendingCodeRef.current &&
-                pendingCodeRef.current.code ===
-                  envelope.payload.codeState.content
-              ) {
-                pendingCodeRef.current = null;
-              } else if (pendingCodeRef.current) {
-                // Если есть неподтвержденные локальные изменения, повторно отправляем их
-                sendMessage(
-                  "code-update",
-                  {
-                    code: pendingCodeRef.current.code,
-                    language: pendingCodeRef.current.language,
-                  },
-                  pendingCodeRef.current.id,
-                );
+            const serverCodeState = envelope.payload.codeState;
+            if (serverCodeState?.content !== undefined) {
+              const serverVersion =
+                serverCodeState.version ?? envelope.version ?? 0;
+              lastServerVersionRef.current = Math.max(
+                lastServerVersionRef.current,
+                serverVersion,
+              );
+
+              if (pendingCodeRef.current) {
+                if (pendingCodeRef.current.code === serverCodeState.content) {
+                  // Сервер уже содержит идентичный локальному код
+                  pendingCodeRef.current = null;
+                } else if (
+                  pendingCodeRef.current.baseVersion === serverVersion
+                ) {
+                  // Локально-новое состояние: базовая ревизия совпадает с серверной,
+                  // сервер не продвинулся дальше наших правок — повторно отправляем локальный код
+                  sendMessage(
+                    "code-update",
+                    {
+                      code: pendingCodeRef.current.code,
+                      language: pendingCodeRef.current.language,
+                    },
+                    pendingCodeRef.current.id,
+                  );
+                } else {
+                  // Серверно-новое состояние (serverVersion > baseVersion):
+                  // сервер ушел вперед (изменения другого участника),
+                  // сбрасываем устаревший локальный буфер во избежание затирания правок
+                  pendingCodeRef.current = null;
+                  callbacksRef.current.onRemoteCodeUpdate?.(
+                    serverCodeState.content,
+                    serverCodeState.language as LanguageId,
+                  );
+                }
               } else {
                 callbacksRef.current.onRemoteCodeUpdate?.(
-                  envelope.payload.codeState.content,
-                  envelope.payload.codeState.language as LanguageId,
+                  serverCodeState.content,
+                  serverCodeState.language as LanguageId,
                 );
               }
             }
@@ -385,6 +411,14 @@ export function useSandboxRealtime({
             const isOwnPending = pendingCodeRef.current?.id === reqId;
             if (isOwnPending) {
               pendingCodeRef.current = null;
+            }
+            const incomingVersion =
+              envelope.payload?.version ?? envelope.version ?? 0;
+            if (incomingVersion > 0) {
+              lastServerVersionRef.current = Math.max(
+                lastServerVersionRef.current,
+                incomingVersion,
+              );
             }
             if (markMessageSeen(reqId) || isOwnPending) {
               break;
@@ -459,17 +493,8 @@ export function useSandboxRealtime({
         } else {
           wsConnRef.current = conn;
           setWsConnected(true);
-          // Отправка неподтвержденных локальных изменений после восстановления соединения
-          if (pendingCodeRef.current) {
-            sendMessage(
-              "code-update",
-              {
-                code: pendingCodeRef.current.code,
-                language: pendingCodeRef.current.language,
-              },
-              pendingCodeRef.current.id,
-            );
-          }
+          // Повторная отправка локального буфера кода выполняется исключительно в обработчике room.sync
+          // после проверки совпадения базовой ревизии (baseVersion === serverVersion).
           if (pendingTaskRef.current) {
             sendMessage(
               "task-change",

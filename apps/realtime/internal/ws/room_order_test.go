@@ -613,6 +613,7 @@ func TestRoom_MultiReplica_GlobalVersioningAndConditionalSave(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
+		time.Sleep(2 * time.Millisecond)
 		for i := 1; i <= updatesPerReplica; i++ {
 			codeEnv := NewEnvelope(
 				EventCodeUpdate,
@@ -636,7 +637,7 @@ func TestRoom_MultiReplica_GlobalVersioningAndConditionalSave(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		sharedStore.mu.Lock()
-		count := len(sharedStore.savedPayload)
+		count := len(sharedStore.callLog)
 		sharedStore.mu.Unlock()
 		if count >= 2*updatesPerReplica {
 			break
@@ -647,9 +648,9 @@ func TestRoom_MultiReplica_GlobalVersioningAndConditionalSave(t *testing.T) {
 	sharedStore.mu.Lock()
 	defer sharedStore.mu.Unlock()
 
-	// Проверяем, что все сохраненные в хранилище версии строго монотонно возрастают без регрессий
+	// Проверяем, что все вызовы сохранения в хранилище строго монотонно возрастают без регрессий
 	var prevVersion int64
-	for i, p := range sharedStore.savedPayload {
+	for i, p := range sharedStore.callLog {
 		if p.Version <= prevVersion {
 			t.Errorf("version sequence regression at step %d: prev=%d, current=%d", i, prevVersion, p.Version)
 		}

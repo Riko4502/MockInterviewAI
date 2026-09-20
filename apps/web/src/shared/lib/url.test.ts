@@ -40,5 +40,17 @@ describe("url helpers", () => {
         "https://app.mockinterview.ai/dashboard/sandbox?room=uuid-123&invite=token-abc",
       );
     });
+
+    it("формирует абсолютную ссылку с hash-фрагментом для безопасной передачи инвайта (CWE-598)", () => {
+      process.env.NEXT_PUBLIC_APP_URL = "https://app.mockinterview.ai";
+      const url = buildAppUrl("/dashboard/sandbox", {
+        params: { room: "uuid-123" },
+        hash: "invite=token-abc",
+      });
+
+      expect(url).toBe(
+        "https://app.mockinterview.ai/dashboard/sandbox?room=uuid-123#invite=token-abc",
+      );
+    });
   });
 });

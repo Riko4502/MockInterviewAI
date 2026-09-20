@@ -35,8 +35,8 @@ export function getAppUrl(): string {
  *
  * @example
  * ```ts
- * buildAppUrl("/dashboard/sandbox", { room: "123", invite: "token-abc" });
- * // => "http://localhost:3000/dashboard/sandbox?room=123&invite=token-abc"
+ * buildAppUrl("/dashboard/sandbox", { params: { room: "123" }, hash: "invite=token-abc" });
+ * // => "http://localhost:3000/dashboard/sandbox?room=123#invite=token-abc"
  * ```
  */
 export function buildAppUrl(

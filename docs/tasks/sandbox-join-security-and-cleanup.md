@@ -61,8 +61,8 @@ sequenceDiagram
     Owner->>API: POST /sessions
     API-->>Owner: 201 Created { sessionId, inviteToken }
 
-    Note over Owner, Guest: 2. Передача ссылки собеседнику
-    Owner->>Guest: Ссылка: /dashboard/sandbox?room=UUID&invite=TOKEN
+    Note over Owner, Guest: 2. Передача ссылки собеседнику (URI-хэш, не уходит в GET-запросах, CWE-598)
+    Owner->>Guest: Ссылка: /dashboard/sandbox?room=UUID#invite=TOKEN
 
     Note over Guest, API: 3. Безопасное присоединение по токену
     Guest->>API: POST /sessions/:id/join { inviteToken }
@@ -139,11 +139,12 @@ sequenceDiagram
     - Реализовать функцию `getAppUrl()` (чтение `NEXT_PUBLIC_APP_URL` с fallback на `window.location.origin` / `http://localhost:3000`).
     - Экспортировать универсальный `buildAppUrl(pathname, optionsOrParams)` для построения любых абсолютных ссылок в приложении (инвайты, сессии, уведомления, шаринг).
   - **Файл:** `apps/web/src/features/sandbox/ui/SandboxRoom.tsx`
-    - Извлекать `invite` из `searchParams` (`searchParams.get("invite")`) и передавать в `sessionsControllerJoinSession(roomParam, { inviteToken })`.
+    - Извлекать `invite` из URI fragment (`window.location.hash`, `#invite=...`) с fallback на `searchParams.get("invite")` (обратная совместимость) и передавать в `sessionsControllerJoinSession(roomParam, { inviteToken })`.
+    - Немедленно очищать `invite` из адресной строки и истории браузера через `window.history.replaceState` во избежание утечки в logs/referrer (CWE-598).
     - Сохранять полученный `inviteToken` в состоянии компонента и передавать в `onSessionReady`.
-    - При создании сессии сохранять `invite` в URL (`?room=${sessionId}&invite=${inviteToken}`).
+    - При создании сессии сохранять в URL только `?room=${sessionId}` (без `invite`).
   - **Файл:** `apps/web/src/features/sandbox/model/SandboxMediaContext.tsx`
-    - Заменить прямое использование `window.location.origin` на универсальный вызов `buildAppUrl(pathname, { room: roomId, invite: inviteToken })`.
+    - Формировать инвайт-ссылку с URI-хэшем через `buildAppUrl(pathname, { params: { room: roomId }, hash: inviteToken ? "invite=" + inviteToken : undefined })`, исключая передачу bearer credential в query string GET-запросов.
 
 - [x] **9. Верификация и тестирование**
   - `pnpm test:api`

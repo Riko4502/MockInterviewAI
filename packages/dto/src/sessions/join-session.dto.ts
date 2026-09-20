@@ -43,3 +43,17 @@ export const createSessionResponseSchema = z.object({
 export type CreateSessionResponseDto = z.infer<
   typeof createSessionResponseSchema
 >;
+
+/**
+ * Zod-схема ответа на ротацию инвайт-токена интервью-сессии.
+ */
+export const rotateInviteResponseSchema = z.object({
+  inviteToken: z.string(),
+});
+
+/**
+ * Типизированный DTO ответа на ротацию инвайт-токена интервью-сессии.
+ */
+export type RotateInviteResponseDto = z.infer<
+  typeof rotateInviteResponseSchema
+>;

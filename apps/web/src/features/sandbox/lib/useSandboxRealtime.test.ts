@@ -409,7 +409,30 @@ describe("useSandboxRealtime deduplication", () => {
 
     const handler = wsMessageHandler as (event: { data: string }) => void;
 
-    // 1. Broadcast local code update (unacknowledged)
+    // 0. Initial room.sync establishes baseVersion: 1
+    act(() => {
+      handler({
+        data: JSON.stringify({
+          sessionId: "test-room-pending-code-remote-dup",
+          requestId: "sync_req_init",
+          timestamp: new Date().toISOString(),
+          version: 1,
+          type: "room.sync",
+          payload: {
+            sessionId: "test-room-pending-code-remote-dup",
+            participants: [],
+            codeState: {
+              filePath: "main",
+              language: "typescript",
+              content: "const initial = true;",
+              version: 1,
+            },
+          },
+        }),
+      });
+    });
+
+    // 1. Broadcast local code update (unacknowledged, baseVersion: 1)
     mockWsSend.mockClear();
     act(() => {
       hookResult.current.broadcastCodeUpdate(
@@ -443,16 +466,19 @@ describe("useSandboxRealtime deduplication", () => {
     act(() => {
       handler({ data: JSON.stringify(remoteEnvelope) });
     });
-    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(1);
+    expect(onRemoteCodeUpdate).toHaveBeenCalledWith(
+      "const remote = true;",
+      "typescript",
+    );
 
     // Second arrival (duplicate)
     act(() => {
       handler({ data: JSON.stringify(remoteEnvelope) });
     });
     // Should still be called only once
-    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(1);
+    expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(2);
 
-    // 3. Now simulate room.sync (reconnect); our pending code should STILL be pending and resent
+    // 3. Now simulate room.sync (reconnect); our pending code should STILL be pending and resent (baseVersion === serverVersion: 1)
     mockWsSend.mockClear();
     const syncEnvelope = {
       sessionId: "test-room-pending-code-remote-dup",
@@ -476,7 +502,7 @@ describe("useSandboxRealtime deduplication", () => {
       handler({ data: JSON.stringify(syncEnvelope) });
     });
 
-    // Pending code should be resent on room.sync
+    // Pending code should be resent on room.sync because baseVersion matches serverVersion
     expect(mockWsSend).toHaveBeenCalledTimes(1);
     const resentEnvelope = JSON.parse(
       mockWsSend.mock.calls[0][0],
@@ -484,6 +510,185 @@ describe("useSandboxRealtime deduplication", () => {
     expect(resentEnvelope.requestId).toBe(myRequestId);
     expect((resentEnvelope.payload as { content: string }).content).toBe(
       "const pending = true;",
+    );
+
+    unmountHook();
+  });
+
+  it("should resend pending code on room.sync when baseVersion matches serverVersion (local-newer state)", async () => {
+    const onRemoteCodeUpdate = vi.fn();
+
+    let hookResult!: { current: ReturnType<typeof useSandboxRealtime> };
+    let unmountHook!: () => void;
+
+    await act(async () => {
+      const { result, unmount } = renderHook(() =>
+        useSandboxRealtime({
+          roomId: "test-room-local-newer",
+          onRemoteCodeUpdate,
+        }),
+      );
+      hookResult = result;
+      unmountHook = unmount;
+    });
+
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // 1. Initial room.sync sets server version to 5
+    act(() => {
+      handler({
+        data: JSON.stringify({
+          sessionId: "test-room-local-newer",
+          requestId: "init_sync",
+          timestamp: new Date().toISOString(),
+          version: 5,
+          type: "room.sync",
+          payload: {
+            sessionId: "test-room-local-newer",
+            participants: [],
+            codeState: {
+              filePath: "main",
+              language: "typescript",
+              content: "const a = 5;",
+              version: 5,
+            },
+          },
+        }),
+      });
+    });
+
+    // 2. User edits code locally (baseVersion recorded as 5)
+    mockWsSend.mockClear();
+    act(() => {
+      hookResult.current.broadcastCodeUpdate("const a = 6;", "typescript");
+    });
+
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const sentReqId = (
+      JSON.parse(mockWsSend.mock.calls[0][0]) as AnyWebSocketEnvelope
+    ).requestId;
+
+    // 3. Reconnect occurs: server sends room.sync with version 5 (no one else changed code)
+    mockWsSend.mockClear();
+    act(() => {
+      handler({
+        data: JSON.stringify({
+          sessionId: "test-room-local-newer",
+          requestId: "reconnect_sync",
+          timestamp: new Date().toISOString(),
+          version: 5,
+          type: "room.sync",
+          payload: {
+            sessionId: "test-room-local-newer",
+            participants: [],
+            codeState: {
+              filePath: "main",
+              language: "typescript",
+              content: "const a = 5;",
+              version: 5,
+            },
+          },
+        }),
+      });
+    });
+
+    // 4. Because baseVersion (5) === serverVersion (5), pending code is safely resent
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+    const resent = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    expect(resent.requestId).toBe(sentReqId);
+    expect((resent.payload as { content: string }).content).toBe(
+      "const a = 6;",
+    );
+
+    unmountHook();
+  });
+
+  it("should discard pending code on room.sync when serverVersion is newer than baseVersion (server-newer state)", async () => {
+    const onRemoteCodeUpdate = vi.fn();
+
+    let hookResult!: { current: ReturnType<typeof useSandboxRealtime> };
+    let unmountHook!: () => void;
+
+    await act(async () => {
+      const { result, unmount } = renderHook(() =>
+        useSandboxRealtime({
+          roomId: "test-room-server-newer",
+          onRemoteCodeUpdate,
+        }),
+      );
+      hookResult = result;
+      unmountHook = unmount;
+    });
+
+    const handler = wsMessageHandler as (event: { data: string }) => void;
+
+    // 1. Initial room.sync sets server version to 5
+    act(() => {
+      handler({
+        data: JSON.stringify({
+          sessionId: "test-room-server-newer",
+          requestId: "init_sync",
+          timestamp: new Date().toISOString(),
+          version: 5,
+          type: "room.sync",
+          payload: {
+            sessionId: "test-room-server-newer",
+            participants: [],
+            codeState: {
+              filePath: "main",
+              language: "typescript",
+              content: "const a = 5;",
+              version: 5,
+            },
+          },
+        }),
+      });
+    });
+
+    // 2. User edits code locally based on version 5
+    mockWsSend.mockClear();
+    act(() => {
+      hookResult.current.broadcastCodeUpdate("const a = 6;", "typescript");
+    });
+
+    expect(mockWsSend).toHaveBeenCalledTimes(1);
+
+    // 3. While disconnected / pending, another participant updated the code on server to version 6
+    mockWsSend.mockClear();
+    onRemoteCodeUpdate.mockClear();
+
+    act(() => {
+      handler({
+        data: JSON.stringify({
+          sessionId: "test-room-server-newer",
+          requestId: "reconnect_sync_newer",
+          timestamp: new Date().toISOString(),
+          version: 6,
+          type: "room.sync",
+          payload: {
+            sessionId: "test-room-server-newer",
+            participants: [],
+            codeState: {
+              filePath: "main",
+              language: "typescript",
+              content: "const remoteEdit = 999;",
+              version: 6,
+            },
+          },
+        }),
+      });
+    });
+
+    // 4. Server-newer state (serverVersion: 6 > baseVersion: 5):
+    // Outdated pending code MUST NOT be resent to avoid overwriting peer's changes with higher version
+    expect(mockWsSend).not.toHaveBeenCalled();
+
+    // The remote code update must be applied locally
+    expect(onRemoteCodeUpdate).toHaveBeenCalledWith(
+      "const remoteEdit = 999;",
+      "typescript",
     );
 
     unmountHook();

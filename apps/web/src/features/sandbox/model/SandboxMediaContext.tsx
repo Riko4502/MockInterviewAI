@@ -93,8 +93,8 @@ export function SandboxMediaProvider({
     if (typeof window === "undefined") return;
 
     const url = buildAppUrl(pathname, {
-      room: roomId,
-      ...(inviteToken ? { invite: inviteToken } : {}),
+      params: { room: roomId },
+      hash: inviteToken ? `invite=${inviteToken}` : undefined,
     });
     navigator.clipboard
       .writeText(url)

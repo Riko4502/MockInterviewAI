@@ -13,3 +13,8 @@ export function sessionActiveKey(sessionId: string): string {
 export function sessionMembersKey(sessionId: string): string {
   return `session:${sessionId}:members`;
 }
+
+/** Ключ активного инвайт-токена сессии: `session:{id}:invite` → string (random token). */
+export function sessionInviteKey(sessionId: string): string {
+  return `session:${sessionId}:invite`;
+}

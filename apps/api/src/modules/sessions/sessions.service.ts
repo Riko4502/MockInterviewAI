@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
   ForbiddenException,
   Injectable,
@@ -15,7 +15,11 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 
-import { sessionActiveKey, sessionMembersKey } from "./session-keys";
+import {
+  sessionActiveKey,
+  sessionInviteKey,
+  sessionMembersKey,
+} from "./session-keys";
 
 const ACTIVE_VALUE = "true";
 const CLOSED_VALUE = "closed";
@@ -23,6 +27,23 @@ const MAX_SESSION_PARTICIPANTS = 10;
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Lua-скрипт для атомарной проверки активности сессии и добавления участника (CWE-367 TOCTOU).
+ *
+ * Если ключ активности равен "closed" — прерывается с кодом 0 (сессия закрыта).
+ * Если нет — атомарно выставляет "true", сохраняет участника в hash и продлевает TTL.
+ */
+const ACTIVATE_SESSION_MEMBER_LUA = `
+local current = redis.call('GET', KEYS[1])
+if current == ARGV[2] then
+  return 0
+end
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[5])
+redis.call('HSET', KEYS[2], ARGV[3], ARGV[4])
+redis.call('EXPIRE', KEYS[2], ARGV[5])
+return 1
+`;
 
 /**
  * Управляет интервью-сессиями и их Redis-зеркалом (источник правды о членстве).
@@ -52,25 +73,34 @@ export class SessionsService {
   }
 
   /**
-   * Генерирует детерминированный HMAC SHA-256 inviteToken на основе sessionId и секрета.
+   * Генерирует криптографически стойкий случайный inviteToken (256 бит энтропии).
+   * Недетерминирован, защищён от прогнозирования и подбора (CWE-613).
    */
-  generateInviteToken(sessionId: string): string {
-    return createHmac("sha256", this.jwtAccessSecret)
-      .update(`session-invite:${sessionId}`)
-      .digest("hex");
+  generateInviteToken(_sessionId?: string): string {
+    return randomBytes(32).toString("hex");
   }
 
   /**
-   * Выполняет timing-safe валидацию HMAC inviteToken (защита от CWE-208 Timing Attacks).
+   * Выполняет timing-safe валидацию inviteToken (защита от CWE-208 Timing Attacks).
    */
-  validateInviteToken(sessionId: string, token?: string): boolean {
-    if (!token || typeof token !== "string" || token.length !== 64) {
+  validateInviteToken(
+    expectedToken?: string | null,
+    receivedToken?: string,
+  ): boolean {
+    if (
+      !expectedToken ||
+      !receivedToken ||
+      typeof expectedToken !== "string" ||
+      typeof receivedToken !== "string"
+    ) {
+      return false;
+    }
+    if (expectedToken.length !== 64 || receivedToken.length !== 64) {
       return false;
     }
     try {
-      const expectedHex = this.generateInviteToken(sessionId);
-      const expectedBuf = Buffer.from(expectedHex, "hex");
-      const receivedBuf = Buffer.from(token, "hex");
+      const expectedBuf = Buffer.from(expectedToken, "hex");
+      const receivedBuf = Buffer.from(receivedToken, "hex");
       if (expectedBuf.length !== receivedBuf.length) {
         return false;
       }
@@ -82,7 +112,8 @@ export class SessionsService {
 
   /**
    * Создаёт интервью-сессию. Создатель становится владельцем и участником
-   * с ролью `interviewer`. Возвращает `{ sessionId, inviteToken }`.
+   * с ролью `interviewer`. Сохраняет сгенерированный инвайт-токен в Redis
+   * и возвращает `{ sessionId, inviteToken }`.
    */
   async createSession(
     creatorUserId: string,
@@ -112,6 +143,11 @@ export class SessionsService {
     );
 
     const inviteToken = this.generateInviteToken(session.id);
+    await this.redis.set(
+      sessionInviteKey(session.id),
+      inviteToken,
+      this.mirrorTtlSeconds,
+    );
 
     this.logger.log(
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
@@ -142,7 +178,8 @@ export class SessionsService {
       throw new NotFoundException("Session not found");
     }
 
-    const generatedInviteToken = this.generateInviteToken(sessionId);
+    // Считываем активный invite-токен из Redis для проверки новых участников (CWE-613)
+    const activeInviteToken = await this.redis.get(sessionInviteKey(sessionId));
 
     const participant = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
@@ -179,7 +216,10 @@ export class SessionsService {
         throw new ForbiddenException("Interview session is full");
       }
 
-      const isInviteValid = this.validateInviteToken(sessionId, inviteToken);
+      const isInviteValid = this.validateInviteToken(
+        activeInviteToken,
+        inviteToken,
+      );
       if (!isInviteValid) {
         throw new ForbiddenException(
           "User is not invited to this interview session",
@@ -197,22 +237,33 @@ export class SessionsService {
       });
     });
 
-    const currentActive = await this.redis.get(sessionActiveKey(sessionId));
-    if (currentActive === CLOSED_VALUE) {
-      throw new ForbiddenException("Session is closed");
-    }
-
-    await this.redis.set(
+    // Атомарно проверяем и активируем зеркало сессии в Redis (CWE-367 TOCTOU)
+    const activated = await this.redis.eval<number>(
+      ACTIVATE_SESSION_MEMBER_LUA,
+      2,
       sessionActiveKey(sessionId),
-      ACTIVE_VALUE,
-      this.mirrorTtlSeconds,
-    );
-    await this.redis.hset(
       sessionMembersKey(sessionId),
+      ACTIVE_VALUE,
+      CLOSED_VALUE,
       userId,
       participant.role,
       this.mirrorTtlSeconds,
     );
+
+    if (activated === 0) {
+      throw new ForbiddenException("Session is closed");
+    }
+
+    // Если токен в Redis отсутствовал (холодное зеркало), гарантируем его наличие
+    let effectiveInviteToken = activeInviteToken;
+    if (!effectiveInviteToken) {
+      effectiveInviteToken = this.generateInviteToken(sessionId);
+      await this.redis.set(
+        sessionInviteKey(sessionId),
+        effectiveInviteToken,
+        this.mirrorTtlSeconds,
+      );
+    }
 
     this.logger.log(
       `user ${userId} joined session ${sessionId} as ${participant.role}`,
@@ -220,8 +271,39 @@ export class SessionsService {
 
     return {
       role: participant.role as InterviewParticipantRole,
-      inviteToken: generatedInviteToken,
+      inviteToken: effectiveInviteToken,
     };
+  }
+
+  /**
+   * Ротирует invite-токен сессии: генерирует новый криптографически стойкий токен,
+   * сохраняет его в Redis с обновлением TTL и возвращает `{ inviteToken }`.
+   * Старый токен мгновенно становится невалидным (CWE-613).
+   */
+  async rotateInviteToken(sessionId: string): Promise<{ inviteToken: string }> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) {
+      throw new NotFoundException("Session not found");
+    }
+    if (session.status === InterviewSessionStatus.CLOSED) {
+      throw new ForbiddenException("Session is closed");
+    }
+
+    const newInviteToken = this.generateInviteToken(sessionId);
+    await this.redis.set(
+      sessionInviteKey(sessionId),
+      newInviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    this.logger.log(`rotated invite token for session ${sessionId}`);
+    return { inviteToken: newInviteToken };
   }
 
   /**
@@ -249,7 +331,9 @@ export class SessionsService {
 
   /**
    * Удаляет участника из сессии: запись из Postgres + HDEL из зеркала
-   * с продлением TTL.
+   * с продлением TTL + публикация room-scoped ревокации в realtime.
+   * Также автоматически ротирует/инвалидирует инвайт-токен сессии,
+   * чтобы удалённый участник не мог повторно войти по прежнему токену (CWE-613).
    */
   async removeParticipant(sessionId: string, userId: string): Promise<void> {
     await this.prisma.interviewParticipant.delete({
@@ -260,6 +344,21 @@ export class SessionsService {
       sessionMembersKey(sessionId),
       userId,
       this.mirrorTtlSeconds,
+    );
+
+    // Выселяем участника из активного realtime WS (1008)
+    await publishUserRevocation(this.redis, userId, sessionId);
+
+    // Инвалидируем старый инвайт-токен путём ротации нового
+    const newInviteToken = this.generateInviteToken(sessionId);
+    await this.redis.set(
+      sessionInviteKey(sessionId),
+      newInviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    this.logger.log(
+      `removed user ${userId} from session ${sessionId} and rotated invite token`,
     );
   }
 
@@ -300,6 +399,9 @@ export class SessionsService {
       CLOSED_VALUE,
       this.mirrorTtlSeconds,
     );
+
+    // Удаляем инвайт-токен закрытой сессии
+    await this.redis.delete(sessionInviteKey(sessionId));
   }
 
   /**
@@ -321,6 +423,7 @@ export class SessionsService {
       for (const session of sessions) {
         const activeKey = sessionActiveKey(session.id);
         const membersKey = sessionMembersKey(session.id);
+        const inviteKey = sessionInviteKey(session.id);
 
         const exists = await this.redis.exists(activeKey);
         await this.redis.set(activeKey, ACTIVE_VALUE, this.mirrorTtlSeconds);
@@ -335,6 +438,12 @@ export class SessionsService {
             participant.role.toString(),
             this.mirrorTtlSeconds,
           );
+        }
+
+        const existingInvite = await this.redis.get(inviteKey);
+        if (!existingInvite) {
+          const token = this.generateInviteToken(session.id);
+          await this.redis.set(inviteKey, token, this.mirrorTtlSeconds);
         }
       }
     } catch (error) {

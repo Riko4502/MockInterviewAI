@@ -81,6 +81,8 @@ export {
   type JoinSessionResponseDto,
   joinSessionResponseSchema,
   joinSessionSchema,
+  type RotateInviteResponseDto,
+  rotateInviteResponseSchema,
 } from "./sessions/join-session.dto";
 export {
   type AddParticipantDto,

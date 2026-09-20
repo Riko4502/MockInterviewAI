@@ -100,13 +100,19 @@ describe("SandboxRoom", () => {
     vi.clearAllMocks();
     authToken.set("mock-token-123");
     mockSearchParams = new URLSearchParams();
+    if (typeof window !== "undefined") {
+      window.location.hash = "";
+    }
   });
 
   afterEach(() => {
     authToken.clear();
+    if (typeof window !== "undefined") {
+      window.location.hash = "";
+    }
   });
 
-  it("создает новую сессию, если параметр room отсутствует", async () => {
+  it("создает новую сессию без токена в URL, если параметр room отсутствует (CWE-598)", async () => {
     createSessionMock.mockResolvedValue({
       sessionId: "new-session-uuid",
       inviteToken: "inv-token-123",
@@ -121,7 +127,7 @@ describe("SandboxRoom", () => {
     await waitFor(() => {
       expect(createSessionMock).toHaveBeenCalledTimes(1);
       expect(replaceMock).toHaveBeenCalledWith(
-        "/dashboard/sandbox?room=new-session-uuid&invite=inv-token-123",
+        "/dashboard/sandbox?room=new-session-uuid",
       );
       expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
       expect(screen.getByTestId("sandbox-task-panel")).toBeInTheDocument();
@@ -131,10 +137,47 @@ describe("SandboxRoom", () => {
     });
   });
 
-  it("присоединяется к сессии, если параметр room указан в URL", async () => {
+  it("присоединяется к сессии по URI-хэшу (#invite=...) и вычищает токен из URL (CWE-598)", async () => {
+    mockSearchParams = new URLSearchParams(
+      "room=11111111-1111-4111-a111-111111111111",
+    );
+    window.location.hash = "#invite=inv-token-hash-123";
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    joinSessionMock.mockResolvedValue({
+      role: "CANDIDATE",
+      inviteToken: "inv-token-hash-123",
+    });
+
+    render(
+      <ToastProvider>
+        <SandboxRoom />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(joinSessionMock).toHaveBeenCalledWith(
+        "11111111-1111-4111-a111-111111111111",
+        { inviteToken: "inv-token-hash-123" },
+      );
+      expect(replaceStateSpy).toHaveBeenCalledWith(
+        null,
+        "",
+        "/dashboard/sandbox?room=11111111-1111-4111-a111-111111111111",
+      );
+      expect(createSessionMock).not.toHaveBeenCalled();
+      expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
+    });
+
+    replaceStateSpy.mockRestore();
+  });
+
+  it("присоединяется к сессии по обратно-совместимому query-параметру (?invite=...) и вычищает его из URL", async () => {
     mockSearchParams = new URLSearchParams(
       "room=11111111-1111-4111-a111-111111111111&invite=inv-token-123",
     );
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
     joinSessionMock.mockResolvedValue({
       role: "CANDIDATE",
       inviteToken: "inv-token-123",
@@ -151,9 +194,16 @@ describe("SandboxRoom", () => {
         "11111111-1111-4111-a111-111111111111",
         { inviteToken: "inv-token-123" },
       );
+      expect(replaceStateSpy).toHaveBeenCalledWith(
+        null,
+        "",
+        "/dashboard/sandbox?room=11111111-1111-4111-a111-111111111111",
+      );
       expect(createSessionMock).not.toHaveBeenCalled();
       expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
     });
+
+    replaceStateSpy.mockRestore();
   });
 
   it("отображает ошибку и кнопку создания новой сессии, если присоединение не удалось", async () => {
@@ -178,6 +228,23 @@ describe("SandboxRoom", () => {
       expect(
         screen.getByRole("button", { name: /Создать новую сессию/i }),
       ).toBeInTheDocument();
+    });
+
+    createSessionMock.mockResolvedValueOnce({
+      sessionId: "new-created-session-uuid",
+    });
+
+    const createBtn = screen.getByRole("button", {
+      name: /Создать новую сессию/i,
+    });
+    fireEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(createSessionMock).toHaveBeenCalledTimes(1);
+      expect(replaceMock).toHaveBeenCalledWith(
+        "/dashboard/sandbox?room=new-created-session-uuid",
+      );
+      expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
     });
   });
 

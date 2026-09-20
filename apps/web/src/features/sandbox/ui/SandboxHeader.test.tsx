@@ -44,7 +44,7 @@ describe("SandboxHeader", () => {
 
     const timerToggleBtn = screen.getByRole("button", { name: /Старт/i });
     fireEvent.click(timerToggleBtn);
-    expect(useSandboxStore.getState().isTimerRunning).toBe(true);
+    expect(screen.getByRole("button", { name: /Пауза/i })).toBeInTheDocument();
 
     const runBtn = screen.getByRole("button", { name: /Запуск кода/i });
     expect(runBtn).toBeDisabled();

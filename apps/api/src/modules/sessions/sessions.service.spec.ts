@@ -26,6 +26,8 @@ describe("SessionsService", () => {
     hdel: jest.Mock;
     exists: jest.Mock;
     publish: jest.Mock;
+    delete: jest.Mock;
+    eval: jest.Mock;
   };
   let configMock: { get: jest.Mock };
   let service: SessionsService;
@@ -59,6 +61,8 @@ describe("SessionsService", () => {
       hdel: jest.fn().mockResolvedValue(undefined),
       exists: jest.fn().mockResolvedValue(false),
       publish: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(undefined),
+      eval: jest.fn().mockResolvedValue(1),
     };
     configMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -77,7 +81,7 @@ describe("SessionsService", () => {
   });
 
   describe("createSession", () => {
-    it("создаёт сессию, создатель = interviewer, разогревает зеркало и возвращает inviteToken", async () => {
+    it("создаёт сессию, создатель = interviewer, сохраняет inviteToken в Redis и разогревает зеркало", async () => {
       prismaMock.interviewSession.create.mockResolvedValue({
         id: sessionId,
         userId: ownerId,
@@ -106,11 +110,22 @@ describe("SessionsService", () => {
         "INTERVIEWER",
         7200,
       );
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
+        result.inviteToken,
+        7200,
+      );
     });
   });
 
   describe("joinSession", () => {
     it("успешно присоединяет существующего кандидата без inviteToken", async () => {
+      const activeToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return activeToken;
+        return null;
+      });
+
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
         status: "ACTIVE",
@@ -120,15 +135,15 @@ describe("SessionsService", () => {
       const result = await service.joinSession(sessionId, "candidate-1");
 
       expect(result.role).toBe("CANDIDATE");
-      expect(result.inviteToken).toHaveLength(64);
+      expect(result.inviteToken).toBe(activeToken);
       expect(prismaMock.$transaction).toHaveBeenCalled();
-      expect(redisMock.set).toHaveBeenCalledWith(
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
         `session:${sessionId}:active`,
-        "true",
-        7200,
-      );
-      expect(redisMock.hset).toHaveBeenCalledWith(
         `session:${sessionId}:members`,
+        "true",
+        "closed",
         "candidate-1",
         "CANDIDATE",
         7200,
@@ -137,6 +152,10 @@ describe("SessionsService", () => {
 
     it("успешно регистрирует нового кандидата при наличии валидного inviteToken", async () => {
       const validToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return validToken;
+        return null;
+      });
 
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
@@ -166,8 +185,13 @@ describe("SessionsService", () => {
         },
         update: {},
       });
-      expect(redisMock.hset).toHaveBeenCalledWith(
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
+        `session:${sessionId}:active`,
         `session:${sessionId}:members`,
+        "true",
+        "closed",
         "guest-user",
         "CANDIDATE",
         7200,
@@ -175,6 +199,12 @@ describe("SessionsService", () => {
     });
 
     it("бросает ForbiddenException если пользователь новый и inviteToken невалиден", async () => {
+      const activeToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return activeToken;
+        return null;
+      });
+
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
         status: "ACTIVE",
@@ -185,8 +215,7 @@ describe("SessionsService", () => {
         service.joinSession(sessionId, "uninvited-user", "invalid-token-123"),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(redisMock.set).not.toHaveBeenCalled();
-      expect(redisMock.hset).not.toHaveBeenCalled();
+      expect(redisMock.eval).not.toHaveBeenCalled();
     });
 
     it("бросает ForbiddenException если в комнате достигнут лимит участников (10)", async () => {
@@ -210,6 +239,12 @@ describe("SessionsService", () => {
     });
 
     it("возвращает существующую роль без изменения в БД (например INTERVIEWER)", async () => {
+      const activeToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return activeToken;
+        return null;
+      });
+
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
         status: "ACTIVE",
@@ -219,15 +254,15 @@ describe("SessionsService", () => {
       const result = await service.joinSession(sessionId, ownerId);
 
       expect(result.role).toBe("INTERVIEWER");
-      expect(result.inviteToken).toHaveLength(64);
+      expect(result.inviteToken).toBe(activeToken);
       expect(prismaMock.interviewParticipant.upsert).not.toHaveBeenCalled();
-      expect(redisMock.set).toHaveBeenCalledWith(
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
         `session:${sessionId}:active`,
-        "true",
-        7200,
-      );
-      expect(redisMock.hset).toHaveBeenCalledWith(
         `session:${sessionId}:members`,
+        "true",
+        "closed",
         ownerId,
         "INTERVIEWER",
         7200,
@@ -253,14 +288,54 @@ describe("SessionsService", () => {
         status: "ACTIVE",
         participants: [{ userId: "candidate-1", role: "CANDIDATE" }],
       });
-      redisMock.get.mockResolvedValue("closed");
+      // Lua script returns 0 because active key is "closed"
+      redisMock.eval.mockResolvedValue(0);
 
       await expect(
         service.joinSession(sessionId, "candidate-1"),
       ).rejects.toThrow(ForbiddenException);
+    });
 
-      expect(redisMock.set).not.toHaveBeenCalled();
-      expect(redisMock.hset).not.toHaveBeenCalled();
+    it("синхронизированный конкурентный тест (CWE-367): предотвращает TOCTOU-перезапись при порядке eval-get → closeSession → eval-set", async () => {
+      let redisActiveValue = "true";
+      let closeSessionExecuted = false;
+
+      // Моделируем атомарное выполнение Lua-скрипта в Redis
+      redisMock.eval.mockImplementation(
+        async (
+          _script: string,
+          _numKeys: number,
+          _activeKey: string,
+          _membersKey: string,
+          activeVal: string,
+          closedVal: string,
+        ) => {
+          // Имитируем конкурентное закрытие сессии до фиксации в Redis
+          if (!closeSessionExecuted) {
+            closeSessionExecuted = true;
+            redisActiveValue = closedVal;
+          }
+
+          if (redisActiveValue === closedVal) {
+            return 0;
+          }
+          redisActiveValue = activeVal;
+          return 1;
+        },
+      );
+
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        participants: [{ userId: "candidate-1", role: "CANDIDATE" }],
+      });
+
+      await expect(
+        service.joinSession(sessionId, "candidate-1"),
+      ).rejects.toThrow("Session is closed");
+
+      // Состояние в Redis остаётся закрытым и не перезаписано на "true"
+      expect(redisActiveValue).toBe("closed");
     });
 
     it("бросает NotFoundException если сессия не найдена", async () => {
@@ -281,6 +356,11 @@ describe("SessionsService", () => {
 
     it("выполняет блокировку строки сессии через SELECT FOR UPDATE внутри транзакции", async () => {
       const validToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return validToken;
+        return null;
+      });
+
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
         status: "ACTIVE",
@@ -319,7 +399,7 @@ describe("SessionsService", () => {
   });
 
   describe("removeParticipant", () => {
-    it("удаляет участника из Postgres и зеркала", async () => {
+    it("удаляет участника из Postgres, зеркала, публикует ревокацию и ротирует inviteToken (CWE-613)", async () => {
       prismaMock.interviewParticipant.delete.mockResolvedValue({});
 
       await service.removeParticipant(sessionId, "u-9");
@@ -332,11 +412,92 @@ describe("SessionsService", () => {
         "u-9",
         7200,
       );
+      expect(redisMock.publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(`"data":"u-9"`),
+      );
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
+        expect.any(String),
+        7200,
+      );
+    });
+
+    it("удалённый участник не может повторно присоединиться по старому inviteToken (CWE-613)", async () => {
+      let activeInvite =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return activeInvite;
+        return null;
+      });
+      redisMock.set.mockImplementation(async (key: string, value: string) => {
+        if (key === `session:${sessionId}:invite`) {
+          activeInvite = value;
+        }
+      });
+
+      prismaMock.interviewParticipant.delete.mockResolvedValue({});
+      await service.removeParticipant(sessionId, "kicked-candidate");
+
+      expect(activeInvite).not.toBe(
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      );
+
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+
+      await expect(
+        service.joinSession(
+          sessionId,
+          "kicked-candidate",
+          "1111111111111111111111111111111111111111111111111111111111111111",
+        ),
+      ).rejects.toThrow("User is not invited to this interview session");
+    });
+  });
+
+  describe("rotateInviteToken", () => {
+    it("ротирует inviteToken в Redis и возвращает новый токен", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+      });
+
+      const result = await service.rotateInviteToken(sessionId);
+
+      expect(result.inviteToken).toHaveLength(64);
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
+        result.inviteToken,
+        7200,
+      );
+    });
+
+    it("бросает NotFoundException если сессия не существует", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue(null);
+
+      await expect(service.rotateInviteToken(sessionId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("бросает ForbiddenException если сессия закрыта", async () => {
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "CLOSED",
+      });
+
+      await expect(service.rotateInviteToken(sessionId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
   describe("closeSession", () => {
-    it("закрывает сессию и публикует room-scoped ревокации по участникам", async () => {
+    it("закрывает сессию, публикует room-scoped ревокации и удаляет inviteToken", async () => {
       prismaMock.interviewSession.findUnique.mockResolvedValue({
         id: sessionId,
         userId: ownerId,
@@ -357,6 +518,9 @@ describe("SessionsService", () => {
         `session:${sessionId}:active`,
         "closed",
         7200,
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
       );
       expect(redisMock.publish).toHaveBeenCalledTimes(2);
       expect(redisMock.publish.mock.calls[0]).toEqual([

@@ -38,7 +38,7 @@ describe("SandboxTaskPanel", () => {
     });
     fireEvent.click(revealButton);
 
-    expect(useSandboxStore.getState().revealedHints).toBe(2);
+    expect(screen.getAllByText(/Открыта ✓/i)).toHaveLength(2);
   });
 
   it("should render notes tab and handle textarea changes", () => {
@@ -49,7 +49,7 @@ describe("SandboxTaskPanel", () => {
     const textarea = screen.getByDisplayValue("My test note");
     fireEvent.change(textarea, { target: { value: "Updated note" } });
 
-    expect(useSandboxStore.getState().notes).toBe("Updated note");
+    expect(screen.getByDisplayValue("Updated note")).toBeInTheDocument();
   });
 
   it("should render English localized strings when locale is set to en", () => {

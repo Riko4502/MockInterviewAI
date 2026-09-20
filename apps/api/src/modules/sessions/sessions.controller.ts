@@ -23,6 +23,7 @@ import {
   type JoinSessionDto,
   type JoinSessionResponseDto,
   joinSessionSchema,
+  type RotateInviteResponseDto,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
@@ -218,6 +219,49 @@ export class SessionsController {
   ): Promise<void> {
     await this.assertOwner(sessionId, ownerId);
     await this.sessionsService.closeSession(sessionId);
+  }
+
+  /**
+   * Ротирует инвайт-токен сессии (только владелец).
+   * Старый токен аннулируется, возвращается новый `{ inviteToken }`.
+   *
+   * @param sessionId - UUID сессии из пути.
+   * @param ownerId - UUID текущего пользователя.
+   */
+  @Post(":id/rotate-invite")
+  @ApiOperation({ summary: "Ротировать инвайт-токен сессии" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Инвайт-токен успешно ротирован",
+    schema: registerSchema("RotateInviteResponseDto", {
+      type: "object",
+      properties: {
+        inviteToken: {
+          type: "string",
+          description: "Новый инвайт-токен сессии",
+        },
+      },
+      required: ["inviteToken"],
+    }),
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({
+    status: 403,
+    description: "Доступ запрещен (не владелец или сессия закрыта)",
+  })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
+  async rotateInviteToken(
+    @Param("id") sessionId: string,
+    @CurrentUser("sub") ownerId: string,
+  ): Promise<RotateInviteResponseDto> {
+    await this.assertOwner(sessionId, ownerId);
+    return this.sessionsService.rotateInviteToken(sessionId);
   }
 
   /**
