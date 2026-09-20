@@ -24,7 +24,7 @@ Grafana provisioning). Без DSN Sentry остаётся выключенным
 
 ## Состав пакета
 
-```
+```text
 packages/observability/
 ├── src/
 │   ├── index.ts            # barrel: Sentry + Prometheus
@@ -82,9 +82,15 @@ scp-шагом `deploy-server.yml` и монтируются в Grafana (file-pr
 | `@packages/observability/sentry/client` | `sentryClientConfig` | `sentry.client.config.ts` (browser-safe, без Node-зависимостей) |
 | `@packages/observability/prometheus` | `prometheusEnv`, `PrometheusEnv` | валидация env Prometheus/Grafana |
 
-Все конфиги с `Sentry` используют строгую Zod-валидацию (`sentryEnv.parse`) и
-бросят ошибку при некорректном `SENTRY_DSN`, поэтому вызываются только под
-guard'ом по DSN.
+Server-конфиги (`sentryNestjsConfig`, `sentryRuntimeConfig`,
+`sentryNextjsConfig`) используют строгую Zod-валидацию (`sentryEnv.parse` против
+`SENTRY_DSN`) и бросят ошибку при отсутствующем/некорректном DSN, поэтому
+вызываются только под guard'ом по DSN.
+
+Браузерный `sentryClientConfig()` работает иначе: читает `NEXT_PUBLIC_*`
+через `browserEnv.safeParse` и возвращает `null`, если
+`NEXT_PUBLIC_SENTRY_DSN` не задан — отдельный guard у вызывающего кода не
+нужен, достаточно проверки `const config = sentryClientConfig(); if (config)`.
 
 ---
 

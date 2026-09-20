@@ -110,9 +110,9 @@ PrismaPg не даёт доступа к пулу `pg`) — панель в да
 
 ## 6. Куда дальше
 
-- `packages/observability/README.md` — обзор пакета, публичный API и env-переменные;
-- `packages/observability/SPEC.md` — архитектура и все метрики;
-- `packages/observability/PLAN.md` — статус реализации и §7 (dev-контур);
-- `docker-compose.prod.yml` и `packages/observability/infra/` — конфиги
+- [`packages/observability/README.md`](../../../packages/observability/README.md) — обзор пакета, публичный API и env-переменные;
+- [`packages/observability/SPEC.md`](../../../packages/observability/SPEC.md) — архитектура и все метрики;
+- [`packages/observability/PLAN.md`](../../../packages/observability/PLAN.md) — статус реализации и §7 (dev-контур);
+- [`docker-compose.prod.yml`](../../../docker-compose.prod.yml) и [`packages/observability/infra/`](../../../packages/observability/infra/) — конфиги
   Prometheus/Grafana/redis_exporter (прод и dev);
-- `docs/devops/monitoring/telegram-alerts.md` — CI/деплой-уведомления.
+- [`docs/devops/monitoring/telegram-alerts.md`](./telegram-alerts.md) — CI/деплой-уведомления.
