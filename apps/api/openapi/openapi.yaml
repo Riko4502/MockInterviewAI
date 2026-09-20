@@ -311,6 +311,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
+        "409":
+          description: Состояние пользователя изменилось параллельно — повторите запрос
+            (§67).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDto"
         "500":
           description: Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).
           content:

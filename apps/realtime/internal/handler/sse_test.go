@@ -32,6 +32,7 @@ type fakeStore struct {
 	revoked         map[string]bool
 	revokedSessions map[string]bool
 	minGen          map[string]int
+	genErr          error
 }
 
 func newFakeStore() *fakeStore {
@@ -81,6 +82,9 @@ func (f *fakeStore) CheckMinGeneration(_ context.Context, userID string, generat
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.genErr != nil {
+		return false, f.genErr
+	}
 	if f.minGen == nil {
 		return true, nil
 	}
@@ -631,5 +635,26 @@ func TestSSENotificationsGenerationFence(t *testing.T) {
 
 	if respValid.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 for valid generation, got %d", respValid.StatusCode)
+	}
+
+	// 3. Ошибка CheckMinGeneration (fail-closed при сбое store / Redis) -> 401
+	store.mu.Lock()
+	store.genErr = storage.ErrRedisUnavailable
+	store.mu.Unlock()
+
+	reqErr, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqErr.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &validGen))
+
+	respErr, err := http.DefaultClient.Do(reqErr)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respErr.Body.Close()
+
+	if respErr.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for CheckMinGeneration error (fail-closed), got %d", respErr.StatusCode)
 	}
 }

@@ -16,7 +16,7 @@ import type {
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
-import type { Role, User } from "../../generated/prisma/client";
+import type { Prisma, Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { AuthSessionService } from "../auth/services/auth-session.service";
@@ -176,24 +176,6 @@ export class UsersService {
         email: data.email,
         passwordHash: data.passwordHash,
         roleId: defaultRole.id,
-      },
-    });
-  }
-
-  /**
-   * Обновляет хеш пароля пользователя (§67 SPEC.md).
-   *
-   * @param id - UUID пользователя.
-   * @param passwordHash - Новый Argon2id хеш пароля.
-   * @returns Обновлённый объект пользователя.
-   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
-   */
-  async updatePassword(id: string, passwordHash: string): Promise<User> {
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        passwordHash,
-        generation: { increment: 1 },
       },
     });
   }
@@ -464,18 +446,9 @@ export class UsersService {
   /**
    * Преобразует выборку пользователя Prisma в полный UserProfileDto с ISO-строками дат.
    */
-  private mapToUserProfile(profile: {
-    id: string;
-    email: string;
-    displayName: string | null;
-    username: string | null;
-    avatarUrl: string | null;
-    telegramUsername: string | null;
-    gitUrl: string | null;
-    role: { slug: string; permissions: bigint } | null;
-    createdAt: Date | string;
-    updatedAt: Date | string;
-  }): UserProfileDto {
+  private mapToUserProfile(
+    profile: Prisma.UserGetPayload<{ select: typeof USER_PROFILE_SELECT }>,
+  ): UserProfileDto {
     return {
       id: profile.id,
       email: profile.email,
@@ -502,15 +475,9 @@ export class UsersService {
   /**
    * Преобразует выборку публичного профиля Prisma в PublicUserProfileDto с ISO-строкой даты.
    */
-  private mapToPublicUserProfile(user: {
-    id: string;
-    displayName: string | null;
-    username: string | null;
-    avatarUrl: string | null;
-    telegramUsername: string | null;
-    gitUrl: string | null;
-    createdAt: Date | string;
-  }): PublicUserProfileDto {
+  private mapToPublicUserProfile(
+    user: Prisma.UserGetPayload<{ select: typeof PUBLIC_PROFILE_SELECT }>,
+  ): PublicUserProfileDto {
     return {
       id: user.id,
       displayName: user.displayName,

@@ -651,6 +651,23 @@ describe("AdminUsersService", () => {
         authSessionServiceMock.revokeAllUserSessions,
       ).not.toHaveBeenCalled();
     });
+
+    it("выбрасывает BadRequestException при попытке активировать удаленного пользователя", async () => {
+      const adminId = "admin-uuid-123";
+      const targetUserId = "user-uuid-456";
+      const dto: UserStatusAdminDto = { isActive: true };
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUserRecord,
+        deletedAt: new Date("2026-09-15T00:00:00.000Z"),
+        isActive: false,
+      });
+
+      await expect(
+        service.updateStatus(targetUserId, dto, adminId),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
   });
 
   describe("resetPassword", () => {

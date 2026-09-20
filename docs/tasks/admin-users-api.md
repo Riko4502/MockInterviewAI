@@ -74,11 +74,6 @@ sequenceDiagram
 ```text
 MockInterviewAI/
 ├── packages/
-│   ├── types/
-│   │   └── src/
-│   │       ├── user.ts                        # Типы статусов пользователя (UserStatus, UserAdminView)
-│   │       └── pagination.ts                  # Общий тип пагинации PaginationMeta, PaginatedResponse<T>
-│   │
 │   └── dto/
 │       └── src/
 │           ├── admin/

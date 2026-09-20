@@ -401,7 +401,7 @@ func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (boo
 	key := fmt.Sprintf("session:%s:active", sessionID)
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 		r.logger.Warn("failed to check session active in redis", slog.String("error", err.Error()))
@@ -423,7 +423,7 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 	key := fmt.Sprintf("session:%s:members", sessionID)
 	role, err := r.client.HGet(ctx, key, userID).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return "", nil
 		}
 		r.logger.Warn("failed to fetch user role from redis session members",
@@ -484,7 +484,7 @@ func (r *RedisStore) CheckMinGeneration(ctx context.Context, userID string, gene
 	key := fmt.Sprintf("auth:user:%s:min_generation", userID)
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return true, nil
 		}
 		r.logger.Warn("failed to check min generation in redis",
@@ -565,7 +565,7 @@ func (r *RedisStore) GetCodeState(ctx context.Context, sessionID string) ([]byte
 	key := fmt.Sprintf("session:%s:code", sessionID)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err

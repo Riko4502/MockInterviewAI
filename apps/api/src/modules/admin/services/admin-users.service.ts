@@ -215,35 +215,7 @@ export class AdminUsersService {
 
       return this.mapToUserAdminResponse(user);
     } catch (error) {
-      if (
-        (error instanceof Prisma.PrismaClientKnownRequestError ||
-          (typeof error === "object" &&
-            error !== null &&
-            "code" in error &&
-            (error as { code: unknown }).code === "P2002")) &&
-        (error as { code: string }).code === "P2002"
-      ) {
-        const target = (error as { meta?: { target?: string[] | string } }).meta
-          ?.target;
-
-        const targetStr = Array.isArray(target)
-          ? target.join(",")
-          : String(target ?? "");
-
-        if (targetStr.includes("username")) {
-          throw new ConflictException(
-            dto.username
-              ? `Username "${dto.username}" is already taken`
-              : "Username is already taken",
-          );
-        }
-
-        if (targetStr.includes("email")) {
-          throw new ConflictException("Email already registered");
-        }
-
-        throw new ConflictException("Email or username already registered");
-      }
+      this.throwIfUniqueConflict(error, dto.username);
       throw error;
     }
   }
@@ -404,31 +376,7 @@ export class AdminUsersService {
 
       return this.mapToUserAdminResponse(updated.user);
     } catch (error) {
-      if (
-        (error instanceof Prisma.PrismaClientKnownRequestError ||
-          (typeof error === "object" &&
-            error !== null &&
-            "code" in error &&
-            (error as { code: unknown }).code === "P2002")) &&
-        (error as { code: string }).code === "P2002"
-      ) {
-        const target = (error as { meta?: { target?: string[] | string } }).meta
-          ?.target;
-        const targetStr = Array.isArray(target)
-          ? target.join(",")
-          : String(target ?? "");
-        if (targetStr.includes("username")) {
-          throw new ConflictException(
-            dto.username
-              ? `Username "${dto.username}" is already taken`
-              : "Username is already taken",
-          );
-        }
-        if (targetStr.includes("email")) {
-          throw new ConflictException("Email already registered");
-        }
-        throw new ConflictException("Email or username already registered");
-      }
+      this.throwIfUniqueConflict(error, dto.username);
       throw error;
     }
   }
@@ -462,6 +410,12 @@ export class AdminUsersService {
 
     if (!existing) {
       throw new NotFoundException("User not found");
+    }
+
+    if (dto.isActive && existing.deletedAt !== null) {
+      throw new BadRequestException(
+        "Cannot activate deleted user. Use restore instead",
+      );
     }
 
     const deactivatedAt = dto.isActive ? null : new Date();
@@ -803,5 +757,35 @@ export class AdminUsersService {
       timeCost: this.configService.get<number>("argon2.timeCost"),
       parallelism: this.configService.get<number>("argon2.parallelism"),
     });
+  }
+
+  /**
+   * Выбрасывает ConflictException при нарушении уникальности (Prisma P2002).
+   */
+  private throwIfUniqueConflict(
+    error: unknown,
+    username?: string | null,
+  ): void {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (code !== "P2002") {
+      return;
+    }
+    const target = (error as { meta?: { target?: string[] | string } }).meta
+      ?.target;
+    const targetStr = Array.isArray(target)
+      ? target.join(",")
+      : String(target ?? "");
+
+    if (targetStr.includes("username")) {
+      throw new ConflictException(
+        username
+          ? `Username "${username}" is already taken`
+          : "Username is already taken",
+      );
+    }
+    if (targetStr.includes("email")) {
+      throw new ConflictException("Email already registered");
+    }
+    throw new ConflictException("Email or username already registered");
   }
 }

@@ -74,7 +74,6 @@ describe("AuthService", () => {
   let findByEmail: jest.Mock;
   let findById: jest.Mock;
   let createUser: jest.Mock;
-  let updatePassword: jest.Mock;
   let generateAccessToken: jest.Mock;
   let generateRefreshToken: jest.Mock;
   let hashRefreshToken: jest.Mock;
@@ -150,10 +149,6 @@ describe("AuthService", () => {
       };
     });
     createUser = jest.fn().mockResolvedValue(USER);
-    updatePassword = jest.fn().mockResolvedValue({
-      ...USER,
-      passwordHash: "$argon2id$new-test-hash",
-    });
     generateAccessToken = jest.fn().mockReturnValue("raw.access.token");
     generateRefreshToken = jest.fn().mockReturnValue("raw.refresh.token");
     hashRefreshToken = jest.fn().mockReturnValue("stored.hmac.hash");
@@ -216,7 +211,6 @@ describe("AuthService", () => {
         findUserWithRoleByEmail,
         findUserWithRoleById,
         create: createUser,
-        updatePassword,
       } as unknown as UsersService,
       {
         generateAccessToken,
@@ -1053,7 +1047,7 @@ describe("AuthService", () => {
       expect(error.getResponse()).toMatchObject({
         message: "Неверные учётные данные",
       });
-      expect(updatePassword).not.toHaveBeenCalled();
+      expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
@@ -1068,7 +1062,7 @@ describe("AuthService", () => {
         message: "Пользователь не найден",
       });
       expect(argon2.verify).not.toHaveBeenCalled();
-      expect(updatePassword).not.toHaveBeenCalled();
+      expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
@@ -1096,7 +1090,7 @@ describe("AuthService", () => {
       expect(error.getResponse()).toMatchObject({
         message: "Новый пароль должен отличаться от текущего",
       });
-      expect(updatePassword).not.toHaveBeenCalled();
+      expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
@@ -1110,6 +1104,7 @@ describe("AuthService", () => {
       ).resolves.toBeUndefined();
 
       expect(loggerErrorSpy).toHaveBeenCalled();
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
     it("password и токены не попадают в логи (§46)", async () => {

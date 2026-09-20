@@ -358,6 +358,12 @@ export class AuthController {
     schema: errorResponseRef,
   })
   @ApiResponse({
+    status: 409,
+    description:
+      "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
+    schema: errorResponseRef,
+  })
+  @ApiResponse({
     status: 500,
     description:
       "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
