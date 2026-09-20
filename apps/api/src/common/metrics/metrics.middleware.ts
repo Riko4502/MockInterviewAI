@@ -12,9 +12,12 @@ import { MetricsService } from "./metrics.service";
  * в http_requests_total / nestjs_active_requests. Middleware срабатывает до
  * guards и учитывает все запросы.
  *
- * Маршрут достаётся из `req.route?.path` в обработчике `finish`: на момент
- * входа в middleware роутер ещё не выполнил matching, а к моменту завершения
- * ответа Express уже заполнил `req.route`.
+ * Маршрут достаётся из `req.route?.path` в обработчиках `finish`/`close`: на
+ * момент входа в middleware роутер ещё не выполнил matching, а к моменту
+ * завершения ответа Express уже заполнил `req.route`.
+ *
+ * Обрыв соединения клиентом (`close` без `finish` при `!writableFinished`) не
+ * считается завершённым ответом и попадает в отдельный счётчик aborted.
  */
 @Injectable()
 export class MetricsMiddleware implements NestMiddleware {
@@ -27,13 +30,13 @@ export class MetricsMiddleware implements NestMiddleware {
     this.metricsService.requestStarted();
 
     let settled = false;
-    const settle = () => {
+    const finish = () => {
       if (settled) {
         return;
       }
       settled = true;
-      res.off("finish", settle);
-      res.off("close", settle);
+      res.off("finish", finish);
+      res.off("close", close);
 
       const route = req.route?.path ?? "unmatched";
       const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
@@ -43,8 +46,22 @@ export class MetricsMiddleware implements NestMiddleware {
       );
     };
 
-    res.on("finish", settle);
-    res.on("close", settle);
+    const close = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      res.off("finish", finish);
+      res.off("close", close);
+
+      if (!res.writableFinished) {
+        const route = req.route?.path ?? "unmatched";
+        this.metricsService.requestAborted({ method, route });
+      }
+    };
+
+    res.on("finish", finish);
+    res.on("close", close);
 
     next();
   }

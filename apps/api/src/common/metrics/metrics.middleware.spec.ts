@@ -5,6 +5,7 @@ import { MetricsMiddleware } from "./metrics.middleware";
 
 class FakeResponse extends EventEmitter {
   statusCode = 200;
+  writableFinished = true;
 
   finish(): void {
     this.emit("finish");
@@ -22,14 +23,17 @@ function createRequest(partial: Partial<Request>): Request {
 describe("MetricsMiddleware", () => {
   let requestFinished: jest.Mock;
   let requestStarted: jest.Mock;
+  let requestAborted: jest.Mock;
   let middleware: MetricsMiddleware;
 
   beforeEach(() => {
     requestFinished = jest.fn();
     requestStarted = jest.fn();
+    requestAborted = jest.fn();
     middleware = new MetricsMiddleware({
       requestFinished,
       requestStarted,
+      requestAborted,
       // biome-ignore lint/suspicious/noExplicitAny: partial mock
     } as any);
   });
@@ -98,6 +102,47 @@ describe("MetricsMiddleware", () => {
     res.close();
 
     expect(requestFinished).toHaveBeenCalledTimes(1);
+    expect(requestAborted).not.toHaveBeenCalled();
+  });
+
+  it("считает обрыв соединения отдельно, не финализируя ответ", () => {
+    const req = createRequest({
+      method: "POST",
+      route: { path: "/api/v1/jobs" },
+    });
+    const res = new FakeResponse();
+    res.writableFinished = false;
+
+    middleware.use(
+      req,
+      res as unknown as Response,
+      jest.fn() as unknown as NextFunction,
+    );
+
+    res.close();
+
+    expect(requestAborted).toHaveBeenCalledTimes(1);
+    expect(requestAborted).toHaveBeenCalledWith({
+      method: "POST",
+      route: "/api/v1/jobs",
+    });
+    expect(requestFinished).not.toHaveBeenCalled();
+  });
+
+  it("не считает close, если ответ уже завершился, дважды", () => {
+    const req = createRequest({ method: "GET", route: { path: "/api/v1/x" } });
+    const res = new FakeResponse();
+
+    middleware.use(
+      req,
+      res as unknown as Response,
+      jest.fn() as unknown as NextFunction,
+    );
+
+    res.close();
+
+    expect(requestAborted).toHaveBeenCalledTimes(0);
+    expect(requestFinished).not.toHaveBeenCalled();
   });
 
   it("для неразрешённого маршрута пишет 'unmatched'", () => {

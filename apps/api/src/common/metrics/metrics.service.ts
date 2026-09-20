@@ -30,6 +30,7 @@ export class MetricsService implements OnModuleInit {
   private readonly registry = new Registry();
 
   private readonly httpRequestsTotal: Counter<string>;
+  private readonly httpRequestsAbortedTotal: Counter<string>;
   private readonly httpRequestDuration: Histogram<string>;
   private readonly activeRequests: Gauge<string>;
 
@@ -41,6 +42,13 @@ export class MetricsService implements OnModuleInit {
       name: "http_requests_total",
       help: "Total number of HTTP requests processed",
       labelNames: ["method", "route", "status_code"],
+      registers: [this.registry],
+    });
+
+    this.httpRequestsAbortedTotal = new Counter({
+      name: "http_requests_aborted_total",
+      help: "Total number of HTTP requests aborted by the client before completion",
+      labelNames: ["method", "route"],
       registers: [this.registry],
     });
 
@@ -92,6 +100,14 @@ export class MetricsService implements OnModuleInit {
       { method: labels.method, route: labels.route },
       durationMs / 1000,
     );
+  }
+
+  requestAborted(labels: { method: string; route: string }): void {
+    this.activeRequests.dec();
+    this.httpRequestsAbortedTotal.inc({
+      method: labels.method,
+      route: labels.route,
+    });
   }
 
   setRedisStatus(status: RedisConnectionStatus): void {
