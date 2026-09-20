@@ -176,7 +176,10 @@ realtime не вызывает API); механика входа участни�
 ### Шаги
 1. `docker-compose.yml`:
    - сервис `livekit` (`livekit/livekit-server:latest`), порты `7880` (сигнальный WS/HTTP),
-     `7881` (TCP media), UDP `50000-50200` (WebRTC), env `LIVEKIT_KEYS: devkey: secret`,
+     `7881` (TCP media), UDP `${LIVEKIT_UDP_PORT_START:-60000}-${LIVEKIT_UDP_PORT_END:-60018}`
+     (WebRTC; дефолт вне исключённых Windows UDP-портов 50000-50478, диапазон
+     переопределяется через env — `netsh interface ipv4 show excludedportrange protocol=udp`),
+     env `LIVEKIT_KEYS: devkey: secret`,
      `LIVEKIT_WEBHOOK_URL: http://realtime:8080/webhooks/livekit`,
      `LIVEKIT_WEBHOOK_API_KEY: devkey`, `LIVEKIT_WEBHOOK_API_SECRET: secret`
      (из корневого `.env` через `${...}` с дефолтами);
@@ -233,5 +236,5 @@ realtime не вызывает API); механика входа участни�
 | 0.1.0 | 2026-09-05 | Первоначальный план (фазы 1–5, порядок коммитов) |
 | 0.2.0 | 2026-09-05 | Ужесточены grants: `canPublishSources` по ролям (CANDIDATE без `screen_share`), `canPublishData`, запрет `roomAdmin`/`roomRecord`; статус «утверждённый план» |
 | 0.3.0 | 2026-09-05 | Webhook-авторизация: верификация подписи `Livekit-Webhook-Jwt` (stdlib HMAC-SHA256) вместо статического `LIVEKIT_WEBHOOK_AUTH_TOKEN`; в realtime env `LIVEKIT_WEBHOOK_API_KEY/SECRET` |
-| 0.4.0 | 2026-09-05 | Порты LiveKit в compose: 7880 (WS/HTTP), 7881 (TCP media), UDP 50000–50200; `canPublishData: false` всем ролям (данные по WS); нормализация egress-статусов к словарю `media.recording` (`started`/`stopped`/`failed`) |
+| 0.4.0 | 2026-09-05 | Порты LiveKit в compose: 7880 (WS/HTTP), 7881 (TCP media), UDP `${LIVEKIT_UDP_PORT_START:-60000}–${LIVEKIT_UDP_PORT_END:-60018}` (вне исключённых Windows UDP-портов 50000-50478; переопределяется через env); `canPublishData: false` всем ролям (данные по WS); нормализация egress-статусов к словарю `media.recording` (`started`/`stopped`/`failed`) |
 | 0.5.0 | 2026-09-05 | Коррективы по глубокому анализу: webhook-подпись в `Authorization` (fallback `Livekit-Webhook-Jwt` для legacy) + сверка sha256-claim с хешем тела; webhook обрабатывает только `egress_*` → `media.recording` (`participant.speaking_changed` не существует, активный говорящий — на клиенте); комната egress из `egressInfo.roomName`; `BroadcastToRoom` с fallback на `broadcaster.Publish` при отсутствии локальной комнаты; неизвестная роль → 403; общие хелперы `session-keys.ts` |
