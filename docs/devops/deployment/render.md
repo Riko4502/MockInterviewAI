@@ -21,7 +21,7 @@
 
 ### Шаг 1: Подготовка внешних сервисов (бесплатные облачные аккаунты)
 1. **LiveKit Cloud** (WebRTC SFU):
-   - Зарегистрируйтесь на [cloud.livekit.io](https://cloud.livekit.io/login) (бесплатный тариф до 50 ГБ трафика в месяц).
+   - Войдите или зарегистрируйтесь на [cloud.livekit.io](https://cloud.livekit.io/login) (бесплатный тариф до 50 ГБ трафика в месяц).
    - Скопируйте: `LIVEKIT_URL` (вида `wss://<project>.livekit.cloud`), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
 2. **S3 Хранилище** (аватары пользователей):
    - Создайте бесплатный Bucket в [Cloudflare R2](https://www.cloudflare.com/products/r2/) или [AWS S3](https://aws.amazon.com/s3/).

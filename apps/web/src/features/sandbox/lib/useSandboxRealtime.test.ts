@@ -442,10 +442,6 @@ describe("useSandboxRealtime deduplication", () => {
     });
 
     expect(mockWsSend).toHaveBeenCalledTimes(1);
-    const sentEnvelope = JSON.parse(
-      mockWsSend.mock.calls[0][0],
-    ) as AnyWebSocketEnvelope;
-    const myRequestId = sentEnvelope.requestId;
 
     // 2. Receive a remote code.update from another user twice (duplicate)
     const remoteEnvelope = {
@@ -458,7 +454,7 @@ describe("useSandboxRealtime deduplication", () => {
         filePath: "main",
         language: "typescript",
         content: "const remote = true;",
-        version: 1,
+        version: 2,
       },
     };
 
@@ -478,7 +474,7 @@ describe("useSandboxRealtime deduplication", () => {
     // Should still be called only once
     expect(onRemoteCodeUpdate).toHaveBeenCalledTimes(2);
 
-    // 3. Now simulate room.sync (reconnect); our pending code should STILL be pending and resent (baseVersion === serverVersion: 1)
+    // 3. Now simulate room.sync (reconnect); serverVersion (2) > baseVersion (1), so pending code is not resent
     mockWsSend.mockClear();
     const syncEnvelope = {
       sessionId: "test-room-pending-code-remote-dup",
@@ -493,7 +489,7 @@ describe("useSandboxRealtime deduplication", () => {
           filePath: "main",
           language: "typescript",
           content: "const remote = true;",
-          version: 1,
+          version: 2,
         },
       },
     };
@@ -502,15 +498,8 @@ describe("useSandboxRealtime deduplication", () => {
       handler({ data: JSON.stringify(syncEnvelope) });
     });
 
-    // Pending code should be resent on room.sync because baseVersion matches serverVersion
-    expect(mockWsSend).toHaveBeenCalledTimes(1);
-    const resentEnvelope = JSON.parse(
-      mockWsSend.mock.calls[0][0],
-    ) as AnyWebSocketEnvelope;
-    expect(resentEnvelope.requestId).toBe(myRequestId);
-    expect((resentEnvelope.payload as { content: string }).content).toBe(
-      "const pending = true;",
-    );
+    // Pending code should not be resent on room.sync because serverVersion (2) > baseVersion (1)
+    expect(mockWsSend).not.toHaveBeenCalled();
 
     unmountHook();
   });

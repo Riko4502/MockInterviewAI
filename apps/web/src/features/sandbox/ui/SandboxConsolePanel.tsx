@@ -1,11 +1,14 @@
 "use client";
 
 import { Tabs, Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxConsoleLogs } from "./SandboxConsoleLogs";
 import { SandboxConsoleTests } from "./SandboxConsoleTests";
 
 export function SandboxConsolePanel() {
+  const { t } = useTranslation("interview");
   const activeTab = useSandboxStore((s) => s.consoleTab);
   const setConsoleTab = useSandboxStore((s) => s.setConsoleTab);
   const runResult = useSandboxStore((s) => s.runResult);
@@ -20,7 +23,7 @@ export function SandboxConsolePanel() {
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card/70 px-3">
           <Tabs.List size="sm" className="bg-muted/60 p-0.5">
             <Tabs.Trigger value="tests" className="gap-1.5 text-xs">
-              Результаты тестов
+              {t("sandbox.console.tabs.tests")}
               {runResult && (
                 <span
                   className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
@@ -35,7 +38,7 @@ export function SandboxConsolePanel() {
             </Tabs.Trigger>
 
             <Tabs.Trigger value="logs" className="gap-1.5 text-xs">
-              Консоль (Logs)
+              {t("sandbox.console.tabs.logs")}
               {runResult?.logs && runResult.logs.length > 0 && (
                 <span className="ml-1 rounded-full bg-muted px-1.5 py-0.2 text-[10px] text-muted-foreground">
                   {runResult.logs.length}
@@ -46,7 +49,7 @@ export function SandboxConsolePanel() {
 
           {runResult && (
             <Typography.Code className="text-[11px] text-muted-foreground font-mono">
-              Время: {runResult.totalTimeMs} ms
+              {t("sandbox.console.time", { time: runResult.totalTimeMs })}
             </Typography.Code>
           )}
         </div>

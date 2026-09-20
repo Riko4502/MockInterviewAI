@@ -2,9 +2,12 @@
 
 import { CheckIcon, CloseIcon, PlayIcon } from "@packages/icons";
 import { Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 export function SandboxConsoleTests() {
+  const { t } = useTranslation("interview");
   const runResult = useSandboxStore((s) => s.runResult);
   const isRunning = useSandboxStore((s) => s.isRunning);
 
@@ -13,7 +16,7 @@ export function SandboxConsoleTests() {
       <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <PlayIcon className="mb-2 size-6 opacity-40" />
         <Typography.P className="text-xs">
-          Запуск кода временно недоступен.
+          {t("sandbox.console.unavailable")}
         </Typography.P>
       </div>
     );
@@ -24,7 +27,7 @@ export function SandboxConsoleTests() {
       <div className="flex items-center justify-center py-8 text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <Typography.Small>Выполнение тест-кейсов...</Typography.Small>
+          <Typography.Small>{t("sandbox.console.running")}</Typography.Small>
         </div>
       </div>
     );
@@ -50,8 +53,11 @@ export function SandboxConsoleTests() {
           )}
           <span>
             {runResult.success
-              ? "Все тест-кейсы успешно пройдены!"
-              : `Пройдено ${runResult.passedTests} из ${runResult.totalTests} тестов`}
+              ? t("sandbox.console.allPassed")
+              : t("sandbox.console.passedCount", {
+                  passed: runResult.passedTests,
+                  total: runResult.totalTests,
+                })}
           </span>
         </div>
         <Typography.Code className="text-[11px] opacity-80">
@@ -78,7 +84,7 @@ export function SandboxConsoleTests() {
                   }`}
                 />
                 <Typography.Small className="font-semibold text-foreground">
-                  Тест-кейс {idx + 1}
+                  {t("sandbox.console.testCase", { number: idx + 1 })}
                 </Typography.Small>
               </div>
               <Typography.Muted className="text-[10px]">
@@ -88,15 +94,21 @@ export function SandboxConsoleTests() {
 
             <div className="mt-2 space-y-1 text-[11px]">
               <div>
-                <span className="text-muted-foreground">Вход: </span>
+                <span className="text-muted-foreground">
+                  {t("sandbox.console.input")}{" "}
+                </span>
                 <span className="text-foreground">{res.input}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Ожидалось: </span>
+                <span className="text-muted-foreground">
+                  {t("sandbox.console.expected")}{" "}
+                </span>
                 <span className="text-foreground">{res.expectedOutput}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Получено: </span>
+                <span className="text-muted-foreground">
+                  {t("sandbox.console.actual")}{" "}
+                </span>
                 <span
                   className={
                     res.passed ? "text-emerald-400" : "text-rose-400 font-bold"

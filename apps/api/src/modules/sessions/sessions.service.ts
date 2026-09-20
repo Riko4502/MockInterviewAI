@@ -174,8 +174,7 @@ export class SessionsService {
       throw new NotFoundException("Session not found");
     }
 
-    // Считываем активный invite-токен из Redis для проверки новых участников (CWE-613)
-    const activeInviteToken = await this.redis.get(sessionInviteKey(sessionId));
+    let activeInviteToken: string | null = null;
 
     const participant = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
@@ -185,6 +184,9 @@ export class SessionsService {
       if (!locked.length) {
         throw new NotFoundException("Session not found");
       }
+
+      // Считываем активный invite-токен из Redis под FOR UPDATE замком (CWE-613)
+      activeInviteToken = await this.redis.get(sessionInviteKey(sessionId));
 
       const fresh = await tx.interviewSession.findUnique({
         where: { id: sessionId },
@@ -251,14 +253,15 @@ export class SessionsService {
     }
 
     // Если токен в Redis отсутствовал (холодное зеркало), гарантируем его наличие
-    let effectiveInviteToken = activeInviteToken;
+    let effectiveInviteToken: string | null = activeInviteToken;
     if (!effectiveInviteToken) {
-      effectiveInviteToken = this.generateInviteToken(sessionId);
+      const generatedToken = this.generateInviteToken(sessionId);
       await this.redis.set(
         sessionInviteKey(sessionId),
-        effectiveInviteToken,
+        generatedToken,
         this.mirrorTtlSeconds,
       );
+      effectiveInviteToken = generatedToken;
     }
 
     this.logger.log(
@@ -326,16 +329,40 @@ export class SessionsService {
   }
 
   /**
-   * Удаляет участника из сессии: запись из Postgres + HDEL из зеркала
-   * с продлением TTL + публикация room-scoped ревокации в realtime.
-   * Также автоматически ротирует/инвалидирует инвайт-токен сессии,
-   * чтобы удалённый участник не мог повторно войти по прежнему токену (CWE-613).
+   * Удаляет участника из сессии:
+   * 1. В транзакции блокирует строку сессии (FOR UPDATE), ротирует invite-токен
+   *    в Redis и удаляет участника из Postgres под тем же замком, исключая race condition с joinSession (CWE-613).
+   * 2. После завершения транзакции выполняет HDEL из зеркала и публикует
+   *    room-scoped ревокацию в realtime (WS 1008).
    */
   async removeParticipant(sessionId: string, userId: string): Promise<void> {
-    await this.prisma.interviewParticipant.delete({
-      where: { sessionId_userId: { sessionId, userId } },
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "interview_sessions" WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("Session not found");
+      }
+
+      // Инвалидируем старый инвайт-токен путём ротации нового под тем же lock
+      const newInviteToken = this.generateInviteToken(sessionId);
+      await this.redis.set(
+        sessionInviteKey(sessionId),
+        newInviteToken,
+        this.mirrorTtlSeconds,
+      );
+
+      await tx.interviewParticipant.delete({
+        where: { sessionId_userId: { sessionId, userId } },
+      });
     });
 
+    // HDEL и publishUserRevocation выполняются после завершения транзакции
     await this.redis.hdel(
       sessionMembersKey(sessionId),
       userId,
@@ -344,14 +371,6 @@ export class SessionsService {
 
     // Выселяем участника из активного realtime WS (1008)
     await publishUserRevocation(this.redis, userId, sessionId);
-
-    // Инвалидируем старый инвайт-токен путём ротации нового
-    const newInviteToken = this.generateInviteToken(sessionId);
-    await this.redis.set(
-      sessionInviteKey(sessionId),
-      newInviteToken,
-      this.mirrorTtlSeconds,
-    );
 
     this.logger.log(
       `removed user ${userId} from session ${sessionId} and rotated invite token`,

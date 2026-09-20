@@ -360,4 +360,35 @@ describe("SandboxRoom", () => {
 
     expect(onSessionReady).not.toHaveBeenCalled();
   });
+
+  it("пропускает повторный joinSession при обновлении searchParams после создания сессии", async () => {
+    createSessionMock.mockResolvedValue({
+      sessionId: "11111111-1111-4111-a111-111111111111",
+      inviteToken: "inv-token-123",
+    });
+
+    const { rerender } = render(
+      <ToastProvider>
+        <SandboxRoom />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(createSessionMock).toHaveBeenCalledTimes(1);
+      expect(replaceMock).toHaveBeenCalledWith(
+        "/dashboard/sandbox?room=11111111-1111-4111-a111-111111111111",
+      );
+    });
+
+    mockSearchParams = new URLSearchParams(
+      "room=11111111-1111-4111-a111-111111111111",
+    );
+    rerender(
+      <ToastProvider>
+        <SandboxRoom />
+      </ToastProvider>,
+    );
+
+    expect(joinSessionMock).not.toHaveBeenCalled();
+  });
 });

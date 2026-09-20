@@ -76,8 +76,8 @@
   - **Описание:** Переменные моков, используемые в фабриках `vi.mock`, объявлены через `vi.hoisted`, исключая ошибки TDZ (Temporal Dead Zone).
   - **Файлы:** `apps/web/src/features/sandbox/ui/SandboxHeader.test.tsx`, `apps/web/src/features/sandbox/ui/SandboxRoom.test.tsx`
 
-- [x] **4.2. Использовать модель связного списка в задаче `reverse-linked-list`**
-  - **Описание:** В задаче `reverse-linked-list` определены структуры узлов (`ListNode`) для TypeScript, JavaScript, Python, Go, C++, Java, а тесты проверяют корректное разворачивание узлов списка.
+- [ ] **4.2. Использовать модель связного списка в задаче `reverse-linked-list`**
+  - **Описание:** В задаче `reverse-linked-list` определены шаблоны и структуры узлов (`ListNode`) для поддерживаемых языков, однако тестовые случаи (`testCases`) по-прежнему передают и ожидают массивы, а не объекты `ListNode`. Пункт остаётся невыполненным до обновления тестовых данных и валидации структур связного списка.
   - **Файлы:** `apps/web/src/features/sandbox/model/tasks.ts`
 
 - [x] **4.3. Проверять видимый результат действий пользователя в тестах UI (Testing Library)**

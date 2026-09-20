@@ -31,6 +31,7 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const [role, setRole] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const skipNextJoinRef = useRef<string | null>(null);
 
   const routerRef = useRef(router);
   routerRef.current = router;
@@ -65,6 +66,7 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
           }
           setStatus("joined");
 
+          skipNextJoinRef.current = res.sessionId;
           const params = new URLSearchParams(searchParams.toString());
           params.set("room", res.sessionId);
           params.delete("invite");
@@ -162,7 +164,11 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
     }
 
     if (roomParam && isValidUUID(roomParam)) {
-      joinSession(roomParam, inviteParam ?? undefined, () => cancelled);
+      if (skipNextJoinRef.current === roomParam) {
+        skipNextJoinRef.current = null;
+      } else {
+        joinSession(roomParam, inviteParam ?? undefined, () => cancelled);
+      }
     } else {
       createSession(() => cancelled);
     }

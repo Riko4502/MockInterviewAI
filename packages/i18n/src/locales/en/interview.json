@@ -115,6 +115,22 @@
         "unmuteAutoplay": "Enable peer audio",
         "callError": "Failed to establish call connection. Please try again later."
       }
+    },
+    "console": {
+      "tabs": {
+        "tests": "Test Results",
+        "logs": "Console (Logs)"
+      },
+      "time": "Time: {{time}} ms",
+      "unavailable": "Code execution is temporarily unavailable.",
+      "running": "Running test cases...",
+      "allPassed": "All test cases passed successfully!",
+      "passedCount": "Passed {{passed}} of {{total}} tests",
+      "testCase": "Test case {{number}}",
+      "input": "Input:",
+      "expected": "Expected:",
+      "actual": "Actual:",
+      "noLogs": "No console output. Use console.log() in your code."
     }
   }
 }

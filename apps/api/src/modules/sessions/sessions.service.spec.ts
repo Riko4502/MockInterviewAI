@@ -400,10 +400,28 @@ describe("SessionsService", () => {
 
   describe("removeParticipant", () => {
     it("удаляет участника из Postgres, зеркала, публикует ревокацию и ротирует inviteToken (CWE-613)", async () => {
-      prismaMock.interviewParticipant.delete.mockResolvedValue({});
+      const callOrder: string[] = [];
+      prismaMock.$queryRaw.mockImplementation(async () => {
+        callOrder.push("queryRaw-for-update");
+        return [{ id: sessionId }];
+      });
+      redisMock.set.mockImplementation(async () => {
+        callOrder.push("redis-set-invite");
+      });
+      prismaMock.interviewParticipant.delete.mockImplementation(async () => {
+        callOrder.push("prisma-delete");
+        return {};
+      });
+      redisMock.hdel.mockImplementation(async () => {
+        callOrder.push("redis-hdel");
+      });
+      redisMock.publish.mockImplementation(async () => {
+        callOrder.push("redis-publish-revocation");
+      });
 
       await service.removeParticipant(sessionId, "u-9");
 
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
       expect(prismaMock.interviewParticipant.delete).toHaveBeenCalledWith({
         where: { sessionId_userId: { sessionId, userId: "u-9" } },
       });
@@ -420,6 +438,28 @@ describe("SessionsService", () => {
         `session:${sessionId}:invite`,
         expect.any(String),
         7200,
+      );
+      expect(callOrder).toEqual([
+        "queryRaw-for-update",
+        "redis-set-invite",
+        "prisma-delete",
+        "redis-hdel",
+        "redis-publish-revocation",
+      ]);
+    });
+
+    it("бросает NotFoundException если передан невалидный UUID сессии", async () => {
+      await expect(
+        service.removeParticipant("invalid-uuid", "u-9"),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("бросает NotFoundException если сессия не найдена при FOR UPDATE", async () => {
+      prismaMock.$queryRaw.mockResolvedValue([]);
+
+      await expect(service.removeParticipant(sessionId, "u-9")).rejects.toThrow(
+        NotFoundException,
       );
     });
 

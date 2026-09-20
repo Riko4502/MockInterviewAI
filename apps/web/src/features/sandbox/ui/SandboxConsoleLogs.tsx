@@ -1,16 +1,19 @@
 "use client";
 
 import { Typography } from "@packages/ui";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 
 export function SandboxConsoleLogs() {
+  const { t } = useTranslation("interview");
   const runResult = useSandboxStore((s) => s.runResult);
 
   if (!runResult?.logs || runResult.logs.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <Typography.P className="text-xs">
-          Нет записей в консоли. Используйте console.log() в коде.
+          {t("sandbox.console.noLogs")}
         </Typography.P>
       </div>
     );
