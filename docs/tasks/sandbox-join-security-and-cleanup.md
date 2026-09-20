@@ -6,14 +6,16 @@
 
 ## 1. Описание проблем и архитектурных требований
 
-### 1.1. Блокировка присоединения по ссылке в Sandbox и защита от Timing Attacks (CWE-862, CWE-208)
-- **Проблема:** После ужесточения `POST /sessions/:id/join` метод требует обязательного наличия пользователя в таблице `interview_participants`. Однако в Sandbox совместный режим реализован через шеринг ссылки (`/dashboard/sandbox?room=<sessionId>`). При переходе по ссылке второй пользователь получает `403 Forbidden` и не может войти в сессию, так как владелец не добавлял его `userId` вручную.
-- **Решение:** Внедрить криптографический механизм инвайт-токенов (HMAC Capability Token):
-  - `inviteToken` генерируется как детерминированный HMAC SHA-256 от `sessionId` на секрете `JWT_ACCESS_SECRET`.
-  - При `POST /sessions` и при успешном `POST /sessions/:id/join` для участников бэкенд возвращает `{ sessionId, inviteToken }` / `{ role, inviteToken }`. Это гарантирует, что владелец сессии всегда имеет актуальный `inviteToken` даже после перезагрузки страницы или перехода из закладок.
-  - **Защита от Timing Attacks ([CWE-208](https://cwe.mitre.org/data/definitions/208.html)):** Валидация токена выполняется через `crypto.timingSafeEqual(Buffer.from(expectedHex, 'hex'), Buffer.from(receivedHex, 'hex'))` с предварительной проверкой равенства длин буферов.
+### 1.1. Блокировка присоединения по ссылке в Sandbox, защита от Timing Attacks (CWE-862, CWE-208) и управление жизненным циклом токенов (CWE-613)
+- **Проблема:** После ужесточения `POST /sessions/:id/join` метод требует обязательного наличия пользователя в таблице `interview_participants`. Однако в Sandbox совместный режим реализован через шеринг ссылки (`/dashboard/sandbox?room=<sessionId>`). При переходе по ссылке второй пользователь получает `403 Forbidden` и не может войти в сессию, так как владелец не добавлял его `userId` вручную. При этом статический детерминированный HMAC-токен не подлежит отзыву или ротации, создавая уязвимость CWE-613.
+- **Решение:** Внедрить криптографически стойкий недетерминированный механизм инвайт-токенов с хранением в Redis, поддержкой отзыва и ротации (CWE-613):
+  - `inviteToken` генерируется как 256-битный случайный CSPRNG-токен (`crypto.randomBytes(32).toString('hex')`) с высокой энтропией, защищённый от прогнозирования и подбора.
+  - Токен сохраняется в Redis под отдельным ключом `session:${id}:invite` с TTL зеркала сессии (`mirrorTtlSeconds`).
+  - **Отзыв и ротация (CWE-613):** При удалении участника владельцем сессии (`removeParticipant`) токен автоматически ротируется, а в realtime публикуется room-scoped ревокация (1008), что блокирует повторный вход исключённого пользователя со старым токеном. Добавлен эндпоинт ручной ротации `POST /sessions/:id/rotate-invite` для владельца сессии.
+  - При `POST /sessions` и при успешном `POST /sessions/:id/join` для участников бэкенд возвращает `{ sessionId, inviteToken }` / `{ role, inviteToken }`. Это гарантирует, что участники сессии всегда имеют актуальный токен.
+  - **Защита от Timing Attacks ([CWE-208](https://cwe.mitre.org/data/definitions/208.html)):** Валидация токена выполняется через `crypto.timingSafeEqual(Buffer.from(expectedHex, 'hex'), Buffer.from(receivedHex, 'hex'))` с обязательной предварительной проверкой равенства длин буферов (64 hex-символа).
   - **Лимит участников (Mesh Overload / DoS Protection):** Перед регистрацией нового участника проверяется лимит комнаты (`MAX_SESSION_PARTICIPANTS = 10`). При превышении выбрасывается `403 Forbidden ("Interview session is full")`.
-  - Если пользователь уже является участником — он входит напрямую. Если пользователь новый, но предоставил валидный `inviteToken` (и лимит не превышен) — он безопасно регистрируется как `CANDIDATE`. Прямой подбор UUID без токена отклоняется с `403 Forbidden`.
+  - Если пользователь уже является участником — он входит напрямую. Если пользователь новый, но предоставил валидный актуальный `inviteToken` из Redis (и лимит не превышен) — он безопасно регистрируется как `CANDIDATE`. Прямой подбор UUID без токена или с устаревшим/отозванным токеном отклоняется с `403 Forbidden`.
 
 ### 1.2. Обратная совместимость и опциональность DTO в `POST /sessions/:id/join`
 - **Проблема:** Если схема запроса `POST /sessions/:id/join` потребует обязательного тела, существующие вызовы без параметров (например, повторный вход владельца или вызовы из тестов) завершатся ошибкой `400 Bad Request`.
@@ -66,7 +68,8 @@ sequenceDiagram
 
     Note over Guest, API: 3. Безопасное присоединение по токену
     Guest->>API: POST /sessions/:id/join { inviteToken }
-    API->>API: Timing-safe валидация HMAC inviteToken (crypto.timingSafeEqual)
+    API->>Redis: GET session:{id}:invite (проверка актуального токена с TTL)
+    API->>API: Timing-safe валидация inviteToken (crypto.timingSafeEqual)
     API->>API: Проверка лимита участников (< 10)
     API->>API: Регистрация Guest как CANDIDATE в БД
     API->>Redis: HSET session:{id}:members guestId CANDIDATE
@@ -87,24 +90,28 @@ sequenceDiagram
   - Добавить `joinSessionSchema` / `JoinSessionDto` (`{ inviteToken?: string }`, опциональный по умолчанию).
   - Обновить `JoinSessionResponseDto` (`{ role: InterviewParticipantRole, inviteToken: string }`).
   - Обновить `CreateSessionResponseDto` (`{ sessionId: string, inviteToken: string }`).
+  - Добавить `RotateInviteResponseDto` (`{ inviteToken: string }`).
 
-- [x] **2. Генерация и timing-safe валидация HMAC Invite Token в `SessionsService`**
-  - **Файл:** `apps/api/src/modules/sessions/sessions.service.ts`
-  - Реализовать детерминированную генерацию HMAC-токена `generateInviteToken(sessionId: string): string` на основе `jwt.accessSecret`.
-  - Реализовать валидацию `validateInviteToken(sessionId: string, token: string): boolean` через `crypto.timingSafeEqual`.
+- [x] **2. Генерация, хранение в Redis, ротация и timing-safe валидация CSPRNG Invite Token в `SessionsService`**
+  - **Файл:** `apps/api/src/modules/sessions/sessions.service.ts`, `apps/api/src/modules/sessions/session-keys.ts`
+  - Реализовать криптографически стойкую генерацию случайного 256-битного токена `generateInviteToken(): string` через `crypto.randomBytes(32).toString('hex')` (недетерминированный, устойчивый к прогнозированию и подбору).
+  - Сохранять токен в Redis под отдельным ключом `session:${id}:invite` с TTL зеркала сессии (`mirrorTtlSeconds`).
+  - Реализовать валидацию `validateInviteToken(expectedToken?: string | null, receivedToken?: string): boolean` через `crypto.timingSafeEqual` со строгой предварительной проверкой равенства длин (64 hex-символа).
+  - Реализовать ротацию и отзыв токенов (CWE-613): автоматическая ротация при удалении участника (`removeParticipant`) с публикацией ревокации в realtime (1008) и эндпоинт ручной ротации `POST /sessions/:id/rotate-invite` для владельца сессии.
   - Добавить константу `MAX_SESSION_PARTICIPANTS = 10`.
-  - В `createSession`: возвращать `{ sessionId, inviteToken }`.
+  - В `createSession`: сохранять сгенерированный токен в Redis и возвращать `{ sessionId, inviteToken }`.
   - В `joinSession(sessionId, userId, body?: JoinSessionDto)`:
-    - Если пользователь уже в `participants` — возвращать `{ role: existingParticipant.role, inviteToken }`.
+    - Если пользователь уже в `participants` — возвращать `{ role: existingParticipant.role, inviteToken: currentInviteToken }`.
     - Если пользователь новый:
       - Проверять лимит `fresh.participants.length < MAX_SESSION_PARTICIPANTS` (10).
-      - Проверять `validateInviteToken(sessionId, body?.inviteToken)`.
-      - При успехе — регистрировать как `CANDIDATE` в БД и Redis, возвращать `{ role: 'CANDIDATE', inviteToken }`.
-      - При невалидном токене / отсутствии — `403 Forbidden ("User is not invited to this interview session")`.
+      - Получать токен из Redis `session:${id}:invite` и проверять `validateInviteToken(currentInviteToken, body?.inviteToken)`.
+      - При успехе — регистрировать как `CANDIDATE` в БД и Redis, возвращать `{ role: 'CANDIDATE', inviteToken: currentInviteToken }`.
+      - При невалидном/отозванном/истёкшем токене или его отсутствии — `403 Forbidden ("User is not invited to this interview session")`.
 
 - [x] **3. Обновление эндпоинтов в `SessionsController`**
   - **Файл:** `apps/api/src/modules/sessions/sessions.controller.ts`
   - Принимать `@Body(new ZodValidationPipe(joinSessionSchema))` в `@Post(":id/join")`.
+  - Добавить эндпоинт `@Post(":id/rotate-invite")` для владельца сессии.
   - Обновить Swagger аннотации для схем ответа 200/201/403.
 
 - [x] **4. Регенерация OpenAPI и клиентов API**
@@ -113,7 +120,7 @@ sequenceDiagram
 
 - [x] **5. Unit-тесты для бэкенда**
   - **Файл:** `apps/api/src/modules/sessions/sessions.service.spec.ts`
-  - Проверить: генерацию токена, timing-safe валидацию, успешный вход с токеном, вход существующего участника (с возвратом токена), отказ при невалидном токене, отказ при переполнении комнаты (`>= MAX_SESSION_PARTICIPANTS`).
+  - Проверить: генерацию CSPRNG-токена, сохранение в Redis, timing-safe валидацию, успешный вход с токеном, вход существующего участника (с возвратом актуального токена), отказ при невалидном/отозванном токене, ротацию токена, отказ при переполнении комнаты (`>= MAX_SESSION_PARTICIPANTS`).
 
 ---
 
@@ -129,22 +136,20 @@ sequenceDiagram
 
 - [x] **8. Универсальный URL-билдер `@packages/utils`, `buildAppUrl` и интеграция в Sandbox**
   - **Файл:** `packages/utils/src/url.ts` (и экспорт в `packages/utils/src/index.ts`)
-    - Реализовать универсальную функцию `buildUrl(baseUrl, pathname, optionsOrParams)` с поддержкой:
-      - нормализации слешей и объединения путей;
-      - динамических параметров запроса (`queryParams` с поддержкой примитивов, массивов и фильтрацией пустых/`undefined` значений);
-      - хэш-фрагментов (`hash`);
-      - корректной обработки уже абсолютных путей.
-    - Добавить unit-тесты `packages/utils/src/url.test.ts`.
+    - Реализовать чистое разделение API:
+      - `buildUrl(baseUrl, pathname, params?: QueryParamsRecord)` для плоских query-параметров;
+      - `buildUrlWithOptions(baseUrl, pathname, options?: BuildUrlOptions)` для расширенных опций `{ params, hash }`.
+    - Добавить regression и edge-case unit-тесты в `packages/utils/src/url.test.ts`.
   - **Файл:** `apps/web/src/shared/lib/url.ts`
     - Реализовать функцию `getAppUrl()` (чтение `NEXT_PUBLIC_APP_URL` с fallback на `window.location.origin` / `http://localhost:3000`).
-    - Экспортировать универсальный `buildAppUrl(pathname, optionsOrParams)` для построения любых абсолютных ссылок в приложении (инвайты, сессии, уведомления, шаринг).
+    - Экспортировать `buildAppUrl(pathname, params)` и `buildAppUrlWithOptions(pathname, options)`.
   - **Файл:** `apps/web/src/features/sandbox/ui/SandboxRoom.tsx`
     - Извлекать `invite` из URI fragment (`window.location.hash`, `#invite=...`) с fallback на `searchParams.get("invite")` (обратная совместимость) и передавать в `sessionsControllerJoinSession(roomParam, { inviteToken })`.
     - Немедленно очищать `invite` из адресной строки и истории браузера через `window.history.replaceState` во избежание утечки в logs/referrer (CWE-598).
     - Сохранять полученный `inviteToken` в состоянии компонента и передавать в `onSessionReady`.
     - При создании сессии сохранять в URL только `?room=${sessionId}` (без `invite`).
   - **Файл:** `apps/web/src/features/sandbox/model/SandboxMediaContext.tsx`
-    - Формировать инвайт-ссылку с URI-хэшем через `buildAppUrl(pathname, { params: { room: roomId }, hash: inviteToken ? "invite=" + inviteToken : undefined })`, исключая передачу bearer credential в query string GET-запросов.
+    - Формировать инвайт-ссылку с URI-хэшем через `buildAppUrlWithOptions(pathname, { params: { room: roomId }, hash: inviteToken ? "invite=" + inviteToken : undefined })`, исключая передачу bearer credential в query string GET-запросов.
 
 - [x] **9. Верификация и тестирование**
   - `pnpm test:api`

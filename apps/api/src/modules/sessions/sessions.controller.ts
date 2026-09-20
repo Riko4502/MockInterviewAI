@@ -229,6 +229,7 @@ export class SessionsController {
    * @param ownerId - UUID текущего пользователя.
    */
   @Post(":id/rotate-invite")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Ротировать инвайт-токен сессии" })
   @ApiParam({
     name: "id",

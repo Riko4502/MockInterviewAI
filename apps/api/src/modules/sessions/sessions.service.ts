@@ -57,7 +57,6 @@ return 1
 export class SessionsService {
   private readonly logger = new Logger(SessionsService.name);
   private readonly mirrorTtlSeconds: number;
-  private readonly jwtAccessSecret: string;
   private readonly maxSessionParticipants = MAX_SESSION_PARTICIPANTS;
 
   constructor(
@@ -67,9 +66,6 @@ export class SessionsService {
   ) {
     this.mirrorTtlSeconds =
       configService.get<number>("sessions.mirrorTtlSeconds") ?? 2 * 60 * 60;
-    this.jwtAccessSecret =
-      configService.get<string>("jwt.accessSecret") ||
-      "default-mock-interview-access-secret";
   }
 
   /**

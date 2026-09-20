@@ -1,6 +1,7 @@
 import {
   type BuildUrlOptions,
   buildUrl,
+  buildUrlWithOptions,
   type QueryParamsRecord,
 } from "@packages/utils";
 
@@ -27,21 +28,44 @@ export function getAppUrl(): string {
 }
 
 /**
- * Универсальный билдер абсолютных URL веб-приложения.
+ * Универсальный билдер абсолютных URL веб-приложения для query-параметров.
  *
  * @param pathname - Относительный путь (например `/dashboard/sandbox` или `login`).
- * @param optionsOrParams - Параметры запроса или расширенные опции `{ params, hash }`.
+ * @param params - Параметры запроса.
  * @returns Полный абсолютный URL приложения.
  *
  * @example
  * ```ts
- * buildAppUrl("/dashboard/sandbox", { params: { room: "123" }, hash: "invite=token-abc" });
- * // => "http://localhost:3000/dashboard/sandbox?room=123#invite=token-abc"
+ * buildAppUrl("/dashboard/sandbox", { room: "123", invite: "token-abc" });
+ * // => "http://localhost:3000/dashboard/sandbox?room=123&invite=token-abc"
  * ```
  */
 export function buildAppUrl(
   pathname: string,
-  optionsOrParams?: QueryParamsRecord | BuildUrlOptions,
+  params?: QueryParamsRecord,
 ): string {
-  return buildUrl(getAppUrl(), pathname, optionsOrParams);
+  return buildUrl(getAppUrl(), pathname, params);
 }
+
+/**
+ * Билдер абсолютных URL со строго типизированными расширенными опциями `{ params, hash }`.
+ *
+ * @example
+ * ```ts
+ * buildAppUrlWithOptions("/dashboard/sandbox", { params: { room: "123" }, hash: "invite=token-abc" });
+ * // => "http://localhost:3000/dashboard/sandbox?room=123#invite=token-abc"
+ * ```
+ */
+export function buildAppUrlWithOptions(
+  pathname: string,
+  options?: BuildUrlOptions,
+): string {
+  return buildUrlWithOptions(getAppUrl(), pathname, options);
+}
+
+export {
+  buildUrl,
+  buildUrlWithOptions,
+  type BuildUrlOptions,
+  type QueryParamsRecord,
+};

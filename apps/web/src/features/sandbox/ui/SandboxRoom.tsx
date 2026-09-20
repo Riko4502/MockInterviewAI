@@ -38,38 +38,59 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const onSessionReadyRef = useRef(onSessionReady);
   onSessionReadyRef.current = onSessionReady;
 
-  const createSession = useCallback(async () => {
-    setStatus("initializing");
-    setErrorMessage(null);
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    try {
-      const res = await sessionsControllerCreateSession();
-      if (res?.sessionId) {
-        setRoomId(res.sessionId);
-        setRole("INTERVIEWER");
-        if (res.inviteToken) {
-          setInviteToken(res.inviteToken);
+  const createSession = useCallback(
+    async (isCancelled?: () => boolean) => {
+      setStatus("initializing");
+      setErrorMessage(null);
+
+      try {
+        const res = await sessionsControllerCreateSession();
+        if (isCancelled?.() || !isMountedRef.current) {
+          return;
         }
-        setStatus("joined");
 
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("room", res.sessionId);
-        params.delete("invite");
-        routerRef.current.replace(`${pathname}?${params.toString()}`);
+        if (res?.sessionId) {
+          setRoomId(res.sessionId);
+          setRole("INTERVIEWER");
+          if (res.inviteToken) {
+            setInviteToken(res.inviteToken);
+          }
+          setStatus("joined");
 
-        onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("room", res.sessionId);
+          params.delete("invite");
+          routerRef.current.replace(`${pathname}?${params.toString()}`);
+
+          onSessionReadyRef.current?.(res.sessionId, "INTERVIEWER");
+        }
+      } catch (err) {
+        if (isCancelled?.() || !isMountedRef.current) {
+          return;
+        }
+
+        console.error("[SandboxRoom] Failed to create session:", err);
+        setStatus("error");
+        setErrorMessage(t("sandbox.createError"));
       }
-    } catch (err) {
-      console.error("[SandboxRoom] Failed to create session:", err);
-      setStatus("error");
-      setErrorMessage(
-        err instanceof Error ? err.message : t("sandbox.createError"),
-      );
-    }
-  }, [pathname, searchParams, t]);
+    },
+    [pathname, searchParams, t],
+  );
 
   const joinSession = useCallback(
-    async (roomParam: string, inviteParam?: string) => {
+    async (
+      roomParam: string,
+      inviteParam?: string,
+      isCancelled?: () => boolean,
+    ) => {
       setStatus("initializing");
       setErrorMessage(null);
 
@@ -77,6 +98,10 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
         const res = await sessionsControllerJoinSession(roomParam, {
           inviteToken: inviteParam || undefined,
         });
+        if (isCancelled?.() || !isMountedRef.current) {
+          return;
+        }
+
         setRoomId(roomParam);
         setRole(res.role);
         if (res.inviteToken) {
@@ -87,11 +112,13 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
         setStatus("joined");
         onSessionReadyRef.current?.(roomParam, res.role);
       } catch (err) {
+        if (isCancelled?.() || !isMountedRef.current) {
+          return;
+        }
+
         console.error("[SandboxRoom] Failed to join session:", err);
         setStatus("error");
-        setErrorMessage(
-          err instanceof Error ? err.message : t("sandbox.joinError"),
-        );
+        setErrorMessage(t("sandbox.joinError"));
       }
     },
     [t],
@@ -99,6 +126,8 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
 
   // Инициализация / Join Flow
   useEffect(() => {
+    let cancelled = false;
+
     const token = authToken.get();
     if (!token) {
       return;
@@ -133,16 +162,20 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
     }
 
     if (roomParam && isValidUUID(roomParam)) {
-      joinSession(roomParam, inviteParam ?? undefined);
+      joinSession(roomParam, inviteParam ?? undefined, () => cancelled);
     } else {
-      createSession();
+      createSession(() => cancelled);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, joinSession, createSession, pathname]);
 
   const handleCreateNewSession = useCallback(() => {
     setRoomId(null);
     setInviteToken(null);
-    createSession();
+    createSession(() => !isMountedRef.current);
   }, [createSession]);
 
   // Error State

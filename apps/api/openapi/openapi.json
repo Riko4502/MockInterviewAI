@@ -856,6 +856,51 @@
         "tags": ["Sessions"]
       }
     },
+    "/api/v1/sessions/{id}/rotate-invite": {
+      "post": {
+        "operationId": "SessionsController_rotateInviteToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID сессии",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Инвайт-токен успешно ротирован",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateInviteResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "403": {
+            "description": "Доступ запрещен (не владелец или сессия закрыта)"
+          },
+          "404": {
+            "description": "Сессия не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ротировать инвайт-токен сессии",
+        "tags": ["Sessions"]
+      }
+    },
     "/api/v1/realtime/ticket": {
       "post": {
         "operationId": "RealtimeController_getTicket",
@@ -1662,6 +1707,16 @@
           }
         },
         "required": ["userId", "role"]
+      },
+      "RotateInviteResponseDto": {
+        "type": "object",
+        "properties": {
+          "inviteToken": {
+            "type": "string",
+            "description": "Новый инвайт-токен сессии"
+          }
+        },
+        "required": ["inviteToken"]
       },
       "TicketDto": {
         "type": "object",

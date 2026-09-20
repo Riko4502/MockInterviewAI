@@ -5,6 +5,7 @@ import type { badgeVariants } from "./constants";
 export type BadgeVariant = NonNullable<
   VariantProps<typeof badgeVariants>["variant"]
 >;
+export type BadgeVariants = BadgeVariant;
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,

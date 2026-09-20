@@ -40,6 +40,7 @@ export * from './publicUserProfileDto';
 export * from './registerDto';
 export * from './resetPasswordDto';
 export * from './restoreProfileResponseDto';
+export * from './rotateInviteResponseDto';
 export * from './ticketDto';
 export * from './ticketResponseDto';
 export * from './unreadNotificationsCountDto';

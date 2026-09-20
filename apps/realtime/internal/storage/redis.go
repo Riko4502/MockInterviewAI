@@ -492,17 +492,8 @@ func (r *RedisStore) TouchMirror(ctx context.Context, sessionID string, ttl time
 	return r.client.Expire(ctx, membersKey, ttl).Err()
 }
 
-// NextCodeVersion атомарно инкрементирует и возвращает глобальный монотонный номер версии кода для сессии в Redis.
-func (r *RedisStore) NextCodeVersion(ctx context.Context, sessionID string) (int64, error) {
-	if !r.enabled || r.client == nil || sessionID == "" {
-		return 0, nil
-	}
-
-	seqKey := fmt.Sprintf("session:%s:code:seq", sessionID)
-	savedKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
-	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
-
-	script := redis.NewScript(`
+var (
+	nextCodeVersionScript = redis.NewScript(`
 		local seqKey = KEYS[1]
 		local savedKey = KEYS[2]
 		local ttl = tonumber(ARGV[1])
@@ -521,7 +512,37 @@ func (r *RedisStore) NextCodeVersion(ctx context.Context, sessionID string) (int
 		return nextVal
 	`)
 
-	res, err := script.Run(ctx, r.client, []string{seqKey, savedKey}, ttlSeconds).Int64()
+	saveCodeStateScript = redis.NewScript(`
+		local codeKey = KEYS[1]
+		local savedVersionKey = KEYS[2]
+		local data = ARGV[1]
+		local newVersion = tonumber(ARGV[2])
+		local ttl = tonumber(ARGV[3])
+
+		if newVersion and newVersion > 0 then
+			local currentSaved = redis.call('GET', savedVersionKey)
+			if currentSaved and tonumber(currentSaved) >= newVersion then
+				return 0
+			end
+			redis.call('SET', savedVersionKey, newVersion, 'EX', ttl)
+		end
+
+		redis.call('SET', codeKey, data, 'EX', ttl)
+		return 1
+	`)
+)
+
+// NextCodeVersion атомарно инкрементирует и возвращает глобальный монотонный номер версии кода для сессии в Redis.
+func (r *RedisStore) NextCodeVersion(ctx context.Context, sessionID string) (int64, error) {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return 0, nil
+	}
+
+	seqKey := fmt.Sprintf("session:%s:code:seq", sessionID)
+	savedKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
+	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
+
+	res, err := nextCodeVersionScript.Run(ctx, r.client, []string{seqKey, savedKey}, ttlSeconds).Int64()
 	if err != nil {
 		r.logger.Warn("failed to allocate next code version from redis", slog.String("error", err.Error()))
 		return 0, err
@@ -540,32 +561,18 @@ func (r *RedisStore) SaveCodeState(ctx context.Context, sessionID string, data [
 	var payload struct {
 		Version int64 `json:"version"`
 	}
-	_ = json.Unmarshal(data, &payload)
+	if err := json.Unmarshal(data, &payload); err != nil {
+		r.logger.Warn("failed to parse code snapshot payload, skipping conditional save",
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("invalid code snapshot payload: %w", err)
+	}
 
 	codeKey := fmt.Sprintf("session:%s:code", sessionID)
 	savedVersionKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
 	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
 
-	script := redis.NewScript(`
-		local codeKey = KEYS[1]
-		local savedVersionKey = KEYS[2]
-		local data = ARGV[1]
-		local newVersion = tonumber(ARGV[2])
-		local ttl = tonumber(ARGV[3])
-
-		if newVersion and newVersion > 0 then
-			local currentSaved = redis.call('GET', savedVersionKey)
-			if currentSaved and tonumber(currentSaved) >= newVersion then
-				return 0
-			end
-			redis.call('SET', savedVersionKey, newVersion, 'EX', ttl)
-		end
-
-		redis.call('SET', codeKey, data, 'EX', ttl)
-		return 1
-	`)
-
-	return script.Run(ctx, r.client, []string{codeKey, savedVersionKey}, data, payload.Version, ttlSeconds).Err()
+	return saveCodeStateScript.Run(ctx, r.client, []string{codeKey, savedVersionKey}, data, payload.Version, ttlSeconds).Err()
 }
 
 // GetCodeState считывает последний снимок кода сессии из Redis.

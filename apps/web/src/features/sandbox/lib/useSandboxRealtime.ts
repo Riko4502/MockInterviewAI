@@ -599,6 +599,18 @@ export function useSandboxRealtime({
     channel?.addEventListener("message", handleBroadcastMessage);
 
     return () => {
+      try {
+        channel?.postMessage({
+          id: uuidv4(),
+          type: "presence-leave",
+          roomId,
+          senderId: userId,
+          senderName: userName,
+          payload: {},
+        });
+      } catch {
+        // Игнорируем
+      }
       channel?.removeEventListener("message", handleBroadcastMessage);
       channel?.close();
       channelRef.current = null;

@@ -56,7 +56,9 @@ export function SandboxVideoWidgetHeader({
 
       <div className="flex items-center gap-1.5">
         <Badge
-          variant={isConnected ? "success" : isCalling ? "warning" : "outline"}
+          variant={
+            isConnected ? "statusSuccess" : isCalling ? "statusInfo" : "tag"
+          }
           className="text-[10px] px-1.5 py-0"
         >
           {isConnected

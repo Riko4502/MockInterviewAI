@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 import { useLiveKitRoom } from "@/features/realtime";
-import { buildAppUrl } from "@/shared/lib/url";
+import { buildAppUrlWithOptions } from "@/shared/lib/url";
 import type { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { type ConnectionState, useWebRTC } from "../lib/useWebRTC";
 import { useSandboxStore } from "./useSandboxStore";
@@ -92,7 +92,7 @@ export function SandboxMediaProvider({
   const handleCopyInvite = useCallback(() => {
     if (typeof window === "undefined") return;
 
-    const url = buildAppUrl(pathname, {
+    const url = buildAppUrlWithOptions(pathname, {
       params: { room: roomId },
       hash: inviteToken ? `invite=${inviteToken}` : undefined,
     });

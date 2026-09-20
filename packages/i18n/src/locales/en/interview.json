@@ -111,7 +111,9 @@
         "callNotStarted": "Call not started",
         "clickCallToConnect": "Click \"Call\" to connect",
         "cameraOffShort": "Cam off",
-        "you": "You"
+        "you": "You",
+        "unmuteAutoplay": "Enable peer audio",
+        "callError": "Failed to establish call connection. Please try again later."
       }
     }
   }

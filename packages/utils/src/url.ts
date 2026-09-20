@@ -13,95 +13,36 @@ export interface BuildUrlOptions {
   hash?: string;
 }
 
-/**
- * Проверяет, является ли объект расширенной формой опций BuildUrlOptions.
- *
- * Расширенная форма содержит только ключи `params` и/или `hash`.
- * При этом если передан `params`, он должен быть вложенным объектом параметров или undefined,
- * чтобы примитивные query-параметры с именем `params` (например, `{ params: "123" }`)
- * не интерпретировались ошибочно как BuildUrlOptions.
- */
-function isBuildUrlOptions(
-  optionsOrParams: QueryParamsRecord | BuildUrlOptions,
-): optionsOrParams is BuildUrlOptions {
-  const keys = Object.keys(optionsOrParams);
-  if (keys.length === 0) {
-    return false;
-  }
+function appendParams(url: URL, params?: QueryParamsRecord): void {
+  if (!params) return;
 
-  const hasOnlyAllowedKeys = keys.every((k) => k === "params" || k === "hash");
-  if (!hasOnlyAllowedKeys) {
-    return false;
-  }
+  for (const [key, value] of Object.entries(params)) {
+    const values = Array.isArray(value) ? value : [value];
 
-  if ("params" in optionsOrParams && optionsOrParams.params !== undefined) {
-    if (
-      typeof optionsOrParams.params !== "object" ||
-      optionsOrParams.params === null ||
-      Array.isArray(optionsOrParams.params)
-    ) {
-      return false;
+    for (const item of values) {
+      if (item === null || item === undefined || item === "") {
+        continue;
+      }
+
+      url.searchParams.append(key, String(item));
     }
   }
-
-  return true;
 }
 
-/**
- * Универсальный билдер URL на базе нативного Web API (URL).
- *
- * - Безопасно объединяет базовый URL и путь, нормализуя слеши.
- * - Сериализует параметры запроса (`queryParams`), игнорируя `null`, `undefined` и пустые строки.
- * - Поддерживает массивы параметров (`tag: ['a', 'b']` -> `tag=a&tag=b`).
- * - Поддерживает хэш-фрагменты (`#section`).
- *
- * @param baseUrl - Базовый URL (например `https://example.com` или `http://localhost:3000`).
- * @param pathname - Путь (например `/dashboard/sandbox` или `api/v1/users`).
- * @param optionsOrParams - Объект параметров запроса или расширенные опции `{ params, hash }`.
- * @returns Сформированный абсолютный URL.
- */
-export function buildUrl(
+function createUrl(
   baseUrl: string,
   pathname: string,
-  optionsOrParams?: QueryParamsRecord | BuildUrlOptions,
+  params?: QueryParamsRecord,
+  hash?: string,
 ): string {
   const cleanPath = pathname ? pathname.replace(/^\/+/, "") : "";
   const url = new URL(cleanPath, baseUrl);
+
   url.pathname = url.pathname.replace(/\/+/g, "/");
 
-  if (!optionsOrParams) {
-    return url.toString();
-  }
+  appendParams(url, params);
 
-  // Расширенная форма содержит только ключи params/hash
-  const isExtendedOptions = isBuildUrlOptions(optionsOrParams);
-
-  const params: QueryParamsRecord | undefined = isExtendedOptions
-    ? (optionsOrParams as BuildUrlOptions).params
-    : (optionsOrParams as QueryParamsRecord);
-
-  const hash: string | undefined = isExtendedOptions
-    ? (optionsOrParams as BuildUrlOptions).hash
-    : undefined;
-
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      if (value === undefined || value === null || value === "") {
-        continue;
-      }
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          if (item !== undefined && item !== null && item !== "") {
-            url.searchParams.append(key, String(item));
-          }
-        }
-      } else {
-        url.searchParams.append(key, String(value));
-      }
-    }
-  }
-
-  if (hash) {
+  if (typeof hash === "string" && hash.length > 0) {
     url.hash = hash.startsWith("#") ? hash : `#${hash}`;
   }
 
@@ -109,12 +50,39 @@ export function buildUrl(
 }
 
 /**
+ * Универсальный билдер URL для работы с параметрами запроса (query parameters).
+ *
+ * Принимает плоский объект `QueryParamsRecord`. Имена ключей (включая `hash` и `params`)
+ * сериализуются исключительно как query-параметры.
+ *
+ * @param baseUrl - Базовый URL (например `https://example.com`).
+ * @param pathname - Путь (например `/dashboard/sandbox`).
+ * @param params - Объект query-параметров.
+ * @returns Сформированный абсолютный URL.
+ */
+export function buildUrl(
+  baseUrl: string,
+  pathname: string,
+  params?: QueryParamsRecord,
+): string {
+  return createUrl(baseUrl, pathname, params);
+}
+
+/**
  * Билдер URL со строго типизированными расширенными опциями `{ params, hash }`.
+ *
+ * Используется, когда необходимо сформировать URL с URI-хэшем (`#section`)
+ * и опциональными query-параметрами.
+ *
+ * @param baseUrl - Базовый URL.
+ * @param pathname - Путь.
+ * @param options - Объект опций `{ params, hash }`.
+ * @returns Сформированный абсолютный URL.
  */
 export function buildUrlWithOptions(
   baseUrl: string,
   pathname: string,
   options?: BuildUrlOptions,
 ): string {
-  return buildUrl(baseUrl, pathname, options);
+  return createUrl(baseUrl, pathname, options?.params, options?.hash);
 }

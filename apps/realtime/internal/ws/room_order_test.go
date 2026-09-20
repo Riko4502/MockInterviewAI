@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -648,18 +649,59 @@ func TestRoom_MultiReplica_GlobalVersioningAndConditionalSave(t *testing.T) {
 	sharedStore.mu.Lock()
 	defer sharedStore.mu.Unlock()
 
-	// Проверяем, что все вызовы сохранения в хранилище строго монотонно возрастают без регрессий
-	var prevVersion int64
-	for i, p := range sharedStore.callLog {
-		if p.Version <= prevVersion {
-			t.Errorf("version sequence regression at step %d: prev=%d, current=%d", i, prevVersion, p.Version)
+	// 1. Проверяем монотонность версий раздельно внутри вызовов каждой реплики
+	var prevReplica1Version int64
+	var prevReplica2Version int64
+	replica1Count := 0
+	replica2Count := 0
+
+	// 2. Проверяем, что множество версий в callLog равно 1..2*updatesPerReplica без дубликатов
+	versionsSet := make(map[int64]bool)
+
+	for _, p := range sharedStore.callLog {
+		if versionsSet[p.Version] {
+			t.Errorf("duplicate version %d found in callLog", p.Version)
 		}
-		prevVersion = p.Version
+		versionsSet[p.Version] = true
+
+		if strings.Contains(p.Content, "replica 1") {
+			replica1Count++
+			if p.Version <= prevReplica1Version {
+				t.Errorf("replica 1 version sequence regression: prev=%d, current=%d", prevReplica1Version, p.Version)
+			}
+			prevReplica1Version = p.Version
+		} else if strings.Contains(p.Content, "replica 2") {
+			replica2Count++
+			if p.Version <= prevReplica2Version {
+				t.Errorf("replica 2 version sequence regression: prev=%d, current=%d", prevReplica2Version, p.Version)
+			}
+			prevReplica2Version = p.Version
+		}
 	}
 
-	// Финальная сохраненная версия обязана быть максимальной назначенной (2 * updatesPerReplica)
-	if prevVersion != 2*updatesPerReplica {
-		t.Fatalf("expected last saved version to be %d, got %d", 2*updatesPerReplica, prevVersion)
+	if replica1Count != updatesPerReplica {
+		t.Errorf("expected %d updates from replica 1, got %d", updatesPerReplica, replica1Count)
+	}
+	if replica2Count != updatesPerReplica {
+		t.Errorf("expected %d updates from replica 2, got %d", updatesPerReplica, replica2Count)
+	}
+
+	if len(versionsSet) != 2*updatesPerReplica {
+		t.Fatalf("expected %d unique versions in callLog, got %d", 2*updatesPerReplica, len(versionsSet))
+	}
+	for v := int64(1); v <= 2*updatesPerReplica; v++ {
+		if !versionsSet[v] {
+			t.Errorf("version %d is missing from callLog", v)
+		}
+	}
+
+	// 3. Проверяем, что итоговое сохраненное состояние соответствует максимальной версии
+	if len(sharedStore.savedPayload) == 0 {
+		t.Fatalf("expected savedPayload to not be empty")
+	}
+	lastSaved := sharedStore.savedPayload[len(sharedStore.savedPayload)-1]
+	if lastSaved.Version != 2*updatesPerReplica {
+		t.Fatalf("expected final saved version to be %d, got %d", 2*updatesPerReplica, lastSaved.Version)
 	}
 
 	// Проверяем, что глобальный счетчик в хранилище инкрементировался ровно 20 раз
@@ -668,3 +710,120 @@ func TestRoom_MultiReplica_GlobalVersioningAndConditionalSave(t *testing.T) {
 	}
 }
 
+type mockFailingNextVersionStore struct {
+	mockSessionStoreOrder
+	failCount int
+	calls     int
+}
+
+func (m *mockFailingNextVersionStore) NextCodeVersion(ctx context.Context, sessionID string) (int64, error) {
+	m.mu.Lock()
+	m.calls++
+	if m.calls <= m.failCount {
+		m.mu.Unlock()
+		return 0, fmt.Errorf("simulated redis NextCodeVersion failure #%d", m.calls)
+	}
+	m.mu.Unlock()
+	return m.mockSessionStoreOrder.NextCodeVersion(ctx, sessionID)
+}
+
+func TestRoom_NextCodeVersion_RetrySuccess(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &mockFailingNextVersionStore{
+		failCount: 2, // 2 сбоя, 3-я попытка успешна
+	}
+	metrics := NewMetrics("test-node")
+
+	room := NewRoom("test-retry-version-success", nil, store, logger, nil)
+	room.SetMetrics(metrics)
+	go room.Run(ctx)
+	defer room.Close()
+
+	codeEnv := NewEnvelope(
+		EventCodeUpdate,
+		"test-retry-version-success",
+		"",
+		CodeUpdatePayload{
+			FilePath: "main.ts",
+			Content:  "content v1",
+			Version:  1,
+		},
+	)
+	bytes, _ := codeEnv.ToBytes()
+	room.Broadcast(bytes, "")
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		count := len(store.callLog)
+		store.mu.Unlock()
+		if count >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.callLog) != 1 {
+		t.Fatalf("expected 1 saved code state after retry, got %d", len(store.callLog))
+	}
+	if store.calls < 3 {
+		t.Fatalf("expected at least 3 attempts of NextCodeVersion, got %d", store.calls)
+	}
+	if metrics.CodeVersionFallbackCount() != 0 {
+		t.Fatalf("expected 0 fallback metric count on successful retry, got %d", metrics.CodeVersionFallbackCount())
+	}
+}
+
+func TestRoom_NextCodeVersion_RetryExhausted_FallbackAndMetric(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &mockFailingNextVersionStore{
+		failCount: 10, // все попытки завершаются ошибкой
+	}
+	metrics := NewMetrics("test-node")
+
+	room := NewRoom("test-retry-version-fallback", nil, store, logger, nil)
+	room.SetMetrics(metrics)
+	go room.Run(ctx)
+	defer room.Close()
+
+	codeEnv := NewEnvelope(
+		EventCodeUpdate,
+		"test-retry-version-fallback",
+		"",
+		CodeUpdatePayload{
+			FilePath: "main.ts",
+			Content:  "content v1 fallback",
+			Version:  1,
+		},
+	)
+	bytes, _ := codeEnv.ToBytes()
+	room.Broadcast(bytes, "")
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if metrics.CodeVersionFallbackCount() >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if metrics.CodeVersionFallbackCount() != 1 {
+		t.Fatalf("expected fallback metric count to be 1, got %d", metrics.CodeVersionFallbackCount())
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.calls < 3 {
+		t.Fatalf("expected at least 3 attempts before fallback, got %d", store.calls)
+	}
+}

@@ -26,7 +26,7 @@ type broadcastMessage struct {
 type Room struct {
 	ID string
 
-	clients       map[string]*Client
+	clients          map[string]*Client
 	register         chan *Client
 	unregister       chan *Client
 	broadcast        chan broadcastMessage
@@ -41,6 +41,7 @@ type Room struct {
 	onEmpty          func(roomID string)
 	broadcaster      storage.Broadcaster
 	sessionStore     storage.SessionStore
+	metrics          *Metrics
 	codeVersion      int64
 	lastCodeState    *CodeUpdatePayload
 	pendingCodeState *CodeUpdatePayload
@@ -70,6 +71,11 @@ func NewRoom(
 		broadcaster:     broadcaster,
 		sessionStore:    sessionStore,
 	}
+}
+
+// SetMetrics привязывает провайдер SRE-метрик к комнате.
+func (r *Room) SetMetrics(m *Metrics) {
+	r.metrics = m
 }
 
 // Run запускает главный цикл обработки событий комнаты, подписывается на Redis Pub/Sub и выгружает пустые комнаты.
@@ -523,15 +529,41 @@ func (r *Room) codeUpdateWorker(ctx context.Context) {
 
 			var globalVersion int64
 			if r.sessionStore != nil {
-				seqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-				v, allocErr := r.sessionStore.NextCodeVersion(seqCtx, r.ID)
-				cancel()
-				if allocErr != nil {
-					r.logger.Warn("failed to allocate global code version from redis, falling back to local counter",
-						slog.String("error", allocErr.Error()),
+				const maxAttempts = 3
+				backoff := 25 * time.Millisecond
+				var lastErr error
+
+				for attempt := 1; attempt <= maxAttempts; attempt++ {
+					seqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+					v, allocErr := r.sessionStore.NextCodeVersion(seqCtx, r.ID)
+					cancel()
+					if allocErr == nil {
+						globalVersion = v
+						lastErr = nil
+						break
+					}
+					lastErr = allocErr
+
+					if attempt < maxAttempts {
+						select {
+						case <-ctx.Done():
+							return
+						case <-r.done:
+							return
+						case <-time.After(backoff):
+							backoff *= 2
+						}
+					}
+				}
+
+				if lastErr != nil {
+					r.logger.Error("failed to allocate global code version from redis after retries, falling back to local counter",
+						slog.String("error", lastErr.Error()),
+						slog.Int("attempts", maxAttempts),
 					)
-				} else {
-					globalVersion = v
+					if r.metrics != nil {
+						r.metrics.IncCodeVersionFallback()
+					}
 				}
 			}
 

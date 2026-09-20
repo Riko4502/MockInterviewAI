@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // pubsubLagBuckets — границы гистограммы задержки релея событий комнат через
@@ -19,7 +20,8 @@ var pubsubLagBuckets = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0
 type Metrics struct {
 	nodeID string
 
-	pubsubLag *histogram
+	pubsubLag           *histogram
+	codeVersionFallback atomic.Int64
 }
 
 // NewMetrics создает набор метрик, помеченных идентификатором текущей ноды.
@@ -40,6 +42,17 @@ func (m *Metrics) ObservePubSubLag(seconds float64) {
 	m.pubsubLag.observe(seconds)
 }
 
+// IncCodeVersionFallback увеличивает счетчик сбоев выделения глобальной версии кода в Redis
+// с переходом на локальный счетчик (деградация распределенной синхронизации).
+func (m *Metrics) IncCodeVersionFallback() {
+	m.codeVersionFallback.Add(1)
+}
+
+// CodeVersionFallbackCount возвращает число переходов на локальный счетчик версий кода.
+func (m *Metrics) CodeVersionFallbackCount() int64 {
+	return m.codeVersionFallback.Load()
+}
+
 // NodeID возвращает идентификатор ноды, под которым экспортируются метрики.
 func (m *Metrics) NodeID() string {
 	return m.nodeID
@@ -53,6 +66,11 @@ func (m *Metrics) WritePrometheus(w io.Writer) {
 	m.pubsubLag.write(&buf, "realtime_ws_pubsub_lag_seconds",
 		"Delay of room event relay through Redis Pub/Sub between replicas",
 		`node_id="`+node+`"`)
+
+	fallbackCount := m.codeVersionFallback.Load()
+	buf.WriteString("# HELP realtime_ws_code_version_fallback_total Total times code version allocation from Redis failed and fell back to local counter\n")
+	buf.WriteString("# TYPE realtime_ws_code_version_fallback_total counter\n")
+	fmt.Fprintf(&buf, "realtime_ws_code_version_fallback_total{node_id=\"%s\"} %d\n", node, fallbackCount)
 
 	_, _ = io.WriteString(w, buf.String())
 }

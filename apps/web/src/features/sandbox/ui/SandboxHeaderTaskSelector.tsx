@@ -53,10 +53,10 @@ export function SandboxHeaderTaskSelector({
         <Badge
           variant={
             currentTask.difficulty === "Easy"
-              ? "success"
+              ? "statusSuccess"
               : currentTask.difficulty === "Medium"
-                ? "warning"
-                : "error"
+                ? "statusInfo"
+                : "statusDanger"
           }
         >
           {currentTask.difficulty}

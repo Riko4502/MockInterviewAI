@@ -1,16 +1,10 @@
 "use client";
 
-import { Badge, type BadgeVariant, Typography } from "@packages/ui";
+import { Badge, Typography } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 import "@/shared/lib/i18n";
-import type { TaskDifficulty } from "../model/types";
 import { useSandboxStore } from "../model/useSandboxStore";
-
-const DIFFICULTY_LOCALIZATION: Record<TaskDifficulty, BadgeVariant> = {
-  Easy: "statusSuccess",
-  Medium: "statusInfo",
-  Hard: "statusDanger",
-};
+import { DIFFICULTY_LOCALIZATION } from "./constants";
 
 export function SandboxTaskDescription() {
   const { t } = useTranslation("interview");

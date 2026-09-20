@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertCircleIcon, MicIcon, UserIcon } from "@packages/icons";
-import { useCallback } from "react";
+import { AlertCircleIcon, MicIcon, PlayIcon, UserIcon } from "@packages/icons";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/shared/lib/i18n";
 import { useAudioVolumeMeter } from "../lib/useAudioVolumeMeter";
@@ -25,11 +25,32 @@ export function SandboxVideoWidgetScreen() {
     isInviteCopied,
   } = useSandboxMedia();
 
+  const [isAutoplayBlocked, setIsAutoplayBlocked] = useState(false);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
   const localAudioLevel = useAudioVolumeMeter(localStream, isAudioMuted);
   const remoteAudioLevel = useAudioVolumeMeter(
     remoteStream,
     isRemoteAudioMuted,
   );
+
+  const attemptPlayAudio = useCallback((el: HTMLAudioElement) => {
+    const playPromise = el.play?.();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          setIsAutoplayBlocked(false);
+        })
+        .catch((err: unknown) => {
+          console.warn(
+            "[SandboxVideoWidgetScreen] Remote audio autoplay blocked by browser policy:",
+            err,
+          );
+          setIsAutoplayBlocked(true);
+        });
+    }
+  }, []);
+
   const localVideoRef = useCallback(
     (el: HTMLVideoElement | null) => {
       if (el) {
@@ -56,15 +77,56 @@ export function SandboxVideoWidgetScreen() {
 
   const remoteAudioRef = useCallback(
     (el: HTMLAudioElement | null) => {
-      if (el) {
-        el.srcObject = remoteStream ?? null;
-        if (remoteStream) {
-          el.play?.().catch(() => {});
-        }
+      audioElementRef.current = el;
+      if (el && remoteStream && isInCall && el.srcObject !== remoteStream) {
+        el.srcObject = remoteStream;
+        attemptPlayAudio(el);
       }
     },
-    [remoteStream],
+    [remoteStream, isInCall, attemptPlayAudio],
   );
+
+  useEffect(() => {
+    if (!isInCall || !remoteStream) {
+      setIsAutoplayBlocked(false);
+      return;
+    }
+
+    const el = audioElementRef.current;
+    if (el && el.srcObject !== remoteStream) {
+      el.srcObject = remoteStream;
+      attemptPlayAudio(el);
+    }
+  }, [isInCall, remoteStream, attemptPlayAudio]);
+
+  const handleResumeAutoplay = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current
+        .play?.()
+        .then(() => {
+          setIsAutoplayBlocked(false);
+        })
+        .catch((err: unknown) => {
+          console.error(
+            "[SandboxVideoWidgetScreen] Failed to resume audio on user click:",
+            err,
+          );
+        });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (callError) {
+      console.error(
+        "[SandboxVideoWidgetScreen] Call error occurred:",
+        callError,
+      );
+    }
+  }, [callError]);
+
+  const localizedCallError = callError
+    ? t("sandbox.videoWidget.screen.callError")
+    : null;
 
   const showRemoteVideo = isInCall && remoteStream && !isRemoteVideoOff;
 
@@ -73,10 +135,25 @@ export function SandboxVideoWidgetScreen() {
       {/* Скрытый тег для непрерывного воспроизведения звука собеседника вне зависимости от включенной камеры */}
       {/* biome-ignore lint/a11y/useMediaCaption: WebRTC realtime audio stream */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
+      {/* Кнопка восстановления звука при блокировке autoplay браузером */}
+      {isInCall && isAutoplayBlocked && (
+        <div className="absolute inset-x-0 top-3 z-30 flex items-center justify-center px-4">
+          <button
+            type="button"
+            onClick={handleResumeAutoplay}
+            data-testid="unmute-autoplay-button"
+            className="flex items-center gap-2 rounded-full bg-amber-500 hover:bg-amber-400 text-zinc-950 px-3.5 py-1.5 text-xs font-semibold shadow-lg shadow-amber-500/20 backdrop-blur-md transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <PlayIcon className="size-3.5 fill-current" />
+            <span>{t("sandbox.videoWidget.screen.unmuteAutoplay")}</span>
+          </button>
+        </div>
+      )}
       {callError && (
         <div className="flex size-full flex-col items-center justify-center p-4 text-center text-xs text-rose-400">
           <AlertCircleIcon className="mb-2 size-6" />
-          <p>{callError}</p>
+          <p>{localizedCallError}</p>
         </div>
       )}
 

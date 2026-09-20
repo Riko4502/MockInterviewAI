@@ -775,4 +775,42 @@ describe("useSandboxRealtime deduplication", () => {
 
     unmountHook();
   });
+
+  it("sends presence-leave via BroadcastChannel on unmount and removes peer from other tabs", async () => {
+    const { result: tab1, unmount: unmountTab1 } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "room-bc-presence",
+      }),
+    );
+
+    const { result: tab2, unmount: unmountTab2 } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "room-bc-presence",
+      }),
+    );
+
+    // Simulate tab2 sending a cursor move so tab1 discovers tab2
+    act(() => {
+      tab2.current.broadcastCursorMove({ line: 10, column: 5 });
+    });
+
+    // Verify tab1 sees tab2 in otherPeers
+    expect(
+      tab1.current.otherPeers.some((p) => p.id === tab2.current.userId),
+    ).toBe(true);
+    expect(tab1.current.peerCount).toBe(2);
+
+    // Unmount tab2 (closing tab)
+    act(() => {
+      unmountTab2();
+    });
+
+    // Verify tab1 processed presence-leave and removed tab2
+    expect(
+      tab1.current.otherPeers.some((p) => p.id === tab2.current.userId),
+    ).toBe(false);
+    expect(tab1.current.peerCount).toBe(1);
+
+    unmountTab1();
+  });
 });

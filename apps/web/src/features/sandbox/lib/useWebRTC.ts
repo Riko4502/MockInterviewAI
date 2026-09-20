@@ -513,6 +513,7 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
           await videoSender.replaceTrack(screenTrack);
         }
 
+        screenTrackRef.current = screenTrack;
         setIsScreenSharing(true);
       } catch {
         // Отмена пользователем

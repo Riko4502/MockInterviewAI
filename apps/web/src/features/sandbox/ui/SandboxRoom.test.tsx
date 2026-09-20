@@ -224,7 +224,12 @@ describe("SandboxRoom", () => {
         { inviteToken: undefined },
       );
       expect(screen.getByTestId("sandbox-error")).toBeInTheDocument();
-      expect(screen.getByText("Session is closed")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Не удалось подключиться к сессии. Возможно, она закрыта или не существует.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Session is closed")).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Создать новую сессию/i }),
       ).toBeInTheDocument();
@@ -262,7 +267,12 @@ describe("SandboxRoom", () => {
     await waitFor(() => {
       expect(createSessionMock).toHaveBeenCalledTimes(1);
       expect(screen.getByTestId("sandbox-error")).toBeInTheDocument();
-      expect(screen.getByText("Server creation failed")).toBeInTheDocument();
+      expect(
+        screen.getByText("Не удалось создать новую сессию."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Server creation failed"),
+      ).not.toBeInTheDocument();
     });
 
     const createButton = screen.getByRole("button", {
@@ -278,5 +288,76 @@ describe("SandboxRoom", () => {
       expect(screen.getByTestId("sandbox-header")).toBeInTheDocument();
       expect(screen.getByTestId("sandbox-task-panel")).toBeInTheDocument();
     });
+  });
+
+  it("игнорирует устаревший ответ createSession при размонтировании (cleanup-флаг)", async () => {
+    let resolveCreateSession!: (value: unknown) => void;
+    createSessionMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCreateSession = resolve;
+      }),
+    );
+
+    const onSessionReady = vi.fn();
+    const { unmount } = render(
+      <ToastProvider>
+        <SandboxRoom onSessionReady={onSessionReady} />
+      </ToastProvider>,
+    );
+
+    expect(createSessionMock).toHaveBeenCalledTimes(1);
+
+    // Размонтируем компонент до завершения запроса
+    unmount();
+
+    // Завершаем запрос после размонтирования
+    resolveCreateSession({
+      sessionId: "stale-session-id",
+      inviteToken: "stale-token",
+    });
+
+    // Даем микротаскам выполниться
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(onSessionReady).not.toHaveBeenCalled();
+  });
+
+  it("игнорирует устаревший ответ joinSession при смене URL или размонтировании (cleanup-флаг)", async () => {
+    mockSearchParams = new URLSearchParams(
+      "room=11111111-1111-4111-a111-111111111111",
+    );
+
+    let resolveJoinSession!: (value: unknown) => void;
+    joinSessionMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveJoinSession = resolve;
+      }),
+    );
+
+    const onSessionReady = vi.fn();
+    const { unmount } = render(
+      <ToastProvider>
+        <SandboxRoom onSessionReady={onSessionReady} />
+      </ToastProvider>,
+    );
+
+    expect(joinSessionMock).toHaveBeenCalledWith(
+      "11111111-1111-4111-a111-111111111111",
+      { inviteToken: undefined },
+    );
+
+    // Размонтируем компонент до завершения запроса
+    unmount();
+
+    // Завершаем ответ joinSession
+    resolveJoinSession({
+      role: "CANDIDATE",
+      inviteToken: "stale-invite",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(onSessionReady).not.toHaveBeenCalled();
   });
 });

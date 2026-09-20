@@ -4,10 +4,12 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/mockinterviewai/realtime/internal/config"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // TestRedactRedisAddr закрывает регрессию: строка подключения писалась в лог
@@ -136,3 +138,21 @@ func TestObservePubSubLag(t *testing.T) {
 	store = &RedisStore{}
 	store.observePubSubLag(time.Now().UnixMilli())
 }
+
+func TestSaveCodeState_InvalidJSON_ReturnsError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &RedisStore{
+		enabled: true,
+		client:  &redis.Client{},
+		logger:  logger,
+	}
+
+	err := store.SaveCodeState(context.Background(), "session-1", []byte("invalid-json{"))
+	if err == nil {
+		t.Fatal("expected error for invalid code snapshot payload, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid code snapshot payload") {
+		t.Errorf("expected error to contain %q, got %q", "invalid code snapshot payload", err.Error())
+	}
+}
+
