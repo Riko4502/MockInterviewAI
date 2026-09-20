@@ -360,24 +360,36 @@ export class AuthService implements OnModuleInit {
    * @throws {InternalServerErrorException} При ошибке Redis или БД (§66).
    */
   async logoutAll(userId: string): Promise<void> {
-    try {
-      const updatedUser = await this.prisma.user.update({
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
         where: { id: userId },
         data: { generation: { increment: 1 } },
         select: { generation: true },
       });
       const preIncrementGeneration = updatedUser.generation - 1;
-      await this.sessionService.revokeAllUserSessions(
-        userId,
-        new Date(),
-        preIncrementGeneration,
-      );
-      // Оповещаем Realtime через Pub/Sub: мгновенный сброс авторизации на всех
-      // репликах (Phase A). Best-effort — сбой публикации не влияет на logout.
-      await publishUserRevocation(this.redisService, userId);
+      const task = await tx.authRevocationTask.create({
+        data: { userId, generation: preIncrementGeneration },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = preIncrementGeneration;
+    });
+
+    try {
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
     } catch (error) {
+      // Сохранить задачу для повторной обработки worker / cron
       this.logger.error(
-        "Redis or database unavailable during logoutAll",
+        `Failed to revoke sessions during logoutAll (persisted for worker retry)`,
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException();

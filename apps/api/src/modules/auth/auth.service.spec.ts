@@ -939,13 +939,17 @@ describe("AuthService", () => {
   });
 
   describe("logoutAll (§66 SPEC.md)", () => {
-    it("отзывает все сессии пользователя", async () => {
+    it("отзывает все сессии пользователя и удаляет durable-задачу ревокации", async () => {
       await service.logoutAll(USER.id);
 
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER.id },
         data: { generation: { increment: 1 } },
         select: { generation: true },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: USER.id, generation: 1 },
       });
       expect(revokeAllUserSessions).toHaveBeenCalledTimes(1);
       expect(revokeAllUserSessions).toHaveBeenCalledWith(
@@ -958,9 +962,12 @@ describe("AuthService", () => {
         expect.stringContaining(USER.id),
       );
       expect(publish.mock.calls[0][1]).not.toContain("sessionId");
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-uuid-1" },
+      });
     });
 
-    it("Redis unavailable → 500 без внутренних деталей", async () => {
+    it("Redis unavailable → 500 без внутренних деталей, задача сохраняется для cron retry", async () => {
       revokeAllUserSessions.mockRejectedValue(
         new Error("connect ECONNREFUSED 127.0.0.1:6379"),
       );
@@ -970,6 +977,7 @@ describe("AuthService", () => {
       expect(error).toBeInstanceOf(InternalServerErrorException);
       expect(error.getStatus()).toBe(500);
       expect(JSON.stringify(error.getResponse())).not.toContain("ECONNREFUSED");
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
   });
 

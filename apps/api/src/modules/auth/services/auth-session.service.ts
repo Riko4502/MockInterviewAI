@@ -567,10 +567,8 @@ export class AuthSessionService {
       );
     }
 
-    // Если все сессии успешно удалены и фильтры не были заданы (полный логаут пользователя), очищаем ZSET
-    if (maxCreatedAt === undefined && maxGeneration === undefined) {
-      await this.redisService.delete(userSessionsKey);
-    }
+    // ZSET не удаляем целиком: записи, добавленные после чтения снимка,
+    // должны остаться в индексе. Обработанные сессии уже удалены через zrem.
   }
 
   /**

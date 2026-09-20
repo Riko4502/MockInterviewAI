@@ -16,7 +16,7 @@
 ## Change Log
 
 | Версия | Дата | Изменения |
-|---|---|---|
+| 1.8.0 | 2026-09-20 | Устранено противоречие о модели валидности access token (§60, §64, §66): зафиксирована live-проверка сессии в Redis и generation в глобальном AccessTokenGuard, а также немедленная инвалидация access-токенов при удалении/отзыве сессии. |
 | 1.7.0 | 2026-09-18 | Актуализация описания механизма отзыва сессий (§15, §39, §66, §67): keyspace SCAN заменён на чтение пользовательского индекса `auth:user:{userId}:sessions` (ZSET), установку fence `auth:user:{userId}:min_generation` и удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration`. |
 | 1.6.0 | 2026-08-28 | Phase 15 «Auth: Change Password» (§67): реализован `/auth/change-password`; сообщения 4xx переведены на русский; уточнён шаг 6 §67 — отзываются ВСЕ сессии (включая текущую). |
 | 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
@@ -662,7 +662,7 @@ Production secrets хранятся вне исходного кода (Secret M
 | Ошибка Redis | `500 Internal Server Error` | не сбрасывается |
 
 - Нарушение любого из условий 1–4 → `401`; cookie при этом очищается всегда, чтобы клиент мог восстановиться. Повторный logout с тем же токеном после успешного выхода → `401` (сессия уже отозвана; семантика строгая, не идемпотентная).
-- Access token остаётся валидным до истечения TTL (15m, stateless); серверный отзыв access-токенов не выполняется (blacklist вне текущего скоупа).
+- Сессия удаляется из Redis (`revokeSession(payload.sid)`). Связанный с ней access token становится недействительным сразу после выхода: глобальный `AccessTokenGuard` выполняет live-проверку сессии в Redis (`getSession(sid)`) и соответствия `generation` (§64); при отсутствии сессии guard возвращает `401 Unauthorized` (`"Session has expired or been revoked"`), не дожидаясь истечения TTL токена.
 - Логирование: токены и их хеши не логируются (§46).
 
 ### 61. OpenAPI/Swagger документация
@@ -697,9 +697,15 @@ Production secrets хранятся вне исходного кода (Secret M
 
 - Guard: глобальный (`APP_GUARD`), применяется ко всем endpoints по умолчанию.
 - Проверяет наличие и валидность access token в заголовке `Authorization: Bearer <token>`.
-- Verification: `TokenService.verifyAccessToken(token)` (§38) — HS256, issuer, audience, expiration, `typ = "access"`.
+- Двухуровневая верификация:
+  1. **JWT Verification:** `TokenService.verifyAccessToken(token)` (§38) — HS256, issuer, audience, expiration, `typ = "access"`, обязательное наличие claim `generation`.
+  2. **Live-проверка сессии в Redis:** `AuthSessionService.getSession(payload.sid)` (§16, §39):
+     - сессия `auth:session:{sid}` обязана существовать в Redis;
+     - `session.userId` обязан совпадать с `payload.sub`;
+     - `session.generation` обязан совпадать с `payload.generation` (защита от гонок и инвалидация при сбросе поколений).
+- **Немедленная инвалидация:** при удалении или отзыве сессии из Redis (logout §60, logout-all §66, change-password §67, отзыв через sessions API или деактивация) access token становится недействительным немедленно, так как guard получает `null` из `getSession` или фиксирует несоответствие поколения и отклоняет запрос `401 Unauthorized`, не дожидаясь истечения TTL токена.
 - При успехе: payload токена добавляется в `request.user` для использования в сервисах.
-- При ошибке (отсутствует / невалиден / просрочен): `401 Unauthorized` без внутренних деталей.
+- При ошибке (отсутствует / невалиден / просрочен / сессия не найдена или отозвана): `401 Unauthorized` (`"Missing access token"` / `"Session has expired or been revoked"`).
 
 **Исключения (`@Public()`):**
 
@@ -744,7 +750,7 @@ Production secrets хранятся вне исходного кода (Secret M
   3. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`.
-- Access token остаётся валидным до истечения TTL (stateless); серверный отзыв не выполняется.
+- Все access-токены пользователя становятся недействительными сразу после отзыва: глобальный `AccessTokenGuard` выполняет live-проверку сессии в Redis (`getSession(sid)`) и валидацию `generation` (§64). После удаления сессий из Redis и поднятия `min_generation` guard получает `null` и выбрасывает `401 Unauthorized` (`"Session has expired or been revoked"`), не дожидаясь истечения TTL токенов.
 
 ### 67. Change Password (`POST /api/v1/auth/change-password`)
 

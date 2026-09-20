@@ -298,6 +298,7 @@ describe("AuthSessionService", () => {
     it("удаляет только сессии переданного userId через ZSET выборку", async () => {
       const sessionId1 = randomUUID();
       const sessionId2 = randomUUID();
+      const foreignSessionId = randomUUID();
 
       const session1: AuthSession = {
         ...createStoredSession("h1"),
@@ -307,10 +308,14 @@ describe("AuthSessionService", () => {
         ...createStoredSession("h2"),
         userId: USER_ID,
       };
+      const foreignSession: AuthSession = {
+        ...createStoredSession("h3"),
+        userId: randomUUID(),
+      };
 
       redisEval.mockImplementation(async (_script: string, keys: string[]) => {
         if (keys[0] === `auth:user:${USER_ID}:sessions`) {
-          return [sessionId1, sessionId2];
+          return [sessionId1, sessionId2, foreignSessionId];
         }
         return 1;
       });
@@ -320,6 +325,8 @@ describe("AuthSessionService", () => {
           return JSON.stringify(session1);
         if (key === `auth:session:${sessionId2}`)
           return JSON.stringify(session2);
+        if (key === `auth:session:${foreignSessionId}`)
+          return JSON.stringify(foreignSession);
         return null;
       });
 
@@ -327,7 +334,12 @@ describe("AuthSessionService", () => {
 
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${sessionId1}`);
       expect(redisDelete).toHaveBeenCalledWith(`auth:session:${sessionId2}`);
-      expect(redisDelete).toHaveBeenCalledWith(`auth:user:${USER_ID}:sessions`);
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:session:${foreignSessionId}`,
+      );
+      expect(redisDelete).not.toHaveBeenCalledWith(
+        `auth:user:${USER_ID}:sessions`,
+      );
     });
 
     it("нет сессий в ZSET → no-op", async () => {

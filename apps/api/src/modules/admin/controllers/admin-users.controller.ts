@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -311,6 +313,7 @@ export class AdminUsersController {
    * Сбрасывает пароль пользователя и генерирует временный пароль.
    */
   @Post(":id/reset-password")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Сбросить пароль пользователя и сгенерировать временный",
   })
@@ -389,6 +392,7 @@ export class AdminUsersController {
    * Восстанавливает ранее удаленного пользователя администратором.
    */
   @Post(":id/restore")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Восстановить удаленного пользователя администратором",
   })
