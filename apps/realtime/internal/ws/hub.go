@@ -97,6 +97,7 @@ func (h *Hub) GetOrCreateRoom(sessionID string) *Room {
 	room := NewRoom(sessionID, h.broadcaster, h.sessionStore, h.logger, func(id string) {
 		h.RemoveRoom(id)
 	})
+	room.SetMetrics(h.metrics)
 
 	h.rooms[sessionID] = room
 

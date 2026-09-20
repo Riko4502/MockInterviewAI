@@ -1,8 +1,15 @@
 package storage
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/mockinterviewai/realtime/internal/config"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // TestRedactRedisAddr закрывает регрессию: строка подключения писалась в лог
@@ -49,6 +56,51 @@ func TestRedactRedisAddr(t *testing.T) {
 	}
 }
 
+func TestRedisStore_Disabled_FailClosed(t *testing.T) {
+	cfg := &config.Config{
+		RedisEnabled: false,
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := NewRedisStore(cfg, logger)
+	ctx := context.Background()
+
+	// 1. IsSessionActive must return false when Redis is disabled
+	active, err := store.IsSessionActive(ctx, "any-session-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if active {
+		t.Errorf("IsSessionActive should return false when Redis is disabled (fail-closed)")
+	}
+
+	// 2. GetSessionUserRole must return empty string when Redis is disabled
+	role, err := store.GetSessionUserRole(ctx, "any-session-id", "any-user-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if role != "" {
+		t.Errorf("GetSessionUserRole should return empty string when Redis is disabled (fail-closed), got %q", role)
+	}
+
+	// 3. IsAuthSessionActive must return false when Redis is disabled
+	authActive, err := store.IsAuthSessionActive(ctx, "any-sid")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if authActive {
+		t.Errorf("IsAuthSessionActive should return false when Redis is disabled (fail-closed)")
+	}
+
+	// 4. ConsumeTicket must return false when Redis is disabled
+	consumed, err := store.ConsumeTicket(ctx, "ticket-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if consumed {
+		t.Error("ConsumeTicket should return false when Redis is disabled")
+	}
+}
+
 // TestPoolStatsDisabledReturnsNil закрывает регрессию: без клиента Redis
 // (disabled-режим) пула не существует, и метрики экспортируются без него.
 func TestPoolStatsDisabledReturnsNil(t *testing.T) {
@@ -86,3 +138,21 @@ func TestObservePubSubLag(t *testing.T) {
 	store = &RedisStore{}
 	store.observePubSubLag(time.Now().UnixMilli())
 }
+
+func TestSaveCodeState_InvalidJSON_ReturnsError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &RedisStore{
+		enabled: true,
+		client:  &redis.Client{},
+		logger:  logger,
+	}
+
+	err := store.SaveCodeState(context.Background(), "session-1", []byte("invalid-json{"))
+	if err == nil {
+		t.Fatal("expected error for invalid code snapshot payload, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid code snapshot payload") {
+		t.Errorf("expected error to contain %q, got %q", "invalid code snapshot payload", err.Error())
+	}
+}
+

@@ -21,7 +21,10 @@ import type {
 
 import type {
   AddParticipantDto,
-  CreateSessionResponseDto
+  CreateSessionResponseDto,
+  JoinSessionDto,
+  JoinSessionResponseDto,
+  RotateInviteResponseDto
 } from '../../model';
 
 import { customInstance } from '../../../transport';
@@ -107,6 +110,86 @@ export const useSessionsControllerCreateSession = <TError = void,
         TContext
       > => {
       return useMutation(getSessionsControllerCreateSessionMutationOptions(options), queryClient);
+    }
+    export const getSessionsControllerJoinSessionUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/join`
+}
+
+/**
+ * @summary Присоединиться к интервью-сессии
+ */
+export const sessionsControllerJoinSession = async (id: string,
+    joinSessionDto: JoinSessionDto, options?: Parameters<typeof customInstance>[1]): Promise<JoinSessionResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<JoinSessionResponseDto>(getSessionsControllerJoinSessionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(joinSessionDto)
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerJoinSessionMutationKey = () => ['sessionsControllerJoinSession'] as const;
+
+export const getSessionsControllerJoinSessionMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinSession>>, TError,SessionsControllerJoinSessionMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinSession>>, TError,SessionsControllerJoinSessionMutationVariables, TContext> => {
+
+const mutationKey = getSessionsControllerJoinSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerJoinSession>>, SessionsControllerJoinSessionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sessionsControllerJoinSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SessionsControllerJoinSessionMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerJoinSession>>>
+    export type SessionsControllerJoinSessionMutationBody = JoinSessionDto
+    export type SessionsControllerJoinSessionMutationError = void
+    export type SessionsControllerJoinSessionMutationVariables = {id: string;data: JoinSessionDto}
+
+    /**
+ * @summary Присоединиться к интервью-сессии
+ */
+export const useSessionsControllerJoinSession = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinSession>>, TError,SessionsControllerJoinSessionMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sessionsControllerJoinSession>>,
+        TError,
+        SessionsControllerJoinSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSessionsControllerJoinSessionMutationOptions(options), queryClient);
     }
     export const getSessionsControllerAddParticipantUrl = (id: string,) => {
 
@@ -335,4 +418,77 @@ export const useSessionsControllerCloseSession = <TError = void,
         TContext
       > => {
       return useMutation(getSessionsControllerCloseSessionMutationOptions(options), queryClient);
+    }
+    export const getSessionsControllerRotateInviteTokenUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/rotate-invite`
+}
+
+/**
+ * @summary Ротировать инвайт-токен сессии
+ */
+export const sessionsControllerRotateInviteToken = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<RotateInviteResponseDto> => {
+
+  return customInstance<RotateInviteResponseDto>(getSessionsControllerRotateInviteTokenUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerRotateInviteTokenMutationKey = () => ['sessionsControllerRotateInviteToken'] as const;
+
+export const getSessionsControllerRotateInviteTokenMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>, TError,SessionsControllerRotateInviteTokenMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>, TError,SessionsControllerRotateInviteTokenMutationVariables, TContext> => {
+
+const mutationKey = getSessionsControllerRotateInviteTokenMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>, SessionsControllerRotateInviteTokenMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  sessionsControllerRotateInviteToken(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SessionsControllerRotateInviteTokenMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>>
+
+    export type SessionsControllerRotateInviteTokenMutationError = void
+    export type SessionsControllerRotateInviteTokenMutationVariables = {id: string}
+
+    /**
+ * @summary Ротировать инвайт-токен сессии
+ */
+export const useSessionsControllerRotateInviteToken = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>, TError,SessionsControllerRotateInviteTokenMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sessionsControllerRotateInviteToken>>,
+        TError,
+        SessionsControllerRotateInviteTokenMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSessionsControllerRotateInviteTokenMutationOptions(options), queryClient);
     }
