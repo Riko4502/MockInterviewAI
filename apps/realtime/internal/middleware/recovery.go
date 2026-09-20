@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+
+	"github.com/getsentry/sentry-go"
 )
 
 type errorResponse struct {
@@ -15,6 +17,8 @@ type errorResponse struct {
 }
 
 // Recoverer создает middleware для безопасного перехвата паник.
+// При активном Sentry (SENTRY_DSN задан) паника также отправляется в Sentry
+// через хаб из контекста запроса.
 func Recoverer(logger *slog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,6 +30,8 @@ func Recoverer(logger *slog.Logger) func(next http.Handler) http.Handler {
 						slog.String("path", r.URL.Path),
 						slog.String("stack", stack),
 					)
+
+					capturePanic(r, rvr)
 
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
@@ -40,4 +46,19 @@ func Recoverer(logger *slog.Logger) func(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// capturePanic отправляет панику в Sentry через хаб из контекста запроса.
+// No-op, если Sentry не инициализирован (нет SENTRY_DSN).
+func capturePanic(r *http.Request, rvr any) {
+	if sentry.CurrentHub().Client() == nil {
+		return
+	}
+
+	hub := sentry.GetHubFromContext(r.Context())
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+
+	hub.RecoverWithContext(r.Context(), rvr)
 }
