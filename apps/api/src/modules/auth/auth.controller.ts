@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -14,6 +16,7 @@ import type { SchemaObject } from "@nestjs/swagger";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -30,6 +33,7 @@ import {
   resetPasswordSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { OAuthNavigation } from "../../common/decorators/oauth-navigation.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import {
   registerSchema as registerOpenApiSchema,
@@ -38,6 +42,11 @@ import {
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import {
+  GITHUB_STATE_COOKIE,
+  GITHUB_STATE_TTL_SECONDS,
+  GithubOAuthService,
+} from "./services/github-oauth.service";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
 import type { TokenPayload } from "./services/token.service";
 
@@ -136,6 +145,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly githubOAuth: GithubOAuthService,
   ) {}
 
   /**
@@ -509,11 +519,67 @@ export class AuthController {
     }
   }
 
+  @Get("github")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Start GitHub OAuth login" })
+  @ApiResponse({ status: 302, description: "Redirect to GitHub" })
+  async github(@Res() response: Response): Promise<void> {
+    const { url, browserSecret } = await this.githubOAuth.authorize();
+    response.cookie(GITHUB_STATE_COOKIE, browserSecret, {
+      ...this.getRefreshCookieAttributes(),
+      maxAge: GITHUB_STATE_TTL_SECONDS * 1000,
+    });
+    response.setHeader("Cache-Control", "no-store");
+    response.redirect(302, url);
+  }
+
+  @Get("github/callback")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Complete GitHub OAuth login" })
+  @ApiQuery({ name: "code", type: String, required: false })
+  @ApiQuery({ name: "state", type: String, required: false })
+  @ApiResponse({
+    status: 302,
+    description: "Refresh cookie and redirect to dashboard",
+  })
+  async githubCallback(
+    @Query("code") code: unknown,
+    @Query("state") state: unknown,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
+    response.clearCookie(
+      GITHUB_STATE_COOKIE,
+      this.getRefreshCookieAttributes(),
+    );
+    const user = await this.githubOAuth.callback(
+      code,
+      state,
+      request.cookies?.[GITHUB_STATE_COOKIE],
+    );
+    const result = await this.authService.loginUser(user);
+    this.setRefreshTokenCookie(response, result.refreshToken);
+    response.redirect(
+      302,
+      new URL(
+        "/dashboard",
+        this.configService.getOrThrow<string>("FRONTEND_URL"),
+      ).toString(),
+    );
+  }
+
   /**
    * Возвращает имя refresh cookie из конфигурации (`§25`).
    *
    * @returns Имя cookie (по умолчанию `refresh_token`).
    */
+
   private getRefreshTokenCookieName(): string {
     return (
       this.configService.get<string>("cookie.refreshTokenName") ??

@@ -1,5 +1,6 @@
 import { ForbiddenException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import { OAUTH_NAVIGATION_KEY } from "../decorators/oauth-navigation.decorator";
 import { OriginCheckGuard } from "./origin-check.guard";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
@@ -169,5 +170,25 @@ describe("OriginCheckGuard", () => {
       });
       expect(guard.canActivate(context)).toBe(true);
     });
+  });
+});
+
+describe("Проверка источника запроса при возврате из OAuth", () => {
+  it("разрешает Referer GitHub только для помеченного GET-обработчика возврата", () => {
+    const handler = () => undefined;
+    Reflect.defineMetadata(OAUTH_NAVIGATION_KEY, true, handler);
+    const context = createExecutionContext({ referer: "https://github.com/" });
+    context.getHandler = () => handler;
+    context.switchToHttp = () => ({
+      getRequest: () => ({
+        method: "GET",
+        headers: { referer: "https://github.com/" },
+      }),
+    });
+    expect(createGuard().canActivate(context)).toBe(true);
+    Reflect.deleteMetadata(OAUTH_NAVIGATION_KEY, handler);
+    expect(() => createGuard().canActivate(context)).toThrow(
+      ForbiddenException,
+    );
   });
 });

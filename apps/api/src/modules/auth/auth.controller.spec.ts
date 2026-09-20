@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { GithubOAuthService } from "./services/github-oauth.service";
 import type { TokenPayload } from "./services/token.service";
 
 const DTO = {
@@ -92,6 +93,7 @@ describe("AuthController", () => {
         refresh: refreshMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
+      {} as GithubOAuthService,
     );
   }
 
@@ -663,5 +665,108 @@ describe("AuthController", () => {
       ) as unknown[];
       expect(guards).toContain(AuthThrottlerGuard);
     });
+  });
+});
+
+describe("Авторизация через GitHub OAuth в AuthController", () => {
+  const user = { id: "github-user" };
+  const oauth = { authorize: jest.fn(), callback: jest.fn() };
+  const auth = { loginUser: jest.fn() };
+  const responseMock = {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+    redirect: jest.fn(),
+    setHeader: jest.fn(),
+  };
+  const config = {
+    get: (key: string) =>
+      ({
+        "cookie.secure": true,
+        "cookie.refreshTokenName": "custom_refresh",
+        "jwt.refreshExpiresIn": "7d",
+      })[key],
+    getOrThrow: () => "https://web.example.com",
+  };
+  const controller = new AuthController(
+    auth as unknown as AuthService,
+    config as unknown as ConfigService,
+    oauth as unknown as GithubOAuthService,
+  );
+  const response = responseMock as unknown as Response;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    oauth.authorize.mockResolvedValue({
+      url: "https://github.com/login/oauth/authorize?state=random",
+      browserSecret: "browser-secret",
+    });
+    oauth.callback.mockResolvedValue(user);
+    auth.loginUser.mockResolvedValue(AUTH_RESULT);
+  });
+  it("начинает OAuth, устанавливает краткоживущую HttpOnly cookie привязки к браузеру и перенаправляет на GitHub", async () => {
+    await controller.github(response);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      "browser-secret",
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 300000,
+      },
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://github.com/login/oauth/authorize?state=random",
+    );
+  });
+  it("завершает обработку возврата через существующую сессию, устанавливает refresh cookie и перенаправляет на dashboard", async () => {
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(oauth.callback).toHaveBeenCalledWith("code", "state", "binding");
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "custom_refresh",
+      AUTH_RESULT.refreshToken,
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 604800000,
+      },
+    );
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/dashboard",
+    );
+    expect(JSON.stringify(responseMock.redirect.mock.calls)).not.toContain(
+      "token",
+    );
+  });
+  it("не создаёт сессию и не устанавливает refresh cookie при некорректном возврате", async () => {
+    oauth.callback.mockRejectedValueOnce(new UnauthorizedException());
+    await expect(
+      controller.githubCallback(undefined, undefined, {} as Request, response),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.redirect).not.toHaveBeenCalled();
+  });
+  it("не устанавливает refresh cookie и не перенаправляет при ошибке создания сессии", async () => {
+    auth.loginUser.mockRejectedValueOnce(new Error("session failure"));
+    await expect(
+      controller.githubCallback("code", "state", {} as Request, response),
+    ).rejects.toThrow("session failure");
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.redirect).not.toHaveBeenCalled();
   });
 });

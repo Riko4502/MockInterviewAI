@@ -149,7 +149,8 @@ export class UsersService {
    */
   async create(data: {
     email: string;
-    passwordHash: string;
+    passwordHash: string | null;
+    githubId?: string;
     roleSlug?: string;
   }): Promise<User> {
     const roleSlug = data.roleSlug ?? SystemRole.USER;
@@ -167,6 +168,7 @@ export class UsersService {
       data: {
         email: data.email,
         passwordHash: data.passwordHash,
+        ...(data.githubId ? { githubId: data.githubId } : {}),
         roleId: defaultRole.id,
       },
     });

@@ -24,7 +24,10 @@ import { publishUserRevocation } from "../../common/pubsub/revocation";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { MailService } from "../mail/mail.service";
-import { UsersService } from "../users/users.service";
+import {
+  UsersService,
+  type UserWithRoleAndPermissions,
+} from "../users/users.service";
 import {
   PASSWORD_RESET_TOKEN_TTL_SECONDS,
   REDIS_DUMMY_PASSWORD_RESET_PREFIX,
@@ -206,10 +209,14 @@ export class AuthService implements OnModuleInit {
     const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
     const passwordValid = await argon2.verify(passwordHash, password);
 
-    if (!user || !passwordValid) {
+    if (!user?.passwordHash || !passwordValid) {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    return this.loginUser(user);
+  }
+
+  async loginUser(user: UserWithRoleAndPermissions): Promise<LoginResult> {
     if (user.deletedAt) {
       const elapsedMs = Date.now() - user.deletedAt.getTime();
       if (elapsedMs > THIRTY_DAYS_MS) {
@@ -381,10 +388,10 @@ export class AuthService implements OnModuleInit {
     }
 
     const passwordValid = await argon2.verify(
-      user.passwordHash,
+      user.passwordHash ?? this.dummyPasswordHash,
       currentPassword,
     );
-    if (!passwordValid) {
+    if (!user.passwordHash || !passwordValid) {
       throw new UnauthorizedException("Неверные учётные данные");
     }
 

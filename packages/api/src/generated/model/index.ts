@@ -13,6 +13,7 @@
 export * from './accessTokenResponseDto';
 export * from './addParticipantDto';
 export * from './addParticipantDtoRole';
+export * from './authControllerGithubCallbackParams';
 export * from './avatarDeleteResponseDto';
 export * from './avatarUploadResponseDto';
 export * from './changePasswordDto';
