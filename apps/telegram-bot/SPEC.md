@@ -6,7 +6,8 @@
 |---|---|---|
 | 1.0.0 | 2026-09-16 | Заменена ревью (1.0.1) |
 | 1.0.1 | 2026-09-20 | Заменена ревью (1.0.2) |
-| 1.0.2 | 2026-09-20 | Актуальный |
+| 1.0.2 | 2026-09-20 | Заменена ревью (1.0.3) |
+| 1.0.3 | 2026-09-20 | Актуальный |
 
 ## Связанные документы
 
@@ -65,7 +66,7 @@ apps/telegram-bot/
     ├── index.ts          # bootstrap: bot + режим polling/webhook + graceful shutdown
     ├── config.ts         # парсинг и валидация env (zod)
     ├── bot.ts            # создание Bot, регистрация middleware и команд
-    ├── api-client.ts     # HTTP-клиент к apps/api (X-Internal-Service-Key, ApiError)
+    ├── api-client.ts     # HTTP-клиент к apps/api (X-Internal-Service-Key, ApiError, timeout)
     ├── i18n.ts           # resolveLocale() и t() на базе @packages/i18n
     ├── types.ts          # типы ответов внутреннего API (DTO)
     └── handlers/
@@ -132,9 +133,11 @@ packages/i18n/src/locales/
 
 - Создание бота: `new Bot<TgContext>(env.TELEGRAM_BOT_TOKEN)`.
 - `TgContext` — типизированный грамми-контекст с `session` (персист локали, §12) и `from.language_code`.
+- Сессия grammY — in-memory (`MemorySessionStorage` по умолчанию): transient-локаль §10.2 живёт в памяти процесса и теряется при рестарте/нескольких инстансах. Для v1.0.0 (одна реплика) это приемлемо; мульти-инстансный деплой — «Вне области».
 - **Режим получения updates** определяется наличием `TELEGRAM_WEBHOOK_URL`:
   - `TELEGRAM_WEBHOOK_URL` не задан (dev) → **Long Polling**: `bot.start({ drop_pending_updates: true })`;
-  - `TELEGRAM_WEBHOOK_URL` задан (prod) → **Webhook**: `bot.api.setWebhook(url, { secret_token })` + `webhookCallback(bot, "http")` на внутреннем HTTP-сервере (порт `TELEGRAM_WEBHOOK_PORT`, путь `/telegram/webhook`).
+  - `TELEGRAM_WEBHOOK_URL` задан (prod) → **Webhook**: `bot.api.setWebhook(url, { secret_token })` + `webhookCallback(bot, "http", { secretToken })` на внутреннем HTTP-сервере (порт `TELEGRAM_WEBHOOK_PORT`, путь `/telegram/webhook`).
+  - **`secretToken` обязателен и в `setWebhook`, и в `webhookCallback`**: без опции `secretToken` grammY принимает **любые** updates (constant-time сравнение `X-Telegram-Bot-Api-Secret-Token` пропускается, когда токен не задан), т.е. webhook-эндпоинт аутентифицирует только сам факт поступления от Telegram. Оба значения берутся из `TELEGRAM_WEBHOOK_SECRET` (§12.1).
 - **Graceful shutdown** по SIGTERM/SIGINT: `bot.stop()`.
 - Среды обмена сообщениями: `ctx.reply`, `InlineKeyboard` (кнопки-ссылки и callback).
 
@@ -171,7 +174,7 @@ apps/web (ЛК)          apps/api                        Telegram          apps/
 ### 6.2. Привязка — `POST /api/v1/telegram/link`
 
 - Auth: **`X-Internal-Service-Key`** (§8).
-- Body: `{ token, chatId }` (zod-схема `linkRequestSchema`; `chatId` — строка, `token` — строка).
+- Body: `{ token, chatId }` (zod-схема `linkRequestSchema`; `token` — строка `min(1).max(64)` — лимит deep-link `?start=` Telegram; `chatId` — строка `min(1).max(32)` — лимит против абъюза Redis-ключей).
 - Алгоритм:
   1. `tokenHash = SHA256(token)` — raw-токен из `/start` приводится к хешу для поиска в Redis;
   2. Атомарное чтение и удаление ключа `tg:link:{tokenHash}` через Redis `GETDEL` (single-use, паттерн `resetPassword`; одновременные `/start` с одним токеном обрабатываются корректно) → ключ отсутствует → `410 Gone` (токен истёк или уже использован);
@@ -428,7 +431,8 @@ Telegram: ...
 • Сессия #<shortId> — <role> (<status>)
 ```
 
-и Inline-кнопка `interviews.joinButton` (URL) на каждую сессию: `{WEB_APP_URL}/dashboard/sandbox?room={id}` — страница комнаты сессии в `apps/web` (роут `/dashboard/sandbox`, параметр `room`, `docs/tasks/session-join-flow.md`). Путь привязан к актуальному маршруту, а не к несуществующему `/sessions/{id}`.
+и Inline-кнопка `interviews.joinButton` (URL) на каждую сессию: `{WEB_APP_URL}/dashboard/sandbox?room={id}` — страница комнаты сессии в `apps/web`. URL собирается в боте из `WEB_APP_URL` и константы `JOIN_PATH = "/dashboard/sandbox?room="`.
+- **Зависимость**: роут `/dashboard/sandbox?room=` планируется в `docs/tasks/session-join-flow.md` и на момент v1.0.0 в `apps/web` **не реализован** (страница и фича `features/sandbox` отсутствуют). Кнопка будет вести на 404 до реализации веб-задачи — это известный gap вне scope бота; при появлении роута код бота не меняется. Проверка наличия роута — в Phase 8.
 
 ### 11.4. `/unlink`
 
@@ -460,7 +464,7 @@ Telegram: ...
 | `INTERNAL_SERVICE_KEY` | да | — | Сервисный ключ (совпадает с `apps/api`) |
 | `WEB_APP_URL` | да | `http://localhost:3000` | Базовый URL веб-приложения (ссылки на сессии) |
 | `TELEGRAM_WEBHOOK_URL` | нет | — | Если задан → webhook-режим (prod); иначе long polling |
-| `TELEGRAM_WEBHOOK_SECRET` | нет | — | Секрет вебхука (`secret_token`, grammY) |
+| `TELEGRAM_WEBHOOK_SECRET` | нет (да при webhook) | — | Секрет вебхука: передаётся в `setWebhook({ secret_token })` **и** в `webhookCallback(..., { secretToken })` (проверка `X-Telegram-Bot-Api-Secret-Token`) |
 | `TELEGRAM_WEBHOOK_PORT` | нет | `8443` | Порт внутреннего HTTP-сервера для вебхука |
 | `NODE_ENV` | нет | `development` | Окружение |
 
@@ -484,6 +488,8 @@ Telegram: ...
 - **Сервисный ключ** сравнивается constant-time (`timingSafeEqual`), не логируется.
 - **Запрещённые данные**: токены привязки, `INTERNAL_SERVICE_KEY`, `chatId`->секретные данные не логируются ботом и API; ошибки бота содержат только i18n-тексты без деталей.
 - **Внутренние endpoints скрыты из публичной OpenAPI** (`@ApiExcludeController`): открыты только для сервиса-бота.
+- **Webhook** защищён `TELEGRAM_WEBHOOK_SECRET`: заголовок `X-Telegram-Bot-Api-Secret-Token` проверяется в `webhookCallback` через `secretToken`-опцию (constant-time). Устанавливается и при `setWebhook`, и при приёме (§5).
+- **`/me` раскрывает персональные данные** (email, displayName): допустимо — доступ к профилю получает только владелец привязанного чата (поиск по `chatId` + сервисный ключ §8); данные не отдаются третьим лицам.
 - **Токен `link-token`** — `randomBytes(24)` → hex (48 символов: укладывается в лимит deep-link `?start=` Telegram — 64 символа, алфавит `A-Za-z0-9_-`). В Redis хранится только SHA-256 хеш токена (§6.1) — raw-токен невосстановим при компрометации Redis.
 - **Токен привязки — «ключ от аккаунта»**: владелец `linkUrl` привязывает аккаунт к **своему** Telegram-чату. Митигации: TTL 15 мин, single-use (GETDEL), блокировка повторной привязки через `telegramChatId @unique` (409). `linkUrl` не должен публиковаться или пересылаться; получение чужого токена даёт только привязку чата к уже существующему аккаунту в пределах TTL.
 
@@ -559,3 +565,4 @@ Telegram: ...
 | 1.0.0 | 2026-09-16 | Первоначальная версия спецификации. |
 | 1.0.1 | 2026-09-20 | Токен привязки: `randomBytes(24)` + SHA-256 в Redis вместо Argon2id-hex (лимит `?start=` 64 симв.); атомарный GETDEL для single-use; `unlink` очищает `telegramLocale`; join-URL → `/dashboard/sandbox?room={id}`; уточнён fallback локали и типизированный `t()`; документирована угроза «токен = ключ от аккаунта». |
 | 1.0.2 | 2026-09-20 | Service-key эндпоинты — обязательный `@Public()` (глобальный `AccessTokenGuard` случайно 401-ит без Bearer; `@UseGuards` его не отменяет); `link-token` — per-route `AuthThrottlerGuard` (глобального `ThrottlerGuard`-APP_GUARD нет); уточнены тесты контроллера. |
+| 1.0.3 | 2026-09-20 | Join-URL `/dashboard/sandbox?room=` — известная зависимость от `docs/tasks/session-join-flow.md` (в web пока не реализован); `secretToken` в `webhookCallback` обязателен (иначе grammY принимает любые updates); timeout api-client; лимиты `linkRequestSchema`; фиксация «/me раскрывает данные только владельцу чата»; in-memory сессия грамми — только одна реплика. |
