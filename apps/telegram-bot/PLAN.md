@@ -19,93 +19,93 @@ Scaffolding `apps/telegram-bot`, подключение к Telegram Bot API (gra
 
 ## Phase 0 — Документация
 
-- [ ] Заполнить `apps/telegram-bot/SPEC.md` (назначение, архитектура, endpoints, i18n, env, безопасность, манифест).
-- [ ] Заполнить `apps/telegram-bot/PLAN.md` (этот документ).
+- [x] Заполнить `apps/telegram-bot/SPEC.md` (назначение, архитектура, endpoints, i18n, env, безопасность, манифест).
+- [x] Заполнить `apps/telegram-bot/PLAN.md` (этот документ).
 
 ## Phase 1 — Scaffolding `apps/telegram-bot`
 
-- [ ] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch --env-file=.env src/index.ts`), `start` (`tsx --env-file=.env src/index.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`). Флаг `--env-file=.env` (Node ≥ 20.6) грузит переменные без отдельной зависимости `dotenv`.
-- [ ] Создать `tsconfig.json` — extends `../../tsconfig.base.json` (ES2022, `moduleResolution: Bundler`, strict); include `src`.
-- [ ] Создать `.env.example` (см. SPEC §12.1).
-- [ ] Создать `vitest.config.ts`.
-- [ ] Установить зависимости (из корня):
+- [x] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch --env-file=.env src/bot.ts`), `start` (`tsx --env-file=.env src/bot.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`). Флаг `--env-file=.env` (Node ≥ 20.6) грузит переменные без отдельной зависимости `dotenv`. Entry-файл — `src/bot.ts` (не `src/index.ts`): скрипты и `turbo`-задача `build` указывают на него.
+- [x] Создать `tsconfig.json` — extends `../../tsconfig.base.json` (ES2022, `moduleResolution: Bundler`, strict); include `src`.
+- [x] Создать `.env.example` (см. SPEC §12.1).
+- [x] Создать `vitest.config.ts`.
+- [x] Установить зависимости (из корня):
 
 ```bash
 pnpm --filter @apps/telegram-bot add grammY @packages/i18n@workspace:* @packages/dto@workspace:*
 pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biomejs/biome@2.4.2
 ```
 
-- [ ] Обновить корневой `package.json`: скрипты `dev:telegram-bot` → `turbo dev --filter=@apps/telegram-bot`, `build:telegram-bot` → `turbo build --filter=@apps/telegram-bot`.
-- [ ] Обновить `lint-staged.config.mjs` — паттерн `apps/telegram-bot/**/*.{js,ts,json}` (при наличии файла).
-- [ ] Верификация scaffolding: `pnpm install` → `pnpm --filter @apps/telegram-bot typecheck` → `pnpm run lint`.
+- [x] Обновить корневой `package.json`: скрипты `dev:telegram-bot` → `dev:telegram-bot: turbo dev --filter=@apps/telegram-bot`, `build:telegram-bot` → `build:telegram-bot: turbo build --filter=@apps/telegram-bot`.
+- [x] Обновить `lint-staged.config.mjs` — паттерн `apps/telegram-bot/**/*.{js,ts,json}` (при наличии файла).
+- [x] Верификация scaffolding: `pnpm install` → `pnpm --filter @apps/telegram-bot typecheck` → `pnpm run lint`.
 
 > **Примечание:** `turbo.json` изменений не требует — задачи `dev`/`build`/`test` уже декларированы глобально; билд бота — typecheck (`tsc --noEmit`), артефактов не создаёт (запуск через `tsx`).
 
 ## Phase 2 — Backend: Prisma-миграция и env (`apps/api`)
 
-- [ ] `apps/api/prisma/schema.prisma` — добавить в модель `User`:
+- [x] `apps/api/prisma/schema.prisma` — добавить в модель `User`:
   - `telegramChatId String? @unique`;
   - `telegramLocale String?`.
-- [ ] Миграция: `pnpm --filter api db:migrate:dev -- --name add_telegram_bot_fields`; `prisma generate`.
-- [ ] `apps/api/src/config/env.validation.ts` — добавить в zod-схему:
+- [x] Миграция: `pnpm --filter api db:migrate:dev -- --name add_telegram_bot_fields`; `prisma generate`.
+- [x] `apps/api/src/config/env.validation.ts` — добавить в zod-схему:
   - `INTERNAL_SERVICE_KEY: z.string().min(32)`;
   - `TELEGRAM_BOT_USERNAME: z.string().min(1).default("MockInterviewBot")`;
   - `TELEGRAM_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(900)`.
-- [ ] Корневой `.env.example` — добавить блок `# Telegram Bot` с этими переменными.
+- [x] Корневой `.env.example` — добавить блок `# Telegram Bot` с этими переменными.
 
 ## Phase 3 — Backend: `@packages/dto` (telegram-схемы)
 
-- [ ] Создать `packages/dto/src/telegram/`:
+- [x] Создать `packages/dto/src/telegram/`:
   - `link.dto.ts` — `linkRequestSchema` (`{ token, chatId }`; `token` — `string.min(1).max(64)` — лимит `?start=` Telegram; `chatId` — `string.min(1).max(32)` — защита от абъюза Redis-ключей), `linkTokenResponseSchema` (`{ linkUrl }`);
   - `unlink.dto.ts` — `unlinkRequestSchema` (`{ chatId }`), `unlinkResponseSchema` (`{ success: true }`);
   - `profile.dto.ts` — `telegramProfileQuerySchema` (`{ chatId }`), `telegramUserProfileSchema` (id, email, displayName, username, telegramUsername, telegramChatId, telegramLocale, role) + тип `TelegramUserProfileDto`;
   - `interviews.dto.ts` — `telegramInterviewsQuerySchema`, `telegramInterviewSchema` (id, status, startedAt, role, createdAt), `telegramInterviewsListSchema` (`{ items }`);
   - `preferences.dto.ts` — `telegramPreferencesPatchSchema` (`{ chatId, locale: z.enum(["ru", "en"]) }`).
-- [ ] Экспортировать схемы и типы из `packages/dto/src/index.ts`.
-- [ ] Тесты dto: валидные/невалидные payload по каждой схеме (сообщения на русском, §63 `apps/api/SPEC.md`).
-- [ ] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`.
+- [x] Экспортировать схемы и типы из `packages/dto/src/index.ts`.
+- [x] Тесты dto: валидные/невалидные payload по каждой схеме (сообщения на русском, §63 `apps/api/SPEC.md`).
+- [x] `pnpm --filter @packages/dto test && pnpm --filter @packages/dto typecheck && pnpm --filter @packages/dto build`.
 
 ## Phase 4 — Backend: `TelegramModule`
 
-- [ ] `apps/api/src/modules/telegram/guards/internal-service-key.guard.ts` — проверка `X-Internal-Service-Key` через `crypto.timingSafeEqual` (constant-time); `401` на отсутствие/несовпадение; длина заголовка контролируется атакующим → обе стороны хешируются через SHA-256 до сравнения (иначе `timingSafeEqual` бросает `RangeError` на разной длине); JSDoc.
-- [ ] `apps/api/src/modules/telegram/telegram.service.ts` — методы (по SPEC §6–§7, §9):
+- [x] `apps/api/src/modules/telegram/guards/internal-service-key.guard.ts` — проверка `X-Internal-Service-Key` через `crypto.timingSafeEqual` (constant-time); `401` на отсутствие/несовпадение; длина заголовка контролируется атакующим → обе стороны хешируются через SHA-256 до сравнения (иначе `timingSafeEqual` бросает `RangeError` на разной длине); JSDoc.
+- [x] `apps/api/src/modules/telegram/telegram.service.ts` — методы (по SPEC §6–§7, §9):
   - `createLinkToken(userId): { linkUrl }` — `rawToken = randomBytes(24).toString("hex")` (48 симв., укладывается в лимит `?start=` Telegram), `tokenHash = createHash("sha256").update(rawToken).digest("hex")`, `RedisService.set("tg:link:" + tokenHash, JSON.stringify({ userId }), ttl)`, `linkUrl = https://t.me/{botUsername}?start={rawToken}`;
   - `link(token, chatId)` — атомарный `RedisService.getdel("tg:link:" + sha256(token))` (single-use, паттерн `resetPassword`): `null` → `410`; проверка пользователя/совпадений, update `telegramChatId`, rethrow Prisma `P2002` → `409`;
   - `unlink(chatId)` — updateMany `{ telegramChatId, telegramLocale }` в `null` → count 0 → `404`;
   - `getProfileByChatId(chatId)` — `findUnique where telegramChatId`, без `deletedAt` → `404`;
   - `getInterviewsByChatId(chatId)` — собственник или участник, `status ∈ {CREATED, ACTIVE}`, `take: 10`, `role` из владения/партиципации;
   - `updatePreferences(chatId, locale)` — update `telegramLocale` → `404` при отсутствии.
-- [ ] `apps/api/src/modules/telegram/telegram.controller.ts`:
+- [x] `apps/api/src/modules/telegram/telegram.controller.ts`:
   - `@ApiTags("telegram-internal")`, `@ApiExcludeController()` (скрыть из публичной OpenAPI, SPEC §13);
   - `POST /telegram/link-token` — за глобальным `AccessTokenGuard` (без `@Public()`), `request.user.sub`, per-route `@UseGuards(AuthThrottlerGuard)` (глобального throttling нет — см. SPEC §7);
   - `POST /telegram/link`, `POST /telegram/unlink`, `GET /telegram/profile`, `GET /telegram/interviews`, `PATCH /telegram/preferences` — `@Public()` (обход глобального `AccessTokenGuard`: бот не шлёт Bearer, только `X-Internal-Service-Key`) + `@UseGuards(InternalServiceKeyGuard)`, `ZodValidationPipe`, Swagger-декораторы (компактные описания для внутреннего API).
-- [ ] `apps/api/src/modules/telegram/telegram.module.ts` — controller + service (PrismaModule/RedisModule глобальные).
-- [ ] Зарегистрировать `TelegramModule` в `apps/api/src/app.module.ts`.
-- [ ] Тесты:
+- [x] `apps/api/src/modules/telegram/telegram.module.ts` — controller + service (PrismaModule/RedisModule глобальные).
+- [x] Зарегистрировать `TelegramModule` в `apps/api/src/app.module.ts`.
+- [x] Тесты:
   - unit `telegram.service.spec.ts` (кейсы из SPEC §6.2/§7, включая повторное использование токена → `410` через GETDEL);
   - unit `internal-service-key.guard.spec.ts` (отсутствие/несовпадение → `401`, заголовок другой длины → `401` без `RangeError`);
   - e2e `apps/api/test/telegram-link.e2e-spec.ts` (link-token → link → profile → unlink; link без ключа → `401`, повторный link с тем же токеном → `410`).
-- [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
+- [x] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
 ## Phase 5 — Локализация: `telegram.json` в `@packages/i18n`
 
-- [ ] Создать `packages/i18n/src/locales/ru/telegram.json` (структура SPEC §10.1; ключи `start.*`, `me.*`, `interviews.*`, `unlink.*`, `lang.*`, `errors.*`).
-- [ ] Создать зеркально `packages/i18n/src/locales/en/telegram.json`.
-- [ ] `packages/i18n/src/types.ts` — импорт `ru/telegram.json`, тип `TelegramMessages`, добавление `telegram` в `Messages`.
-- [ ] `packages/i18n/src/index.ts` — импорт `ru`/`en` `telegram.json`, добавление `telegram` в объект `messages[locale]`.
-- [ ] `pnpm --filter @packages/i18n typecheck && pnpm run lint`.
+- [x] Создать `packages/i18n/src/locales/ru/telegram.json` (структура SPEC §10.1; ключи `start.*`, `me.*`, `interviews.*`, `unlink.*`, `lang.*`, `errors.*`).
+- [x] Создать зеркально `packages/i18n/src/locales/en/telegram.json`.
+- [x] `packages/i18n/src/types.ts` — импорт `ru/telegram.json`, тип `TelegramMessages`, добавление `telegram` в `Messages`.
+- [x] `packages/i18n/src/index.ts` — импорт `ru`/`en` `telegram.json`, добавление `telegram` в объект `messages[locale]`.
+- [x] `pnpm --filter @packages/i18n typecheck && pnpm run lint`.
 
 ## Phase 6 — Бот: ядро
 
-- [ ] `src/config.ts` — zod-парсинг env по перечню SPEC §12.1 (токен/API/сервисный ключ/webhook/порт), тип `Env`.
-- [ ] `src/api-client.ts` — `fetch`-обёртка над `API_INTERNAL_URL`:
+- [x] `src/config.ts` — zod-парсинг env по перечню SPEC §12.1 (токен/API/сервисный ключ/webhook/порт), тип `Env`.
+- [x] `src/api-client.ts` — `fetch`-обёртка над `API_INTERNAL_URL`:
   - base headers `X-Internal-Service-Key`;
-  - `apiPost(path, body)`, `apiGet(path, params)`;
+  - `apiPost(path, body)`, `apiGet(path, params)`, `apiPatch(path, body)`;
   - класс `ApiError { status, body }`; маппинг не-OK статусов;
   - timeout каждого запроса через `AbortSignal.timeout(10_000)` (зависший API не держит обработку апдейта).
-- [ ] `src/i18n.ts` — `resolveLocale(manual?, profileLocale?, languageCode?): Locale` (приоритет SPEC §10.2) и `t(locale, key)` через `getMessages(locale).telegram`.
-- [ ] `src/types.ts` — типы ответов внутреннего API из `@packages/dto` (переиспользование, не дублирование). Импорт **только типов**: runtime-export dto идёт из `dist` (main `./dist/index.js`), а бот работает через `tsx` без сборки — значения (zod-схемы/константы) из dto в runtime не тащим, валидацию выполняет API; при dev-запуске перед ботом выполнять `pnpm --filter @packages/dto build`.
-- [ ] `src/bot.ts` — `new Bot<TgContext>(TOKEN)`, middleware `session` (грамми-сессия, in-memory `MemorySessionStorage` — для v1 и одной реплики; transient-локаль §11.5; мульти-инстанс — «Вне области»), регистрация команд:
+- [x] `src/i18n.ts` — `resolveLocale(manual?, profileLocale?, languageCode?): Locale` (приоритет SPEC §10.2) и `t(locale, key)` через `getMessages(locale).telegram`.
+- [x] `src/types.ts` — типы ответов внутреннего API из `@packages/dto` (переиспользование, не дублирование). Импорт **только типов**: runtime-export dto идёт из `dist` (main `./dist/index.js`), а бот работает через `tsx` без сборки — значения (zod-схемы/константы) из dto в runtime не тащим, валидацию выполняет API; при dev-запуске перед ботом выполнять `pnpm --filter @packages/dto build`.
+- [x] `src/bot.ts` — `new Bot<TgContext>(TOKEN)`, middleware `session` (грамми-сессия, in-memory `MemorySessionStorage` — для v1 и одной реплики; transient-локаль §11.5; мульти-инстанс — «Вне области»), регистрация команд:
   - `bot.command("start", startHandler)`, `me`, `interviews`, `unlink`, `lang`;
   - `bot.callbackQuery("lang:ru" | "lang:en", langCallback)`;
   - `bot.catch(...)` — лог без чувствительных данных (SPEC §13).
@@ -117,22 +117,22 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
 
 ## Phase 7 — Бот: хендлеры команд
 
-- [ ] `src/handlers/start.ts` — `/start`:
+- [x] `src/handlers/start.ts` — `/start`:
   - только приватный чат (`ctx.chat.type === "private"`), иначе → `start.welcome` (привязка в группах не поддерживается; `ctx.chat.id` там отрицательный);
   - без токена → `start.welcome`;
   - с токеном → `apiPost("/telegram/link", { token, chatId: String(ctx.chat.id) })`; маппинг ответов (`200` → `start.linked`, `409` → `start.alreadyLinked`, `410` → `start.tokenExpired`, `400`/`401`/`5xx` → `start.linkError`, прочее → `errors.unexpected`).
-- [ ] `src/handlers/me.ts` — `/me`:
+- [x] `src/handlers/me.ts` — `/me`:
   - `apiGet("/telegram/profile", { chatId })`;
   - `404` → `me.notLinked`; успех → форматированный профиль (`me.title`, `me.name`, `me.email`, `me.username`, `me.telegram`, `me.role`); `5xx` → `errors.apiUnavailable`.
-- [ ] `src/handlers/interviews.ts` — `/interviews`:
+- [x] `src/handlers/interviews.ts` — `/interviews`:
   - `apiGet("/telegram/interviews", { chatId })`;
   - `404` → `interviews.notLinked`; пустой список → `interviews.empty`;
   - `5xx` → `interviews.unexpected`;
   - иначе `interviews.title` + пункты + InlineKeyboard с `interviews.joinButton` (URL из `WEB_APP_URL` + константа `JOIN_PATH = "/dashboard/sandbox?room="`, SPEC §11.3).
   - Зависимость: роут `/dashboard/sandbox` в `apps/web` пока не реализован (`docs/tasks/session-join-flow.md`) — кнопка ведёт на 404 до реализации веб-задачи; код бота не зависит от этого.
-- [ ] `src/handlers/unlink.ts` — `/unlink`:
+- [x] `src/handlers/unlink.ts` — `/unlink`:
   - `apiPost("/telegram/unlink", { chatId })`; `404` → `unlink.notLinked`, успех → `unlink.success`.
-- [ ] `src/handlers/lang.ts` — `/lang` + callback `lang:ru`/`lang:en`:
+- [x] `src/handlers/lang.ts` — `/lang` + callback `lang:ru`/`lang:en`:
   - `/lang` без аргумента → `lang.select` + InlineKeyboard (`lang:ru`, `lang:en`);
   - callback → `apiPatch("/telegram/preferences", { chatId, locale })` (при наличии привязки):
     - успех → `ctx.session.locale = code`, `lang.changedRu`/`lang.changedEn`;
@@ -144,7 +144,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
 
 ## Phase 8 — Верификация
 
-- [ ] Выполнить:
+- [x] Выполнить:
 
 ```bash
 pnpm install

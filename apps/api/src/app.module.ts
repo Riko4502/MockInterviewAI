@@ -15,6 +15,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
 import { StorageModule } from "./modules/storage/storage.module";
+import { TelegramModule } from "./modules/telegram/telegram.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
@@ -59,6 +60,7 @@ import { RedisModule } from "./redis/redis.module";
     SessionsModule,
     RealtimeModule,
     NotificationsModule,
+    TelegramModule,
   ],
   providers: [
     {

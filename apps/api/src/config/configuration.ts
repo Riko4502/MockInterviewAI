@@ -72,6 +72,11 @@ export const configuration = () => ({
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== "false",
     maxAvatarSizeBytes: Number(process.env.MAX_AVATAR_SIZE_BYTES ?? 2_097_152),
   },
+  telegram: {
+    internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? "",
+    botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "MockInterviewBot",
+    linkTtlSeconds: Number(process.env.TELEGRAM_LINK_TTL_SECONDS ?? 900),
+  },
 });
 
 /** Тип конфигурации приложения (выводится из фабрики `configuration`). */

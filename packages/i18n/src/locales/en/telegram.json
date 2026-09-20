@@ -1,0 +1,53 @@
+{
+  "start": {
+    "welcome": "Hi! This is Mock Interview AI.\n\nThe bot helps you prepare for interviews and track practice sessions.\n\nOpen your profile on the website to get a link to connect your account.",
+    "linked": "Account connected. Happy practicing!\n\nTry these commands:\n/me — your profile\n/interviews — your interviews\n/lang — language selection",
+    "alreadyLinked": "The account is already connected to this chat.\n\nCommands: /me, /interviews, /unlink",
+    "tokenExpired": "The link is invalid or has expired. Get a new link in your profile on the website and try again.",
+    "linkError": "Could not connect the account. Please try again later."
+  },
+  "me": {
+    "title": "Profile",
+    "name": "Name",
+    "email": "Email",
+    "username": "Username",
+    "telegram": "Telegram",
+    "role": "Role",
+    "notLinked": "The account is not connected to Telegram.\n\nYou can get a connection link in your profile on the website."
+  },
+  "interviews": {
+    "title": "Upcoming interviews",
+    "empty": "There are no upcoming interviews right now.",
+    "item": "Session #{{shortId}} — {{role}} ({{status}})",
+    "joinButton": "Join",
+    "notLinked": "The account is not connected to Telegram.\n\nYou can get a connection link in your profile on the website.",
+    "unexpected": "Could not load the interview list. Please try again later.",
+    "role": {
+      "candidate": "Candidate",
+      "interviewer": "Interviewer",
+      "observer": "Observer"
+    },
+    "status": {
+      "created": "Created",
+      "active": "Active",
+      "closed": "Closed"
+    }
+  },
+  "unlink": {
+    "success": "The Telegram account is unlinked.",
+    "notLinked": "The account is not connected to Telegram.",
+    "unexpected": "Could not unlink the account. Please try again later."
+  },
+  "lang": {
+    "select": "Select language:",
+    "current": "Current: {{language}}",
+    "changedRu": "Язык изменён на Русский.",
+    "changedEn": "Language changed to English.",
+    "persistError": "Could not save the language. Please try again later.",
+    "notLinked": "Changing the language is only available after connecting your account.\n\nYou can get a connection link in your profile on the website."
+  },
+  "errors": {
+    "apiUnavailable": "The service is temporarily unavailable. Please try again later.",
+    "unexpected": "An unexpected error occurred. Please try again later."
+  }
+}
