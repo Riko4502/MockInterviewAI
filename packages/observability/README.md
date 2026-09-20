@@ -121,10 +121,14 @@ guard'ом по DSN.
 `AppModule`, guard по `SENTRY_DSN`:
 
 ```ts
+import { sentryNestjsConfig } from "@packages/observability";
 import { init } from "@sentry/nestjs";
-import { sentryNestjsConfig } from "@packages/observability/sentry";
 
-init(sentryNestjsConfig());
+// Без SENTRY_DSN init не вызывается — Sentry остаётся no-op
+// (конфиги падают при некорректном DSN, см. «Публичный API»).
+if (process.env.SENTRY_DSN) {
+  init(sentryNestjsConfig());
+}
 ```
 
 Метрики: `MetricsModule` (`@Global`, prom-client) — `http_requests_total`,
