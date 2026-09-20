@@ -4,7 +4,9 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.0.0 | 2026-09-16 | Актуальный |
+| 1.0.0 | 2026-09-16 | Заменена ревью (1.0.1) |
+| 1.0.1 | 2026-09-20 | Заменена ревью (1.0.2) |
+| 1.0.2 | 2026-09-20 | Актуальный |
 
 ## Область v1.0.0
 
@@ -21,7 +23,7 @@ Scaffolding `apps/telegram-bot`, подключение к Telegram Bot API (gra
 
 ## Phase 1 — Scaffolding `apps/telegram-bot`
 
-- [ ] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch src/index.ts`), `start` (`tsx src/index.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`).
+- [ ] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch --env-file=.env src/index.ts`), `start` (`tsx --env-file=.env src/index.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`). Флаг `--env-file=.env` (Node ≥ 20.6) грузит переменные без отдельной зависимости `dotenv`.
 - [ ] Создать `tsconfig.json` — extends `../../tsconfig.base.json` (ES2022, `moduleResolution: Bundler`, strict); include `src`.
 - [ ] Создать `.env.example` (см. SPEC §12.1).
 - [ ] Создать `vitest.config.ts`.
@@ -64,24 +66,24 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
 
 ## Phase 4 — Backend: `TelegramModule`
 
-- [ ] `apps/api/src/modules/telegram/guards/internal-service-key.guard.ts` — проверка `X-Internal-Service-Key` через `crypto.timingSafeEqual` (constant-time); `401` на отсутствие/несовпадение; JSDoc.
+- [ ] `apps/api/src/modules/telegram/guards/internal-service-key.guard.ts` — проверка `X-Internal-Service-Key` через `crypto.timingSafeEqual` (constant-time); `401` на отсутствие/несовпадение; длина заголовка контролируется атакующим → обе стороны хешируются через SHA-256 до сравнения (иначе `timingSafeEqual` бросает `RangeError` на разной длине); JSDoc.
 - [ ] `apps/api/src/modules/telegram/telegram.service.ts` — методы (по SPEC §6–§7, §9):
-  - `createLinkToken(userId): { linkUrl }` — `hash = argon2.hash("{userId}:{Date.now()}")` (существующая зависимость `argon2` в api, параметры `ARGON2_*`), `token = Buffer.from(hash).toString("hex")` (URL-safe), `RedisService.set("tg:link:{token}", JSON.stringify({ userId }), ttl)`, `linkUrl = https://t.me/{botUsername}?start={token}`;
-  - `link(token, chatId)` — read-then-del токена, проверка пользователя/совпадений, update `telegramChatId`, rethrow Prisma `P2002` → `409`;
-  - `unlink(chatId)` — updateMany → count 0 → `404`;
+  - `createLinkToken(userId): { linkUrl }` — `rawToken = randomBytes(24).toString("hex")` (48 симв., укладывается в лимит `?start=` Telegram), `tokenHash = createHash("sha256").update(rawToken).digest("hex")`, `RedisService.set("tg:link:" + tokenHash, JSON.stringify({ userId }), ttl)`, `linkUrl = https://t.me/{botUsername}?start={rawToken}`;
+  - `link(token, chatId)` — атомарный `RedisService.getdel("tg:link:" + sha256(token))` (single-use, паттерн `resetPassword`): `null` → `410`; проверка пользователя/совпадений, update `telegramChatId`, rethrow Prisma `P2002` → `409`;
+  - `unlink(chatId)` — updateMany `{ telegramChatId, telegramLocale }` в `null` → count 0 → `404`;
   - `getProfileByChatId(chatId)` — `findUnique where telegramChatId`, без `deletedAt` → `404`;
   - `getInterviewsByChatId(chatId)` — собственник или участник, `status ∈ {CREATED, ACTIVE}`, `take: 10`, `role` из владения/партиципации;
   - `updatePreferences(chatId, locale)` — update `telegramLocale` → `404` при отсутствии.
 - [ ] `apps/api/src/modules/telegram/telegram.controller.ts`:
   - `@ApiTags("telegram-internal")`, `@ApiExcludeController()` (скрыть из публичной OpenAPI, SPEC §13);
-  - `POST /telegram/link-token` — за глобальным `AccessTokenGuard` (без `@Public()`), `request.user.sub`;
-  - `POST /telegram/link`, `POST /telegram/unlink`, `GET /telegram/profile`, `GET /telegram/interviews`, `PATCH /telegram/preferences` — `@UseGuards(InternalServiceKeyGuard)`, `ZodValidationPipe`, Swagger-декораторы (компактные описания для внутреннего API).
+  - `POST /telegram/link-token` — за глобальным `AccessTokenGuard` (без `@Public()`), `request.user.sub`, per-route `@UseGuards(AuthThrottlerGuard)` (глобального throttling нет — см. SPEC §7);
+  - `POST /telegram/link`, `POST /telegram/unlink`, `GET /telegram/profile`, `GET /telegram/interviews`, `PATCH /telegram/preferences` — `@Public()` (обход глобального `AccessTokenGuard`: бот не шлёт Bearer, только `X-Internal-Service-Key`) + `@UseGuards(InternalServiceKeyGuard)`, `ZodValidationPipe`, Swagger-декораторы (компактные описания для внутреннего API).
 - [ ] `apps/api/src/modules/telegram/telegram.module.ts` — controller + service (PrismaModule/RedisModule глобальные).
 - [ ] Зарегистрировать `TelegramModule` в `apps/api/src/app.module.ts`.
 - [ ] Тесты:
-  - unit `telegram.service.spec.ts` (кейсы из SPEC §6.2/§7);
-  - unit `internal-service-key.guard.spec.ts`;
-  - e2e `apps/api/test/telegram-link.e2e-spec.ts` (link-token → link → profile → unlink; link без ключа → `401`).
+  - unit `telegram.service.spec.ts` (кейсы из SPEC §6.2/§7, включая повторное использование токена → `410` через GETDEL);
+  - unit `internal-service-key.guard.spec.ts` (отсутствие/несовпадение → `401`, заголовок другой длины → `401` без `RangeError`);
+  - e2e `apps/api/test/telegram-link.e2e-spec.ts` (link-token → link → profile → unlink; link без ключа → `401`, повторный link с тем же токеном → `410`).
 - [ ] `pnpm --filter api lint && pnpm --filter api test && pnpm --filter api test:e2e`.
 
 ## Phase 5 — Локализация: `telegram.json` в `@packages/i18n`
@@ -100,7 +102,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
   - `apiPost(path, body)`, `apiGet(path, params)`;
   - класс `ApiError { status, body }`; маппинг не-OK статусов.
 - [ ] `src/i18n.ts` — `resolveLocale(manual?, profileLocale?, languageCode?): Locale` (приоритет SPEC §10.2) и `t(locale, key)` через `getMessages(locale).telegram`.
-- [ ] `src/types.ts` — типы ответов внутреннего API из `@packages/dto` (переиспользование, не дублирование).
+- [ ] `src/types.ts` — типы ответов внутреннего API из `@packages/dto` (переиспользование, не дублирование). Импорт **только типов**: runtime-export dto идёт из `dist` (main `./dist/index.js`), а бот работает через `tsx` без сборки — значения (zod-схемы/константы) из dto в runtime не тащим, валидацию выполняет API; при dev-запуске перед ботом выполнять `pnpm --filter @packages/dto build`.
 - [ ] `src/bot.ts` — `new Bot<TgContext>(TOKEN)`, middleware `session` (грамми-сессия для transient-локали), регистрация команд:
   - `bot.command("start", startHandler)`, `me`, `interviews`, `unlink`, `lang`;
   - `bot.callbackQuery("lang:ru" | "lang:en", langCallback)`;
@@ -114,6 +116,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
 ## Phase 7 — Бот: хендлеры команд
 
 - [ ] `src/handlers/start.ts` — `/start`:
+  - только приватный чат (`ctx.chat.type === "private"`), иначе → `start.welcome` (привязка в группах не поддерживается; `ctx.chat.id` там отрицательный);
   - без токена → `start.welcome`;
   - с токеном → `apiPost("/telegram/link", { token, chatId: String(ctx.chat.id) })`; маппинг ответов (`200` → `start.linked`, `409` → `start.alreadyLinked`, `410` → `start.tokenExpired`, `400`/`401`/`5xx` → `start.linkError`, прочее → `errors.unexpected`).
 - [ ] `src/handlers/me.ts` — `/me`:
@@ -122,7 +125,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
 - [ ] `src/handlers/interviews.ts` — `/interviews`:
   - `apiGet("/telegram/interviews", { chatId })`;
   - `404` → `interviews.notLinked`; пустой список → `interviews.empty`;
-  - иначе `interviews.title` + пункты + InlineKeyboard с `interviews.joinButton` (`{WEB_APP_URL}/sessions/{id}`).
+  - иначе `interviews.title` + пункты + InlineKeyboard с `interviews.joinButton` (`{WEB_APP_URL}/dashboard/sandbox?room={id}`, SPEC §11.3).
 - [ ] `src/handlers/unlink.ts` — `/unlink`:
   - `apiPost("/telegram/unlink", { chatId })`; `404` → `unlink.notLinked`, успех → `unlink.success`.
 - [ ] `src/handlers/lang.ts` — `/lang` + callback `lang:ru`/`lang:en`:
@@ -153,7 +156,7 @@ pnpm run build:telegram-bot
   1. `docker compose up -d`; заполнить `.env` (в т.ч. `INTERNAL_SERVICE_KEY`, `TELEGRAM_BOT_TOKEN`);
   2. поднять API (`pnpm --filter api dev`) и бот (`pnpm run dev:telegram-bot`);
   3. зарегистрировать пользователя → `POST /api/v1/telegram/link-token` (Bearer) → получить `linkUrl`;
-  4. перейти по `t.me/...?start=TOKEN` → бот отвечает `start.linked`;
+  4. перейти по `t.me/...?start=TOKEN` → бот отвечает `start.linked`; повторно открыть ту же ссылку → `start.tokenExpired` (single-use);
   5. `/me` → профиль; `/interviews` → список/пусто; `/lang` → смена языка, затем повторный `/me` на выбранном языке; `/unlink` → `unlink.success`, повторный `/me` → `me.notLinked`.
 - [ ] Зафиксировать отклонения/решения, обновить этот план и SPEC (Behavior-driven, как в `apps/api/PLAN.md`).
 
@@ -165,7 +168,6 @@ pnpm run build:telegram-bot
 - **`/settings`**: включение/отключение категорий уведомлений — потребуется модель настроек и расширение `PATCH /telegram/preferences`.
 - **Веб-кнопка «Подключить Telegram»** в `apps/web`: форма использует готовый `POST /api/v1/telegram/link-token`; отрисовка `linkUrl` + статус привязки.
 - **Улучшения команды `/unlink`**: подтверждающий шаг через Inline-кнопку (сейчас прямое действие).
-- **Троттлинг `/start`**: per-route `AuthThrottlerGuard` на `POST /telegram/link-token` (сейчас — только глобальный `ThrottlerModule`).
 - **Персистентная локаль вне привязки**: состояние локали пока хранится в сессии grammY и в API только после привязки.
 
 ---
@@ -175,3 +177,5 @@ pnpm run build:telegram-bot
 | Версия | Дата | Изменения |
 |---|---|---|
 | 1.0.0 | 2026-09-16 | Первоначальная версия плана. |
+| 1.0.1 | 2026-09-20 | Синхронизация с ревью SPEC 1.0.1: токен randomBytes+sha256 (лимит `?start=`), атомарный GETDEL, guard против разной длины ключа, `unlink` очищает локаль, private-chat guard в `/start`, повторный link → `410` в сценарии и тестах, `--env-file` в scripts. |
+| 1.0.2 | 2026-09-20 | Синхронизация с ревью SPEC 1.0.2: `@Public()` на service-key эндпоинтах (обход глобального `AccessTokenGuard`), per-route `AuthThrottlerGuard` на `link-token` (глобального throttling нет), бот импортирует dto только типы. |

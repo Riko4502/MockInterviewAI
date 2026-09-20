@@ -4,7 +4,9 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.0.0 | 2026-09-16 | Актуальный |
+| 1.0.0 | 2026-09-16 | Заменена ревью (1.0.1) |
+| 1.0.1 | 2026-09-20 | Заменена ревью (1.0.2) |
+| 1.0.2 | 2026-09-20 | Актуальный |
 
 ## Связанные документы
 
@@ -144,12 +146,12 @@ packages/i18n/src/locales/
 apps/web (ЛК)          apps/api                        Telegram          apps/telegram-bot
 ────────────           ───────                         ────────          ────────────────
  POST /telegram/link-token (Bearer)
-        │  → generate token, Redis tg:link:{token}=userId (TTL 15m)
-        │  ← { linkUrl: "https://t.me/{username}?start={token}" }
+        │  → generate rawToken, Redis tg:link:{sha256(rawToken)}=userId (TTL 15m)
+        │  ← { linkUrl: "https://t.me/{username}?start={rawToken}" }
  человек открывает ссылку
-        │  → /start {token} --------------------------------------►
+        │  → /start {rawToken} --------------------------------------►
         │                    POST /telegram/link {token, chatId} (X-Internal-Service-Key)
-        │        GET tg:link:{token} → найден → DEL (одноразово)
+        │        GETDEL tg:link:{sha256(token)} → найден (одноразово)
         │        UPDATE users SET telegramChatId=..., telegramLocale=null
         │        ← 200 { TelegramUserProfileDto }
         │  ← reply "start.linked" (i18n)
@@ -160,23 +162,24 @@ apps/web (ЛК)          apps/api                        Telegram          apps/
 - Auth: **Bearer access-token** (глобальный `AccessTokenGuard`, §64 `apps/api/SPEC.md`).
 - Тело запроса отсутствует.
 - Алгоритм:
-  1. `hash = await argon2.hash("{userId}:{Date.now()}")` — Argon2id (параметры `ARGON2_*` из конфигурации auth); соль генерируется библиотекой (16 случайных байт) → вывод непредсказуем (соль) и необратим (one-way);
-  2. `token = Buffer.from(hash).toString("hex")` — HEX-кодирование: исходная ASCII-строка argon2 содержит `$`, `+`, `/`, `=` и некорректно интерпретируется в query-параметре `?start=` (пробел/служебные символы);
-  3. `RedisService.set("tg:link:" + token, JSON.stringify({ userId }), TELEGRAM_LINK_TTL_SECONDS)` (default 900);
+  1. `rawToken = randomBytes(24).toString("hex")` — 48 символов из набора `[0-9a-f]`, допустимого для deep-link параметра `?start=` Telegram (алфавит `A-Za-z0-9_-`, лимит 64 символа);
+  2. `tokenHash = createHash("sha256").update(rawToken).digest("hex")` — в Redis хранится **только хеш** токена (компрометация Redis не раскрывает raw-токен; паттерн `resetPassword` в `AuthService`), поэтому `?start={rawToken}` принимает пригодный для Telegram короткий параметр;
+  3. `RedisService.set("tg:link:" + tokenHash, JSON.stringify({ userId }), TELEGRAM_LINK_TTL_SECONDS)` (default 900);
   4. ответ `200 { linkUrl }`.
-- `linkUrl = "https://t.me/{TELEGRAM_BOT_USERNAME}?start={token}"`.
+- `linkUrl = "https://t.me/{TELEGRAM_BOT_USERNAME}?start={rawToken}"`.
 
 ### 6.2. Привязка — `POST /api/v1/telegram/link`
 
 - Auth: **`X-Internal-Service-Key`** (§8).
 - Body: `{ token, chatId }` (zod-схема `linkRequestSchema`; `chatId` — строка, `token` — строка).
 - Алгоритм:
-  1. `GET tg:link:{token}` → ключ отсутствует → `410 Gone` (токен истёк или уже использован);
-  2. прочитать `userId` из значения, `DEL tg:link:{token}` (single-use, атомарно с шагом 4);
-  3. проверить `User` по `userId` (удалённый аккаунт `deletedAt != null` → `410 Gone`);
-  4. если у пользователя уже задан `telegramChatId` или он занят другим пользователем → `409 Conflict`;
-  5. `UPDATE users SET telegramChatId = chatId` (catch Prisma `P2002` → `409`, защита от race);
-  6. ответ `200 { TelegramUserProfileDto }`.
+  1. `tokenHash = SHA256(token)` — raw-токен из `/start` приводится к хешу для поиска в Redis;
+  2. Атомарное чтение и удаление ключа `tg:link:{tokenHash}` через Redis `GETDEL` (single-use, паттерн `resetPassword`; одновременные `/start` с одним токеном обрабатываются корректно) → ключ отсутствует → `410 Gone` (токен истёк или уже использован);
+3. извлечь `userId` из значения;
+   4. проверить `User` по `userId` (удалённый аккаунт `deletedAt != null` → `410 Gone`);
+   5. если у пользователя уже задан `telegramChatId` или он занят другим пользователем → `409 Conflict`;
+   6. `UPDATE users SET telegramChatId = chatId` (catch Prisma `P2002` → `409`, защита от race);
+   7. ответ `200 { TelegramUserProfileDto }`.
 - Ошибки:
 
 | Случай | Код |
@@ -204,19 +207,23 @@ apps/web (ЛК)          apps/api                        Telegram          apps/
 
 Все эндпоинты, кроме `link-token`, аутентифицируются сервисным ключом (`X-Internal-Service-Key`, §8) и скрыты из публичной OpenAPI через `@ApiExcludeController()` (модуль — `TelegramModule`, tag `telegram-internal`).
 
+**Важно (NestJS guard-стек):** глобальный `AccessTokenGuard` (APP_GUARD) отклоняет любой не-`@Public()` роут без Bearer-токена (`401 Missing access token`), а `@UseGuards` на хендлере его не отменяет. Бот шлёт только `X-Internal-Service-Key`, поэтому на 5 эндпоинтах ниже обязателен **`@Public()`** (обход `AccessTokenGuard`) в паре с `@UseGuards(InternalServiceKeyGuard)`. Без `@Public()` вызовы бота будут отклонены глобальным guard'ом.
+
 | Метод | Путь | Auth | Request | Response (успех) |
 |---|---|---|---|---|
-| `POST` | `/telegram/link-token` | Bearer | — | `200 { linkUrl }` |
-| `POST` | `/telegram/link` | Service Key | `{ token, chatId }` | `200 TelegramUserProfileDto` |
-| `POST` | `/telegram/unlink` | Service Key | `{ chatId }` | `200 { success: true }` |
-| `GET` | `/telegram/profile` | Service Key | `?chatId={id}` | `200 TelegramUserProfileDto` |
-| `GET` | `/telegram/interviews` | Service Key | `?chatId={id}` | `200 TelegramInterviewsListDto` |
-| `PATCH` | `/telegram/preferences` | Service Key | `{ chatId, locale }` | `200 TelegramUserProfileDto` |
+| `POST` | `/telegram/link-token` | Bearer (`AccessTokenGuard`) + `AuthThrottlerGuard` | — | `200 { linkUrl }` |
+| `POST` | `/telegram/link` | Service Key + `@Public()` | `{ token, chatId }` | `200 TelegramUserProfileDto` |
+| `POST` | `/telegram/unlink` | Service Key + `@Public()` | `{ chatId }` | `200 { success: true }` |
+| `GET` | `/telegram/profile` | Service Key + `@Public()` | `?chatId={id}` | `200 TelegramUserProfileDto` |
+| `GET` | `/telegram/interviews` | Service Key + `@Public()` | `?chatId={id}` | `200 TelegramInterviewsListDto` |
+| `PATCH` | `/telegram/preferences` | Service Key + `@Public()` | `{ chatId, locale }` | `200 TelegramUserProfileDto` |
+
+> Rate limiting: глобальный `ThrottlerGuard` в `apps/api` **не** зарегистрирован (`APP_GUARD` только `AccessTokenGuard`/`RolesGuard`/`OriginCheckGuard`) — limiter применяется per-route. `link-token` покрывается `AuthThrottlerGuard` (tracker по IP, §41 `apps/api/SPEC.md`); service-key эндпоинты ограничиваются одним потребителем (бот) и не троттлятся.
 
 ### 7.1. `POST /telegram/unlink`
 
 - Body: `{ chatId }`.
-- Алгоритм: `UPDATE users SET telegramChatId = null WHERE telegramChatId = chatId`; если не затронуто строк → `404 NotFound` («чат не привязан»). Идемпотентно-безопасно (повторный unlink после успеха → `404`).
+- Алгоритм: `UPDATE users SET telegramChatId = null, telegramLocale = null WHERE telegramChatId = chatId`; если не затронуто строк → `404 NotFound` («чат не привязан»). Идемпотентно-безопасно (повторный unlink после успеха → `404`). Локаль очищается вместе с привязкой — при следующем `/start` она определяется заново (§10.2).
 - Ответ: `200 { success: true }`.
 
 ### 7.2. `GET /telegram/profile`
@@ -276,6 +283,7 @@ apps/web (ЛК)          apps/api                        Telegram          apps/
 ## 8. Аутентификация внутренних вызовов (`X-Internal-Service-Key`)
 
 - Guard `InternalServiceKeyGuard` применяется на все `telegram/*`, кроме `link-token`.
+- Эндпоинты под `InternalServiceKeyGuard` помечаются **`@Public()`** — глобальный `AccessTokenGuard` (APP_GUARD) иначе отклонит вызовы бота без Bearer-токена (§7). `RolesGuard` и `OriginCheckGuard` запросы без `@Roles`/`@RequirePermissions` и без Origin-заголовка пропускают.
 - Проверка: заголовок `X-Internal-Service-Key` сравнивается с `INTERNAL_SERVICE_KEY` через `crypto.timingSafeEqual` (constant-time, защита от timing-атак).
 - Отсутствие/несовпадение → `401 Unauthorized` без деталей.
 - Ключ **не логируется** и не попадает в описания ошибок (входит в список запрещённых данных §46 `apps/api/SPEC.md`).
@@ -362,19 +370,27 @@ model User {
 
 1. **Явный выбор `/lang`** — значение из `ctx.session.locale` (сессия grammY) и/или `TelegramUserProfileDto.telegramLocale` (персистентно в API). Самый высокий приоритет.
 2. **Локаль профиля** — `telegramLocale` из `GET /telegram/profile` (если аккаунт привязан и локаль задана).
-3. **Автоопределение** — `ctx.from.language_code` из Telegram API: префикс `"ru"` → `ru`, иначе → `en` (fallback `ru`, default locale пакета).
+3. **Автоопределение** — `ctx.from.language_code` из Telegram API: префикс `"ru"` → `ru`, иначе → `en`. Языки, отличные от `ru` (например `uk`, `kk`), обрабатываются как `en`; при отсутствии `language_code` — fallback `ru` (default locale пакета).
 
 Резолвер `resolveLocale(locale?, profileLocale?, languageCode?): Locale` реализует данную цепочку и покрывается unit-тестами.
 
 ### 10.3. Использование
 
 ```ts
-import { getMessages, type Locale } from "@packages/i18n";
+import { getMessages, type Locale, type TelegramMessages } from "@packages/i18n";
 
 function t(locale: Locale, key: string): string {
-  return key.split(".").reduce<string>((acc, part) => acc?.[part], getMessages(locale).telegram as never) ?? key;
+  const messages: TelegramMessages = getMessages(locale).telegram;
+  return (
+    key.split(".").reduce<unknown>(
+      (acc, part) => (acc as Record<string, unknown>)?.[part],
+      messages,
+    ) as string
+  );
 }
 ```
+
+Типы словаря (`TelegramMessages = typeof ru/telegram.json`) гарантируют наличие ключей при обращении; отсутствующий ключ возвращается как есть (деградация без падения).
 
 ---
 
@@ -412,7 +428,7 @@ Telegram: ...
 • Сессия #<shortId> — <role> (<status>)
 ```
 
-и Inline-кнопка `interviews.joinButton` (URL) на каждую сессию: `{WEB_APP_URL}/sessions/{id}`.
+и Inline-кнопка `interviews.joinButton` (URL) на каждую сессию: `{WEB_APP_URL}/dashboard/sandbox?room={id}` — страница комнаты сессии в `apps/web` (роут `/dashboard/sandbox`, параметр `room`, `docs/tasks/session-join-flow.md`). Путь привязан к актуальному маршруту, а не к несуществующему `/sessions/{id}`.
 
 ### 11.4. `/unlink`
 
@@ -462,13 +478,14 @@ Telegram: ...
 
 ## 13. Безопасность
 
-- **Одноразовость токена привязки**: Redis `GET` + `DEL` (single-use), TTL 15 мин; повторное использование и использование после TTL → `410`.
+- **Одноразовость токена привязки**: атомарный Redis `GETDEL` (single-use, устойчив к параллельным `/start`), TTL 15 мин; повторное использование и использование после TTL → `410`.
 - **`telegramChatId @unique`**: защита от повторной привязки на уровне БД (race-safe).
 - **Поиск пользователя по `chatId` не раскрывает данных** без валидного `X-Internal-Service-Key`.
 - **Сервисный ключ** сравнивается constant-time (`timingSafeEqual`), не логируется.
 - **Запрещённые данные**: токены привязки, `INTERNAL_SERVICE_KEY`, `chatId`->секретные данные не логируются ботом и API; ошибки бота содержат только i18n-тексты без деталей.
 - **Внутренние endpoints скрыты из публичной OpenAPI** (`@ApiExcludeController`): открыты только для сервиса-бота.
-- Токен `link-token` генерируется через **Argon2id** (`argon2.hash`, случайная соль библиотеки, HEX-кодирование для URL) — непредсказуем и необратим (§6.1).
+- **Токен `link-token`** — `randomBytes(24)` → hex (48 символов: укладывается в лимит deep-link `?start=` Telegram — 64 символа, алфавит `A-Za-z0-9_-`). В Redis хранится только SHA-256 хеш токена (§6.1) — raw-токен невосстановим при компрометации Redis.
+- **Токен привязки — «ключ от аккаунта»**: владелец `linkUrl` привязывает аккаунт к **своему** Telegram-чату. Митигации: TTL 15 мин, single-use (GETDEL), блокировка повторной привязки через `telegramChatId @unique` (409). `linkUrl` не должен публиковаться или пересылаться; получение чужого токена даёт только привязку чата к уже существующему аккаунту в пределах TTL.
 
 ---
 
@@ -477,14 +494,15 @@ Telegram: ...
 ### 14.1. `apps/api` (Jest)
 
 - Unit `TelegramService`:
-  - `link-token`: генерация токена, запись в Redis с TTL, `linkUrl`;
-  - `link`: успех (привязка + DEL ключа), токен отсутствует → `410`, повторное использование → `410`, `chatId` занят → `409`, аккаунт удалён → `410`;
-  - `unlink`: успех, `404`;
+  - `link-token`: генерация raw-токена (hex ≤ 64 симв.), запись `sha256(token)` в Redis с TTL, `linkUrl` с raw-токеном в `?start=`;
+  - `link`: успех (привязка + GETDEL ключа), токен отсутствует → `410`, повторное использование → `410` (GETDEL вернул `null`), `chatId` занят → `409`, аккаунт удалён → `410`;
+  - `unlink`: успех (включая очистку `telegramLocale`), `404`;
   - `profile`: успех, `404`;
   - `interviews`: владелец/участник, пустой список, `404`;
   - `preferences`: успех, `404`, невалидная локаль → `400`;
-- Unit `InternalServiceKeyGuard`: отсутствие/несовпадение ключа → `401`, совпадение → pass (constant-time).
-- E2E: full-flow `link-token → link → profile → unlink`; `link` без ключа → `401`.
+- Unit `InternalServiceKeyGuard`: отсутствие/несовпадение ключа → `401`, совпадение → pass (constant-time), заголовок другой длины → `401` без `RangeError`.
+- Unit `TelegramController`: на service-key эндпоинтах установлены `@Public()` и `InternalServiceKeyGuard`; на `link-token` — `AuthThrottlerGuard` (и отсутствие `@Public()`).
+- E2E: full-flow `link-token → link → profile → unlink`; `link` без ключа → `401`, повторный `link` с тем же токеном → `410`.
 
 ### 14.2. Бот (Vitest)
 
@@ -539,3 +557,5 @@ Telegram: ...
 | Версия | Дата | Изменения |
 |---|---|---|
 | 1.0.0 | 2026-09-16 | Первоначальная версия спецификации. |
+| 1.0.1 | 2026-09-20 | Токен привязки: `randomBytes(24)` + SHA-256 в Redis вместо Argon2id-hex (лимит `?start=` 64 симв.); атомарный GETDEL для single-use; `unlink` очищает `telegramLocale`; join-URL → `/dashboard/sandbox?room={id}`; уточнён fallback локали и типизированный `t()`; документирована угроза «токен = ключ от аккаунта». |
+| 1.0.2 | 2026-09-20 | Service-key эндпоинты — обязательный `@Public()` (глобальный `AccessTokenGuard` случайно 401-ит без Bearer; `@UseGuards` его не отменяет); `link-token` — per-route `AuthThrottlerGuard` (глобального `ThrottlerGuard`-APP_GUARD нет); уточнены тесты контроллера. |
