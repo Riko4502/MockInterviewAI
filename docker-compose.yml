@@ -35,7 +35,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: mock-interview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -79,7 +79,7 @@ services:
       - "50000-50200:50000-50200/udp"      # UDP media (WebRTC)
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: mock-interview-minio-init
     depends_on:
       minio:
@@ -114,6 +114,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  realtime:
+    build:
+      context: ./apps/realtime
+      dockerfile: Dockerfile
+    container_name: mock-interview-realtime
+    profiles: ["realtime", "all"]
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_ENABLED: "true"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      LIVEKIT_WEBHOOK_API_KEY: ${LIVEKIT_WEBHOOK_API_KEY:?LIVEKIT_WEBHOOK_API_KEY is required}
+      LIVEKIT_WEBHOOK_API_SECRET: ${LIVEKIT_WEBHOOK_API_SECRET:?LIVEKIT_WEBHOOK_API_SECRET is required}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    ports:
+      - "${REALTIME_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
 
 volumes:
   postgres-data:

@@ -16,6 +16,8 @@ const meta = {
 
 Элемент управления для ввода текстовых, числовых, email и парольных данных. Поддерживает состояния валидации (\`aria-invalid\`), блокировки (\`disabled\`), плейсхолдеры и стилизацию под общую тему.
 
+При \`type="password"\` автоматически отображает кнопку переключения видимости пароля — аналогично тому, как \`type="number"\` отображает стрелки-степпер.
+
 ---
 
 ### **Установка и импорт**
@@ -31,6 +33,18 @@ import { Input, Label } from "@packages/ui";
   <Label htmlFor="email">Email</Label>
   <Input id="email" type="email" placeholder="alex@example.com" />
 </div>
+\`\`\`
+
+---
+
+### **Поле пароля с тоглом видимости**
+\`\`\`tsx
+<Input
+  type="password"
+  placeholder="Введите пароль"
+  showPasswordLabel="Показать пароль"
+  hidePasswordLabel="Скрыть пароль"
+/>
 \`\`\`
 `,
       },
@@ -97,6 +111,24 @@ import { Input, Label } from "@packages/ui";
         defaultValue: { summary: "true" },
       },
     },
+    showPasswordLabel: {
+      control: "text",
+      description:
+        'aria-label кнопки «показать пароль» (только при `type="password"`).',
+      table: {
+        type: { summary: "string" },
+        defaultValue: { summary: '"Show password"' },
+      },
+    },
+    hidePasswordLabel: {
+      control: "text",
+      description:
+        'aria-label кнопки «скрыть пароль» (только при `type="password"`).',
+      table: {
+        type: { summary: "string" },
+        defaultValue: { summary: '"Hide password"' },
+      },
+    },
     className: {
       control: "text",
       description: "Дополнительные CSS-классы.",
@@ -121,6 +153,68 @@ export const Default: Story = {
   render: (args) => (
     <div className="w-80">
       <Input key={args.type} {...args} />
+    </div>
+  ),
+};
+
+/**
+ * Поле ввода пароля с кнопкой переключения видимости.
+ * Нажмите на иконку глаза, чтобы показать или скрыть символы.
+ */
+export const Password: Story = {
+  render: () => (
+    <div className="space-y-1.5 w-80">
+      <Label htmlFor="password">Пароль</Label>
+      <Input
+        id="password"
+        type="password"
+        placeholder="Введите пароль"
+        showPasswordLabel="Показать пароль"
+        hidePasswordLabel="Скрыть пароль"
+      />
+    </div>
+  ),
+};
+
+/**
+ * Поле пароля в состоянии ошибки валидации.
+ */
+export const PasswordInvalid: Story = {
+  render: () => (
+    <div className="space-y-1.5 w-80">
+      <Label htmlFor="password-invalid" className="text-destructive">
+        Пароль
+      </Label>
+      <Input
+        id="password-invalid"
+        type="password"
+        defaultValue="weak"
+        aria-invalid
+        showPasswordLabel="Показать пароль"
+        hidePasswordLabel="Скрыть пароль"
+      />
+      <span className="text-xs text-destructive">
+        Пароль должен содержать не менее 8 символов
+      </span>
+    </div>
+  ),
+};
+
+/**
+ * Заблокированное поле пароля (disabled).
+ */
+export const PasswordDisabled: Story = {
+  render: () => (
+    <div className="space-y-1.5 w-80">
+      <Label htmlFor="password-disabled">Пароль</Label>
+      <Input
+        id="password-disabled"
+        type="password"
+        defaultValue="supersecretpassword"
+        disabled
+        showPasswordLabel="Показать пароль"
+        hidePasswordLabel="Скрыть пароль"
+      />
     </div>
   ),
 };

@@ -16,52 +16,33 @@ export const HERO_METRICS = [
     id: "metric-1",
     valueKey: "hero.metric1Value",
     labelKey: "hero.metric1Label",
-    valueClassName: "text-2xl sm:text-3xl font-extrabold text-white font-mono",
+    valueClassName:
+      "text-2xl sm:text-3xl font-extrabold text-foreground font-mono",
   },
   {
     id: "metric-2",
     valueKey: "hero.metric2Value",
     labelKey: "hero.metric2Label",
     valueClassName:
-      "text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono",
+      "text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono",
   },
   {
     id: "metric-3",
     valueKey: "hero.metric3Value",
     labelKey: "hero.metric3Label",
     valueClassName:
-      "text-2xl sm:text-3xl font-extrabold text-violet-400 font-mono",
+      "text-2xl sm:text-3xl font-extrabold text-violet-600 dark:text-violet-400 font-mono",
   },
   {
     id: "metric-4",
     valueKey: "hero.metric4Value",
     labelKey: "hero.metric4Label",
     valueClassName:
-      "text-2xl sm:text-3xl font-extrabold text-indigo-300 font-mono",
+      "text-2xl sm:text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono",
   },
 ] as const;
 
 export type HeroMetric = (typeof HERO_METRICS)[number];
-
-export interface MockupTabItem {
-  readonly id: "solution" | "test";
-  readonly filename: string;
-  readonly badge?: string;
-}
-
-export const MOCKUP_TABS: readonly MockupTabItem[] = [
-  {
-    id: "solution",
-    filename: "solution.ts",
-    badge: "TS",
-  },
-  {
-    id: "test",
-    filename: "test.spec.ts",
-  },
-] as const;
-
-export type MockupTab = (typeof MOCKUP_TABS)[number]["id"];
 
 export interface CodeToken {
   readonly text: string;

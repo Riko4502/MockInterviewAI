@@ -1,1 +1,0 @@
-export { DynamicBackground } from "./DynamicBackground";

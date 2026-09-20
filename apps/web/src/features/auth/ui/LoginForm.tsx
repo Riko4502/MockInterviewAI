@@ -4,15 +4,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthControllerLogin } from "@packages/api";
 import { loginSchema } from "@packages/dto";
 import { Button, Field, Input, Typography } from "@packages/ui";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
+import "@/shared/lib/i18n";
 import { getErrorMessage } from "../lib/getErrorMessage";
 import type { LoginFormValues } from "../lib/schemas";
 
 export function LoginForm() {
   const router = useRouter();
+  const { t } = useTranslation("auth");
   const { startSession } = useSession();
 
   const loginMutation = useAuthControllerLogin({
@@ -39,11 +43,11 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <Field invalid={!!errors.email}>
-        <Field.Label>Email</Field.Label>
+        <Field.Label>{t("fields.email.label")}</Field.Label>
         <Field.Content>
           <Input
             type="email"
-            placeholder="example@mail.com"
+            placeholder={t("fields.email.placeholder")}
             data-invalid={!!errors.email}
             aria-invalid={!!errors.email}
             {...register("email")}
@@ -53,11 +57,11 @@ export function LoginForm() {
       </Field>
 
       <Field invalid={!!errors.password}>
-        <Field.Label>Пароль</Field.Label>
+        <Field.Label>{t("fields.password.label")}</Field.Label>
         <Field.Content>
           <Input
             type="password"
-            placeholder="Введите пароль"
+            placeholder={t("fields.password.placeholder")}
             data-invalid={!!errors.password}
             aria-invalid={!!errors.password}
             {...register("password")}
@@ -72,17 +76,20 @@ export function LoginForm() {
         disabled={loginMutation.isPending}
         className="w-full mt-4"
       >
-        {loginMutation.isPending ? "Вход..." : "Войти"}
+        {loginMutation.isPending ? t("login.submitting") : t("login.submit")}
       </Button>
 
       {loginMutation.isError && (
         <Typography.P className="text-sm text-destructive">
-          {getErrorMessage(
-            loginMutation.error,
-            "Ошибка входа. Проверьте данные.",
-          )}
+          {getErrorMessage(loginMutation.error, t("login.error"))}
         </Typography.P>
       )}
+      <Link
+        href={paths.forgotPassword}
+        className="text-sm text-center text-muted-foreground hover:text-foreground hover:underline"
+      >
+        {t("login.forgotPasswordLink")}
+      </Link>
     </form>
   );
 }

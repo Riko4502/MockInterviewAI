@@ -2,7 +2,7 @@
 
 import { type Locale, langConfig } from "@packages/i18n";
 import { MenuIcon } from "@packages/icons";
-import { Button, Logo } from "@packages/ui";
+import { Button, Logo, ThemeToggle } from "@packages/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLanguageSwitcher } from "@/features/language-switcher";
@@ -28,52 +28,63 @@ export function Navbar({ locale: propLocale }: NavbarProps = {}) {
   const registerUrl = getRegisterUrl();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/[0.06] bg-[#07080e]/35 backdrop-blur-2xl transition-all shadow-[0_4px_30px_rgba(0,0,0,0.15)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+    <header className="sticky top-3 sm:top-4 z-50 w-full px-3 sm:px-6 pointer-events-none">
+      <div className="relative max-w-5xl mx-auto rounded-full h-14 px-3 sm:px-5 flex items-center justify-between backdrop-blur-2xl bg-white/80 dark:bg-[#07080d]/80 border border-black/[0.07] dark:border-white/[0.09] shadow-[0_10px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)] pointer-events-auto transition-all overflow-hidden">
         {/* Brand Logo */}
-        <Logo href={homeUrl} />
+        <Logo href={homeUrl} size="sm" className="sm:hidden shrink-0" />
+        <Logo href={homeUrl} size="md" className="hidden sm:flex shrink-0" />
 
         {/* Desktop Nav Links */}
         <NavLinks />
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <NavLanguageSwitcher locale={locale} />
+          <ThemeToggle
+            tooltipLight={t("nav.themeLight")}
+            tooltipDark={t("nav.themeDark")}
+            ariaLabel={t("nav.toggleTheme")}
+          />
 
           <Button
             asChild
             variant="ghost"
-            className="hidden sm:inline-flex text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.06]"
+            size="sm"
+            className="hidden sm:inline-flex text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-full px-3 h-8"
           >
             <a href={authUrl}>{t("nav.signIn")}</a>
           </Button>
 
           <Button
             asChild
-            className="rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/30 hover:shadow-violet-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all px-5 py-2.5 h-auto text-sm font-semibold"
+            size="sm"
+            className="hidden sm:inline-flex rounded-full bg-foreground text-background hover:opacity-90 active:scale-95 transition-all px-4 h-8 text-xs font-semibold shadow-md shadow-foreground/10"
           >
             <a href={registerUrl}>{t("nav.getStarted")}</a>
           </Button>
 
           {/* Mobile Menu Toggle Button */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden rounded-xl text-slate-400 hover:text-white hover:bg-white/5 border-white/10"
+            className="md:hidden rounded-full w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
             aria-label="Toggle navigation menu"
             aria-expanded={mobileMenuOpen}
           >
-            <MenuIcon className="w-5 h-5" />
+            <MenuIcon className="w-4 h-4" />
           </Button>
         </div>
+
+        {/* Scroll Progress Indicator attached to Capsule */}
+        <ScrollProgressBar />
       </div>
 
       {/* Mobile Dropdown Menu */}
-      <NavMobileMenu isOpen={mobileMenuOpen} />
-
-      {/* Neon Scroll Progress Indicator */}
-      <ScrollProgressBar />
+      <NavMobileMenu
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
     </header>
   );
 }

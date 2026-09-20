@@ -1,76 +1,31 @@
 "use client";
 
-import {
-  BookIcon,
-  CodeIcon,
-  HelpIcon,
-  TrendUpIcon,
-  UsersIcon,
-} from "@packages/icons";
-import { Logo } from "@packages/ui";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import { paths } from "@/shared/config";
-import "@/shared/lib/i18n";
+import { Sidebar as UiSidebar } from "@packages/ui";
+import type { ReactNode } from "react";
+import { NAV_ITEMS } from "../model/constants";
+import { SidebarPanel } from "./components";
 
-const NAV_ITEMS = [
-  { labelKey: "navigation.dashboard", href: paths.dashboard, icon: HelpIcon },
-  {
-    labelKey: "navigation.interviews",
-    href: paths.interviews,
-    icon: CodeIcon,
-  },
-  {
-    labelKey: "navigation.findPartners",
-    href: paths.partners,
-    icon: UsersIcon,
-  },
-  {
-    labelKey: "navigation.statistics",
-    href: paths.statistics,
-    icon: TrendUpIcon,
-  },
-  {
-    labelKey: "navigation.resources",
-    href: paths.resources,
-    icon: BookIcon,
-  },
-] as const;
-
-export function Sidebar() {
-  const pathname = usePathname();
-  const { t } = useTranslation("common");
-
+export function Sidebar({
+  children,
+  headerActions,
+}: {
+  children: ReactNode;
+  headerActions?: ReactNode;
+}) {
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-2 px-6">
-        <Logo href={paths.dashboard} variant="full" size="md" />
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              }`}
-            >
-              <Icon className="size-5 shrink-0" />
-              {t(item.labelKey)}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+    <UiSidebar.Provider>
+      <SidebarPanel items={NAV_ITEMS} />
+      <UiSidebar.Inset>
+        <header className="flex gap-2 items-center px-4 h-12 border-b shrink-0">
+          <UiSidebar.Trigger />
+          {headerActions && (
+            <div className="ml-auto flex items-center gap-4">
+              {headerActions}
+            </div>
+          )}
+        </header>
+        <div className="overflow-y-auto flex-1 p-6">{children}</div>
+      </UiSidebar.Inset>
+    </UiSidebar.Provider>
   );
 }

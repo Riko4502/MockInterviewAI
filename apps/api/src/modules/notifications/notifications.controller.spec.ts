@@ -7,6 +7,7 @@ describe("NotificationsController", () => {
   let notificationsServiceMock: {
     getNotifications: jest.Mock;
     getUnreadCount: jest.Mock;
+    markAllAsRead: jest.Mock;
     markAsRead: jest.Mock;
     markAsDeleted: jest.Mock;
   };
@@ -44,6 +45,8 @@ describe("NotificationsController", () => {
 
       getUnreadCount: jest.fn().mockResolvedValue({ count: 1 }),
 
+      markAllAsRead: jest.fn().mockResolvedValue({ success: true }),
+
       markAsRead: jest.fn().mockResolvedValue({ success: true }),
 
       markAsDeleted: jest.fn().mockResolvedValue({ success: true }),
@@ -65,6 +68,7 @@ describe("NotificationsController", () => {
         userId,
         page,
         limit,
+        undefined,
       );
 
       expect(result).toEqual(paginatedNotifications);
@@ -77,6 +81,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         20,
+        undefined,
       );
     });
 
@@ -87,6 +92,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         1,
+        undefined,
       );
     });
 
@@ -97,6 +103,7 @@ describe("NotificationsController", () => {
         userId,
         1,
         100,
+        undefined,
       );
     });
 
@@ -133,6 +140,33 @@ describe("NotificationsController", () => {
     });
   });
 
+  describe("category", () => {
+    it.each([
+      "INTERVIEW",
+      "MESSAGE",
+      "SYSTEM",
+    ])("передает категорию %s в сервис", async (category) => {
+      await controller.getNotifications(userId, 1, 20, category);
+      expect(notificationsServiceMock.getNotifications).toHaveBeenCalledWith(
+        userId,
+        1,
+        20,
+        category,
+      );
+    });
+    it.each([
+      "ALL",
+      "message",
+      "",
+      "UNKNOWN",
+    ])("отклоняет категорию %s", async (category) => {
+      await expect(
+        controller.getNotifications(userId, 1, 20, category),
+      ).rejects.toThrow(BadRequestException);
+      expect(notificationsServiceMock.getNotifications).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getUnreadCount", () => {
     it("возвращает количество непрочитанных уведомлений", async () => {
       const result = await controller.getUnreadCount(userId);
@@ -143,6 +177,20 @@ describe("NotificationsController", () => {
 
       expect(result).toEqual({
         count: 1,
+      });
+    });
+  });
+
+  describe("markAllAsRead", () => {
+    it("помечает все непрочитанные уведомления пользователя прочитанными", async () => {
+      const result = await controller.markAllAsRead(userId);
+
+      expect(notificationsServiceMock.markAllAsRead).toHaveBeenCalledWith(
+        userId,
+      );
+
+      expect(result).toEqual({
+        success: true,
       });
     });
   });

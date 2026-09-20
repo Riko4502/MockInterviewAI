@@ -20,6 +20,7 @@
 // Generated API functions & TanStack Query v5 hooks
 export * from "./generated/endpoints/auth/auth";
 export * from "./generated/endpoints/health/health";
+export * from "./generated/endpoints/notifications/notifications";
 export * from "./generated/endpoints/profile/profile";
 export * from "./generated/endpoints/realtime/realtime";
 export * from "./generated/endpoints/sessions/sessions";
