@@ -13,4 +13,14 @@ export interface InputProps
    * @default true
    */
   showStepper?: boolean;
+  /**
+   * aria-label кнопки «показать пароль» (`type="password"`).
+   * @default "Show password"
+   */
+  showPasswordLabel?: string;
+  /**
+   * aria-label кнопки «скрыть пароль» (`type="password"`).
+   * @default "Hide password"
+   */
+  hidePasswordLabel?: string;
 }

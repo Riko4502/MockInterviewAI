@@ -61,12 +61,13 @@ describe("AuthController", () => {
     logoutMock = jest.fn().mockResolvedValue(undefined);
     logoutAllMock = jest.fn().mockResolvedValue(undefined);
     changePasswordMock = jest.fn().mockResolvedValue(undefined);
-    forgotPasswordMock = jest
-      .fn()
-      .mockResolvedValue({ message: "Ссылка отправлена" });
-    resetPasswordMock = jest
-      .fn()
-      .mockResolvedValue({ message: "Пароль успешно изменен" });
+    forgotPasswordMock = jest.fn().mockResolvedValue({
+      message:
+        "If the specified email is registered, a password reset link has been sent to it",
+    });
+    resetPasswordMock = jest.fn().mockResolvedValue({
+      message: "The password has been successfully changed",
+    });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
@@ -580,7 +581,10 @@ describe("AuthController", () => {
       expect(forgotPasswordMock).toHaveBeenCalledWith({
         email: "user@example.com",
       });
-      expect(result).toEqual({ message: "Ссылка отправлена" });
+      expect(result).toEqual({
+        message:
+          "If the specified email is registered, a password reset link has been sent to it",
+      });
     });
 
     it("HTTP статус 200 OK", () => {
@@ -631,7 +635,9 @@ describe("AuthController", () => {
         sameSite: "lax",
         path: "/api/v1/auth",
       });
-      expect(result).toEqual({ message: "Пароль успешно изменен" });
+      expect(result).toEqual({
+        message: "The password has been successfully changed",
+      });
     });
 
     it("HTTP статус 200 OK", () => {

@@ -1,6 +1,11 @@
 "use client";
 
-import { ArrowDownIcon, ArrowUpIcon } from "@packages/icons";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  EyeIcon,
+  EyeOffIcon,
+} from "@packages/icons";
 import { cn } from "@packages/utils";
 import * as React from "react";
 import { inputVariants } from "./constants";
@@ -13,6 +18,7 @@ import type { InputProps } from "./types";
  * - Поддержка всех стандартных HTML-типов (`text`, `password`, `email`, `number` и т.д.);
  * - При `type="number"` автоматически блокирует ввод нечисловых символов;
  * - Для `type="number"` отображает стильные кастомные кнопки регулирования значения (stepper);
+ * - Для `type="password"` отображает кнопку переключения видимости пароля;
  * - Полная поддержка `ref`, состояний валидации (`aria-invalid`) и блокировки (`disabled`).
  */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -21,6 +27,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       className,
       type,
       showStepper = true,
+      showPasswordLabel = "Show password",
+      hidePasswordLabel = "Hide password",
       min,
       max,
       step,
@@ -41,6 +49,33 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     );
 
     const isNumber = type === "number";
+    const isPassword = type === "password";
+
+    const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+
+    const normalizedMin = React.useMemo(() => {
+      if (
+        min === undefined ||
+        min === null ||
+        (typeof min === "string" && min.trim() === "")
+      ) {
+        return undefined;
+      }
+      const num = Number(min);
+      return Number.isNaN(num) ? undefined : num;
+    }, [min]);
+
+    const normalizedMax = React.useMemo(() => {
+      if (
+        max === undefined ||
+        max === null ||
+        (typeof max === "string" && max.trim() === "")
+      ) {
+        return undefined;
+      }
+      const num = Number(max);
+      return Number.isNaN(num) ? undefined : num;
+    }, [max]);
 
     // Ограничение ввода только числовыми символами
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -69,7 +104,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         // Разрешаем цифры, знак минуса и десятичную точку
         const isDigit = /^[0-9]$/.test(e.key);
-        const isMinus = e.key === "-" && (!min || Number(min) < 0);
+        const isMinus =
+          e.key === "-" && (normalizedMin === undefined || normalizedMin < 0);
         const isDot =
           (e.key === "." || e.key === ",") &&
           (step === undefined || String(step).includes("."));
@@ -86,7 +122,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       if (isNumber) {
         const text = e.clipboardData.getData("text");
-        if (!/^-?\d*(\.\d+)?$/.test(text)) {
+        const isMinusAllowed = normalizedMin === undefined || normalizedMin < 0;
+        const numberRegex = isMinusAllowed
+          ? /^-?\d*(\.\d+)?$/
+          : /^\d*(\.\d+)?$/;
+
+        if (!numberRegex.test(text)) {
           e.preventDefault();
           return;
         }
@@ -99,15 +140,33 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       const input = internalRef.current;
       if (!input || disabled || readOnly) return;
 
+      const minVal = normalizedMin !== undefined ? normalizedMin : -Infinity;
+      const maxVal = normalizedMax !== undefined ? normalizedMax : Infinity;
+
+      if (input.value === "") {
+        if (direction === "down" && 0 <= minVal) {
+          return;
+        }
+      } else {
+        const currentNum = Number(input.value);
+        if (direction === "down" && currentNum <= minVal) {
+          return;
+        }
+        if (direction === "up" && currentNum >= maxVal) {
+          return;
+        }
+      }
+
       const currentVal = input.value === "" ? 0 : Number(input.value);
       const stepVal = step ? Number(step) : 1;
       const nextVal =
         direction === "up" ? currentVal + stepVal : currentVal - stepVal;
 
-      const minVal = min !== undefined ? Number(min) : -Infinity;
-      const maxVal = max !== undefined ? Number(max) : Infinity;
-
       const clampedVal = Math.min(Math.max(nextVal, minVal), maxVal);
+
+      if (input.value !== "" && clampedVal === Number(input.value)) {
+        return;
+      }
 
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
@@ -127,7 +186,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputElement = (
       <input
         ref={internalRef}
-        type={type}
+        type={isPassword ? (isPasswordVisible ? "text" : "password") : type}
         min={min}
         max={max}
         step={step}
@@ -139,6 +198,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         className={cn(
           inputVariants(),
           isNumber && showStepper && "pr-8",
+          isPassword && "pr-10",
           className,
         )}
         {...props}
@@ -171,6 +231,29 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               <ArrowDownIcon size="xs" className="size-2.5" />
             </button>
           </div>
+        </div>
+      );
+    }
+
+    if (isPassword) {
+      return (
+        <div className="relative">
+          {inputElement}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setIsPasswordVisible((prev) => !prev)}
+            aria-label={
+              isPasswordVisible ? hidePasswordLabel : showPasswordLabel
+            }
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isPasswordVisible ? (
+              <EyeOffIcon className="size-4" />
+            ) : (
+              <EyeIcon className="size-4" />
+            )}
+          </button>
         </div>
       );
     }

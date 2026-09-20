@@ -624,6 +624,16 @@ paths:
             maximum: 100
             default: 20
           description: "Number of notifications per page. Allowed range: 1–100."
+        - name: category
+          required: false
+          in: query
+          description: Notification category. Omit to include all categories.
+          schema:
+            enum:
+              - SYSTEM
+              - INTERVIEW
+              - MESSAGE
+            type: string
       responses:
         "200":
           description: Paginated notifications list
@@ -632,7 +642,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotificationsListDto"
         "400":
-          description: Invalid pagination parameters
+          description: Invalid pagination or category parameters
       security: &a8
         - bearer: []
       summary: Get user notifications
@@ -651,6 +661,20 @@ paths:
                 $ref: "#/components/schemas/UnreadNotificationsCountDto"
       security: *a8
       summary: Get unread notifications count
+      tags: *a9
+  /api/v1/notifications/read-all:
+    post:
+      operationId: NotificationsController_markAllAsRead
+      parameters: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationActionResponseDto"
+      security: *a8
+      summary: Mark all notifications as read
       tags: *a9
   /api/v1/notifications/{id}/read:
     patch:
