@@ -24,6 +24,7 @@ export interface UpdateUserAdminDto {
      * @pattern ^[a-zA-Z0-9_-]{3,30}$
      */
   username?: string | null;
+  /** @minLength 1 */
   role?: string;
   /** @nullable */
   avatarUrl?: string | null;

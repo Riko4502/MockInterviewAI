@@ -268,7 +268,80 @@ export function useNotificationsControllerGetUnreadCount<TData = Awaited<ReturnT
 
 
 
-export const getNotificationsControllerMarkAsReadUrl = (id: string,) => {
+export const getNotificationsControllerMarkAllAsReadUrl = () => {
+
+
+
+
+  return `/api/v1/notifications/read-all`
+}
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const notificationsControllerMarkAllAsRead = async ( options?: Parameters<typeof customInstance>[1]): Promise<NotificationActionResponseDto> => {
+
+  return customInstance<NotificationActionResponseDto>(getNotificationsControllerMarkAllAsReadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getNotificationsControllerMarkAllAsReadMutationKey = () => ['notificationsControllerMarkAllAsRead'] as const;
+
+export const getNotificationsControllerMarkAllAsReadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>, TError,void, TContext> => {
+
+const mutationKey = getNotificationsControllerMarkAllAsReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>, void> = () => {
+
+
+          return  notificationsControllerMarkAllAsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NotificationsControllerMarkAllAsReadMutationResult = NonNullable<Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>>
+
+    export type NotificationsControllerMarkAllAsReadMutationError = unknown
+
+
+    /**
+ * @summary Mark all notifications as read
+ */
+export const useNotificationsControllerMarkAllAsRead = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof notificationsControllerMarkAllAsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getNotificationsControllerMarkAllAsReadMutationOptions(options), queryClient);
+    }
+    export const getNotificationsControllerMarkAsReadUrl = (id: string,) => {
 
 
 

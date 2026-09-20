@@ -31,6 +31,7 @@ export * from './mediaTokenRequestDto';
 export * from './mediaTokenResponseDto';
 export * from './messageResponseDto';
 export * from './notificationActionResponseDto';
+export * from './notificationsControllerGetNotificationsCategory';
 export * from './notificationsControllerGetNotificationsParams';
 export * from './notificationsListDto';
 export * from './notificationsListDtoItemsItem';

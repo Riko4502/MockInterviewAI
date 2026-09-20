@@ -10,17 +10,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateUserAdminDto {
-  /** @minLength 1 */
-  email: string;
-  /** @minLength 1 */
-  role?: string;
-  /** @pattern ^[a-zA-Z0-9_-]{3,30}$ */
-  username?: string;
-  /**
-     * @minLength 1
-     * @maxLength 100
-     */
-  displayName?: string;
-  isActive?: boolean;
-}
+export type NotificationsControllerGetNotificationsCategory = typeof NotificationsControllerGetNotificationsCategory[keyof typeof NotificationsControllerGetNotificationsCategory];
+
+
+export const NotificationsControllerGetNotificationsCategory = {
+  SYSTEM: 'SYSTEM',
+  INTERVIEW: 'INTERVIEW',
+  MESSAGE: 'MESSAGE',
+} as const;

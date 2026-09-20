@@ -190,6 +190,40 @@ describe("NotificationsService", () => {
     });
   });
 
+  describe("category", () => {
+    it.each([
+      NotificationType.INTERVIEW,
+      NotificationType.MESSAGE,
+      NotificationType.SYSTEM,
+    ])("фильтрует список и total по %s до пагинации", async (category) => {
+      redisMock.get.mockResolvedValue(null);
+      prismaMock.notification.findMany.mockResolvedValue([]);
+      prismaMock.notification.count.mockResolvedValue(21);
+      const result = await service.getNotifications(userId, 2, 20, category);
+      const where = { userId, deletedAt: null, category };
+      expect(prismaMock.notification.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where, skip: 20, take: 20 }),
+      );
+      expect(prismaMock.notification.count).toHaveBeenCalledWith({ where });
+      expect(result.total).toBe(21);
+      expect(result.totalPages).toBe(2);
+      expect(redisMock.get).toHaveBeenCalledWith(
+        `${notificationsCacheKey.replace("page:1", "page:2")}:category:${category}`,
+      );
+    });
+    it("использует отдельный ключ кэша для категории", async () => {
+      const cached = { items: [], total: 0, totalPages: 0, page: 1, limit: 20 };
+      redisMock.get.mockResolvedValue(JSON.stringify(cached));
+      expect(
+        await service.getNotifications(userId, 1, 20, NotificationType.MESSAGE),
+      ).toEqual(cached);
+      expect(redisMock.get).toHaveBeenCalledWith(
+        `${notificationsCacheKey}:category:MESSAGE`,
+      );
+      expect(prismaMock.notification.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getUnreadCount", () => {
     it("получает счетчик из БД и сохраняет его в Redis при отсутствии кэша", async () => {
       redisMock.get.mockResolvedValue(null);
@@ -228,6 +262,63 @@ describe("NotificationsService", () => {
 
       expect(result).toEqual({
         count: 4,
+      });
+    });
+  });
+
+  describe("markAllAsRead", () => {
+    it("помечает все непрочитанные уведомления пользователя прочитанными", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 3,
+      });
+
+      redisMock.scanKeys.mockResolvedValue([]);
+      redisMock.delete.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
+      redisMock.xadd.mockResolvedValue("1724500000000-0");
+
+      const result = await service.markAllAsRead(userId);
+
+      expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId,
+          readAt: null,
+          deletedAt: null,
+        },
+        data: {
+          readAt: expect.any(Date),
+        },
+      });
+
+      expect(result).toEqual({
+        success: true,
+      });
+    });
+
+    it("возвращает success если непрочитанных уведомлений нет", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      redisMock.scanKeys.mockResolvedValue([]);
+      redisMock.delete.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue("0");
+      redisMock.xadd.mockResolvedValue("1724500000000-0");
+
+      await expect(service.markAllAsRead(userId)).resolves.toEqual({
+        success: true,
+      });
+    });
+
+    it("не возвращает ошибку клиенту если Redis недоступен после успешного обновления PostgreSQL", async () => {
+      prismaMock.notification.updateMany.mockResolvedValue({
+        count: 3,
+      });
+
+      redisMock.scanKeys.mockRejectedValue(new Error("Redis unavailable"));
+
+      await expect(service.markAllAsRead(userId)).resolves.toEqual({
+        success: true,
       });
     });
   });
