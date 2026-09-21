@@ -12,4 +12,5 @@
 
 export interface CreateSessionResponseDto {
   sessionId: string;
+  inviteToken: string;
 }

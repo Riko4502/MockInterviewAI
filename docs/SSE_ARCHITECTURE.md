@@ -401,7 +401,9 @@ _, err := redisClient.XAdd(ctx, &redis.XAddArgs{
 
 ### Шаг 3: Обработка на Frontend (React / TypeScript)
 ```typescript
-const eventSource = new EventSource('/api/sse/notifications', { withCredentials: true });
+import { openNotificationStream } from "@/shared/api/realtime/notification-stream";
+
+const eventSource = openNotificationStream();
 
 eventSource.addEventListener('code_runner.status', (event) => {
   const { payload: data } = JSON.parse(event.data);

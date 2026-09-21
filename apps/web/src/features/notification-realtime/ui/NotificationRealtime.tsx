@@ -46,6 +46,10 @@ export function NotificationRealtime() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const router = useRouter();
+  const getNotificationLabels = useEffectEvent(() => ({
+    label: t("notifications.view"),
+    altText: t("notifications.open"),
+  }));
   const revokeSession = useEffectEvent(() => {
     clearSession();
     queryClient.clear();
@@ -99,8 +103,7 @@ export function NotificationRealtime() {
         title: notification.title,
         description: notification.message,
         action: {
-          label: t("notifications.view"),
-          altText: t("notifications.open"),
+          ...getNotificationLabels(),
           onClick: () => {
             router.push(paths.notifications);
             toast.dismiss(toastId);
@@ -150,7 +153,7 @@ export function NotificationRealtime() {
       }
       nativeNotifications.clear();
     };
-  }, [isAuthenticated, queryClient, router, t, toast]);
+  }, [isAuthenticated, queryClient, router, toast]);
 
   return null;
 }

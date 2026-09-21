@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationRealtime } from "./NotificationRealtime";
 
 const mocks = vi.hoisted(() => ({
+  translate: (key: string) => key,
   authenticated: false,
   clearSession: vi.fn(),
   toast: { push: vi.fn(), dismiss: vi.fn() },
@@ -25,6 +26,10 @@ vi.mock("@/entities/session", () => ({
     isAuthenticated: mocks.authenticated,
     clearSession: mocks.clearSession,
   }),
+}));
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({ t: mocks.translate }),
 }));
 vi.mock("@packages/ui", () => ({ useToast: () => mocks.toast }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
@@ -63,6 +68,7 @@ const tree = () => (
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.translate = (key: string) => key;
   mocks.authenticated = true;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(countKey, { count: 2 });
@@ -91,6 +97,35 @@ describe("NotificationRealtime", () => {
     mocks.authenticated = false;
     rerender(tree());
     expect(stream.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the stream and active toasts across locale changes", () => {
+    mocks.translate = (key: string) => "en:" + key;
+    const { rerender, unmount } = render(tree());
+    emit("notification.new", newNotification);
+    const firstToast = mocks.toast.push.mock.calls[0][0];
+
+    mocks.translate = (key: string) => "ru:" + key;
+    rerender(tree());
+    expect(mocks.open).toHaveBeenCalledTimes(1);
+    expect(stream.close).not.toHaveBeenCalled();
+    expect(mocks.toast.dismiss).not.toHaveBeenCalled();
+
+    emit("notification.new", newNotification);
+    expect(mocks.toast.push).toHaveBeenCalledTimes(1);
+    emit("notification.new", { ...newNotification, id: "n2" });
+    expect(firstToast.action.label).toBe("en:notifications.view");
+    expect(mocks.toast.push.mock.calls[1][0].action).toEqual(
+      expect.objectContaining({
+        label: "ru:notifications.view",
+        altText: "ru:notifications.open",
+      }),
+    );
+
+    unmount();
+    expect(stream.close).toHaveBeenCalledTimes(1);
+    expect(mocks.toast.dismiss).toHaveBeenCalledWith("notification:n1");
+    expect(mocks.toast.dismiss).toHaveBeenCalledWith("notification:n2");
   });
 
   it("increments immediately, invalidates caches and offers an interactive toast", () => {

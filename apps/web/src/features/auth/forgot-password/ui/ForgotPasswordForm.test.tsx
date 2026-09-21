@@ -50,11 +50,15 @@ describe("ForgotPasswordForm & ForgotPasswordSuccess i18n and behavior", () => {
     mockIsPending = false;
     mockIsError = false;
     mutateMock.mockClear();
-    await i18n.changeLanguage("ru");
+    await act(async () => {
+      await i18n.changeLanguage("ru");
+    });
   });
 
   afterEach(async () => {
-    await i18n.changeLanguage("ru");
+    await act(async () => {
+      await i18n.changeLanguage("ru");
+    });
   });
 
   it("renders in Russian by default", () => {
@@ -70,7 +74,9 @@ describe("ForgotPasswordForm & ForgotPasswordSuccess i18n and behavior", () => {
   });
 
   it("renders localized strings in English when language is changed", async () => {
-    await i18n.changeLanguage("en");
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
     renderWithClient(<ForgotPasswordForm />);
 
     expect(
@@ -134,7 +140,9 @@ describe("ForgotPasswordForm & ForgotPasswordSuccess i18n and behavior", () => {
     });
 
     it("renders success message in English", async () => {
-      await i18n.changeLanguage("en");
+      await act(async () => {
+        await i18n.changeLanguage("en");
+      });
       const onResend = vi.fn();
       renderWithClient(
         <ForgotPasswordSuccess

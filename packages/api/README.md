@@ -282,7 +282,7 @@ resetHttpTransport();
 
 В веб-приложении `apps/web` связь со сгенерированным клиентом настраивается в слое `shared/api`:
 
-1. **Адаптер транспорта** ([apps/web/src/shared/api/http/init.ts](./apps/web/src/shared/api/http/init.ts)):
+1. **Адаптер транспорта** ([apps/web/src/shared/api/http/init.ts](../../apps/web/src/shared/api/http/init.ts)):
    Функция `createBaseFetchTransport()` преобразует вызовы `RequestConfig` в вызовы авторизованного `baseFetch`:
    ```typescript
    export function createBaseFetchTransport(): HttpTransport {
@@ -304,7 +304,7 @@ resetHttpTransport();
    `initApiTransport()` гарантированно вызывается при загрузке:
    - Модуля `apps/web/src/shared/api/index.ts`.
    - Провайдера `QueryProvider` ([apps/web/src/shared/api/client.tsx](./apps/web/src/shared/api/client.tsx)).
-4. **Авторизационный цикл `baseFetch`** ([apps/web/src/shared/api/http/base.ts](./apps/web/src/shared/api/http/base.ts)):
+4. **Авторизационный цикл `baseFetch`** ([apps/web/src/shared/api/http/base.ts](../../apps/web/src/shared/api/http/base.ts)):
    - Добавляет `Authorization: Bearer <sessionStorage.accessToken>` ко всем запросам.
    - Передает `credentials: "include"` для работы с HttpOnly cookie.
    - При ответе **HTTP 401** пытается автоматически обновить токен через `POST /api/v1/auth/refresh`.

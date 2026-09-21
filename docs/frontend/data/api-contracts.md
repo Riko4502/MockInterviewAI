@@ -172,7 +172,7 @@ export function mapUserProfileToUi(dto: UserProfileDto): UserUiModel {
 Связывание происходит через **Dependency Inversion**:
 1. Все запросы Orval проходят через мутатор `customInstance` в `packages/api/src/transport.ts`.
 2. Веб-приложение `apps/web` инициализирует транспорт в `apps/web/src/shared/api/http/init.ts` через `setHttpTransport()`.
-3. `createBaseFetchTransport()` делегирует вызовы авторизованному `baseFetch()` ([apps/web/src/shared/api/http/base.ts](./apps/web/src/shared/api/http/base.ts)).
+3. `createBaseFetchTransport()` делегирует вызовы авторизованному `baseFetch()` ([apps/web/src/shared/api/http/base.ts](../../../apps/web/src/shared/api/http/base.ts)).
 4. `baseFetch` автоматически:
    - Добавляет `Authorization: Bearer <sessionStorage.accessToken>`.
    - Передает `credentials: "include"` для HttpOnly cookies.
