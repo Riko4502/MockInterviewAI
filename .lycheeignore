@@ -4,5 +4,6 @@
 ^https?://.*\.example\.com
 ^https?://.*\.preview\.
 ^https?://tanstack.com
+^https?://feature-sliced\.design
 ^file://
 ^mailto:
