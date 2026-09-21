@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +56,66 @@ func TestRedactRedisAddr(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCheckMinGeneration_FailClosed проверяет, что CheckMinGeneration
+// завершается с ошибкой (fail-closed), когда Redis недоступен или отключён,
+// чтобы generation fence не обходился при деградации инфраструктуры (§CWE-613).
+func TestCheckMinGeneration_FailClosed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	t.Run("disabled store returns ErrRedisUnavailable", func(t *testing.T) {
+		store := &RedisStore{
+			enabled: false,
+			client:  nil,
+			logger:  logger,
+		}
+		ok, err := store.CheckMinGeneration(context.Background(), "user-1", 5)
+		if ok {
+			t.Error("expected ok=false for disabled store (fail-closed), got true")
+		}
+		if err != ErrRedisUnavailable {
+			t.Errorf("expected ErrRedisUnavailable, got %v", err)
+		}
+	})
+
+	t.Run("enabled store with nil client returns ErrRedisUnavailable", func(t *testing.T) {
+		store := &RedisStore{
+			enabled: true,
+			client:  nil,
+			logger:  logger,
+		}
+		ok, err := store.CheckMinGeneration(context.Background(), "user-1", 5)
+		if ok {
+			t.Error("expected ok=false for nil client (fail-closed), got true")
+		}
+		if err != ErrRedisUnavailable {
+			t.Errorf("expected ErrRedisUnavailable, got %v", err)
+		}
+	})
+
+	t.Run("empty userID returns error", func(t *testing.T) {
+		rdb := redis.NewClient(&redis.Options{
+			Addr: "127.0.0.1:0",
+		})
+		defer rdb.Close()
+
+		store := &RedisStore{
+			enabled: true,
+			client:  rdb,
+			logger:  logger,
+		}
+		ok, err := store.CheckMinGeneration(context.Background(), "", 5)
+		if ok {
+			t.Error("expected ok=false for empty userID, got true")
+		}
+		if err == nil {
+			t.Fatal("expected non-nil error for empty userID, got nil")
+		}
+		if errors.Is(err, ErrRedisUnavailable) {
+			t.Errorf("expected validation error for empty userID, got ErrRedisUnavailable: %v", err)
+		}
+	})
 }
 
 func TestRedisStore_Disabled_FailClosed(t *testing.T) {

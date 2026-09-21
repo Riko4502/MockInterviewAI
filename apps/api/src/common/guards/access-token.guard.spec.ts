@@ -3,6 +3,7 @@ import { Reflector } from "@nestjs/core";
 import type { AuthSessionService } from "../../modules/auth/services/auth-session.service";
 import type { TokenPayload } from "../../modules/auth/services/token.service";
 import { TokenService } from "../../modules/auth/services/token.service";
+import type { PrismaService } from "../../prisma/prisma.service";
 import { AccessTokenGuard } from "./access-token.guard";
 
 const VALID_PAYLOAD: TokenPayload = {
@@ -14,6 +15,21 @@ const VALID_PAYLOAD: TokenPayload = {
   iat: 1234567890,
   exp: 9999999999,
   jti: "token-uuid",
+  generation: 1,
+};
+
+const VALID_SESSION = {
+  userId: "user-uuid",
+  refreshTokenHash: "hash",
+  tokenFamilyId: "family-uuid",
+  createdAt: "2026-08-01T12:00:00.000Z",
+  lastUsedAt: "2026-08-01T12:00:00.000Z",
+  generation: 1,
+};
+
+const VALID_USER = {
+  deletedAt: null as Date | null,
+  generation: 1,
 };
 
 function createExecutionContext(headers: Record<string, string | undefined>) {
@@ -32,7 +48,10 @@ function createGuard(options?: {
   isPublic?: boolean;
   verifyAccessToken?: TokenPayload;
   verifyAccessTokenError?: Error;
-  isSessionActiveError?: Error;
+  session?: typeof VALID_SESSION | null;
+  getSessionError?: Error;
+  user?: typeof VALID_USER | null;
+  getUserError?: Error;
 }) {
   const reflector = {
     getAllAndOverride: jest.fn().mockReturnValue(options?.isPublic ?? false),
@@ -48,18 +67,42 @@ function createGuard(options?: {
   } as unknown as TokenService;
 
   const authSessionService = {
-    isSessionActive: jest.fn().mockImplementation(async () => {
-      if (options?.isSessionActiveError) {
-        throw options.isSessionActiveError;
+    getSession: jest.fn().mockImplementation(async () => {
+      if (options?.getSessionError) {
+        throw options.getSessionError;
       }
-      return true;
+      if (options?.session !== undefined) {
+        return options.session;
+      }
+      return VALID_SESSION;
     }),
+    isSessionActive: jest.fn().mockResolvedValue(true),
   } as unknown as AuthSessionService;
 
+  const prisma = {
+    user: {
+      findUnique: jest.fn().mockImplementation(async () => {
+        if (options?.getUserError) {
+          throw options.getUserError;
+        }
+        if (options?.user !== undefined) {
+          return options.user;
+        }
+        return VALID_USER;
+      }),
+    },
+  } as unknown as PrismaService;
+
   return {
-    guard: new AccessTokenGuard(reflector, tokenService, authSessionService),
+    guard: new AccessTokenGuard(
+      reflector,
+      tokenService,
+      authSessionService,
+      prisma,
+    ),
     tokenService,
     authSessionService,
+    prisma,
   };
 }
 
@@ -71,14 +114,14 @@ describe("AccessTokenGuard", () => {
       await expect(guard.canActivate(context)).resolves.toBe(true);
     });
 
-    it("не вызывает verifyAccessToken и isSessionActive для @Public() endpoints", async () => {
+    it("не вызывает verifyAccessToken и getSession для @Public() endpoints", async () => {
       const { guard, tokenService, authSessionService } = createGuard({
         isPublic: true,
       });
       const context = createExecutionContext({});
       await guard.canActivate(context);
       expect(tokenService.verifyAccessToken).not.toHaveBeenCalled();
-      expect(authSessionService.isSessionActive).not.toHaveBeenCalled();
+      expect(authSessionService.getSession).not.toHaveBeenCalled();
     });
   });
 
@@ -186,23 +229,78 @@ describe("AccessTokenGuard", () => {
     });
   });
 
-  describe("live-проверка сессии (A8)", () => {
-    it("вызывает isSessionActive с sid из payload", async () => {
+  describe("live-проверка сессии (A8, CWE-362)", () => {
+    it("вызывает getSession с sid из payload", async () => {
       const { guard, authSessionService } = createGuard();
       const context = createExecutionContext({
         authorization: "Bearer valid-access-token",
       });
       await guard.canActivate(context);
-      expect(authSessionService.isSessionActive).toHaveBeenCalledWith(
+      expect(authSessionService.getSession).toHaveBeenCalledWith(
         VALID_PAYLOAD.sid,
       );
     });
 
     it("возвращает 401 если сессия удалена/отозвана", async () => {
       const { guard, authSessionService } = createGuard();
-      (authSessionService.isSessionActive as jest.Mock).mockResolvedValue(
-        false,
+      (authSessionService.getSession as jest.Mock).mockResolvedValue(null);
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
       );
+    });
+
+    it("возвращает 401 если userId в сессии не совпадает с sub", async () => {
+      const { guard, authSessionService } = createGuard();
+      (authSessionService.getSession as jest.Mock).mockResolvedValue({
+        ...VALID_SESSION,
+        userId: "different-user-uuid",
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если generation в токене и сессии не совпадают (§CWE-362)", async () => {
+      const { guard, authSessionService } = createGuard();
+      (authSessionService.getSession as jest.Mock).mockResolvedValue({
+        ...VALID_SESSION,
+        generation: 2,
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если в access токене отсутствует generation claim (§CWE-613)", async () => {
+      const { guard } = createGuard({
+        verifyAccessToken: {
+          ...VALID_PAYLOAD,
+          generation: undefined,
+        },
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если в сессии отсутствует generation (§CWE-613)", async () => {
+      const { guard, authSessionService } = createGuard();
+      (authSessionService.getSession as jest.Mock).mockResolvedValue({
+        ...VALID_SESSION,
+        generation: undefined,
+      });
       const context = createExecutionContext({
         authorization: "Bearer valid-access-token",
       });
@@ -213,13 +311,82 @@ describe("AccessTokenGuard", () => {
 
     it("пробрасывает исключение Redis (Nest → 500)", async () => {
       const { guard, authSessionService } = createGuard();
-      (authSessionService.isSessionActive as jest.Mock).mockRejectedValue(
+      (authSessionService.getSession as jest.Mock).mockRejectedValue(
         new Error("redis down"),
       );
       const context = createExecutionContext({
         authorization: "Bearer valid-access-token",
       });
       await expect(guard.canActivate(context)).rejects.toThrow("redis down");
+    });
+  });
+
+  describe("fail-closed проверка пользователя в PostgreSQL (§CWE-613)", () => {
+    it("вызывает prisma.user.findUnique с sub из payload", async () => {
+      const { guard, prisma } = createGuard();
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await guard.canActivate(context);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: VALID_PAYLOAD.sub },
+        select: {
+          deletedAt: true,
+          generation: true,
+        },
+      });
+    });
+
+    it("возвращает 401 если пользователь в БД не найден", async () => {
+      const { guard } = createGuard({ user: null });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если пользователь деактивирован (deletedAt !== null) (§CWE-613)", async () => {
+      const { guard } = createGuard({
+        user: {
+          deletedAt: new Date("2026-09-20T10:00:00.000Z"),
+          generation: 1,
+        },
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("возвращает 401 если generation в токене и БД не совпадают (§CWE-613)", async () => {
+      const { guard } = createGuard({
+        user: {
+          deletedAt: null,
+          generation: 2, // В БД generation увеличился после деактивации / logout-all
+        },
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException("Session has expired or been revoked"),
+      );
+    });
+
+    it("пробрасывает исключение БД (Nest → 500 fail-closed)", async () => {
+      const { guard } = createGuard({
+        getUserError: new Error("db connection error"),
+      });
+      const context = createExecutionContext({
+        authorization: "Bearer valid-access-token",
+      });
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        "db connection error",
+      );
     });
   });
 

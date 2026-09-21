@@ -1,17 +1,17 @@
 # Storybook Guidelines
 
-Storybook используется для изолированной разработки, тестирования и визуальной документации UI-компонентов ([`@packages/ui`](./packages/ui)) и каталога иконок ([`@packages/icons`](./packages/icons)).  
-Располагается в отдельном workspace-приложении [`apps/ui-docs`](./apps/ui-docs).  
+Storybook используется для изолированной разработки, тестирования и визуальной документации UI-компонентов ([`@packages/ui`](../../../packages/ui)) и каталога иконок ([`@packages/icons`](../../../packages/icons)).  
+Располагается в отдельном workspace-приложении [`apps/ui-docs`](../../../apps/ui-docs).  
 Официальная документация: [https://storybook.js.org](https://storybook.js.org)
 
 ---
 
 ## 🔗 Быстрые ссылки
 
-* 🏠 [Главный README проекта](../README.md)
-* 🎨 [Документация Frontend](./docs/frontend/README.md)
-* 🧩 [UI Kit & Design System](./docs/frontend/ui/ui-kit.md)
-* 🖌️ [Стилизация и Tailwind CSS](./docs/frontend/ui/styling.md)
+* 🏠 [Главный README проекта](../../../README.md)
+* 🎨 [Документация Frontend](../README.md)
+* 🧩 [UI Kit & Design System](./ui-kit.md)
+* 🖌️ [Стилизация и Tailwind CSS](./styling.md)
 
 ---
 
@@ -19,7 +19,7 @@ Storybook используется для изолированной разра�
 
 | Раздел в Storybook | Описание | Путь к историям |
 | :--- | :--- | :--- |
-| **`UI/Icons`** | Полный каталог всех 75 иконок `@packages/icons` с поиском, фильтрацией и копированием по клику | [`apps/ui-docs/src/stories/Icons/icons.stories.tsx`](./apps/ui-docs/src/stories/Icons/icons.stories.tsx) |
+| **`UI/Icons`** | Полный каталог всех 75 иконок `@packages/icons` с поиском, фильтрацией и копированием по клику | [`apps/ui-docs/src/stories/Icons/icons.stories.tsx`](../../../apps/ui-docs/src/stories/Icons/icons.stories.tsx) |
 | **`Components/*`** | Базовые интерактивные компоненты (`Button`, `Card`, `Form`, `Table` и др.) | `apps/ui-docs/src/stories/<ComponentName>/` |
 | **`UI/*`** | Презентационные атомы (`Avatar`, `Badge`, `Input` и др.) | `apps/ui-docs/src/stories/<AtomName>/` |
 
