@@ -179,11 +179,15 @@ services:
       JUDGE0_URL: ${JUDGE0_URL:-http://judge0-server:2358}
       JUDGE0_AUTH_HEADER: X-Auth-Token
       JUDGE0_AUTH_TOKEN: ${JUDGE0_AUTH_TOKEN:-}
+    # Только на loopback: сервис исполняет произвольный код, а при пустом
+    # CODE_RUNNER_AUTH_TOKEN проверка токена отключена — публикация на все
+    # интерфейсы отдала бы запуск кода любому узлу локальной сети.
+    # Внутри docker-сети доступен как http://code-runner:8090.
     ports:
-      - "${CODE_RUNNER_PORT:-8090}:8090"
+      - "127.0.0.1:${CODE_RUNNER_PORT:-8090}:8090"
     depends_on:
       judge0-server:
-        condition: service_started
+        condition: service_healthy
 
   judge0-db:
     image: postgres:16-alpine
@@ -246,6 +250,14 @@ services:
     # наружу его публиковать нельзя.
     ports:
       - "127.0.0.1:${JUDGE0_PORT:-2358}:2358"
+    # start_period перекрывает первый старт: до запуска puma Judge0 прогоняет
+    # миграции Rails, и без запаса контейнер успел бы уйти в unhealthy.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:2358/about > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     depends_on:
       judge0-db:
         condition: service_healthy
