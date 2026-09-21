@@ -75,6 +75,9 @@
 укажите точный URL возврата на backend. Для production требуются HTTPS
 и `COOKIE_SECURE=true`.
 
+- `GET /api/v1/auth/oauth/providers` returns the backend-configured
+  `{ github: boolean }` availability without exposing credentials. Login/register
+  show GitHub only when `github: true`; loading and request errors hide the link.
 - `GET /api/v1/auth/github` сохраняет случайный state, хеш привязки к браузеру
   и проверочное значение PKCE в Redis на 300 секунд, затем перенаправляет на GitHub
   с правами `read:user user:email` и PKCE S256. Временная HttpOnly cookie

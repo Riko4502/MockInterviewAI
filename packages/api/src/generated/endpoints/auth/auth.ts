@@ -36,6 +36,7 @@ import type {
   ForgotPasswordDto,
   LoginDto,
   MessageResponseDto,
+  OAuthProvidersResponseDto,
   RegisterDto,
   ResetPasswordDto,
   ValidationErrorResponseDto
@@ -681,7 +682,107 @@ export const useAuthControllerRefresh = <TError = ErrorResponseDto,
       > => {
       return useMutation(getAuthControllerRefreshMutationOptions(options), queryClient);
     }
-    export const getAuthControllerGithubUrl = () => {
+    export const getAuthControllerOauthProvidersUrl = () => {
+
+
+
+
+  return `/api/v1/auth/oauth/providers`
+}
+
+/**
+ * @summary Get configured OAuth providers
+ */
+export const authControllerOauthProviders = async ( options?: Parameters<typeof customInstance>[1]): Promise<OAuthProvidersResponseDto> => {
+
+  return customInstance<OAuthProvidersResponseDto>(getAuthControllerOauthProvidersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthControllerOauthProvidersQueryKey = () => {
+    return [
+    `/api/v1/auth/oauth/providers`
+    ] as const;
+    }
+
+
+export const getAuthControllerOauthProvidersQueryOptions = <TData = Awaited<ReturnType<typeof authControllerOauthProviders>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAuthControllerOauthProvidersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authControllerOauthProviders>>> = ({ signal }) => authControllerOauthProviders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type AuthControllerOauthProvidersQueryResult = NonNullable<Awaited<ReturnType<typeof authControllerOauthProviders>>>
+export type AuthControllerOauthProvidersQueryError = unknown
+
+
+export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeof authControllerOauthProviders>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof authControllerOauthProviders>>,
+          TError,
+          Awaited<ReturnType<typeof authControllerOauthProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeof authControllerOauthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof authControllerOauthProviders>>,
+          TError,
+          Awaited<ReturnType<typeof authControllerOauthProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeof authControllerOauthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get configured OAuth providers
+ */
+
+export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeof authControllerOauthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerOauthProviders>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getAuthControllerOauthProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getAuthControllerGithubUrl = () => {
 
 
 

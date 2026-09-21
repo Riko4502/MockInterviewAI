@@ -345,3 +345,36 @@ describe("Сервис GitHub OAuth", () => {
     );
   });
 });
+
+describe("GitHub OAuth availability", () => {
+  const settings: Record<string, string> = {
+    GITHUB_CLIENT_ID: "client-id",
+    GITHUB_CLIENT_SECRET: "client-secret",
+    GITHUB_CALLBACK_URL: "https://api.example.com/api/v1/auth/github/callback",
+    FRONTEND_URL: "https://web.example.com",
+  };
+
+  it.each([
+    null,
+    ...Object.keys(settings),
+  ])("reports availability consistently with authorize when %s is missing", async (missing) => {
+    const redis = { set: jest.fn() };
+    const service = new GithubOAuthService(
+      {
+        get: (key: string) => (key === missing ? undefined : settings[key]),
+      } as ConfigService,
+      redis as unknown as RedisService,
+      {} as PrismaService,
+      {} as UsersService,
+    );
+    expect(service.isAvailable()).toBe(missing === null);
+    expect(redis.set).not.toHaveBeenCalled();
+    if (missing) {
+      await expect(service.authorize()).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    } else {
+      await expect(service.authorize()).resolves.toHaveProperty("url");
+    }
+  });
+});

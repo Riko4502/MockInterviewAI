@@ -49,6 +49,14 @@
 
 #### В `devsync-api`:
 - `ALLOWED_ORIGINS`: URL созданного фронтенда (например `https://devsync-web.onrender.com`).
+- Для GitHub OAuth задайте все четыре значения: `GITHUB_CLIENT_ID` и
+  `GITHUB_CLIENT_SECRET` из GitHub OAuth App, `GITHUB_CALLBACK_URL` =
+  `https://<api-domain>/api/v1/auth/github/callback`, `FRONTEND_URL` =
+  `https://<web-domain>`. Callback должен совпадать с настройкой GitHub OAuth App.
+  Секрет вводится только в Render; `COOKIE_SECURE=true` уже задан в Blueprint.
+  Для существующего сервиса добавьте новые `sync: false` переменные вручную
+  в Environment: обновление Blueprint не добавляет их автоматически.
+  Если OAuth не используется, не задавайте эти переменные (пустые строки не подходят).
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_URL`.
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
 

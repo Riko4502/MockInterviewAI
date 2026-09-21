@@ -670,7 +670,11 @@ describe("AuthController", () => {
 
 describe("Авторизация через GitHub OAuth в AuthController", () => {
   const user = { id: "github-user" };
-  const oauth = { authorize: jest.fn(), callback: jest.fn() };
+  const oauth = {
+    authorize: jest.fn(),
+    callback: jest.fn(),
+    isAvailable: jest.fn(),
+  };
   const auth = { loginUser: jest.fn() };
   const responseMock = {
     cookie: jest.fn(),
@@ -693,6 +697,20 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
     oauth as unknown as GithubOAuthService,
   );
   const response = responseMock as unknown as Response;
+  it.each([
+    true,
+    false,
+  ])("exposes only public OAuth availability: %s", (available) => {
+    oauth.isAvailable.mockReturnValue(available);
+    expect(controller.oauthProviders(response)).toEqual({ github: available });
+    expect(responseMock.setHeader).toHaveBeenCalledWith(
+      "Cache-Control",
+      "no-store",
+    );
+    expect(
+      Reflect.getMetadata("isPublic", AuthController.prototype.oauthProviders),
+    ).toBe(true);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     oauth.authorize.mockResolvedValue({

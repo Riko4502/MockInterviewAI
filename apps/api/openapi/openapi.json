@@ -634,6 +634,26 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/oauth/providers": {
+      "get": {
+        "operationId": "AuthController_oauthProviders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProvidersResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get configured OAuth providers",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/auth/github": {
       "get": {
         "operationId": "AuthController_github",
@@ -1379,6 +1399,15 @@
           }
         },
         "required": ["statusCode", "message"]
+      },
+      "OAuthProvidersResponseDto": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "type": "boolean"
+          }
+        },
+        "required": ["github"]
       },
       "RegisterDto": {
         "type": "object",

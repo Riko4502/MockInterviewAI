@@ -44,13 +44,25 @@ export class GithubOAuthService {
     private readonly users: UsersService,
   ) {}
 
+  isAvailable(): boolean {
+    return this.configuredSettings() !== null;
+  }
+
   private settings() {
+    const settings = this.configuredSettings();
+    if (!settings) {
+      throw new ServiceUnavailableException("GitHub OAuth is not configured");
+    }
+    return settings;
+  }
+
+  private configuredSettings() {
     const clientId = this.config.get<string>("GITHUB_CLIENT_ID");
     const clientSecret = this.config.get<string>("GITHUB_CLIENT_SECRET");
     const callbackUrl = this.config.get<string>("GITHUB_CALLBACK_URL");
     const frontendUrl = this.config.get<string>("FRONTEND_URL");
     if (!clientId || !clientSecret || !callbackUrl || !frontendUrl) {
-      throw new ServiceUnavailableException("GitHub OAuth is not configured");
+      return null;
     }
     return { clientId, clientSecret, callbackUrl, frontendUrl };
   }

@@ -33,6 +33,7 @@ export * from './notificationsControllerGetNotificationsParams';
 export * from './notificationsListDto';
 export * from './notificationsListDtoItemsItem';
 export * from './notificationsListDtoItemsItemCategory';
+export * from './oAuthProvidersResponseDto';
 export * from './profileControllerUploadAvatarBody';
 export * from './publicUserProfileDto';
 export * from './registerDto';

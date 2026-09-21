@@ -123,6 +123,15 @@ const errorResponseRef = registerOpenApiSchema(
   ERROR_RESPONSE_SCHEMA,
 );
 
+const oauthProvidersResponseRef = registerOpenApiSchema(
+  "OAuthProvidersResponseDto",
+  {
+    type: "object",
+    properties: { github: { type: "boolean" } },
+    required: ["github"],
+  },
+);
+
 const REFRESH_COOKIE_DESCRIPTION =
   "Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; " +
   "Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). " +
@@ -517,6 +526,17 @@ export class AuthController {
       }
       throw error;
     }
+  }
+
+  @Get("oauth/providers")
+  @Public()
+  @ApiOperation({ summary: "Get configured OAuth providers" })
+  @ApiResponse({ status: 200, schema: oauthProvidersResponseRef })
+  oauthProviders(@Res({ passthrough: true }) response: Response): {
+    github: boolean;
+  } {
+    response.setHeader("Cache-Control", "no-store");
+    return { github: this.githubOAuth.isAvailable() };
   }
 
   @Get("github")
