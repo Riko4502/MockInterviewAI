@@ -14,7 +14,10 @@ export const COLLABORATOR_COLORS = [
 /**
  * Генерирует детерминированный цвет для участника по его идентификатору.
  */
-export function getColorForUser(id: string): string {
+export function getColorForUser(id?: string | null): string {
+  if (!id) {
+    return COLLABORATOR_COLORS[0];
+  }
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = (hash + id.charCodeAt(i)) | 0;

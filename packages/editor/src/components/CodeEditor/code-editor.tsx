@@ -14,7 +14,11 @@ import {
   registerSqlCompletion,
 } from "@/languages";
 import { LANGUAGE_CONFIGS } from "@/languages/config";
-import { useRemoteCursors } from "@/multiplayer";
+import {
+  removeYjsAwarenessStyles,
+  updateYjsAwarenessStyles,
+  useRemoteCursors,
+} from "@/multiplayer";
 import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
 import type { CodeEditorProps } from "./types";
@@ -54,6 +58,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   cursorThrottleMs = 50,
   options = {},
   yText,
+  awareness,
   undoManager: externalUndoManager,
   onUndoManagerInit,
 }) => {
@@ -85,8 +90,22 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, [theme, isMonacoReady]);
 
-  // Этот хук автоматически рисует чужие курсоры поверх кода
-  useRemoteCursors(editorInstance, collaborators);
+  // Инъекция динамических CSS стилей курсоров и бейджей соавторов Yjs Awareness (T021)
+  useEffect(() => {
+    if (!awareness) return;
+    updateYjsAwarenessStyles(awareness);
+    const handleAwarenessChange = () => {
+      updateYjsAwarenessStyles(awareness);
+    };
+    awareness.on("change", handleAwarenessChange);
+    return () => {
+      awareness.off("change", handleAwarenessChange);
+      removeYjsAwarenessStyles();
+    };
+  }, [awareness]);
+
+  // Этот хук автоматически рисует чужие курсоры поверх кода (legacy fallback, если awareness не задан)
+  useRemoteCursors(awareness ? null : editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
   // Регистрируем темы и базовые сниппеты/ключевые слова для языков
@@ -155,8 +174,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
-    // Связываем Y.Text с Monaco ITextModel
-    const binding = new MonacoBinding(yText, model, new Set([editorInstance]));
+    // Связываем Y.Text с Monaco ITextModel и awareness (T021)
+    const binding = new MonacoBinding(
+      yText,
+      model,
+      new Set([editorInstance]),
+      awareness ?? undefined,
+    );
 
     // UndoManager с trackedOrigins: только локальный binding
     const currentUndoManager =
@@ -198,7 +222,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         currentUndoManager.destroy();
       }
     };
-  }, [editorInstance, yText, externalUndoManager, onUndoManagerInit]);
+  }, [
+    editorInstance,
+    yText,
+    awareness,
+    externalUndoManager,
+    onUndoManagerInit,
+  ]);
 
   const mergedOptions = {
     ...DEFAULT_EDITOR_OPTIONS,

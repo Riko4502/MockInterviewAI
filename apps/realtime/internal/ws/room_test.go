@@ -490,3 +490,134 @@ func TestRoom_YjsInit_SyncFailedErrorAndClosure(t *testing.T) {
 		t.Fatal("client did not receive room.error envelope")
 	}
 }
+
+// TestRoom_YjsAwareness_DumbRelayAndNoStreamPersist проверяет (T020, T022):
+// 1. Ретрансляцию yjs.awareness другим клиентам комнаты без эхо-петли автору.
+// 2. Отсутствие записи Awareness в yjsSaveQueue и Redis Stream.
+// 3. Рассылку presence.leave при выходе участника из комнаты.
+func TestRoom_YjsAwareness_DumbRelayAndNoStreamPersist(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := newMockYjsStore()
+
+	room := NewRoom("test-session-awareness", nil, nil, logger, nil)
+	room.SetYjsStore(store)
+
+	go room.Run(ctx)
+	defer room.Close()
+
+	client1 := NewClient("client-1", "user-1", "alice", "candidate", room.ID, nil, room, logger)
+	client2 := NewClient("client-2", "user-2", "bob", "interviewer", room.ID, nil, room, logger)
+
+	room.Register(client1)
+	room.Register(client2)
+
+	if !waitForRegistration(room, 2, 1*time.Second) {
+		t.Fatal("clients registration timed out")
+	}
+
+	sq := room.SaveQueue()
+
+	// Очищаем буферы клиентов после регистрации (room.sync и т.д.)
+drainLoop:
+	for {
+		select {
+		case <-client1.sendCh:
+		case <-client2.sendCh:
+		default:
+			break drainLoop
+		}
+	}
+
+	// 1. Client 1 отправляет yjs.awareness
+	awarenessPayload := YjsAwarenessPayload{
+		TaskKey: "task-1:typescript",
+		Data:    "AQIDBA==", // Base64 dummy awareness update
+	}
+	env := NewEnvelope(EventYjsAwareness, room.ID, "req-aw-1", awarenessPayload)
+	envBytes, err := env.ToBytes()
+	if err != nil {
+		t.Fatalf("failed to marshal awareness envelope: %v", err)
+	}
+
+	room.Broadcast(envBytes, client1.ID)
+
+	// 2. Client 2 должен получить этот yjs.awareness
+	var receivedAwareness *YjsAwarenessPayload
+	awTimeout := time.After(1 * time.Second)
+awLoop:
+	for receivedAwareness == nil {
+		select {
+		case msg := <-client2.sendCh:
+			raw, pErr := ParseRawEnvelope(msg)
+			if pErr != nil {
+				continue
+			}
+			if raw.Type == EventYjsAwareness {
+				var p YjsAwarenessPayload
+				if uErr := json.Unmarshal(raw.Payload, &p); uErr == nil {
+					receivedAwareness = &p
+					break awLoop
+				}
+			}
+		case <-awTimeout:
+			t.Fatal("client2 did not receive yjs.awareness")
+		}
+	}
+
+	if receivedAwareness.TaskKey != "task-1:typescript" || receivedAwareness.Data != "AQIDBA==" {
+		t.Fatalf("unexpected payload in client2: %+v", receivedAwareness)
+	}
+
+	// 3. Client 1 (автор) НЕ должен получить эхо своего же сообщения
+	select {
+	case msg := <-client1.sendCh:
+		raw, _ := ParseRawEnvelope(msg)
+		if raw.Type == EventYjsAwareness {
+			t.Fatalf("client1 received echo of its own yjs.awareness!")
+		}
+	case <-time.After(50 * time.Millisecond):
+		// Отлично, эхо-петли нет
+	}
+
+	// 4. Проверяем, что в yjsSaveQueue ничего не было добавлено (Dumb Relay)
+	pending := sq.GetPending("task-1:typescript")
+	if len(pending) != 0 {
+		t.Fatalf("expected 0 pending updates in save queue for awareness, got %d", len(pending))
+	}
+	if store.appendCalls != 0 {
+		t.Fatalf("expected 0 calls to AppendTaskUpdate, got %d", store.appendCalls)
+	}
+
+	// 5. Client 1 отключается (T022) — Client 2 должен получить presence.leave с UserID client1
+	room.Unregister(client1)
+
+	var receivedLeave *PresencePayload
+	leaveTimeout := time.After(1 * time.Second)
+leaveLoop:
+	for receivedLeave == nil {
+		select {
+		case msg := <-client2.sendCh:
+			raw, pErr := ParseRawEnvelope(msg)
+			if pErr != nil {
+				continue
+			}
+			if raw.Type == EventPresenceLeave {
+				var leaveP PresencePayload
+				if uErr := json.Unmarshal(raw.Payload, &leaveP); uErr == nil {
+					receivedLeave = &leaveP
+					break leaveLoop
+				}
+			}
+		case <-leaveTimeout:
+			t.Fatal("client2 did not receive presence.leave")
+		}
+	}
+
+	if receivedLeave.UserID != client1.UserID {
+		t.Errorf("expected leave UserID %s, got %s", client1.UserID, receivedLeave.UserID)
+	}
+}
+

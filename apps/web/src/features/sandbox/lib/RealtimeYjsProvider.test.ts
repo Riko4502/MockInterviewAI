@@ -1,5 +1,6 @@
 import type { AnyWebSocketEnvelope, YjsUpdatePayload } from "@packages/dto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 import {
   base64ToUint8Array,
@@ -159,5 +160,336 @@ describe("RealtimeYjsProvider (T017)", () => {
     expect(sentCount).toBe(1);
 
     doc.destroy();
+  });
+
+  describe("Awareness & Multiplayer Cursors (T019, T022, T023)", () => {
+    it("broadcasts awareness updates and applies them to remote peer without echo loop (T019)", () => {
+      const doc1 = new Y.Doc();
+      const doc2 = new Y.Doc();
+      const sentEnvelopes1: AnyWebSocketEnvelope[] = [];
+      const sentEnvelopes2: AnyWebSocketEnvelope[] = [];
+
+      const provider1 = new RealtimeYjsProvider({
+        doc: doc1,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        sendEnvelope: (env) => sentEnvelopes1.push(env),
+      });
+
+      const provider2 = new RealtimeYjsProvider({
+        doc: doc2,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        sendEnvelope: (env) => sentEnvelopes2.push(env),
+      });
+
+      // 1. Client 1 обновляет свое состояние присутствия (user + cursor)
+      provider1.awareness.setLocalStateField("user", {
+        userId: "user-alice",
+        name: "Alice",
+        color: "#10b981",
+      });
+
+      expect(sentEnvelopes1.length).toBe(1);
+      const awEnv = sentEnvelopes1[0];
+      expect(awEnv.type).toBe("yjs.awareness");
+      expect(awEnv.sessionId).toBe("session-123");
+
+      // 2. Client 2 получает этот конверт через сокет
+      provider2.handleMessage(awEnv);
+
+      // Проверяем, что в awareness второго провайдера появилось состояние Alice
+      const aliceState = provider2.awareness.getStates().get(doc1.clientID);
+      expect(aliceState).toBeDefined();
+      expect(aliceState?.user).toEqual({
+        userId: "user-alice",
+        name: "Alice",
+        color: "#10b981",
+      });
+
+      // 3. Client 2 НЕ отправил ответное сообщение (нет эхо-петли)
+      expect(sentEnvelopes2.length).toBe(0);
+
+      provider1.destroy();
+      provider2.destroy();
+      doc1.destroy();
+      doc2.destroy();
+    });
+
+    it("preserves relative cursor position when inserting 5 lines above cursor (T019, T023)", () => {
+      const doc1 = new Y.Doc();
+      const doc2 = new Y.Doc();
+      const text1 = doc1.getText("content");
+      const text2 = doc2.getText("content");
+
+      // Начальное содержимое документа: 4 строки
+      const initialText = "line 1\nline 2\nline 3\nline 4\n";
+      text1.insert(0, initialText);
+
+      // Синхронизируем начальное состояние на doc2
+      const initUpdate = Y.encodeStateAsUpdate(doc1);
+      Y.applyUpdate(doc2, initUpdate);
+      expect(text2.toString()).toBe(initialText);
+
+      const provider1 = new RealtimeYjsProvider({
+        doc: doc1,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+      });
+
+      const provider2 = new RealtimeYjsProvider({
+        doc: doc2,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+      });
+
+      // Курсор Alice стоит на 15-м символе (внутри "line 3")
+      const originalCursorOffset = 15;
+      const relPos = Y.createRelativePositionFromTypeIndex(
+        text1,
+        originalCursorOffset,
+      );
+      provider1.awareness.setLocalStateField("selection", {
+        anchor: relPos,
+        head: relPos,
+      });
+
+      // Передаем awareness в provider2
+      const awUpdate = encodeAwarenessUpdate(provider1.awareness, [
+        doc1.clientID,
+      ]);
+      provider2.handleMessage({
+        type: "yjs.awareness",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_aw_pos",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          data: uint8ArrayToBase64(awUpdate),
+        },
+      } as AnyWebSocketEnvelope);
+
+      // Вставляем ровно 5 новых строк В НАЧАЛО файла (выше курсора)
+      const insertedPrefix =
+        "header line 1\nheader line 2\nheader line 3\nheader line 4\nheader line 5\n";
+      const insertedLength = insertedPrefix.length;
+      text2.insert(0, insertedPrefix);
+
+      // Синхронизируем текстовое обновление на doc1
+      const textUpdate = Y.encodeStateAsUpdate(doc2);
+      Y.applyUpdate(doc1, textUpdate);
+
+      // Извлекаем сохраненную относительную позицию курсора Alice из состояния provider2
+      const aliceState = provider2.awareness.getStates().get(doc1.clientID);
+      expect(aliceState?.selection?.anchor).toBeDefined();
+
+      // Вычисляем абсолютную позицию каретки после смещения текста
+      const absoluteAnchor = Y.createAbsolutePositionFromRelativePosition(
+        aliceState?.selection.anchor,
+        doc2,
+      );
+
+      expect(absoluteAnchor).not.toBeNull();
+      // Позиция сместилась ровно на длину вставленных 5 строк
+      expect(absoluteAnchor!.index).toBe(originalCursorOffset + insertedLength);
+
+      provider1.destroy();
+      provider2.destroy();
+      doc1.destroy();
+      doc2.destroy();
+    });
+
+    it("removes remote collaborator awareness on presence.leave (T022, T023)", () => {
+      const doc = new Y.Doc();
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        sendEnvelope: () => {},
+      });
+
+      // Эмулируем входящее состояние соавтора Bob (clientID: 9999)
+      const remoteDoc = new Y.Doc();
+      remoteDoc.clientID = 9999;
+      const remoteProvider = new RealtimeYjsProvider({
+        doc: remoteDoc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        user: {
+          userId: "user-bob-42",
+          name: "Bob",
+          color: "#3b82f6",
+        },
+      });
+
+      const remoteAwUpdate = encodeAwarenessUpdate(remoteProvider.awareness, [
+        remoteDoc.clientID,
+      ]);
+
+      provider.handleMessage({
+        type: "yjs.awareness",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_aw_bob",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          data: uint8ArrayToBase64(remoteAwUpdate),
+        },
+      } as AnyWebSocketEnvelope);
+
+      // Проверяем, что Bob присутствует в состояниях
+      expect(provider.awareness.getStates().get(9999)).toBeDefined();
+
+      // Приходит служебное событие presence.leave от сервера (Bob отключился)
+      provider.handleMessage({
+        type: "presence.leave",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_leave_bob",
+        timestamp: new Date().toISOString(),
+        payload: {
+          userId: "user-bob-42",
+          username: "Bob",
+          role: "interviewer",
+          userCount: 1,
+        },
+      } as AnyWebSocketEnvelope);
+
+      // Состояние Bob должно быть полностью удалено из awareness
+      expect(provider.awareness.getStates().get(9999)).toBeUndefined();
+
+      provider.destroy();
+      remoteProvider.destroy();
+      doc.destroy();
+      remoteDoc.destroy();
+    });
+
+    it("cleans up local presence state on provider.destroy (T022)", () => {
+      const doc = new Y.Doc();
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        user: {
+          userId: "user-self",
+          name: "Self",
+        },
+      });
+
+      expect(provider.awareness.getLocalState()?.user).toBeDefined();
+
+      provider.destroy();
+
+      // Локальное состояние удалено
+      expect(provider.awareness.getStates().get(doc.clientID)).toBeUndefined();
+
+      doc.destroy();
+    });
+
+    it("prunes outdated awareness states after 30 seconds inactivity timeout (T022, T023)", () => {
+      vi.useFakeTimers();
+
+      const doc = new Y.Doc();
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+      });
+
+      // Добавляем удаленного клиента напрямую в awareness с временной меткой сейчас
+      const remoteClientId = 8888;
+      const remoteDoc = new Y.Doc();
+      remoteDoc.clientID = remoteClientId;
+      const remoteProvider = new RealtimeYjsProvider({
+        doc: remoteDoc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        user: {
+          userId: "ghost-user",
+          name: "Ghost",
+        },
+      });
+
+      const awBytes = encodeAwarenessUpdate(remoteProvider.awareness, [
+        remoteClientId,
+      ]);
+      provider.handleMessage({
+        type: "yjs.awareness",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_aw_ghost",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          data: uint8ArrayToBase64(awBytes),
+        },
+      } as AnyWebSocketEnvelope);
+
+      expect(provider.awareness.getStates().get(remoteClientId)).toBeDefined();
+
+      // Симулируем устаревание метаданных удаленного клиента (> 30000ms неактивности)
+      const meta = provider.awareness.meta.get(remoteClientId);
+      if (meta) {
+        meta.lastUpdated = Date.now() - 35000;
+      }
+
+      // Продвигаем таймеры, чтобы сработал периодический интервал проверки awareness (_checkInterval = 3000ms)
+      vi.advanceTimersByTime(5000);
+
+      // Встроенный periodic check протокола Awareness удаляет неактивного участника по таймауту 30 секунд
+      expect(
+        provider.awareness.getStates().get(remoteClientId),
+      ).toBeUndefined();
+
+      provider.destroy();
+      remoteProvider.destroy();
+      doc.destroy();
+      remoteDoc.destroy();
+
+      vi.useRealTimers();
+    });
+
+    it("broadcasts local awareness when receiving presence.join from a new peer (T019)", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        user: {
+          userId: "user-host",
+          name: "Host",
+        },
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      expect(sentEnvelopes.length).toBe(1); // Первоначальный анонс при создании user
+      sentEnvelopes.length = 0;
+
+      // Приходит событие presence.join (новый участник зашел в комнату)
+      provider.handleMessage({
+        type: "presence.join",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_join_new",
+        timestamp: new Date().toISOString(),
+        payload: {
+          userId: "user-new",
+          username: "New Participant",
+          role: "candidate",
+          userCount: 2,
+        },
+      } as AnyWebSocketEnvelope);
+
+      // Провайдер должен отправить свое актуальное состояние присутствия
+      expect(sentEnvelopes.length).toBe(1);
+      expect(sentEnvelopes[0].type).toBe("yjs.awareness");
+
+      provider.destroy();
+      doc.destroy();
+    });
   });
 });

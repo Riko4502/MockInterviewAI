@@ -53,21 +53,25 @@ vi.mock("../model/SandboxMediaContext", () => ({
   }),
 }));
 
+const stableSandboxRealtimeMock = {
+  userId: "user-test",
+  userName: "Tester",
+  collaborators: [],
+  otherPeers: [],
+  peerCount: 1,
+  broadcastCodeUpdate: vi.fn(),
+  broadcastCursorMove: vi.fn(),
+  broadcastTaskChange: vi.fn(),
+  broadcastWebRTCSignal: vi.fn(),
+  subscribeWebRTCSignal: vi.fn(() => vi.fn()),
+  subscribeEnvelope: vi.fn(() => vi.fn()),
+  sendEnvelope: vi.fn(),
+  getSocket: vi.fn(() => null),
+  isConnected: true,
+};
+
 vi.mock("../lib/useSandboxRealtime", () => ({
-  useSandboxRealtime: () => ({
-    collaborators: [],
-    otherPeers: [],
-    peerCount: 1,
-    broadcastCodeUpdate: vi.fn(),
-    broadcastCursorMove: vi.fn(),
-    broadcastTaskChange: vi.fn(),
-    broadcastWebRTCSignal: vi.fn(),
-    subscribeWebRTCSignal: vi.fn(() => vi.fn()),
-    subscribeEnvelope: vi.fn(() => vi.fn()),
-    sendEnvelope: vi.fn(),
-    getSocket: vi.fn(() => null),
-    isConnected: true,
-  }),
+  useSandboxRealtime: () => stableSandboxRealtimeMock,
 }));
 
 vi.mock("@packages/ui", async (importOriginal) => {

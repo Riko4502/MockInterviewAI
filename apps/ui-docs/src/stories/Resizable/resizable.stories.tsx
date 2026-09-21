@@ -9,7 +9,7 @@ import {
 } from "@packages/icons";
 import { Badge, Button, Resizable } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 /**
  * Метаданные компонента Resizable для Storybook.
@@ -615,7 +615,7 @@ export const KeyboardResize: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const handle = canvas.getByRole("separator");
+    const _handle = canvas.getByRole("separator");
     const panels = canvasElement.querySelectorAll<HTMLElement>(
       "[data-slot='resizable-panel']",
     );

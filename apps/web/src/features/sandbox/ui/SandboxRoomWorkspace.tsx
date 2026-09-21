@@ -2,8 +2,10 @@
 
 import { CodeEditorLazy, type LanguageId } from "@packages/editor";
 import { Resizable } from "@packages/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
+import { getColorForUser } from "../lib/mapPeerToCollaborator";
 import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { SandboxMediaProvider } from "../model/SandboxMediaContext";
@@ -43,6 +45,7 @@ export function SandboxRoomWorkspace({
   // Yjs CRDT: Инициализация Y.Doc и Y.Text активного документа (Phase 3: T018)
   const [yDoc] = useState(() => new Y.Doc());
   const [yText, setYText] = useState<Y.Text | null>(null);
+  const [yAwareness, setYAwareness] = useState<Awareness | null>(null);
 
   // Реалтайм синхронизация состояния и сигналов
   const realtime = useSandboxRealtime({
@@ -60,35 +63,43 @@ export function SandboxRoomWorkspace({
     },
   });
 
-  // Подключение RealtimeYjsProvider к сессионному сокету (T018)
+  // Подключение RealtimeYjsProvider к сессионному сокету (T018, T021)
   const taskKey = `${currentTaskId || "default"}:${language}`;
+
+  const sendEnvelopeRef = useRef(realtime.sendEnvelope);
+  sendEnvelopeRef.current = realtime.sendEnvelope;
+
+  const subscribeEnvelopeRef = useRef(realtime.subscribeEnvelope);
+  subscribeEnvelopeRef.current = realtime.subscribeEnvelope;
 
   useEffect(() => {
     const text = yDoc.getText("monaco");
     setYText(text);
 
+    const userColor = getColorForUser(realtime.userId);
     const provider = new RealtimeYjsProvider({
       doc: yDoc,
       taskKey,
       sessionId: roomId,
-      sendEnvelope: realtime.sendEnvelope,
+      user: {
+        userId: realtime.userId || "anonymous",
+        name: realtime.userName || "Participant",
+        color: userColor,
+      },
+      sendEnvelope: (envelope) => sendEnvelopeRef.current?.(envelope),
     });
+    setYAwareness(provider.awareness);
 
-    const unsubscribe = realtime.subscribeEnvelope?.((envelope) => {
+    const unsubscribe = subscribeEnvelopeRef.current?.((envelope) => {
       provider.handleMessage(envelope);
     });
 
     return () => {
       unsubscribe?.();
       provider.destroy();
+      setYAwareness(null);
     };
-  }, [
-    yDoc,
-    taskKey,
-    roomId,
-    realtime.sendEnvelope,
-    realtime.subscribeEnvelope,
-  ]);
+  }, [yDoc, taskKey, roomId, realtime.userId, realtime.userName]);
 
   // Корректное освобождение Y.Doc при размонтировании рабочей области
   useEffect(() => {
@@ -181,6 +192,7 @@ export function SandboxRoomWorkspace({
                       value={code}
                       onChange={(val) => handleCodeChange(val ?? "")}
                       yText={yText ?? undefined}
+                      awareness={yAwareness ?? undefined}
                       language={language}
                       theme={theme}
                       collaborators={realtime.collaborators}
