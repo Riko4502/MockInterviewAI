@@ -68,6 +68,7 @@ jobs:
       - name: "Тестирование историй Storybook (@storybook/test-runner)"
         id: storybook_tests
         run: |
+          set -o pipefail
           pnpm --filter=ui-docs run test:storybook | tee storybook-test.log
           TOTAL=$(grep -oE '[0-9]+ passed' storybook-test.log | tail -1 | grep -oE '[0-9]+' || echo "")
           if [ -n "$TOTAL" ]; then
