@@ -266,7 +266,8 @@ model User {
   "refreshTokenHash": "hash",
   "tokenFamilyId": "family-uuid",
   "createdAt": "2026-08-13T10:00:00.000Z",
-  "lastUsedAt": "2026-08-13T10:00:00.000Z"
+  "lastUsedAt": "2026-08-13T10:00:00.000Z",
+  "generation": 1
 }
 ```
 
@@ -275,6 +276,7 @@ model User {
 - `tokenFamilyId` — ID семейства refresh tokens (rotation, replay detection).
 - `createdAt` — дата создания session.
 - `lastUsedAt` — дата последнего использования refresh token.
+- `generation` — поколение авторизации пользователя (инвалидация при сбросе сессий, защита от гонок, §64).
 
 ### 17. Refresh Token Storage
 
@@ -303,11 +305,12 @@ model User {
   "aud": "api",
   "iat": 1234567890,
   "exp": 1234568790,
-  "jti": "token-uuid"
+  "jti": "token-uuid",
+  "generation": 1
 }
 ```
 
-Claims: `sub` (ID пользователя), `sid` (ID session), `typ` (тип токена), `iss` (issuer), `aud` (audience), `iat` (время выпуска), `exp` (время истечения), `jti` (уникальный ID токена).
+Claims: `sub` (ID пользователя), `sid` (ID session), `typ` (тип токена), `iss` (issuer), `aud` (audience), `iat` (время выпуска), `exp` (время истечения), `jti` (уникальный ID токена), `generation` (поколение авторизации, §64).
 
 ### 21. Access Token Restrictions
 

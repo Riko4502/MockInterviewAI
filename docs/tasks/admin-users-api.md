@@ -89,6 +89,7 @@ MockInterviewAI/
     ├── prisma/
     │   ├── schema.prisma                      # Поля isActive, deactivatedAt, generation, deletedAt
     │   └── migrations/
+    │       ├── 20260914130000_add_user_active_status/
     │       ├── 20260914150000_add_generation_fields/
     │       └── 20260914160000_add_trigram_search_indices/ # pg_trgm + GIN индексы
     │
@@ -338,6 +339,7 @@ export const USER_ADMIN_SELECT = {
   - `generation Int @default(1)`.
   - Индексы `@@index([isActive])`, `@@index([deletedAt])`, `@@index([createdAt])`.
 - [x] **Миграции БД:**
+  - `20260914130000_add_user_active_status`: добавление столбцов `isActive` и `deactivatedAt` в таблицу `users`, индексы `users_isActive_idx` и `users_createdAt_idx`.
   - `20260914150000_add_generation_fields`: добавление столбцов `generation` в таблицы `users` и `auth_revocation_tasks`.
   - `20260914160000_add_trigram_search_indices`: подключение `pg_trgm` и GIN-индексов для `email`, `username`, `displayName`.
 
