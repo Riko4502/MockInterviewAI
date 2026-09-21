@@ -43,6 +43,9 @@ const (
 
 	// maxFilePathLength - максимальная длина пути к файлу.
 	maxFilePathLength = 255
+
+	// maxYjsBase64Length - максимальная длина Base64 дельты Yjs (64KB бинарных данных = 87384 символа).
+	maxYjsBase64Length = 87384
 )
 
 // Client представляет единичное WebSocket-подключение пользователя к сессии.
@@ -324,6 +327,73 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
+		return env.ToBytes()
+
+	case EventYjsUpdate:
+		payload, err := UnpackPayload[YjsUpdatePayload](raw)
+		if err != nil {
+			return nil, err
+		}
+		taskKey := strings.TrimSpace(payload.TaskKey)
+		if taskKey == "" {
+			return nil, errors.New("taskKey is required")
+		}
+		if len(taskKey) > 128 || strings.Contains(taskKey, "..") || strings.Contains(taskKey, " ") {
+			return nil, errors.New("invalid taskKey format")
+		}
+		if strings.TrimSpace(payload.UpdateID) == "" {
+			return nil, errors.New("updateId is required")
+		}
+		if len(payload.Data) == 0 {
+			return nil, errors.New("data is required")
+		}
+		if len(payload.Data) > maxYjsBase64Length {
+			return nil, errors.New("yjs update data exceeds maximum allowed size (64KB)")
+		}
+
+		payload.TaskKey = taskKey
+		payload.UpdateID = strings.TrimSpace(payload.UpdateID)
+		env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
+		return env.ToBytes()
+
+	case EventYjsAwareness:
+		payload, err := UnpackPayload[YjsAwarenessPayload](raw)
+		if err != nil {
+			return nil, err
+		}
+		taskKey := strings.TrimSpace(payload.TaskKey)
+		if taskKey == "" {
+			return nil, errors.New("taskKey is required")
+		}
+		if len(taskKey) > 128 || strings.Contains(taskKey, "..") || strings.Contains(taskKey, " ") {
+			return nil, errors.New("invalid taskKey format")
+		}
+		if len(payload.Data) == 0 {
+			return nil, errors.New("data is required")
+		}
+		if len(payload.Data) > maxYjsBase64Length {
+			return nil, errors.New("yjs awareness data exceeds maximum allowed size (64KB)")
+		}
+
+		payload.TaskKey = taskKey
+		env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
+		return env.ToBytes()
+
+	case EventTaskSwitch:
+		payload, err := UnpackPayload[TaskSwitchPayload](raw)
+		if err != nil {
+			return nil, err
+		}
+		taskKey := strings.TrimSpace(payload.TaskKey)
+		if taskKey == "" {
+			return nil, errors.New("taskKey is required")
+		}
+		if len(taskKey) > 128 || strings.Contains(taskKey, "..") || strings.Contains(taskKey, " ") {
+			return nil, errors.New("invalid taskKey format")
+		}
+
+		payload.TaskKey = taskKey
 		env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
 		return env.ToBytes()
 

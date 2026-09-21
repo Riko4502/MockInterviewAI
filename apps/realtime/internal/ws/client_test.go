@@ -194,3 +194,168 @@ func TestClientPayloadBoundaryLimits(t *testing.T) {
 		t.Error("expected error for path traversal in filePath, got nil")
 	}
 }
+
+func TestClientYjsPayloadValidation(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	client := &Client{
+		ID:        "c-1",
+		UserID:    "user-1",
+		Username:  "Tester",
+		SessionID: "session-1",
+		logger:    logger,
+	}
+
+	validTaskKey := "task-1:typescript"
+	validUpdateID := "c1:1"
+	validData := "dGVzdC1kYXRh"
+
+	// 1. Валидный yjs.update
+	validUpdateEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-1",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+
+	raw, err := ParseRawEnvelope(validUpdateEnv)
+	if err != nil {
+		t.Fatalf("ParseRawEnvelope failed: %v", err)
+	}
+
+	sanitized, err := client.sanitizeIncomingPayload(raw)
+	if err != nil {
+		t.Fatalf("sanitizeIncomingPayload failed for valid yjs.update: %v", err)
+	}
+	if len(sanitized) == 0 {
+		t.Fatal("expected non-empty sanitized bytes")
+	}
+
+	// 2. Отклонение пустого taskKey
+	badKeyEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-2",
+		YjsUpdatePayload{
+			TaskKey:  "   ",
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badKeyEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty taskKey, got nil")
+	}
+
+	// 3. Отклонение невалидного taskKey с path traversal
+	badKeyEnv, _ = NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-3",
+		YjsUpdatePayload{
+			TaskKey:  "../task-1:typescript",
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badKeyEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for path traversal taskKey, got nil")
+	}
+
+	// 4. Отклонение пустого updateId
+	badUpdateIDEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-4",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: "",
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badUpdateIDEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty updateId, got nil")
+	}
+
+	// 5. Отклонение пустых данных data
+	emptyDataEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-5",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     "",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(emptyDataEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty data, got nil")
+	}
+
+	// 6. Отклонение данных, превышающих лимит 64 КБ (87384 символа)
+	oversizedData := strings.Repeat("A", maxYjsBase64Length+1)
+	oversizedEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-6",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     oversizedData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(oversizedEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for oversized yjs update data (> 64KB), got nil")
+	}
+
+	// 7. Валидный yjs.awareness
+	awarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-7",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(awarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid awareness: %v", err)
+	}
+
+	// 8. Отклонение yjs.awareness с данными > 64 КБ
+	oversizedAwarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-8",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    oversizedData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(oversizedAwarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for oversized awareness data, got nil")
+	}
+
+	// 9. Валидный task.switch
+	switchEnv, _ := NewEnvelope(
+		EventTaskSwitch,
+		"session-1",
+		"req-9",
+		TaskSwitchPayload{
+			TaskKey: "task-2:python",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(switchEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid task.switch: %v", err)
+	}
+}

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,14 @@ type SessionStore interface {
 	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
 	Close() error
+}
+
+// YjsDocStore интерфейс для работы со стримами и сидингом CRDT-документов Yjs в Redis.
+type YjsDocStore interface {
+	SeedTaskDoc(ctx context.Context, sessionID, taskKey, starterUpdateBase64 string, ttlSeconds int64) (int, error)
+	GetTaskUpdates(ctx context.Context, sessionID, taskKey string) ([]string, error)
+	AppendTaskUpdate(ctx context.Context, sessionID, taskKey, updateBase64 string) (string, error)
+	TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error
 }
 
 // PubSubMessage обертка над сообщением для предотвращения эхо-повторов на одном и том же сервере.
@@ -661,4 +670,99 @@ func (r *RedisStore) Close() error {
 		return r.client.Close()
 	}
 	return nil
+}
+
+//go:embed scripts/seed_task_doc.lua
+var seedTaskDocLua string
+
+var seedTaskDocScript *redis.Script
+
+func init() {
+	seedTaskDocScript = redis.NewScript(seedTaskDocLua)
+}
+
+// SeedTaskDoc атомарно проверяет и засевает начальный документ Yjs для задачи через seed_task_doc.lua.
+// Возвращает код состояния скрипта:
+// 0 - No-op (уже засеяно и валидно)
+// 1 - Первичный сидинг успешно выполнен
+// 2 - Маркер успешно восстановлен без повторного XADD
+// 3 - Служебная структура стрима восстановлена со стартовым шаблоном
+func (r *RedisStore) SeedTaskDoc(ctx context.Context, sessionID, taskKey, starterUpdateBase64 string, ttlSeconds int64) (int, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return 0, nil
+	}
+
+	keys := []string{
+		fmt.Sprintf("{session:%s}:seeded_tasks", sessionID),
+		fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey),
+	}
+
+	res, err := seedTaskDocScript.Run(ctx, r.client, keys, taskKey, starterUpdateBase64, ttlSeconds).Int()
+	if err != nil {
+		r.logger.Warn("failed to execute seed_task_doc.lua in redis",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return 0, err
+	}
+
+	return res, nil
+}
+
+// GetTaskUpdates считывает все сохраненные дельты задачи из Redis Stream ({session:<id>}:task:<taskKey>:updates) через XRANGE.
+func (r *RedisStore) GetTaskUpdates(ctx context.Context, sessionID, taskKey string) ([]string, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return nil, nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	entries, err := r.client.XRange(ctx, streamKey, "-", "+").Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		r.logger.Warn("failed to fetch task updates from stream",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	updates := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if val, ok := entry.Values["data"].(string); ok && val != "" {
+			updates = append(updates, val)
+		}
+	}
+
+	return updates, nil
+}
+
+// AppendTaskUpdate записывает очередную дельту Yjs в Redis Stream задачи через XADD.
+func (r *RedisStore) AppendTaskUpdate(ctx context.Context, sessionID, taskKey, updateBase64 string) (string, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" || updateBase64 == "" {
+		return "", nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	return r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		ID:     "*",
+		Values: map[string]interface{}{"data": updateBase64},
+	}).Result()
+}
+
+// TouchTaskStream синхронно продлевает TTL ключей активной задачи ({session:<id>}:seeded_tasks и стрима задачи) на заданный TTL.
+func (r *RedisStore) TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return nil
+	}
+
+	pipe := r.client.Pipeline()
+	pipe.Expire(ctx, fmt.Sprintf("{session:%s}:seeded_tasks", sessionID), ttl)
+	pipe.Expire(ctx, fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey), ttl)
+	_, err := pipe.Exec(ctx)
+	return err
 }

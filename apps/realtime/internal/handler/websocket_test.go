@@ -258,6 +258,19 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		t.Fatalf("expected first event to be %s, got %s", ws.EventRoomSync, rawSync1.Type)
 	}
 
+	// Кандидат получает первичный yjs.init
+	_, msgCandidateYjs, err := connCandidate.Read(ctx)
+	if err != nil {
+		t.Fatalf("candidate failed to read yjs.init: %v", err)
+	}
+	rawYjs1, err := ws.ParseRawEnvelope(msgCandidateYjs)
+	if err != nil {
+		t.Fatalf("candidate failed to parse yjs.init envelope: %v", err)
+	}
+	if rawYjs1.Type != ws.EventYjsInit {
+		t.Fatalf("expected second event to be %s, got %s", ws.EventYjsInit, rawYjs1.Type)
+	}
+
 	// 5. Подключение Собеседующего с токеном в Cookie (User B)
 	interviewerToken, err := generateTestJWT(secret, "int-1", "Interviewer-Sarah", sessionID)
 	if err != nil {
@@ -291,10 +304,23 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	}
 	syncPayload2, err := ws.UnpackPayload[ws.RoomSyncPayload](rawSync2)
 	if err != nil {
-		t.Fatalf("failed to unpack room sync: %v", err)
+		t.Fatalf("interviewer failed to unpack room sync: %v", err)
 	}
 	if len(syncPayload2.Participants) != 2 {
 		t.Errorf("expected 2 participants in room.sync, got %d", len(syncPayload2.Participants))
+	}
+
+	// Собеседующий получает первичный yjs.init
+	_, msgInterviewerYjs, err := connInterviewer.Read(ctx)
+	if err != nil {
+		t.Fatalf("interviewer failed to read yjs.init: %v", err)
+	}
+	rawYjs2, err := ws.ParseRawEnvelope(msgInterviewerYjs)
+	if err != nil {
+		t.Fatalf("interviewer failed to parse yjs.init envelope: %v", err)
+	}
+	if rawYjs2.Type != ws.EventYjsInit {
+		t.Fatalf("expected interviewer to receive %s, got %s", ws.EventYjsInit, rawYjs2.Type)
 	}
 
 	// Кандидат должен получить presence.join о входе собеседующего

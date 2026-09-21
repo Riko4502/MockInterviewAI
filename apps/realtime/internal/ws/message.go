@@ -57,6 +57,27 @@ const (
 
 	// EventSystemPong является ответом на системное событие проверки соединения.
 	EventSystemPong EventType = "system.pong"
+
+	// EventYjsUpdate содержит инкрементальное обновление документа Yjs (CRDT дельта).
+	EventYjsUpdate EventType = "yjs.update"
+
+	// EventYjsAck подтверждает получение и постановку дельты в очередь Go Relay (Ingress ACK).
+	EventYjsAck EventType = "yjs.ack"
+
+	// EventYjsInit содержит полную историю дельт документа для первичной инициализации клиента.
+	EventYjsInit EventType = "yjs.init"
+
+	// EventYjsAwareness содержит обновление присутствия Yjs Awareness (курсоры, выделение).
+	EventYjsAwareness EventType = "yjs.awareness"
+
+	// EventTaskSwitch запрашивает переключение активной задачи.
+	EventTaskSwitch EventType = "task.switch"
+
+	// EventTaskSwitched уведомляет о завершении переключения активной задачи.
+	EventTaskSwitched EventType = "task.switched"
+
+	// EventRoomError уведомляет об ошибке на уровне комнаты (например, SYNC_FAILED).
+	EventRoomError EventType = "room.error"
 )
 
 // String возвращает строковое представление типа события.
@@ -168,4 +189,46 @@ type SystemErrorPayload struct {
 type SystemAckPayload struct {
 	TargetRequestID string `json:"targetRequestId"`
 	Status          string `json:"status"`
+}
+
+// YjsUpdatePayload описывает входящую или исходящую дельту документа Yjs.
+type YjsUpdatePayload struct {
+	TaskKey  string `json:"taskKey"`
+	UpdateID string `json:"updateId"`
+	Data     string `json:"data"`
+}
+
+// YjsAckPayload содержит подтверждение приёма дельты в буфер Relay (Ingress ACK).
+type YjsAckPayload struct {
+	TaskKey  string `json:"taskKey"`
+	UpdateID string `json:"updateId"`
+}
+
+// YjsInitPayload содержит массив сохраненных дельт для сборщика истории документа.
+type YjsInitPayload struct {
+	TaskKey string   `json:"taskKey"`
+	Updates []string `json:"updates"`
+}
+
+// YjsAwarenessPayload содержит бинарное Base64 состояние awareness (курсоры, выделение).
+type YjsAwarenessPayload struct {
+	TaskKey string `json:"taskKey"`
+	Data    string `json:"data"`
+}
+
+// TaskSwitchPayload запрашивает переключение задачи в комнате.
+type TaskSwitchPayload struct {
+	TaskKey string `json:"taskKey"`
+}
+
+// TaskSwitchedPayload уведомляет клиентов о переключении активной задачи.
+type TaskSwitchedPayload struct {
+	TaskKey string `json:"taskKey"`
+}
+
+// RoomErrorPayload содержит код и описание ошибки синхронизации комнаты.
+type RoomErrorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	TaskKey string `json:"taskKey,omitempty"`
 }

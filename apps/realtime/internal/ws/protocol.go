@@ -51,6 +51,9 @@ func (e *RawEnvelope) Validate() error {
 	return nil
 }
 
+// ErrCodeSyncFailed код ошибки при сбое первичной синхронизации истории комнаты.
+const ErrCodeSyncFailed = "SYNC_FAILED"
+
 // EventPayload строго ограничивает допустимые типы полезной нагрузки только структурами нашего WebSocket-протокола.
 type EventPayload interface {
 	PresencePayload |
@@ -66,6 +69,13 @@ type EventPayload interface {
 		MediaSpeakerPayload |
 		SystemErrorPayload |
 		SystemAckPayload |
+		YjsUpdatePayload |
+		YjsAckPayload |
+		YjsInitPayload |
+		YjsAwarenessPayload |
+		TaskSwitchPayload |
+		TaskSwitchedPayload |
+		RoomErrorPayload |
 		struct{}
 }
 
@@ -151,6 +161,52 @@ func NewSystemAckEnvelope(sessionID, requestID, targetRequestID, status string) 
 		SystemAckPayload{
 			TargetRequestID: targetRequestID,
 			Status:          status,
+		},
+	)
+	return env.ToBytes()
+}
+
+// NewRoomErrorEnvelope создает готовый к отправке конверт ошибки комнаты (например, SYNC_FAILED).
+func NewRoomErrorEnvelope(sessionID, requestID, code, message, taskKey string) ([]byte, error) {
+	env := NewEnvelope(
+		EventRoomError,
+		sessionID,
+		requestID,
+		RoomErrorPayload{
+			Code:    code,
+			Message: message,
+			TaskKey: taskKey,
+		},
+	)
+	return env.ToBytes()
+}
+
+// NewYjsAckEnvelope создает готовый к отправке конверт Ingress ACK для автора дельты.
+func NewYjsAckEnvelope(sessionID, requestID, taskKey, updateID string) ([]byte, error) {
+	env := NewEnvelope(
+		EventYjsAck,
+		sessionID,
+		requestID,
+		YjsAckPayload{
+			TaskKey:  taskKey,
+			UpdateID: updateID,
+		},
+	)
+	return env.ToBytes()
+}
+
+// NewYjsInitEnvelope создает готовый к отправке конверт первичной истории дельт Yjs для клиента.
+func NewYjsInitEnvelope(sessionID, requestID, taskKey string, updates []string) ([]byte, error) {
+	if updates == nil {
+		updates = []string{}
+	}
+	env := NewEnvelope(
+		EventYjsInit,
+		sessionID,
+		requestID,
+		YjsInitPayload{
+			TaskKey: taskKey,
+			Updates: updates,
 		},
 	)
 	return env.ToBytes()

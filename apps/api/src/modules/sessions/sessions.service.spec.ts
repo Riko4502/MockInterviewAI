@@ -115,6 +115,53 @@ describe("SessionsService", () => {
         result.inviteToken,
         7200,
       );
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
+        `{session:${sessionId}}:seeded_tasks`,
+        `{session:${sessionId}}:task:task-1:typescript:updates`,
+        "task-1:typescript",
+        expect.any(String),
+        86400,
+      );
+    });
+
+    it("успешно создаёт сессию, даже если сидинг Redis завершился ошибкой (lazy fallback)", async () => {
+      prismaMock.interviewSession.create.mockResolvedValue({
+        id: sessionId,
+        userId: ownerId,
+      });
+      redisMock.eval.mockRejectedValueOnce(
+        new Error("Redis connection timeout"),
+      );
+
+      const result = await service.createSession(ownerId);
+
+      expect(result.sessionId).toBe(sessionId);
+      expect(result.inviteToken).toHaveLength(64);
+    });
+  });
+
+  describe("seedTaskDoc", () => {
+    it("вызывает seed_task_doc.lua со специальным taskKey и контентом", async () => {
+      redisMock.eval.mockResolvedValue(1);
+
+      const status = await service.seedTaskDoc(
+        sessionId,
+        "task-2:python",
+        "def solution(): pass",
+      );
+
+      expect(status).toBe(1);
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
+        `{session:${sessionId}}:seeded_tasks`,
+        `{session:${sessionId}}:task:task-2:python:updates`,
+        "task-2:python",
+        expect.any(String),
+        86400,
+      );
     });
   });
 
