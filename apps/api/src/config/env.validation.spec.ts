@@ -12,12 +12,40 @@ const github = {
   GITHUB_CALLBACK_URL: "https://api.example.com/api/v1/auth/github/callback",
   FRONTEND_URL: "https://web.example.com",
 };
+const githubHttp = {
+  ...github,
+  GITHUB_CALLBACK_URL: "http://api.example.com/api/v1/auth/github/callback",
+  FRONTEND_URL: "http://web.example.com",
+};
 describe("Валидация переменных окружения GitHub OAuth", () => {
   it("сохраняет возможность входа по паролю без настройки OAuth", () => {
     expect(() => validate(requiredEnv)).not.toThrow();
   });
   it("принимает полную конфигурацию OAuth", () => {
     expect(validate({ ...requiredEnv, ...github })).toMatchObject(github);
+  });
+  it.each([
+    "GITHUB_CALLBACK_URL",
+    "FRONTEND_URL",
+  ])("отклоняет HTTP URL %s в production", (key) => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        NODE_ENV: "production",
+        ...github,
+        [key]: githubHttp[key as keyof typeof githubHttp],
+      }),
+    ).toThrow(
+      "GitHub OAuth callback and frontend URLs must use HTTPS in production",
+    );
+  });
+  it("сохраняет HTTP URL для development и test", () => {
+    expect(validate({ ...requiredEnv, ...githubHttp })).toMatchObject(
+      githubHttp,
+    );
+    expect(
+      validate({ ...requiredEnv, NODE_ENV: "test", ...githubHttp }),
+    ).toMatchObject(githubHttp);
   });
   it.each([
     "GITHUB_CLIENT_ID",

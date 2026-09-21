@@ -102,5 +102,15 @@ export function validate(config: Record<string, unknown>): Env {
       "GitHub OAuth requires GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_CALLBACK_URL and FRONTEND_URL",
     );
   }
+  if (
+    parsed.data.NODE_ENV === "production" &&
+    [parsed.data.GITHUB_CALLBACK_URL, parsed.data.FRONTEND_URL].some(
+      (url) => url !== undefined && !url.startsWith("https://"),
+    )
+  ) {
+    throw new Error(
+      "GitHub OAuth callback and frontend URLs must use HTTPS in production",
+    );
+  }
   return parsed.data;
 }
