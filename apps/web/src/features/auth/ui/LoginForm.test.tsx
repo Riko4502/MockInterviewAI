@@ -8,6 +8,7 @@ import { LoginForm } from "./LoginForm";
 
 const replaceMock = vi.fn();
 const startSessionMock = vi.fn();
+const loginRequestMock = vi.fn<typeof baseFetch>();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -58,6 +59,20 @@ describe("LoginForm Integration Flow (T032)", () => {
     resetApiTransportState();
     initApiTransport();
     vi.clearAllMocks();
+    loginRequestMock.mockReset();
+    loginRequestMock.mockRejectedValue(new Error("Unexpected auth request"));
+    vi.mocked(baseFetch).mockReset();
+    vi.mocked(baseFetch).mockImplementation((url, options) => {
+      if (url === "/api/v1/auth/oauth/providers" && options?.method === "GET") {
+        return Promise.resolve({ github: true });
+      }
+      if (url === "/api/v1/auth/login" && options?.method === "POST") {
+        return loginRequestMock(url, options);
+      }
+      return Promise.reject(
+        new Error(`Unexpected request: ${options?.method} ${url}`),
+      );
+    });
   });
 
   afterEach(() => {
@@ -65,7 +80,7 @@ describe("LoginForm Integration Flow (T032)", () => {
   });
 
   it("успешный flow: useAuthControllerLogin -> customInstance -> web transport -> baseFetch -> startSession -> redirect", async () => {
-    vi.mocked(baseFetch).mockResolvedValueOnce({
+    loginRequestMock.mockResolvedValueOnce({
       accessToken: "mock-access-token-login-777",
     });
 
@@ -86,7 +101,7 @@ describe("LoginForm Integration Flow (T032)", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(loginRequestMock).toHaveBeenCalledTimes(1);
     });
 
     expect(baseFetch).toHaveBeenCalledWith(
@@ -110,7 +125,7 @@ describe("LoginForm Integration Flow (T032)", () => {
   });
 
   it("error path: ошибка API в baseFetch пробрасывается в mutation и не запускает сессию", async () => {
-    vi.mocked(baseFetch).mockRejectedValueOnce(
+    loginRequestMock.mockRejectedValueOnce(
       new Error("HTTP Error 401: Unauthorized"),
     );
 
@@ -131,8 +146,12 @@ describe("LoginForm Integration Flow (T032)", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(loginRequestMock).toHaveBeenCalledTimes(1);
     });
+
+    expect(
+      await screen.findByText("HTTP Error 401: Unauthorized"),
+    ).toBeTruthy();
 
     expect(startSessionMock).not.toHaveBeenCalled();
     expect(replaceMock).not.toHaveBeenCalled();
