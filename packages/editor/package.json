@@ -33,7 +33,9 @@
     "@monaco-editor/react": "^4.6.0",
     "@packages/types": "workspace:*",
     "@packages/ui": "workspace:*",
-    "monaco-editor": "^0.50.0"
+    "monaco-editor": "^0.50.0",
+    "y-monaco": "^0.1.6",
+    "yjs": "^13.6.23"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
