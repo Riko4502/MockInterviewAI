@@ -1,5 +1,6 @@
 import type { Theme } from "@packages/types";
 import type { editor } from "monaco-editor";
+import type * as Y from "yjs";
 import type { LanguageId } from "@/languages/config";
 
 /**
@@ -57,4 +58,10 @@ export interface CodeEditorProps {
   cursorThrottleMs?: number;
   /** Дополнительные опции Monaco Editor */
   options?: editor.IStandaloneEditorConstructionOptions;
+  /** Yjs Text для совместного редактирования через CRDT (Phase 3) */
+  yText?: Y.Text;
+  /** Опциональный внешний Y.UndoManager */
+  undoManager?: Y.UndoManager;
+  /** Коллбэк при инициализации Y.UndoManager */
+  onUndoManagerInit?: (undoManager: Y.UndoManager) => void;
 }

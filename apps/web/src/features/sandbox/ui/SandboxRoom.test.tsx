@@ -63,6 +63,9 @@ vi.mock("../lib/useSandboxRealtime", () => ({
     broadcastTaskChange: vi.fn(),
     broadcastWebRTCSignal: vi.fn(),
     subscribeWebRTCSignal: vi.fn(() => vi.fn()),
+    subscribeEnvelope: vi.fn(() => vi.fn()),
+    sendEnvelope: vi.fn(),
+    getSocket: vi.fn(() => null),
     isConnected: true,
   }),
 }));

@@ -420,6 +420,9 @@ importers:
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
+      yjs:
+        specifier: ^13.6.23
+        version: 13.6.32
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -528,6 +531,9 @@ importers:
       y-monaco:
         specifier: ^0.1.6
         version: 0.1.6(monaco-editor@0.50.0)(yjs@13.6.32)
+      y-protocols:
+        specifier: ^1.0.7
+        version: 1.0.7(yjs@13.6.32)
       yjs:
         specifier: ^13.6.23
         version: 13.6.32
@@ -550,6 +556,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.4(@types/react@19.2.18)
+      jsdom:
+        specifier: ^30.0.1
+        version: 30.0.1(@noble/hashes@1.8.0)
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -9462,6 +9471,12 @@ packages:
     peerDependencies:
       monaco-editor: '>=0.20.0'
       yjs: ^13.3.1
+
+  y-protocols@1.0.7:
+    resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      yjs: ^13.0.0
 
   y18n@4.0.3:
     resolution: {integrity: sha512-JKhqTOwSrqNA1NY5lSztJ1GrBiUodLMmIZuLiDaMRJ+itFd+ABVE8XBjOvIWL+rSqNDC74LCSFmlb/U4UZ4hJQ==}
@@ -18937,6 +18952,11 @@ snapshots:
     dependencies:
       lib0: 0.2.117
       monaco-editor: 0.50.0
+      yjs: 13.6.32
+
+  y-protocols@1.0.7(yjs@13.6.32):
+    dependencies:
+      lib0: 0.2.117
       yjs: 13.6.32
 
   y18n@4.0.3: {}

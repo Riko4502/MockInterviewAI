@@ -129,6 +129,35 @@ export function useSandboxRealtime({
     [],
   );
 
+  const envelopeListenersRef = useRef<
+    Set<(envelope: AnyWebSocketEnvelope) => void>
+  >(new Set());
+
+  const subscribeEnvelope = useCallback(
+    (listener: (envelope: AnyWebSocketEnvelope) => void) => {
+      envelopeListenersRef.current.add(listener);
+      return () => {
+        envelopeListenersRef.current.delete(listener);
+      };
+    },
+    [],
+  );
+
+  const sendEnvelope = useCallback((envelope: AnyWebSocketEnvelope) => {
+    try {
+      const socket = wsConnRef.current?.socket;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(envelope));
+      }
+    } catch {
+      // Игнорируем сетевые сбои
+    }
+  }, []);
+
+  const getSocket = useCallback(() => {
+    return wsConnRef.current?.socket ?? null;
+  }, []);
+
   // Храним актуальные колбэки в ref, чтобы не пересоздавать подписку при ререндерах
   const callbacksRef = useRef<SandboxCallbacks>({
     onRemoteCodeUpdate,
@@ -275,6 +304,18 @@ export function useSandboxRealtime({
 
         if (!envelope || envelope.sessionId !== roomId || !envelope.payload)
           return;
+
+        // Уведомляем внешних подписчиков конвертов (например, RealtimeYjsProvider)
+        envelopeListenersRef.current.forEach((listener) => {
+          try {
+            listener(envelope);
+          } catch (err) {
+            console.error(
+              "[useSandboxRealtime] Error in envelope listener:",
+              err,
+            );
+          }
+        });
 
         switch (envelope.type) {
           case "system.ack": {
@@ -636,5 +677,8 @@ export function useSandboxRealtime({
     broadcastRunResult,
     subscribeWebRTCSignal,
     registerWebRTCSignalHandler: subscribeWebRTCSignal,
+    subscribeEnvelope,
+    sendEnvelope,
+    getSocket,
   };
 }

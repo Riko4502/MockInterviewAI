@@ -1,8 +1,10 @@
 import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import * as monaco from "monaco-editor";
 import type React from "react";
-
 import { useEffect, useRef, useState } from "react";
+import { MonacoBinding } from "y-monaco";
+import * as Y from "yjs";
 import {
   registerCppCompletion,
   registerGoCompletion,
@@ -51,6 +53,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onCursorChange,
   cursorThrottleMs = 50,
   options = {},
+  yText,
+  undoManager: externalUndoManager,
+  onUndoManagerInit,
 }) => {
   const [isMonacoReady, setIsMonacoReady] = useState(false);
 
@@ -139,6 +144,62 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     };
   }, []);
 
+  // Интеграция Yjs + MonacoBinding + UndoManager (Phase 3: T015)
+  useEffect(() => {
+    if (!editorInstance || !yText) {
+      return;
+    }
+
+    const model = editorInstance.getModel();
+    if (!model) {
+      return;
+    }
+
+    // Связываем Y.Text с Monaco ITextModel
+    const binding = new MonacoBinding(yText, model, new Set([editorInstance]));
+
+    // UndoManager с trackedOrigins: только локальный binding
+    const currentUndoManager =
+      externalUndoManager ??
+      new Y.UndoManager(yText, {
+        trackedOrigins: new Set([binding]),
+      });
+
+    onUndoManagerInit?.(currentUndoManager);
+
+    // Перехватываем стандартный Undo Monaco и перенаправляем на Yjs UndoManager
+    const undoAction = editorInstance.addAction({
+      id: "yjs-undo",
+      label: "Undo",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ],
+      run: () => {
+        currentUndoManager.undo();
+      },
+    });
+
+    // Перехватываем стандартный Redo Monaco и перенаправляем на Yjs UndoManager
+    const redoAction = editorInstance.addAction({
+      id: "yjs-redo",
+      label: "Redo",
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY,
+      ],
+      run: () => {
+        currentUndoManager.redo();
+      },
+    });
+
+    return () => {
+      undoAction.dispose();
+      redoAction.dispose();
+      binding.destroy();
+      if (!externalUndoManager) {
+        currentUndoManager.destroy();
+      }
+    };
+  }, [editorInstance, yText, externalUndoManager, onUndoManagerInit]);
+
   const mergedOptions = {
     ...DEFAULT_EDITOR_OPTIONS,
     readOnly,
@@ -162,7 +223,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           height="100%"
           language={language}
           theme={theme}
-          value={value}
+          value={yText ? undefined : value}
           onChange={(val) => onChange?.(val ?? "")}
           beforeMount={handleBeforeMount}
           onMount={handleEditorDidMount}

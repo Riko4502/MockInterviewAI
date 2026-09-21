@@ -2,7 +2,9 @@
 
 import { CodeEditorLazy, type LanguageId } from "@packages/editor";
 import { Resizable } from "@packages/ui";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import * as Y from "yjs";
+import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { SandboxMediaProvider } from "../model/SandboxMediaContext";
 import { useSandboxTimer } from "../model/useSandboxState";
@@ -33,9 +35,14 @@ export function SandboxRoomWorkspace({
   const resetCode = useSandboxStore((s) => s.resetCode);
   const theme = useSandboxStore((s) => s.theme);
   const setTaskId = useSandboxStore((s) => s.setTaskId);
+  const currentTaskId = useSandboxStore((s) => s.currentTaskId);
   const setIsVideoOpen = useSandboxStore((s) => s.setIsVideoOpen);
 
   useSandboxTimer();
+
+  // Yjs CRDT: Инициализация Y.Doc и Y.Text активного документа (Phase 3: T018)
+  const [yDoc] = useState(() => new Y.Doc());
+  const [yText, setYText] = useState<Y.Text | null>(null);
 
   // Реалтайм синхронизация состояния и сигналов
   const realtime = useSandboxRealtime({
@@ -52,6 +59,43 @@ export function SandboxRoomWorkspace({
       }
     },
   });
+
+  // Подключение RealtimeYjsProvider к сессионному сокету (T018)
+  const taskKey = `${currentTaskId || "default"}:${language}`;
+
+  useEffect(() => {
+    const text = yDoc.getText("monaco");
+    setYText(text);
+
+    const provider = new RealtimeYjsProvider({
+      doc: yDoc,
+      taskKey,
+      sessionId: roomId,
+      sendEnvelope: realtime.sendEnvelope,
+    });
+
+    const unsubscribe = realtime.subscribeEnvelope?.((envelope) => {
+      provider.handleMessage(envelope);
+    });
+
+    return () => {
+      unsubscribe?.();
+      provider.destroy();
+    };
+  }, [
+    yDoc,
+    taskKey,
+    roomId,
+    realtime.sendEnvelope,
+    realtime.subscribeEnvelope,
+  ]);
+
+  // Корректное освобождение Y.Doc при размонтировании рабочей области
+  useEffect(() => {
+    return () => {
+      yDoc.destroy();
+    };
+  }, [yDoc]);
 
   const handleCodeChange = useCallback(
     (newCode: string) => {
@@ -136,6 +180,7 @@ export function SandboxRoomWorkspace({
                     <CodeEditorLazy
                       value={code}
                       onChange={(val) => handleCodeChange(val ?? "")}
+                      yText={yText ?? undefined}
                       language={language}
                       theme={theme}
                       collaborators={realtime.collaborators}
