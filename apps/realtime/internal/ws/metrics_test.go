@@ -14,6 +14,7 @@ func TestMetricsExposeWebSocketMetrics(t *testing.T) {
 	// Под допустимым порогом — промахи тоже формируют гистограмму.
 	m.ObservePubSubLag(0.0)
 	m.ObservePubSubLag(0.005)
+	m.IncCodeVersionFallback()
 
 	var buf bytes.Buffer
 	m.WritePrometheus(&buf)
@@ -26,10 +27,17 @@ func TestMetricsExposeWebSocketMetrics(t *testing.T) {
 		"realtime_ws_pubsub_lag_seconds_sum",
 		`realtime_ws_pubsub_lag_seconds_count{node_id="node-1"} 2`,
 		`realtime_ws_pubsub_lag_seconds_bucket{node_id="node-1",le="+Inf"} 2`,
+		"# HELP realtime_ws_code_version_fallback_total",
+		"# TYPE realtime_ws_code_version_fallback_total counter",
+		`realtime_ws_code_version_fallback_total{node_id="node-1"} 1`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected metric output to contain %q, got:\n%s", want, out)
 		}
+	}
+
+	if m.CodeVersionFallbackCount() != 1 {
+		t.Errorf("CodeVersionFallbackCount() = %d, want 1", m.CodeVersionFallbackCount())
 	}
 
 	if m.NodeID() != "node-1" {

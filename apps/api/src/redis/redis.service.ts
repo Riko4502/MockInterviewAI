@@ -373,18 +373,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Выполняет Lua-скрипт в Redis (EVAL).
    *
-   * @param script - Текст Lua-скрипта.
-   * @param keys - Массив ключей.
-   * @param args - Массив аргументов (строки или числа).
-   * @returns Результат выполнения скрипта.
-   * @throws {Error} При ошибке Redis.
+   * Поддерживает обе формы вызова:
+   * 1. `eval(script, keys, args)`
+   * 2. `eval(script, numKeys, ...args)`
    */
   async eval<T = unknown>(
     script: string,
     keys: string[],
     args: (string | number)[],
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    keysOrNumKeys: string[] | number,
+    ...rest: unknown[]
   ): Promise<T> {
-    return (await this.client.eval(script, keys.length, ...keys, ...args)) as T;
+    if (Array.isArray(keysOrNumKeys)) {
+      const keys = keysOrNumKeys;
+      const args = (rest[0] as (string | number)[]) ?? [];
+      return (await this.client.eval(
+        script,
+        keys.length,
+        ...keys,
+        ...args,
+      )) as T;
+    }
+    const numKeys = keysOrNumKeys;
+    const args = rest as (string | number)[];
+    return (await this.client.eval(script, numKeys, ...args)) as T;
   }
 
   /**

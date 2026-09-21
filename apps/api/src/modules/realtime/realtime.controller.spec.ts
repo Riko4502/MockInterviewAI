@@ -1,96 +1,113 @@
-import { UnauthorizedException } from "@nestjs/common";
-import { Test, type TestingModule } from "@nestjs/testing";
-import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
-import { TokenService } from "../auth/services/token.service";
-import { LivekitService } from "./livekit.service";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import type { RedisService } from "../../redis/redis.service";
+import type { TokenService } from "../auth/services/token.service";
+import type { LivekitService } from "./livekit.service";
 import { RealtimeController } from "./realtime.controller";
 
 describe("RealtimeController", () => {
   let controller: RealtimeController;
-  let tokenService: jest.Mocked<Partial<TokenService>>;
-  let livekitService: jest.Mocked<Partial<LivekitService>>;
+  let tokenServiceMock: { generateRealtimeTicket: jest.Mock };
+  let livekitServiceMock: { generateMediaToken: jest.Mock };
+  let redisMock: { get: jest.Mock; hget: jest.Mock };
 
-  beforeEach(async () => {
-    tokenService = {
-      generateRealtimeTicket: jest.fn().mockReturnValue("signed-ticket-jwt"),
+  const userId = "00000000-0000-0000-0000-000000000002";
+  const sid = "00000000-0000-0000-0000-000000000003";
+  const sessionId = "00000000-0000-0000-0000-000000000001";
+  const generation = 1;
+
+  beforeEach(() => {
+    tokenServiceMock = {
+      generateRealtimeTicket: jest.fn().mockReturnValue("jwt-ticket-mock"),
     };
-
-    livekitService = {
+    livekitServiceMock = {
       generateMediaToken: jest.fn().mockResolvedValue({
-        token: "livekit-token",
+        token: "livekit-token-mock",
         serverUrl: "wss://livekit.example.com",
-        roomName: "room-123",
+        roomName: sessionId,
       }),
     };
+    redisMock = {
+      get: jest.fn(),
+      hget: jest.fn(),
+    };
 
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [RealtimeController],
-      providers: [
-        { provide: TokenService, useValue: tokenService },
-        { provide: LivekitService, useValue: livekitService },
-      ],
-    })
-      .overrideGuard(AuthThrottlerGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    controller = module.get<RealtimeController>(RealtimeController);
+    controller = new RealtimeController(
+      tokenServiceMock as unknown as TokenService,
+      livekitServiceMock as unknown as LivekitService,
+      redisMock as unknown as RedisService,
+    );
   });
 
   describe("getTicket", () => {
-    const validSessionId = "00000000-0000-0000-0000-000000000001";
-    const userId = "00000000-0000-0000-0000-000000000002";
-    const sid = "00000000-0000-0000-0000-000000000003";
+    it("выдаёт тикет для валидного участника активной сессии с generation", async () => {
+      redisMock.get.mockResolvedValue("true");
+      redisMock.hget.mockResolvedValue("CANDIDATE");
 
-    it("should issue ticket when generation is provided", async () => {
       const result = await controller.getTicket(
-        { sessionId: validSessionId },
+        { sessionId },
         userId,
         sid,
-        1,
+        generation,
       );
 
-      expect(result).toEqual({ ticket: "signed-ticket-jwt" });
-      expect(tokenService.generateRealtimeTicket).toHaveBeenCalledWith(
+      expect(result).toEqual({ ticket: "jwt-ticket-mock" });
+      expect(redisMock.get).toHaveBeenCalledWith(`session:${sessionId}:active`);
+      expect(redisMock.hget).toHaveBeenCalledWith(
+        `session:${sessionId}:members`,
+        userId,
+      );
+      expect(tokenServiceMock.generateRealtimeTicket).toHaveBeenCalledWith(
         userId,
         sid,
-        validSessionId,
-        1,
+        sessionId,
+        generation,
       );
     });
 
-    it("should throw UnauthorizedException when generation claim is missing", async () => {
+    it("бросает UnauthorizedException если generation отсутствует", async () => {
       await expect(
-        controller.getTicket(
-          { sessionId: validSessionId },
-          userId,
-          sid,
-          undefined,
-        ),
+        controller.getTicket({ sessionId }, userId, sid, undefined),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(tokenService.generateRealtimeTicket).not.toHaveBeenCalled();
+      expect(redisMock.get).not.toHaveBeenCalled();
+      expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();
+    });
+
+    it("бросает ForbiddenException если сессия не активна в Redis", async () => {
+      redisMock.get.mockResolvedValue(null);
+      redisMock.hget.mockResolvedValue("CANDIDATE");
+
+      await expect(
+        controller.getTicket({ sessionId }, userId, sid, generation),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();
+    });
+
+    it("бросает ForbiddenException если пользователь не является участником в Redis", async () => {
+      redisMock.get.mockResolvedValue("true");
+      redisMock.hget.mockResolvedValue(null);
+
+      await expect(
+        controller.getTicket({ sessionId }, userId, sid, generation),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();
     });
   });
 
   describe("getMediaToken", () => {
-    const validSessionId = "00000000-0000-0000-0000-000000000001";
-    const userId = "00000000-0000-0000-0000-000000000002";
-
-    it("should delegate to livekitService.generateMediaToken", async () => {
-      const result = await controller.getMediaToken(
-        { sessionId: validSessionId },
-        userId,
-      );
+    it("делегирует генерацию токена в LivekitService", async () => {
+      const result = await controller.getMediaToken({ sessionId }, userId);
 
       expect(result).toEqual({
-        token: "livekit-token",
+        token: "livekit-token-mock",
         serverUrl: "wss://livekit.example.com",
-        roomName: "room-123",
+        roomName: sessionId,
       });
-      expect(livekitService.generateMediaToken).toHaveBeenCalledWith(
+      expect(livekitServiceMock.generateMediaToken).toHaveBeenCalledWith(
         userId,
-        validSessionId,
+        sessionId,
       );
     });
   });

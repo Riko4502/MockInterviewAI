@@ -126,7 +126,9 @@ func (m *mockSessionStore) ConsumeTicket(_ context.Context, tokenID string) (boo
 func (m *mockSessionStore) TouchMirror(_ context.Context, _ string, _ time.Duration) error {
 	return nil
 }
-
+func (m *mockSessionStore) NextCodeVersion(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
 func (m *mockSessionStore) SaveCodeState(_ context.Context, sessionID string, data []byte) error {
 	if m.codeState == nil {
 		m.codeState = make(map[string][]byte)

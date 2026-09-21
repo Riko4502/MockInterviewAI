@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "@/shared/api";
@@ -66,11 +72,15 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
     mockError = null;
     mutateMock.mockClear();
     pushMock.mockClear();
-    await i18n.changeLanguage("ru");
+    await act(async () => {
+      await i18n.changeLanguage("ru");
+    });
   });
 
   afterEach(async () => {
-    await i18n.changeLanguage("ru");
+    await act(async () => {
+      await i18n.changeLanguage("ru");
+    });
   });
 
   it("renders form in Russian by default", () => {
@@ -85,7 +95,9 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
   });
 
   it("renders form in English when language is changed", async () => {
-    await i18n.changeLanguage("en");
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
     renderWithClient(<ResetPasswordForm token="valid-token-123" />);
 
     expect(screen.getByText("New Password")).toBeInTheDocument();
@@ -169,7 +181,9 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
 
     expect(pushMock).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(2000);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
 
     expect(pushMock).toHaveBeenCalledWith("/login");
     vi.useRealTimers();
@@ -185,7 +199,9 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
 
     unmount();
 
-    vi.advanceTimersByTime(2000);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
 
     expect(pushMock).not.toHaveBeenCalled();
     vi.useRealTimers();
@@ -241,7 +257,9 @@ describe("ResetPasswordForm & InvalidTokenAlert i18n and behavior", () => {
     });
 
     it("renders localized invalid token alert in English", async () => {
-      await i18n.changeLanguage("en");
+      await act(async () => {
+        await i18n.changeLanguage("en");
+      });
       renderWithClient(<InvalidTokenAlert />);
 
       expect(screen.getByText("This link has expired")).toBeInTheDocument();

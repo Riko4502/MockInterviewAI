@@ -19,6 +19,7 @@ import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
 import type { Prisma, Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthSessionService } from "../auth/services/auth-session.service";
 import { StorageService } from "../storage/storage.service";
 
@@ -338,7 +339,7 @@ export class UsersService {
     try {
       if (sessionId) {
         await this.redisService
-          .delete(`auth:session:${sessionId}`)
+          .delete(`${REDIS_SESSION_PREFIX}${sessionId}`)
           .catch(() => undefined);
       }
       await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
