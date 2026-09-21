@@ -110,4 +110,17 @@ describe("E2E: POST /api/v1/realtime/media-token", () => {
 
     expect(res.status).toBe(403);
   });
+
+  it("отклоняет запрос пользователя, не являющегося участником активной сессии → 403", async () => {
+    const ownerToken = await registerAndLogin();
+    const otherToken = await registerAndLogin();
+    const sessionId = await createSession(ownerToken);
+
+    const res = await request(started.app.getHttpServer())
+      .post(MEDIA_TOKEN_PATH)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ sessionId });
+
+    expect(res.status).toBe(403);
+  });
 });

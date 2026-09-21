@@ -464,6 +464,41 @@ paths:
       summary: Создать новую интервью-сессию
       tags: &a5
         - Sessions
+  /api/v1/sessions/{id}/join:
+    post:
+      operationId: SessionsController_joinSession
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinSessionDto"
+      responses:
+        "200":
+          description: Успешное присоединение к сессии
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinSessionResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен (сессия закрыта или пользователь не является
+            участником)
+        "404":
+          description: Сессия не найдена
+      security: *a4
+      summary: Присоединиться к интервью-сессии
+      tags: *a5
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -549,6 +584,33 @@ paths:
       security: *a4
       summary: Закрыть интервью-сессию
       tags: *a5
+  /api/v1/sessions/{id}/rotate-invite:
+    post:
+      operationId: SessionsController_rotateInviteToken
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Инвайт-токен успешно ротирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateInviteResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен (не владелец или сессия закрыта)
+        "404":
+          description: Сессия не найдена
+      security: *a4
+      summary: Ротировать инвайт-токен сессии
+      tags: *a5
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -571,6 +633,8 @@ paths:
           description: Ошибка валидации входных данных
         "401":
           description: Не авторизован
+        "403":
+          description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
       security: &a6
@@ -1116,6 +1180,62 @@ components:
           type: boolean
       required:
         - success
+    CreateSessionResponseDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        inviteToken:
+          type: string
+      required:
+        - sessionId
+        - inviteToken
+    JoinSessionDto:
+      default: {}
+      type: object
+      properties:
+        inviteToken:
+          type: string
+    JoinSessionResponseDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+          description: Роль пользователя в сессии
+        inviteToken:
+          type: string
+          description: Инвайт-токен сессии
+      required:
+        - role
+        - inviteToken
+    AddParticipantDto:
+      type: object
+      properties:
+        userId:
+          type: string
+          minLength: 1
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+      required:
+        - userId
+        - role
+    RotateInviteResponseDto:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+          description: Новый инвайт-токен сессии
+      required:
+        - inviteToken
     TicketDto:
       type: object
       properties:
@@ -1158,26 +1278,3 @@ components:
         - token
         - serverUrl
         - roomName
-    CreateSessionResponseDto:
-      type: object
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-      required:
-        - sessionId
-    AddParticipantDto:
-      type: object
-      properties:
-        userId:
-          type: string
-          minLength: 1
-        role:
-          type: string
-          enum:
-            - CANDIDATE
-            - INTERVIEWER
-            - OBSERVER
-      required:
-        - userId
-        - role

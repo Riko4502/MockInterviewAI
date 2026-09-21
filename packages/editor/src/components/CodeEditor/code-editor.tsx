@@ -1,6 +1,7 @@
 import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type React from "react";
+
 import { useEffect, useRef, useState } from "react";
 import {
   registerCppCompletion,

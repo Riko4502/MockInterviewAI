@@ -216,6 +216,20 @@ export class AuthService implements OnModuleInit {
     return this.loginUser(user);
   }
 
+  /**
+   * Создаёт сессию и access/refresh токены для уже аутентифицированного пользователя.
+   *
+   * Не проверяет учётные данные: вызывающий код должен предварительно успешно
+   * проверить пароль или выполнить OAuth-аутентификацию пользователя.
+   * Восстанавливает удалённый аккаунт в пределах 30-дневного окна восстановления,
+   * создаёт новые sessionId и tokenFamilyId и сохраняет сессию в Redis
+   * с HMAC-хешем refresh token.
+   *
+   * @param user - Аутентифицированный пользователь с загруженными ролью и правами.
+   * @returns {LoginResult} Access и refresh токены созданной сессии.
+   * @throws {UnauthorizedException} Если с момента удаления аккаунта прошло более 30 дней.
+   * @throws {InternalServerErrorException} При ошибке сохранения сессии в Redis.
+   */
   async loginUser(user: UserWithRoleAndPermissions): Promise<LoginResult> {
     if (user.deletedAt) {
       const elapsedMs = Date.now() - user.deletedAt.getTime();

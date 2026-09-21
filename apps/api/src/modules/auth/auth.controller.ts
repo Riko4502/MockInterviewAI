@@ -40,7 +40,7 @@ import {
   ZodBody,
 } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { AuthService } from "./auth.service";
+import { AuthService, type LoginResult } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
 import {
   GITHUB_STATE_COOKIE,
@@ -578,12 +578,24 @@ export class AuthController {
       GITHUB_STATE_COOKIE,
       this.getRefreshCookieAttributes(),
     );
-    const user = await this.githubOAuth.callback(
-      code,
-      state,
-      request.cookies?.[GITHUB_STATE_COOKIE],
-    );
-    const result = await this.authService.loginUser(user);
+    let result: LoginResult;
+    try {
+      const user = await this.githubOAuth.callback(
+        code,
+        state,
+        request.cookies?.[GITHUB_STATE_COOKIE],
+      );
+      result = await this.authService.loginUser(user);
+    } catch {
+      response.redirect(
+        302,
+        new URL(
+          "/login?error=github",
+          this.configService.getOrThrow<string>("FRONTEND_URL"),
+        ).toString(),
+      );
+      return;
+    }
     this.setRefreshTokenCookie(response, result.refreshToken);
     response.redirect(
       302,

@@ -30,6 +30,7 @@ type SessionStore interface {
 	IsAuthSessionActive(ctx context.Context, sid string) (bool, error)
 	ConsumeTicket(ctx context.Context, tokenID string) (bool, error)
 	TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error
+	NextCodeVersion(ctx context.Context, sessionID string) (int64, error)
 	SaveCodeState(ctx context.Context, sessionID string, data []byte) error
 	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
@@ -40,6 +41,12 @@ type SessionStore interface {
 type PubSubMessage struct {
 	InstanceID string `json:"instanceId"`
 	Data       []byte `json:"data"`
+
+	// SentAt — время публикации в Unix-миллисекундах. Используется для
+	// измерения задержки релея событий комнат через Redis Pub/Sub
+	// (метрика realtime_ws_pubsub_lag_seconds). 0 — у старых продюсеров,
+	// в этом случае задержка не измеряется.
+	SentAt int64 `json:"sentAt,omitempty"`
 }
 
 // RevocationMessage описывает сообщение ревокации из канала "auth:revocations"
@@ -85,6 +92,10 @@ type RedisStore struct {
 	instanceID string
 	logger     *slog.Logger
 	enabled    bool
+
+	// onPubSubLag — наблюдатель задержки релея событий комнат через Redis
+	// Pub/Sub (PLAN шаг 9). Устанавливается из main.go и привязан к ws-метрикам.
+	onPubSubLag func(seconds float64)
 }
 
 // NewRedisStore создает подключение к Redis. Если Redis выключен или недоступен, работает в no-op безопасном режиме.
@@ -177,6 +188,59 @@ func (r *RedisStore) InstanceID() string {
 	return r.instanceID
 }
 
+// RedisPoolStats — снимок состояния пула соединений Redis (уплощенная проекция
+// redis.PoolStats). Импорт go-redis для этого в месте экспорта метрик не нужен.
+type RedisPoolStats struct {
+	TotalConns int
+	IdleConns  int
+	StaleConns int
+	Hits       int64
+	Misses     int64
+	Timeouts   int64
+}
+
+// PoolStats возвращает статистику пула соединений клиента Redis. Возвращает nil
+// в disabled-режиме (клиент не создан — пула не существует). Hits/Misses/Timeouts
+// и StaleConns кумулятивны с момента создания клиента, поэтому экспортируются
+// как счетчики.
+func (r *RedisStore) PoolStats() *RedisPoolStats {
+	if !r.Enabled() {
+		return nil
+	}
+
+	ps := r.client.PoolStats()
+	return &RedisPoolStats{
+		TotalConns: int(ps.TotalConns),
+		IdleConns:  int(ps.IdleConns),
+		StaleConns: int(ps.StaleConns),
+		Hits:       int64(ps.Hits),
+		Misses:     int64(ps.Misses),
+		Timeouts:   int64(ps.Timeouts),
+	}
+}
+
+// SetPubSubLagObserver регистрирует наблюдателя задержки релея событий комнат
+// через Redis Pub/Sub. No-op, если регистрируется nil.
+func (r *RedisStore) SetPubSubLagObserver(observe func(seconds float64)) {
+	if observe == nil {
+		return
+	}
+	r.onPubSubLag = observe
+}
+
+// observePubSubLag передает замер задержки наблюдателю, если он зарегистрирован.
+func (r *RedisStore) observePubSubLag(sentAtMillis int64) {
+	if r.onPubSubLag == nil || sentAtMillis <= 0 {
+		return
+	}
+
+	lag := time.Since(time.UnixMilli(sentAtMillis)).Seconds()
+	if lag < 0 {
+		return
+	}
+	r.onPubSubLag(lag)
+}
+
 // Publish публикует событие в канал Redis для всех реплик.
 func (r *RedisStore) Publish(ctx context.Context, sessionID string, data []byte) error {
 	if !r.enabled || r.client == nil {
@@ -186,6 +250,7 @@ func (r *RedisStore) Publish(ctx context.Context, sessionID string, data []byte)
 	payload, err := json.Marshal(PubSubMessage{
 		InstanceID: r.instanceID,
 		Data:       data,
+		SentAt:     time.Now().UnixMilli(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal pubsub message: %w", err)
@@ -231,6 +296,9 @@ func (r *RedisStore) Subscribe(ctx context.Context, sessionID string, onMessage 
 					continue
 				}
 
+				// Замер задержки релея событий комнат через Pub/Sub (PLAN шаг 9).
+				r.observePubSubLag(wrapped.SentAt)
+
 				onMessage(wrapped.Data)
 			}
 		}
@@ -253,6 +321,7 @@ func (r *RedisStore) RevokeUser(ctx context.Context, userID string) error {
 	payload, err := json.Marshal(PubSubMessage{
 		InstanceID: r.instanceID,
 		Data:       []byte(userID),
+		SentAt:     time.Now().UnixMilli(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal revocation message: %w", err)
@@ -390,11 +459,10 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 // использован впервые (ключ установлен), false — повторное использование.
 //
 // Отдельный namespace ticket:consumed:* (не смешивается с blacklist:token:*).
-// В disabled-режиме возвращает true (перимиссивно — не влияет, т.к.
-// fail-closed проверки активности/роли всё равно отклоняют подключение, P12).
+// Fail-closed: при выключенном Redis или пустом tokenID возвращает false.
 func (r *RedisStore) ConsumeTicket(ctx context.Context, tokenID string) (bool, error) {
 	if !r.enabled || r.client == nil || tokenID == "" {
-		return true, nil
+		return false, nil
 	}
 
 	key := fmt.Sprintf("ticket:consumed:%s", tokenID)
@@ -424,14 +492,87 @@ func (r *RedisStore) TouchMirror(ctx context.Context, sessionID string, ttl time
 	return r.client.Expire(ctx, membersKey, ttl).Err()
 }
 
-// SaveCodeState сохраняет последний снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа).
+var (
+	nextCodeVersionScript = redis.NewScript(`
+		local seqKey = KEYS[1]
+		local savedKey = KEYS[2]
+		local ttl = tonumber(ARGV[1])
+
+		local seq = redis.call('GET', seqKey)
+		local saved = redis.call('GET', savedKey)
+		local currentSeq = seq and tonumber(seq) or 0
+		local currentSaved = saved and tonumber(saved) or 0
+
+		if currentSaved > currentSeq then
+			currentSeq = currentSaved
+		end
+
+		local nextVal = currentSeq + 1
+		redis.call('SET', seqKey, nextVal, 'EX', ttl)
+		return nextVal
+	`)
+
+	saveCodeStateScript = redis.NewScript(`
+		local codeKey = KEYS[1]
+		local savedVersionKey = KEYS[2]
+		local data = ARGV[1]
+		local newVersion = tonumber(ARGV[2])
+		local ttl = tonumber(ARGV[3])
+
+		if newVersion and newVersion > 0 then
+			local currentSaved = redis.call('GET', savedVersionKey)
+			if currentSaved and tonumber(currentSaved) >= newVersion then
+				return 0
+			end
+			redis.call('SET', savedVersionKey, newVersion, 'EX', ttl)
+		end
+
+		redis.call('SET', codeKey, data, 'EX', ttl)
+		return 1
+	`)
+)
+
+// NextCodeVersion атомарно инкрементирует и возвращает глобальный монотонный номер версии кода для сессии в Redis.
+func (r *RedisStore) NextCodeVersion(ctx context.Context, sessionID string) (int64, error) {
+	if !r.enabled || r.client == nil || sessionID == "" {
+		return 0, nil
+	}
+
+	seqKey := fmt.Sprintf("session:%s:code:seq", sessionID)
+	savedKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
+	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
+
+	res, err := nextCodeVersionScript.Run(ctx, r.client, []string{seqKey, savedKey}, ttlSeconds).Int64()
+	if err != nil {
+		r.logger.Warn("failed to allocate next code version from redis", slog.String("error", err.Error()))
+		return 0, err
+	}
+
+	return res, nil
+}
+
+// SaveCodeState условно сохраняет снимок кода сессии в Redis (ключ "session:<id>:code" с TTL 24 часа),
+// только если версия снимка строго больше уже сохраненной в Redis (защита от race conditions между репликами).
 func (r *RedisStore) SaveCodeState(ctx context.Context, sessionID string, data []byte) error {
 	if !r.enabled || r.client == nil || sessionID == "" {
 		return nil
 	}
 
-	key := fmt.Sprintf("session:%s:code", sessionID)
-	return r.client.Set(ctx, key, data, 24*time.Hour).Err()
+	var payload struct {
+		Version int64 `json:"version"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		r.logger.Warn("failed to parse code snapshot payload, skipping conditional save",
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("invalid code snapshot payload: %w", err)
+	}
+
+	codeKey := fmt.Sprintf("session:%s:code", sessionID)
+	savedVersionKey := fmt.Sprintf("session:%s:code:saved_version", sessionID)
+	const ttlSeconds = int64(24 * 60 * 60) // 24 часа
+
+	return saveCodeStateScript.Run(ctx, r.client, []string{codeKey, savedVersionKey}, data, payload.Version, ttlSeconds).Err()
 }
 
 // GetCodeState считывает последний снимок кода сессии из Redis.

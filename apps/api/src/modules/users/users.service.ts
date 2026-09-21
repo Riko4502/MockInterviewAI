@@ -16,6 +16,7 @@ import { publishUserRevocation } from "../../common/pubsub/revocation";
 import type { Role, User } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -352,7 +353,7 @@ export class UsersService {
 
     // Отзываем текущую сессию в Redis
     if (sessionId) {
-      await this.redisService.delete(`auth:session:${sessionId}`);
+      await this.redisService.delete(`${REDIS_SESSION_PREFIX}${sessionId}`);
     }
 
     // Оповещаем Realtime WebSocket сервис через Pub/Sub о блокировке/деактивации

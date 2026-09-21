@@ -3,6 +3,7 @@ import {
   BookIcon,
   CodeIcon,
   HelpIcon,
+  PlayIcon,
   TrendUpIcon,
   UsersIcon,
 } from "@packages/icons";
@@ -11,6 +12,11 @@ import type { NavItem } from "./types";
 
 export const NAV_ITEMS: NavItem[] = [
   { labelKey: "navigation.dashboard", href: paths.dashboard, icon: HelpIcon },
+  {
+    labelKey: "navigation.sandbox",
+    href: paths.sandbox,
+    icon: PlayIcon,
+  },
   {
     labelKey: "navigation.notifications",
     href: paths.notifications,

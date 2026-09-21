@@ -770,21 +770,37 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
       "token",
     );
   });
-  it("не создаёт сессию и не устанавливает refresh cookie при некорректном возврате", async () => {
-    oauth.callback.mockRejectedValueOnce(new UnauthorizedException());
-    await expect(
-      controller.githubCallback(undefined, undefined, {} as Request, response),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+  it("перенаправляет на login без деталей ошибки при некорректном возврате", async () => {
+    oauth.callback.mockRejectedValueOnce(
+      new UnauthorizedException("private provider error"),
+    );
+    await controller.githubCallback(
+      undefined,
+      undefined,
+      {} as Request,
+      response,
+    );
     expect(auth.loginUser).not.toHaveBeenCalled();
     expect(responseMock.cookie).not.toHaveBeenCalled();
-    expect(responseMock.redirect).not.toHaveBeenCalled();
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
   });
-  it("не устанавливает refresh cookie и не перенаправляет при ошибке создания сессии", async () => {
+  it("перенаправляет на login без refresh cookie и деталей ошибки создания сессии", async () => {
     auth.loginUser.mockRejectedValueOnce(new Error("session failure"));
-    await expect(
-      controller.githubCallback("code", "state", {} as Request, response),
-    ).rejects.toThrow("session failure");
+    await controller.githubCallback("code", "state", {} as Request, response);
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
     expect(responseMock.cookie).not.toHaveBeenCalled();
-    expect(responseMock.redirect).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
   });
 });

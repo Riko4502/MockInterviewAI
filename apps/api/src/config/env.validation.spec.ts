@@ -1,6 +1,6 @@
 import { validate } from "./env.validation";
 
-const base = {
+const requiredEnv = {
   API_DATABASE_URL: "postgresql://localhost/test",
   JWT_ACCESS_SECRET: "a".repeat(32),
   JWT_REFRESH_SECRET: "b".repeat(32),
@@ -14,10 +14,10 @@ const github = {
 };
 describe("Валидация переменных окружения GitHub OAuth", () => {
   it("сохраняет возможность входа по паролю без настройки OAuth", () => {
-    expect(() => validate(base)).not.toThrow();
+    expect(() => validate(requiredEnv)).not.toThrow();
   });
   it("принимает полную конфигурацию OAuth", () => {
-    expect(validate({ ...base, ...github })).toMatchObject(github);
+    expect(validate({ ...requiredEnv, ...github })).toMatchObject(github);
   });
   it.each([
     "GITHUB_CLIENT_ID",
@@ -25,14 +25,47 @@ describe("Валидация переменных окружения GitHub OAut
     "GITHUB_CALLBACK_URL",
     "FRONTEND_URL",
   ])("отклоняет неполную конфигурацию без %s", (key) => {
-    expect(() => validate({ ...base, ...github, [key]: undefined })).toThrow();
+    expect(() =>
+      validate({ ...requiredEnv, ...github, [key]: undefined }),
+    ).toThrow();
   });
   it.each([
     "GITHUB_CALLBACK_URL",
     "FRONTEND_URL",
   ])("отклоняет URL без протокола HTTP или HTTPS в %s", (key) => {
     expect(() =>
-      validate({ ...base, ...github, [key]: "javascript:alert(1)" }),
+      validate({ ...requiredEnv, ...github, [key]: "javascript:alert(1)" }),
     ).toThrow();
+  });
+});
+
+describe("env.validation SENTRY_DSN", () => {
+  it("принимает отсутствующий DSN", () => {
+    const env = validate(requiredEnv);
+    expect(env.SENTRY_DSN).toBeUndefined();
+  });
+
+  it("нормализует пустой DSN в undefined", () => {
+    const env = validate({ ...requiredEnv, SENTRY_DSN: "" });
+    expect(env.SENTRY_DSN).toBeUndefined();
+  });
+
+  it("нормализует DSN из пробелов в undefined", () => {
+    const env = validate({ ...requiredEnv, SENTRY_DSN: "   " });
+    expect(env.SENTRY_DSN).toBeUndefined();
+  });
+
+  it("принимает корректный URL", () => {
+    const env = validate({
+      ...requiredEnv,
+      SENTRY_DSN: "https://public@sentry.example/1",
+    });
+    expect(env.SENTRY_DSN).toBe("https://public@sentry.example/1");
+  });
+
+  it("отвергает некорректный URL", () => {
+    expect(() => validate({ ...requiredEnv, SENTRY_DSN: "not-a-url" })).toThrow(
+      "SENTRY_DSN must be a valid URL",
+    );
   });
 });
