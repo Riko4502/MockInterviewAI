@@ -39,7 +39,7 @@
     "react-hook-form": "^7.85.0",
     "react-i18next": "^17.0.12",
     "uuid": "^14.0.2",
-    "zod": "^4.4.3",
+    "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@packages/types": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
