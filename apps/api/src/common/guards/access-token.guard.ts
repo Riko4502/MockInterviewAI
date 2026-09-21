@@ -9,6 +9,7 @@ import type { Request } from "express";
 import { AuthSessionService } from "../../modules/auth/services/auth-session.service";
 import type { TokenPayload } from "../../modules/auth/services/token.service";
 import { TokenService } from "../../modules/auth/services/token.service";
+import { PrismaService } from "../../prisma/prisma.service";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 
 /** HTTP-запрос с добавленным `user` payload из access token (§64 SPEC.md). */
@@ -34,11 +35,13 @@ export class AccessTokenGuard implements CanActivate {
    * @param reflector - Reflector для чтения метаданных `@Public()`.
    * @param tokenService - Сервис верификации JWT (§38 SPEC.md).
    * @param authSessionService - Сервис auth-сессий (live-проверка `EXISTS`, §16).
+   * @param prisma - PrismaService для fail-closed проверки пользователя в PostgreSQL (§CWE-613).
    */
   constructor(
     private readonly reflector: Reflector,
     private readonly tokenService: TokenService,
     private readonly authSessionService: AuthSessionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -48,7 +51,7 @@ export class AccessTokenGuard implements CanActivate {
    * @returns `true` если запрос разрешён.
    * @throws {UnauthorizedException} Если token отсутствует, невалиден (401)
    *   или auth-сессия отозвана/истекла (401).
-   * @throws {Error} Если Redis недоступен (Nest → 500).
+   * @throws {Error} Если Redis или БД недоступны (Nest → 500).
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -88,6 +91,25 @@ export class AccessTokenGuard implements CanActivate {
     if (
       session.generation === undefined ||
       payload.generation !== session.generation
+    ) {
+      throw new UnauthorizedException("Session has expired or been revoked");
+    }
+
+    // Fail-closed проверка пользователя в PostgreSQL (deletedAt / актуальный generation) (§CWE-613).
+    // Защищает от сценария, когда Redis был недоступен при деактивации / смене поколения,
+    // и сессия в Redis еще не была отозвана до выполнения фоновой durable-задачи.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        deletedAt: true,
+        generation: true,
+      },
+    });
+
+    if (
+      !user ||
+      user.deletedAt !== null ||
+      user.generation !== payload.generation
     ) {
       throw new UnauthorizedException("Session has expired or been revoked");
     }

@@ -551,14 +551,16 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	conn1.Close(websocket.StatusNormalClosure, "done")
 
 	// Повторное использование того же тикета — отклоняется (ConsumeTicket=false → 401).
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
-	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
 	}
 }
@@ -584,14 +586,16 @@ func TestWebSocketTicketNotConsumedOnAccessRejection(t *testing.T) {
 	}
 
 	// 1-я попытка: сессия закрыта -> 403 Forbidden. Тикет НЕ должен сгореть.
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected failure on closed session, got success")
-	} else if resp == nil || resp.StatusCode != http.StatusForbidden {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected status %d on closed session, got %v", http.StatusForbidden, resp)
 	}
 
@@ -608,14 +612,16 @@ func TestWebSocketTicketNotConsumedOnAccessRejection(t *testing.T) {
 	conn.Close(websocket.StatusNormalClosure, "done")
 
 	// 3-я попытка: теперь тикет уже использован -> 401 Unauthorized.
-	if _, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
-	}); err == nil {
-		t.Fatal("expected ticket reuse to fail with 401, got success")
-	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
 	}
 }

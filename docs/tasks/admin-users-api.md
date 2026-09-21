@@ -350,7 +350,7 @@ export const USER_ADMIN_SELECT = {
 - [x] **Реализация метода `getUsersList(query: AdminUsersQueryDto)`:**
   - Оптимизированный поиск через `ILIKE` и Trigram-индексы;
   - Фильтры по `role`, `isActive`, `isDeleted` (`deletedAt: null / not: null`);
-  - Параллельный `prisma.$transaction([findMany, count])` с пагинацией и `USER_ADMIN_SELECT`.
+  - Транзакционное выполнение `prisma.$transaction([findMany, count])` с пагинацией и `USER_ADMIN_SELECT`.
 - [x] **Реализация метода `getUserById(id: string)`:**
   - Поиск через `USER_ADMIN_SELECT`, выброс `NotFoundException` при отсутствии.
 - [x] **Реализация метода `createUser(dto: CreateUserAdminDto)`:**
