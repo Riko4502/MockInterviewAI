@@ -68,21 +68,34 @@ function getRetryDelay(retryAfter: string | null): number {
   return Number.isFinite(delay) ? Math.max(0, delay) : 30_000;
 }
 
+const MAX_TIMEOUT_DELAY = 2_147_483_647;
+
 function waitForRetry(
   delay: number,
   signal?: AbortSignal | null,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
+    let timer: ReturnType<typeof setTimeout>;
+    let remaining = delay;
     const onAbort = () => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
       reject(signal?.reason);
     };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, delay);
+    const schedule = () => {
+      const interval = Math.min(remaining, MAX_TIMEOUT_DELAY);
+      timer = setTimeout(() => {
+        remaining -= interval;
+        if (remaining > 0) {
+          schedule();
+          return;
+        }
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, interval);
+    };
     signal?.addEventListener("abort", onAbort, { once: true });
+    schedule();
   });
 }

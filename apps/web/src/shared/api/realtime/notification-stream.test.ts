@@ -151,11 +151,36 @@ describe("notification stream transport", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   describe.each([429, 503])("Retry-After for %s", (status) => {
+    it("waits for a distant HTTP date without firing early", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+      const { url, request } = connect();
+      const retryAfter = "Thu, 01 Jan 2099 00:00:00 GMT";
+      const delay = Date.parse(retryAfter) - Date.now();
+      fetchMock.mockResolvedValue(
+        new Response("unavailable", {
+          status,
+          headers: { "Retry-After": retryAfter },
+        }),
+      );
+      const settled = vi.fn();
+      const pending = request(url).catch(settled);
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(settled).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+      expect(settled).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Notification stream temporarily unavailable",
+        }),
+      );
+    });
     it.each([
       ["7", 7_000],
       [null, 30_000],
       ["invalid", 30_000],
       ["Wed, 01 Jan 2025 00:00:12 GMT", 12_000],
+      ["2147484", 2_147_484_000],
     ])("waits for %s before allowing reconnection", async (retryAfter, delay) => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
@@ -169,7 +194,14 @@ describe("notification stream transport", () => {
       fetchMock.mockResolvedValue(response);
       const settled = vi.fn();
       const pending = request(url).catch(settled);
-      await vi.advanceTimersByTimeAsync(delay - 1);
+      if (delay > 2_147_483_647) {
+        await vi.advanceTimersByTimeAsync(2_147_483_647);
+        expect(settled).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(1);
+        await vi.advanceTimersByTimeAsync(delay - 2_147_483_647 - 1);
+      } else {
+        await vi.advanceTimersByTimeAsync(delay - 1);
+      }
       expect(cancel).toHaveBeenCalledTimes(1);
       expect(settled).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
