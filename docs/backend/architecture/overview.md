@@ -9,7 +9,7 @@ monorepo/
 ├── apps/
 │   ├── api/          # Основной бизнес REST API (NestJS 11, Express, Prisma 7, PostgreSQL)
 │   ├── realtime/     # Высоконагруженный WebSocket / WebRTC сервис комнат (Go 1.26, LiveKit)
-│   └── code-runner/  # Изолированная среда безопасного запуска кода пользователей (Sandbox)
+│   └── code-runner/  # Изолированная среда безопасного запуска кода пользователей (Go 1.26, Judge0 CE)
 │
 └── packages/
     ├── dto/          # Общие DTO и Zod-схемы валидации (@packages/dto)
@@ -38,7 +38,7 @@ monorepo/
 | :--- | :--- | :--- |
 | **`apps/api`** | **NestJS 11**, TypeScript, Prisma 7, PostgreSQL | Регистрация, аутентификация (JWT, Argon2id), профили пользователей, сессии интервью, обратная связь, лидерборд, REST API. |
 | **`apps/realtime`** | **Go 1.26**, WebSocket, Redis, LiveKit | Синхронизация кода в реальном времени, передача медиапотоков (аудио/видео), комнаты интервью, пинги активности. |
-| **`apps/code-runner`** | Go / Docker Sandbox | Безопасное выполнение произвольного кода кандидатов в изолированных контейнерах с ограничениями по памяти/CPU. |
+| **`apps/code-runner`** | **Go 1.26**, Judge0 CE (isolate) | Безопасное выполнение произвольного кода кандидатов в одноразовых песочницах с лимитами по CPU, памяти, процессам и отключённой сетью. Подробнее — [code-runner.md](./code-runner.md). |
 
 ---
 
@@ -49,7 +49,8 @@ apps/api ────────► @packages/dto
 apps/api ────────► @packages/types
 apps/web ────────► @packages/dto
 
-(apps/realtime — независимый Go модуль, потребляет контракты API/Redis)
+(apps/realtime   — независимый Go модуль, потребляет контракты API/Redis)
+(apps/code-runner — независимый Go модуль, вызывается по HTTP из apps/api и apps/realtime)
 ```
 
 ### 🚫 Архитектурные запреты:
