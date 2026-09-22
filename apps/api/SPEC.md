@@ -4,18 +4,21 @@
 
 | Версия | Дата | Статус |
 |---|---|---|
-| 1.6.0 | 2026-08-28 | Актуальный |
-| 1.5.0 | 2026-08-26 | Актуальный |
-| 1.4.0 | 2026-08-23 | Актуальный |
-| 1.3.0 | 2026-08-23 | Актуальный |
-| 1.2.0 | 2026-08-22 | Актуальный |
-| 1.1.0 | 2026-08-14 | Актуальный |
-| 1.0.0 | 2026-08-14 | Актуальный |
+| 1.8.0 | 2026-09-20 | Актуальный |
+| 1.7.0 | 2026-09-18 | Архивный |
+| 1.6.0 | 2026-08-28 | Архивный |
+| 1.5.0 | 2026-08-26 | Архивный |
+| 1.4.0 | 2026-08-23 | Архивный |
+| 1.3.0 | 2026-08-23 | Архивный |
+| 1.2.0 | 2026-08-22 | Архивный |
+| 1.1.0 | 2026-08-14 | Архивный |
+| 1.0.0 | 2026-08-14 | Архивный |
 
 ## Change Log
 
 | Версия | Дата | Изменения |
-|---|---|---|
+| 1.8.0 | 2026-09-20 | Устранено противоречие о модели валидности access token (§60, §64, §66): зафиксирована live-проверка сессии в Redis и generation в глобальном AccessTokenGuard, а также немедленная инвалидация access-токенов при удалении/отзыве сессии. |
+| 1.7.0 | 2026-09-18 | Актуализация описания механизма отзыва сессий (§15, §39, §66, §67): keyspace SCAN заменён на чтение пользовательского индекса `auth:user:{userId}:sessions` (ZSET), установку fence `auth:user:{userId}:min_generation` и удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration`. |
 | 1.6.0 | 2026-08-28 | Phase 15 «Auth: Change Password» (§67): реализован `/auth/change-password`; сообщения 4xx переведены на русский; уточнён шаг 6 §67 — отзываются ВСЕ сессии (включая текущую). |
 | 1.5.0 | 2026-08-26 | Добавлены разделы §64–§67: глобальный access-token guard (`@Public()`), `/auth/refresh` (ротация refresh token), `/logout-all` (отзыв всех сессий), `/change-password` (смена пароля через email verification). |
 | 1.4.0 | 2026-08-23 | Регистрация принимает `passwordConfirmation` (§4–§6). §63 переработан: `@packages/dto` — единый источник контрактов для всех приложений, сообщения об ошибках на русском. |
@@ -249,9 +252,9 @@ model User {
 
 ### 15. Redis Key
 
-Формат: `auth:session:{sessionId}`
-
-Пример: `auth:session:550e8400-e29b-41d4-a716-446655440000`
+- Сессия: `auth:session:{sessionId}` (пример: `auth:session:550e8400-e29b-41d4-a716-446655440000`).
+- Индекс сессий пользователя: `auth:user:{userId}:sessions` (ZSET).
+- Fence поколений сессий: `auth:user:{userId}:min_generation`.
 
 ### 16. Redis Session
 
@@ -263,7 +266,8 @@ model User {
   "refreshTokenHash": "hash",
   "tokenFamilyId": "family-uuid",
   "createdAt": "2026-08-13T10:00:00.000Z",
-  "lastUsedAt": "2026-08-13T10:00:00.000Z"
+  "lastUsedAt": "2026-08-13T10:00:00.000Z",
+  "generation": 1
 }
 ```
 
@@ -272,6 +276,7 @@ model User {
 - `tokenFamilyId` — ID семейства refresh tokens (rotation, replay detection).
 - `createdAt` — дата создания session.
 - `lastUsedAt` — дата последнего использования refresh token.
+- `generation` — поколение авторизации пользователя (инвалидация при сбросе сессий, защита от гонок, §64).
 
 ### 17. Refresh Token Storage
 
@@ -300,11 +305,12 @@ model User {
   "aud": "api",
   "iat": 1234567890,
   "exp": 1234568790,
-  "jti": "token-uuid"
+  "jti": "token-uuid",
+  "generation": 1
 }
 ```
 
-Claims: `sub` (ID пользователя), `sid` (ID session), `typ` (тип токена), `iss` (issuer), `aud` (audience), `iat` (время выпуска), `exp` (время истечения), `jti` (уникальный ID токена).
+Claims: `sub` (ID пользователя), `sid` (ID session), `typ` (тип токена), `iss` (issuer), `aud` (audience), `iat` (время выпуска), `exp` (время истечения), `jti` (уникальный ID токена), `generation` (поколение авторизации, §64).
 
 ### 21. Access Token Restrictions
 
@@ -464,6 +470,7 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 - `deleteSession()`
 - `rotateSession()`
 - `revokeSession()`
+- `revokeAllUserSessions()`
 
 Ответственность: Redis key, Redis session, TTL, refresh token hash, token family, replay detection.
 
@@ -481,6 +488,12 @@ Secrets: не в Git, не в исходном коде, не во frontend, н�
 ```
 AuthService → AuthSessionService → RedisService → Redis
 ```
+
+Инструментирование соединения (метрики, см. `packages/observability` SPEC.md §5.1, §8):
+на события ioredis `ready` / `error` / `close` / `reconnecting` обновляется
+gauge `redis_connection_status`; на `error` дополнительно инкрементируется
+counter `redis_client_errors_total` с классификацией по тексту ошибки:
+`NOAUTH`, `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, иначе `other`.
 
 ### 41. Rate Limiting
 
@@ -659,7 +672,7 @@ Production secrets хранятся вне исходного кода (Secret M
 | Ошибка Redis | `500 Internal Server Error` | не сбрасывается |
 
 - Нарушение любого из условий 1–4 → `401`; cookie при этом очищается всегда, чтобы клиент мог восстановиться. Повторный logout с тем же токеном после успешного выхода → `401` (сессия уже отозвана; семантика строгая, не идемпотентная).
-- Access token остаётся валидным до истечения TTL (15m, stateless); серверный отзыв access-токенов не выполняется (blacklist вне текущего скоупа).
+- Сессия удаляется из Redis (`revokeSession(payload.sid)`). Связанный с ней access token становится недействительным сразу после выхода: глобальный `AccessTokenGuard` выполняет live-проверку сессии в Redis (`getSession(sid)`) и соответствия `generation` (§64); при отсутствии сессии guard возвращает `401 Unauthorized` (`"Session has expired or been revoked"`), не дожидаясь истечения TTL токена.
 - Логирование: токены и их хеши не логируются (§46).
 
 ### 61. OpenAPI/Swagger документация
@@ -694,9 +707,15 @@ Production secrets хранятся вне исходного кода (Secret M
 
 - Guard: глобальный (`APP_GUARD`), применяется ко всем endpoints по умолчанию.
 - Проверяет наличие и валидность access token в заголовке `Authorization: Bearer <token>`.
-- Verification: `TokenService.verifyAccessToken(token)` (§38) — HS256, issuer, audience, expiration, `typ = "access"`.
+- Двухуровневая верификация:
+  1. **JWT Verification:** `TokenService.verifyAccessToken(token)` (§38) — HS256, issuer, audience, expiration, `typ = "access"`, обязательное наличие claim `generation`.
+  2. **Live-проверка сессии в Redis:** `AuthSessionService.getSession(payload.sid)` (§16, §39):
+     - сессия `auth:session:{sid}` обязана существовать в Redis;
+     - `session.userId` обязан совпадать с `payload.sub`;
+     - `session.generation` обязан совпадать с `payload.generation` (защита от гонок и инвалидация при сбросе поколений).
+- **Немедленная инвалидация:** при удалении или отзыве сессии из Redis (logout §60, logout-all §66, change-password §67, отзыв через sessions API или деактивация) access token становится недействительным немедленно, так как guard получает `null` из `getSession` или фиксирует несоответствие поколения и отклоняет запрос `401 Unauthorized`, не дожидаясь истечения TTL токена.
 - При успехе: payload токена добавляется в `request.user` для использования в сервисах.
-- При ошибке (отсутствует / невалиден / просрочен): `401 Unauthorized` без внутренних деталей.
+- При ошибке (отсутствует / невалиден / просрочен / сессия не найдена или отозвана): `401 Unauthorized` (`"Missing access token"` / `"Session has expired or been revoked"`).
 
 **Исключения (`@Public()`):**
 
@@ -737,11 +756,11 @@ Production secrets хранятся вне исходного кода (Secret M
 - Тело запроса отсутствует.
 - Алгоритм:
   1. Извлечь `userId` из payload access token (`request.user.sub`).
-  2. `SCAN 0 MATCH auth:session:*` → для каждой сессии `GET` → проверка `session.userId === userId` → `DELETE` при совпадении.
+  2. Вызов `AuthSessionService.revokeAllUserSessions(userId)`: чтение индекса сессий `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation` и удаление только сессий из этого индекса с фильтрами `maxCreatedAt` и `maxGeneration` (keyspace не сканируется).
   3. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`.
-- Access token остаётся валидным до истечения TTL (stateless); серверный отзыв не выполняется.
+- Все access-токены пользователя становятся недействительными сразу после отзыва: глобальный `AccessTokenGuard` выполняет live-проверку сессии в Redis (`getSession(sid)`) и валидацию `generation` (§64). После удаления сессий из Redis и поднятия `min_generation` guard получает `null` и выбрасывает `401 Unauthorized` (`"Session has expired or been revoked"`), не дожидаясь истечения TTL токенов.
 
 ### 67. Change Password (`POST /api/v1/auth/change-password`)
 
@@ -758,7 +777,7 @@ Production secrets хранятся вне исходного кода (Secret M
   3. `argon2.verify(user.passwordHash, currentPassword)` → не совпал → `401 "Неверные учётные данные"`.
   4. Если `currentPassword === newPassword` → `400 "Новый пароль должен отличаться от текущего"`.
   5. `hashPassword(newPassword)` → обновить `passwordHash` в PostgreSQL.
-  6. Отозвать ВСЕ сессии пользователя через `SCAN 0 MATCH auth:session:*` + `DELETE` (включая текущую) — refresh cookie в любом случае сбрасывается, а access token (stateless) остаётся валидным до TTL; клиент вынужден пройти аутентификацию заново.
+  6. Отозвать ВСЕ сессии пользователя через `AuthSessionService.revokeAllUserSessions(userId)` (включая текущую: чтение индекса `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation` и удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration` без сканирования keyspace) — refresh cookie сбрасывается, а access token становится недействительным сразу после отзыва (AccessTokenGuard получает null из getSession и выбрасывает UnauthorizedException, а не после истечения TTL); клиент вынужден пройти аутентификацию заново.
   7. Удалить cookie `refresh_token` (clear cookie, §25–28).
 - Ответ: `204 No Content`.
 - Ошибки Redis: `500 Internal Server Error`, пароль не меняется (транзакция PostgreSQL + best-effort Redis).

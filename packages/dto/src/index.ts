@@ -5,6 +5,7 @@
  * схема регистрации, схема входа, password policy, нормализация email.
  */
 
+export * from "./admin";
 export {
   type ChangePasswordDto,
   changePasswordSchema,
@@ -21,7 +22,10 @@ export {
 } from "./auth/password-policy";
 export { type RegisterDto, registerSchema } from "./auth/register.dto";
 export {
+  RESET_PASSWORD_ERROR_CODES,
   type ResetPasswordDto,
+  type ResetPasswordErrorCode,
+  type ResetPasswordErrorPayload,
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
 export type {
@@ -68,6 +72,35 @@ export {
   mediaTokenRequestSchema,
 } from "./realtime/media-token.dto";
 export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
+export type {
+  AISuggestionPayload,
+  AnyWebSocketEnvelope,
+  BaseWebSocketEnvelope,
+  ChatMessagePayload,
+  CodeUpdatePayload,
+  CursorPayload,
+  MediaRecordingPayload,
+  MediaSpeakerPayload,
+  MediaStatePayload,
+  ParticipantInfo,
+  ParticipantRole,
+  PresenceJoinPayload,
+  PresenceLeavePayload,
+  RoomSyncPayload,
+  SupportedLanguage,
+  SystemAckPayload,
+  SystemErrorPayload,
+} from "./realtime/websocket-events.dto";
+export {
+  type CreateSessionResponseDto,
+  createSessionResponseSchema,
+  type JoinSessionDto,
+  type JoinSessionResponseDto,
+  joinSessionResponseSchema,
+  joinSessionSchema,
+  type RotateInviteResponseDto,
+  rotateInviteResponseSchema,
+} from "./sessions/join-session.dto";
 export {
   type AddParticipantDto,
   addParticipantSchema,

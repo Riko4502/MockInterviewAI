@@ -31,7 +31,7 @@ jobs:
       - name: "Проверка ссылок в Markdown файлах"
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --verbose --no-progress './docs/**/*.md' './*.md'
+          args: --verbose --no-progress --exclude '^https://feature-sliced\.design/?$' './docs/**/*.md' './*.md'
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

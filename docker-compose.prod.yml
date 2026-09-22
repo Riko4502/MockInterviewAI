@@ -19,7 +19,7 @@ services:
     image: redis:7-alpine
     container_name: mock-interview-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:
@@ -51,10 +51,17 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - COOKIE_SECURE=true
       - API_PORT=4000
       - PORT=4000
       - API_DATABASE_URL=${API_DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mock_interview_prod}}
       - REFRESH_TOKEN_HASH_SECRET=${REFRESH_TOKEN_HASH_SECRET}
+      # Optional as a group: unset values stay absent instead of becoming empty strings.
+      # Read from the deployment .env or shell, only at container runtime.
+      - GITHUB_CLIENT_ID
+      - GITHUB_CLIENT_SECRET
+      - GITHUB_CALLBACK_URL
+      - FRONTEND_URL
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://mockinterviewai.com}
@@ -118,8 +125,73 @@ services:
     ports:
       - "4321:8080"
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: mock-interview-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./packages/observability/infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./packages/observability/infra/prometheus/alerting:/etc/prometheus/alerting:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - api
+      - realtime
+      - redis_exporter
+    networks:
+      - default
+      - monitoring
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.61.0
+    container_name: mock-interview-redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_EXPORTER_CHECK_STREAMS=user:*:notifications
+      - REDIS_EXPORTER_CHECK_KEYS=session:*:active
+    ports:
+      - "127.0.0.1:9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: mock-interview-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-sentry-datasource:${SENTRY_DATASOURCE_VERSION:-2.2.6}
+    volumes:
+      - ./packages/observability/infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./packages/observability/infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./packages/observability/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - default
+      - monitoring
+
 volumes:
   redis_data:
+  prometheus_data:
+  grafana_data:
   postgres_data:
   rabbitmq_data:
 
+networks:
+  monitoring:
+    driver: bridge

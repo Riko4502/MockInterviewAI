@@ -29,6 +29,26 @@ export function buildRevocationMessage(
 }
 
 /**
+ * Публикует сигнал отзыва авторизации пользователя в канал `auth:revocations`
+ * с пробросом ошибки вызывающему коду при сбое Redis.
+ *
+ * Используется в durable flow (с `AuthRevocationTask`), чтобы при сбое публикации
+ * задача не считалась выполненной и оставалась в БД для повтора воркером.
+ *
+ * @throws {Error} При ошибке публикации в Redis.
+ */
+export async function publishUserRevocationOrThrow(
+  redis: RedisService,
+  userId: string,
+  sessionId?: string,
+): Promise<void> {
+  await redis.publish(
+    REVOCATION_CHANNEL,
+    buildRevocationMessage(userId, sessionId),
+  );
+}
+
+/**
  * Публикует сигнал отзыва авторизации пользователя в канал `auth:revocations`.
  *
  * Best-effort: никогда не бросает исключений (как в `users.service.ts`),
@@ -40,10 +60,7 @@ export async function publishUserRevocation(
   sessionId?: string,
 ): Promise<void> {
   try {
-    await redis.publish(
-      REVOCATION_CHANNEL,
-      buildRevocationMessage(userId, sessionId),
-    );
+    await publishUserRevocationOrThrow(redis, userId, sessionId);
   } catch {
     // Игнорируем ошибку публикации, если realtime сервис не слушает
   }

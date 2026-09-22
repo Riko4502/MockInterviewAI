@@ -18,6 +18,7 @@ import (
 	"github.com/mockinterviewai/realtime/internal/config"
 	"github.com/mockinterviewai/realtime/internal/handler"
 	"github.com/mockinterviewai/realtime/internal/middleware"
+	internalsentry "github.com/mockinterviewai/realtime/internal/sentry"
 	"github.com/mockinterviewai/realtime/internal/sse"
 	"github.com/mockinterviewai/realtime/internal/storage"
 	"github.com/mockinterviewai/realtime/internal/ws"
@@ -66,6 +67,15 @@ func run() error {
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
 
+	// Инициализация Sentry (активируется только при заданном SENTRY_DSN)
+	if err := internalsentry.Init(internalsentry.Options{
+		DSN:              cfg.SentryDSN,
+		Environment:      cfg.SentryEnvironment,
+		TracesSampleRate: cfg.SentryTracesRate,
+	}, logger); err != nil {
+		return fmt.Errorf("failed to initialize sentry: %w", err)
+	}
+
 	logger.Info(
 		"starting realtime service",
 		slog.String("env", cfg.Environment),
@@ -80,14 +90,20 @@ func run() error {
 	defer rootCancel()
 
 	redisStore := storage.NewRedisStore(cfg, logger)
+	var (
+		broadcaster       storage.Broadcaster       = redisStore
+		sessionStore      storage.SessionStore      = redisStore
+		notificationStore storage.NotificationStore = redisStore
+	)
+
 	tokenVerifier := auth.NewTokenVerifier(cfg.JWTAccessSecret)
-	hub := ws.NewHub(rootCtx, redisStore, redisStore, logger)
+	hub := ws.NewHub(rootCtx, broadcaster, sessionStore, logger)
 
 	// Подсистема Server-Sent Events: глобальный поток уведомлений пользователя
 	sseHub := sse.NewHub(
 		rootCtx,
-		redisStore,
-		redisStore,
+		notificationStore,
+		broadcaster,
 		sse.Options{
 			HeartbeatInterval:     cfg.SSEHeartbeatInterval,
 			StreamBlockInterval:   cfg.SSEStreamBlockInterval,
@@ -102,11 +118,14 @@ func run() error {
 		logger,
 	)
 
-	healthHandler := handler.NewHealthHandler(hub, sseHub, redisStore)
+	// Замер задержки релея событий комнат через Redis Pub/Sub (PLAN шаг 9)
+	redisStore.SetPubSubLagObserver(hub.Metrics().ObservePubSubLag)
+
+	healthHandler := handler.NewHealthHandler(hub, sseHub, sessionStore)
 	wsHandler := handler.NewWebSocketHandler(
 		hub,
 		tokenVerifier,
-		redisStore,
+		sessionStore,
 		logger,
 		cfg.AllowedOrigins,
 		cfg.AccessTokenCookieName,
@@ -124,20 +143,28 @@ func run() error {
 	sseHandler := handler.NewSSEHandler(
 		sseHub,
 		tokenVerifier,
-		redisStore,
-		redisStore,
+		sessionStore,
+		notificationStore,
 		logger,
 		cfg.AccessTokenCookieName,
 		cfg.TrustProxyHeaders,
 	)
 
-	metricsHandler := handler.NewMetricsHandler(sseHub, logger, cfg.MetricsAllowPublic)
+	metricsHandler := handler.NewMetricsHandler(
+		sseHub,
+		hub,
+		redisStore,
+		redisStore.InstanceID(),
+		logger,
+		cfg.MetricsAllowPublic,
+	)
 
 	// 4. Настройка HTTP-маршрутизатора chi
 	r := chi.NewRouter()
 
 	// Базовые middleware
 	r.Use(chimiddleware.RequestID)
+	r.Use(middleware.Sentry(logger))
 	r.Use(middleware.Recoverer(logger))
 	r.Use(middleware.RequestLogger(logger))
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
@@ -239,6 +266,11 @@ func run() error {
 		)
 	} else {
 		logger.Info("http server gracefully stopped")
+	}
+
+	// Шаг 5: Доставляем оставшиеся события в Sentry до выхода из процесса
+	if !internalsentry.Flush(cfg.ShutdownTimeout) {
+		logger.Warn("sentry flush timed out, some events may be lost")
 	}
 
 	if serverErr != nil {

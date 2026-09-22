@@ -25,7 +25,7 @@ export class MailService {
       this.configService.get<string>("webUrl") ??
       "http://localhost:3000";
 
-    const resetUrl = `${webUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const resetUrl = `${webUrl}/reset-password#token=${encodeURIComponent(token)}`;
 
     // TODO: Заменить на реальную отправку через NodemailerTransport / @packages/email
     // после развертывания почтового сервера (см. docs/tasks/email-service.md).

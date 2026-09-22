@@ -1,4 +1,8 @@
-import { Module } from "@nestjs/common";
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
@@ -6,8 +10,11 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { AccessTokenGuard } from "./common/guards/access-token.guard";
 import { OriginCheckGuard } from "./common/guards/origin-check.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
+import { MetricsMiddleware } from "./common/metrics/metrics.middleware";
+import { MetricsModule } from "./common/metrics/metrics.module";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
+import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
@@ -52,10 +59,12 @@ import { RedisModule } from "./redis/redis.module";
     }),
     PrismaModule,
     RedisModule,
+    MetricsModule,
     ScheduleModule.forRoot(),
     HealthModule,
     UsersModule,
     AuthModule,
+    AdminModule,
     MailModule,
     StorageModule,
     SessionsModule,
@@ -77,6 +86,11 @@ import { RedisModule } from "./redis/redis.module";
       provide: APP_GUARD,
       useClass: OriginCheckGuard,
     },
+    MetricsMiddleware,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(MetricsMiddleware).forRoutes("*");
+  }
+}

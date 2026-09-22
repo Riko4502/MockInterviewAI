@@ -29,11 +29,23 @@
       "style": "./src/styles/globals.css",
       "import": "./src/styles/globals.css",
       "default": "./src/styles/globals.css"
-    }
+    },
+    "./fonts.css": {
+      "style": "./src/styles/fonts.css",
+      "import": "./src/styles/fonts.css",
+      "default": "./src/styles/fonts.css"
+    },
+    "./fonts/*": "./fonts/*"
   },
   "peerDependencies": {
+    "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next-themes": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
@@ -46,6 +58,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "jsdom": "^30.0.1",
+    "next-themes": "^0.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11"
@@ -55,6 +68,7 @@
     "@packages/tailwind-config": "workspace:*",
     "@packages/utils": "workspace:*",
     "@radix-ui/react-label": "^2.1.15",
+    "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.5.0",
     "radix-ui": "^1.6.7",
     "react-resizable-panels": "^4.12.4"

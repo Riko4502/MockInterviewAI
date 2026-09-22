@@ -1,18 +1,28 @@
 import { EventEmitter } from "node:events";
 import type { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
+import type { MetricsService } from "../common/metrics/metrics.service";
 import { RedisService } from "./redis.service";
+
+const mockRedisEvents = new EventEmitter();
 
 const mockRedisInstance = {
   connect: jest.fn().mockResolvedValue(undefined),
   quit: jest.fn().mockResolvedValue("OK"),
   disconnect: jest.fn(),
+  on: jest.fn((event: string, handler: (...args: unknown[]) => void) => {
+    mockRedisEvents.on(event, handler);
+  }),
+  emit: mockRedisEvents.emit.bind(mockRedisEvents),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
+  mget: jest.fn().mockResolvedValue([]),
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
+  eval: jest.fn().mockResolvedValue(1),
   scanStream: jest.fn(),
+  xadd: jest.fn().mockResolvedValue("1724500000000-0"),
 };
 
 jest.mock("ioredis", () => {
@@ -35,12 +45,22 @@ function createConfigService(overrides?: Record<string, unknown>) {
   } as unknown as ConfigService;
 }
 
+function createMetricsService(): MetricsService {
+  return {
+    setRedisStatus: jest.fn(),
+    incRedisError: jest.fn(),
+  } as unknown as MetricsService;
+}
+
 describe("RedisService", () => {
   let service: RedisService;
+  let metricsService: MetricsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RedisService(createConfigService());
+    mockRedisEvents.removeAllListeners();
+    metricsService = createMetricsService();
+    service = new RedisService(createConfigService(), metricsService);
   });
 
   describe("onModuleInit", () => {
@@ -64,7 +84,7 @@ describe("RedisService", () => {
 
     it("использует дефолты если конфиг не задан", async () => {
       const config = createConfigService({});
-      const svc = new RedisService(config);
+      const svc = new RedisService(config, createMetricsService());
       await svc.onModuleInit();
       expect(Redis).toHaveBeenCalledWith(
         expect.objectContaining({ host: "localhost", port: 6379 }),
@@ -91,6 +111,81 @@ describe("RedisService", () => {
     });
   });
 
+  describe("connection events", () => {
+    it("обновляет метрику статуса на ready", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("ready");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("ready");
+    });
+
+    it("классифицирует ECONNREFUSED как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit(
+        "error",
+        new Error("connect ECONNREFUSED 127.0.0.1:6379"),
+      );
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("error");
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ECONNREFUSED");
+    });
+
+    it("классифицирует ECONNRESET как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("read ECONNRESET"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ECONNRESET");
+    });
+
+    it("классифицирует NOAUTH как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit(
+        "error",
+        new Error("NOAUTH Authentication required"),
+      );
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("NOAUTH");
+    });
+
+    it("классифицирует ETIMEDOUT как ошибку", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("connect ETIMEDOUT"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("ETIMEDOUT");
+    });
+
+    it("относит неизвестные ошибки к other", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("error", new Error("something unexpected"));
+
+      expect(metricsService.incRedisError).toHaveBeenCalledWith("other");
+    });
+
+    it("обновляет метрику статуса на close", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("close");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith("close");
+    });
+
+    it("обновляет метрику статуса на reconnecting", async () => {
+      await service.onModuleInit();
+
+      mockRedisInstance.emit("reconnecting");
+
+      expect(metricsService.setRedisStatus).toHaveBeenCalledWith(
+        "reconnecting",
+      );
+    });
+  });
+
   describe("set", () => {
     it("устанавливает ключ без TTL", async () => {
       await service.onModuleInit();
@@ -110,6 +205,31 @@ describe("RedisService", () => {
     });
   });
 
+  describe("xadd", () => {
+    it("writes the payload field consumed by realtime", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+
+      await expect(
+        service.xadd(stream, "notification.new", payload, 100, 604800),
+      ).resolves.toBe("1724500000000-0");
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+      );
+      expect(mockRedisInstance.expire).toHaveBeenCalledWith(stream, 604800);
+    });
+  });
+
   describe("get", () => {
     it("возвращает значение", async () => {
       mockRedisInstance.get.mockResolvedValue("hello");
@@ -124,6 +244,23 @@ describe("RedisService", () => {
       await service.onModuleInit();
       const result = await service.get("missing");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("mget", () => {
+    it("возвращает массив значений", async () => {
+      mockRedisInstance.mget.mockResolvedValue(["val1", "val2"]);
+      await service.onModuleInit();
+      const result = await service.mget(["k1", "k2"]);
+      expect(result).toEqual(["val1", "val2"]);
+      expect(mockRedisInstance.mget).toHaveBeenCalledWith("k1", "k2");
+    });
+
+    it("возвращает пустой массив если передан пустой список ключей", async () => {
+      await service.onModuleInit();
+      const result = await service.mget([]);
+      expect(result).toEqual([]);
+      expect(mockRedisInstance.mget).not.toHaveBeenCalled();
     });
   });
 
@@ -149,6 +286,23 @@ describe("RedisService", () => {
       const result = await service.ping();
       expect(result).toBe("PONG");
       expect(mockRedisInstance.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("eval", () => {
+    it("выполняет Lua-скрипт с ключами и аргументами", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.eval("return 1", ["k1", "k2"], ["a1", 10]);
+      expect(result).toBe(1);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        "return 1",
+        2,
+        "k1",
+        "k2",
+        "a1",
+        10,
+      );
     });
   });
 

@@ -74,6 +74,14 @@ services:
         value: 7d
       - key: ALLOWED_ORIGINS
         sync: false # Set to your frontend domain (e.g. https://devsync-web.onrender.com)
+      - key: GITHUB_CLIENT_ID
+        sync: false # GitHub OAuth App client ID
+      - key: GITHUB_CLIENT_SECRET
+        sync: false # Set in Render; never commit the client secret
+      - key: GITHUB_CALLBACK_URL
+        sync: false # https://<api-domain>/api/v1/auth/github/callback
+      - key: FRONTEND_URL
+        sync: false # https://<web-domain>, used for the post-login redirect
       - key: S3_ENDPOINT
         sync: false # Cloudflare R2 / AWS S3 endpoint
       - key: S3_REGION

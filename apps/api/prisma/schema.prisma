@@ -38,15 +38,19 @@ model Permission {
 model User {
   id               String    @id @default(uuid()) @db.Uuid
   email            String    @unique
-  passwordHash     String
+  passwordHash     String?
+  githubId         String?   @unique
   roleId           String?   @db.Uuid
   role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  isActive         Boolean   @default(true)
+  deactivatedAt    DateTime?
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
   telegramUsername String?
   gitUrl           String?
   deletedAt        DateTime?
+  generation       Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -59,16 +63,20 @@ model User {
   receivedMatchRequests MatchRequest[]   @relation("UserReceivedMatchRequests")
 
   @@map("users")
+  @@index([githubId])
   @@index([username])
   @@index([roleId])
+  @@index([isActive])
   @@index([deletedAt])
+  @@index([createdAt])
 }
 
 model AuthRevocationTask {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation Int?
+  createdAt  DateTime @default(now())
 
   @@map("auth_revocation_tasks")
   @@index([userId])

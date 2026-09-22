@@ -7,6 +7,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
 
+import { MetricsService } from "../common/metrics/metrics.service";
+
 /**
  * Сервис доступа к Redis через ioredis.
  *
@@ -25,6 +27,9 @@ import Redis from "ioredis";
  *
  * Все методы пробрасывают ошибки ioredis наверх для компенсации
  * на уровне вызывающего кода (§48 SPEC.md).
+ *
+ * Инструментируется метриками соединения: gauge статуса (`ready`/`error`/
+ * `close`/`reconnecting`) и счётчик ошибок клиента по типу (SPEC.md, §8).
  */
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -34,7 +39,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * @param configService - Конфигурация приложения (секция `redis`).
    */
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   /** Устанавливает соединение с Redis при инициализации модуля. */
   async onModuleInit(): Promise<void> {
@@ -54,9 +62,33 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       maxRetriesPerRequest: 1,
     });
 
-    await this.client.connect();
+    this.client.on("ready", () => {
+      this.metricsService.setRedisStatus("ready");
+      this.logger.log("Redis connection established");
+    });
+    this.client.on("error", (error: Error) => {
+      this.metricsService.setRedisStatus("error");
+      this.metricsService.incRedisError(this.classifyRedisError(error));
+      this.logger.error("Redis connection error", error.message);
+    });
+    this.client.on("close", () => {
+      this.metricsService.setRedisStatus("close");
+    });
+    this.client.on("reconnecting", () => {
+      this.metricsService.setRedisStatus("reconnecting");
+    });
 
+    await this.client.connect();
     this.logger.log("Redis connection established");
+  }
+
+  private classifyRedisError(error: Error): string {
+    const message = error.message;
+    if (message.includes("NOAUTH")) return "NOAUTH";
+    if (message.includes("ECONNREFUSED")) return "ECONNREFUSED";
+    if (message.includes("ECONNRESET")) return "ECONNRESET";
+    if (message.includes("ETIMEDOUT")) return "ETIMEDOUT";
+    return "other";
   }
 
   /** Закрывает соединение с Redis при завершении работы модуля. */
@@ -115,6 +147,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
+  }
+
+  /**
+   * Получает значения по массиву ключей (MGET).
+   *
+   * @param keys - Массив имен ключей.
+   * @returns Массив значений (строка или `null` для отсутствующих ключей).
+   * @throws {Error} При ошибке Redis.
+   */
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) {
+      return [];
+    }
+    return this.client.mget(...keys);
   }
 
   /**
@@ -313,7 +359,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       "*",
       "type",
       type,
-      "data",
+      "payload",
       JSON.stringify(data),
     );
 
@@ -322,6 +368,43 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     return id;
+  }
+
+  /**
+   * Выполняет Lua-скрипт в Redis (EVAL).
+   *
+   * Поддерживает обе формы вызова:
+   * 1. `eval(script, keys, args)`
+   * 2. `eval(script, numKeys, ...args)`
+   */
+  async eval<T = unknown>(
+    script: string,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    keysOrNumKeys: string[] | number,
+    ...rest: unknown[]
+  ): Promise<T> {
+    if (Array.isArray(keysOrNumKeys)) {
+      const keys = keysOrNumKeys;
+      const args = (rest[0] as (string | number)[]) ?? [];
+      return (await this.client.eval(
+        script,
+        keys.length,
+        ...keys,
+        ...args,
+      )) as T;
+    }
+    const numKeys = keysOrNumKeys;
+    const args = rest as (string | number)[];
+    return (await this.client.eval(script, numKeys, ...args)) as T;
   }
 
   /**

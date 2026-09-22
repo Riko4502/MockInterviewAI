@@ -33,7 +33,8 @@ export class SensitiveLoggingInterceptor implements NestInterceptor {
    */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    const { method, url } = request;
+    const { method } = request;
+    const url = request.url.split("?")[0];
     const start = Date.now();
 
     return next.handle().pipe(

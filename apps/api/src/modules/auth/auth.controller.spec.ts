@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { GithubOAuthService } from "./services/github-oauth.service";
 import type { TokenPayload } from "./services/token.service";
 
 const DTO = {
@@ -61,12 +62,13 @@ describe("AuthController", () => {
     logoutMock = jest.fn().mockResolvedValue(undefined);
     logoutAllMock = jest.fn().mockResolvedValue(undefined);
     changePasswordMock = jest.fn().mockResolvedValue(undefined);
-    forgotPasswordMock = jest
-      .fn()
-      .mockResolvedValue({ message: "Ссылка отправлена" });
-    resetPasswordMock = jest
-      .fn()
-      .mockResolvedValue({ message: "Пароль успешно изменен" });
+    forgotPasswordMock = jest.fn().mockResolvedValue({
+      message:
+        "If the specified email is registered, a password reset link has been sent to it",
+    });
+    resetPasswordMock = jest.fn().mockResolvedValue({
+      message: "The password has been successfully changed",
+    });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
@@ -91,6 +93,7 @@ describe("AuthController", () => {
         refresh: refreshMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
+      {} as GithubOAuthService,
     );
   }
 
@@ -580,7 +583,10 @@ describe("AuthController", () => {
       expect(forgotPasswordMock).toHaveBeenCalledWith({
         email: "user@example.com",
       });
-      expect(result).toEqual({ message: "Ссылка отправлена" });
+      expect(result).toEqual({
+        message:
+          "If the specified email is registered, a password reset link has been sent to it",
+      });
     });
 
     it("HTTP статус 200 OK", () => {
@@ -631,7 +637,9 @@ describe("AuthController", () => {
         sameSite: "lax",
         path: "/api/v1/auth",
       });
-      expect(result).toEqual({ message: "Пароль успешно изменен" });
+      expect(result).toEqual({
+        message: "The password has been successfully changed",
+      });
     });
 
     it("HTTP статус 200 OK", () => {
@@ -657,5 +665,142 @@ describe("AuthController", () => {
       ) as unknown[];
       expect(guards).toContain(AuthThrottlerGuard);
     });
+  });
+});
+
+describe("Авторизация через GitHub OAuth в AuthController", () => {
+  const user = { id: "github-user" };
+  const oauth = {
+    authorize: jest.fn(),
+    callback: jest.fn(),
+    isAvailable: jest.fn(),
+  };
+  const auth = { loginUser: jest.fn() };
+  const responseMock = {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+    redirect: jest.fn(),
+    setHeader: jest.fn(),
+  };
+  const config = {
+    get: (key: string) =>
+      ({
+        "cookie.secure": true,
+        "cookie.refreshTokenName": "custom_refresh",
+        "jwt.refreshExpiresIn": "7d",
+      })[key],
+    getOrThrow: () => "https://web.example.com",
+  };
+  const controller = new AuthController(
+    auth as unknown as AuthService,
+    config as unknown as ConfigService,
+    oauth as unknown as GithubOAuthService,
+  );
+  const response = responseMock as unknown as Response;
+  it.each([
+    true,
+    false,
+  ])("exposes only public OAuth availability: %s", (available) => {
+    oauth.isAvailable.mockReturnValue(available);
+    expect(controller.oauthProviders(response)).toEqual({ github: available });
+    expect(responseMock.setHeader).toHaveBeenCalledWith(
+      "Cache-Control",
+      "no-store",
+    );
+    expect(
+      Reflect.getMetadata("isPublic", AuthController.prototype.oauthProviders),
+    ).toBe(true);
+  });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    oauth.authorize.mockResolvedValue({
+      url: "https://github.com/login/oauth/authorize?state=random",
+      browserSecret: "browser-secret",
+    });
+    oauth.callback.mockResolvedValue(user);
+    auth.loginUser.mockResolvedValue(AUTH_RESULT);
+  });
+  it("начинает OAuth, устанавливает краткоживущую HttpOnly cookie привязки к браузеру и перенаправляет на GitHub", async () => {
+    await controller.github(response);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      "browser-secret",
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 300000,
+      },
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://github.com/login/oauth/authorize?state=random",
+    );
+  });
+  it("завершает обработку возврата через существующую сессию, устанавливает refresh cookie и перенаправляет на dashboard", async () => {
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(oauth.callback).toHaveBeenCalledWith("code", "state", "binding");
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "custom_refresh",
+      AUTH_RESULT.refreshToken,
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 604800000,
+      },
+    );
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/dashboard",
+    );
+    expect(JSON.stringify(responseMock.redirect.mock.calls)).not.toContain(
+      "token",
+    );
+  });
+  it("перенаправляет на login без деталей ошибки при некорректном возврате", async () => {
+    oauth.callback.mockRejectedValueOnce(
+      new UnauthorizedException("private provider error"),
+    );
+    await controller.githubCallback(
+      undefined,
+      undefined,
+      {} as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
+  });
+  it("перенаправляет на login без refresh cookie и деталей ошибки создания сессии", async () => {
+    auth.loginUser.mockRejectedValueOnce(new Error("session failure"));
+    await controller.githubCallback("code", "state", {} as Request, response);
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
   });
 });

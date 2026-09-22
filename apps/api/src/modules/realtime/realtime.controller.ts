@@ -1,4 +1,11 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Post,
+  UnauthorizedException,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -14,8 +21,10 @@ import {
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { RedisService } from "../../redis/redis.service";
 import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
 import { TokenService } from "../auth/services/token.service";
+import { sessionActiveKey, sessionMembersKey } from "../sessions/session-keys";
 import { LivekitService } from "./livekit.service";
 
 /**
@@ -36,6 +45,7 @@ export class RealtimeController {
   constructor(
     private readonly tokenService: TokenService,
     private readonly livekitService: LivekitService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -68,6 +78,10 @@ export class RealtimeController {
   @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   @ApiResponse({
+    status: 403,
+    description: "Сессия не активна или пользователь не является участником",
+  })
+  @ApiResponse({
     status: 429,
     description: "Превышен лимит запросов (rate limit)",
   })
@@ -75,11 +89,34 @@ export class RealtimeController {
     @Body(new ZodValidationPipe(ticketSchema)) body: TicketDto,
     @CurrentUser("sub") userId: string,
     @CurrentUser("sid") sid: string,
+    @CurrentUser("generation") generation?: number,
   ): Promise<{ ticket: string }> {
+    if (generation === undefined) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    const activeKey = sessionActiveKey(body.sessionId);
+    const membersKey = sessionMembersKey(body.sessionId);
+
+    const [activeStatus, role] = await Promise.all([
+      this.redis.get(activeKey),
+      this.redis.hget(membersKey, userId),
+    ]);
+
+    if (activeStatus !== "true") {
+      throw new ForbiddenException("Session is not active");
+    }
+
+    if (role === null) {
+      throw new ForbiddenException(
+        "User is not a participant of this interview session",
+      );
+    }
     const ticket = this.tokenService.generateRealtimeTicket(
       userId,
       sid,
       body.sessionId,
+      generation,
     );
     return { ticket };
   }
