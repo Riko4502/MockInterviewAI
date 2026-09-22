@@ -17,6 +17,7 @@ describe("MatchmakingCronService", () => {
   };
   let redisServiceMock: {
     setNx: jest.Mock;
+    get: jest.Mock;
     delete: jest.Mock;
   };
 
@@ -39,6 +40,9 @@ describe("MatchmakingCronService", () => {
 
     redisServiceMock = {
       setNx: jest.fn().mockResolvedValue(true),
+      get: jest.fn().mockImplementation(() => {
+        return redisServiceMock.setNx.mock.calls[0]?.[1] ?? "token";
+      }),
       delete: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -76,6 +80,9 @@ describe("MatchmakingCronService", () => {
       });
 
       expect(result).toEqual({ expired: 4 });
+      expect(redisServiceMock.get).toHaveBeenCalledWith(
+        MATCHMAKING_EXPIRY_LOCK_KEY,
+      );
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         MATCHMAKING_EXPIRY_LOCK_KEY,
       );
@@ -102,6 +109,16 @@ describe("MatchmakingCronService", () => {
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         MATCHMAKING_EXPIRY_LOCK_KEY,
       );
+    });
+
+    it("не удаляет лок, если токен изменился (другая нода уже перехватила лок после TTL)", async () => {
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      // Возвращаем чужой токен
+      redisServiceMock.get.mockResolvedValueOnce("another-instance-token");
+
+      await cron.handleCron();
+
+      expect(redisServiceMock.delete).not.toHaveBeenCalled();
     });
   });
 

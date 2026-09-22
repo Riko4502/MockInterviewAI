@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { ShowcaseCardStatus } from "../../generated/prisma/enums";
@@ -39,10 +40,12 @@ export class ShowcaseCronService {
    */
   @Cron("*/15 * * * *")
   async handleCron(): Promise<ShowcaseCronResult> {
-    // 1. Захват Distributed Lock в Redis
+    const lockToken = randomUUID();
+
+    // 1. Захват Distributed Lock в Redis с уникальным токеном владельца
     const lockAcquired = await this.redisService.setNx(
       SHOWCASE_EXPIRY_LOCK_KEY,
-      new Date().toISOString(),
+      lockToken,
       SHOWCASE_EXPIRY_LOCK_TTL_SECONDS,
     );
 
@@ -70,8 +73,13 @@ export class ShowcaseCronService {
       );
       return { renewed: 0, expired: 0 };
     } finally {
-      // 3. Гарантированное освобождение распределенного лока
-      await this.redisService.delete(SHOWCASE_EXPIRY_LOCK_KEY);
+      // 3. Безопасное освобождение распределенного лока только владельцем (safe unlock)
+      const currentToken = await this.redisService.get(
+        SHOWCASE_EXPIRY_LOCK_KEY,
+      );
+      if (currentToken === lockToken) {
+        await this.redisService.delete(SHOWCASE_EXPIRY_LOCK_KEY);
+      }
     }
   }
 

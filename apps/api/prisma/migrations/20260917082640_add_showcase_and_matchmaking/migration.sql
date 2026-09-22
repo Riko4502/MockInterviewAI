@@ -13,20 +13,6 @@ CREATE TYPE "ShowcaseCardStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'EXPIRED');
 -- CreateEnum
 CREATE TYPE "MatchRequestStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'EXPIRED');
 
--- AlterTable
-ALTER TABLE "auth_revocation_tasks" ALTER COLUMN "id" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "permissions" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "slug" SET DATA TYPE TEXT,
-ALTER COLUMN "name" SET DATA TYPE TEXT;
-
--- AlterTable
-ALTER TABLE "roles" ALTER COLUMN "id" DROP DEFAULT,
-ALTER COLUMN "slug" SET DATA TYPE TEXT,
-ALTER COLUMN "name" SET DATA TYPE TEXT,
-ALTER COLUMN "updatedAt" DROP DEFAULT;
-
 -- CreateTable
 CREATE TABLE "showcase_cards" (
     "id" UUID NOT NULL,

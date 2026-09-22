@@ -18,6 +18,7 @@ describe("ShowcaseCronService", () => {
   };
   let redisServiceMock: {
     setNx: jest.Mock;
+    get: jest.Mock;
     delete: jest.Mock;
   };
 
@@ -40,6 +41,9 @@ describe("ShowcaseCronService", () => {
 
     redisServiceMock = {
       setNx: jest.fn().mockResolvedValue(true),
+      get: jest.fn().mockImplementation(() => {
+        return redisServiceMock.setNx.mock.calls[0]?.[1] ?? "token";
+      }),
       delete: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -100,6 +104,9 @@ describe("ShowcaseCronService", () => {
         }),
       );
 
+      expect(redisServiceMock.get).toHaveBeenCalledWith(
+        SHOWCASE_EXPIRY_LOCK_KEY,
+      );
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         SHOWCASE_EXPIRY_LOCK_KEY,
       );
@@ -128,6 +135,16 @@ describe("ShowcaseCronService", () => {
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         SHOWCASE_EXPIRY_LOCK_KEY,
       );
+    });
+
+    it("не удаляет лок, если токен изменился (другая нода уже перехватила лок после TTL)", async () => {
+      prismaMock.showcaseCard.updateMany.mockResolvedValue({ count: 1 });
+      // Возвращаем чужой токен
+      redisServiceMock.get.mockResolvedValueOnce("another-node-token");
+
+      await cron.handleCron();
+
+      expect(redisServiceMock.delete).not.toHaveBeenCalled();
     });
   });
 

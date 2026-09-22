@@ -47,11 +47,11 @@ export function parseSearchQuery(query?: string): ParsedSearchQuery {
 
   for (const token of tokens) {
     if (token.startsWith("+") && token.length > 1) {
-      include.push(sanitizeSearchTerm(token.slice(1).toLowerCase()));
+      include.push(token.slice(1).toLowerCase());
     } else if (token.startsWith("-") && token.length > 1) {
-      exclude.push(sanitizeSearchTerm(token.slice(1).toLowerCase()));
+      exclude.push(token.slice(1).toLowerCase());
     } else {
-      terms.push(sanitizeSearchTerm(token.toLowerCase()));
+      terms.push(token.toLowerCase());
     }
   }
 

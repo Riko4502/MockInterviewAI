@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { ShowcaseModule } from "../showcase/showcase.module";
 import { MatchmakingController } from "./matchmaking.controller";
 import { MatchmakingService } from "./matchmaking.service";
 import { MatchmakingCronService } from "./matchmaking-cron.service";
@@ -13,7 +12,6 @@ import { MatchmakingCronService } from "./matchmaking-cron.service";
  * - Фоновый воркер авто-экспирации просроченных заявок (каждый час).
  */
 @Module({
-  imports: [ShowcaseModule],
   controllers: [MatchmakingController],
   providers: [MatchmakingService, MatchmakingCronService],
   exports: [MatchmakingService],

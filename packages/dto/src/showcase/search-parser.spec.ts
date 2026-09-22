@@ -91,11 +91,19 @@ describe("search-parser", () => {
       expect(result.raw.length).toBe(100);
     });
 
-    it("должен экранировать SQL спецсимволы в поисковых терминах", () => {
+    it("не должен экранировать SQL спецсимволы в поисковых терминах парсера", () => {
       const result = parseSearchQuery("+100% _test_ path\\to");
 
-      expect(result.include).toEqual(["100\\%"]);
-      expect(result.terms).toEqual(["\\_test\\_", "path\\\\to"]);
+      expect(result.include).toEqual(["100%"]);
+      expect(result.terms).toEqual(["_test_", "path\\to"]);
+    });
+
+    it("корректно парсит навыки со спецсимволами вроде _", () => {
+      const result = parseSearchQuery("+node_js -vue_3 c++_lang");
+
+      expect(result.include).toEqual(["node_js"]);
+      expect(result.exclude).toEqual(["vue_3"]);
+      expect(result.terms).toEqual(["c++_lang"]);
     });
   });
 

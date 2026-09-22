@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -136,6 +138,7 @@ export class MatchmakingController {
    * 5. Принятие заявки получателем (PENDING -> ACCEPTED).
    */
   @Post("requests/:id/accept")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Принять входящую заявку на собеседование" })
   @ApiParam({ name: "id", format: "uuid", description: "ID заявки" })
   @ApiResponse({
@@ -162,6 +165,7 @@ export class MatchmakingController {
    * 6. Отклонение заявки получателем (PENDING -> REJECTED).
    */
   @Post("requests/:id/reject")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Отклонить входящую заявку на собеседование" })
   @ApiParam({ name: "id", format: "uuid", description: "ID заявки" })
   @ZodBody(rejectMatchRequestSchema, "RejectMatchRequestDto")
@@ -191,6 +195,7 @@ export class MatchmakingController {
    * 7. Отмена исходящей заявки отправителем (PENDING -> CANCELLED).
    */
   @Post("requests/:id/cancel")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Отменить свою исходящую заявку на собеседование" })
   @ApiParam({ name: "id", format: "uuid", description: "ID заявки" })
   @ApiResponse({

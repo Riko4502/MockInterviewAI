@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -179,124 +180,163 @@ export class MatchmakingService {
       }
     }
 
-    // 5. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
-    const incomingPendingCount = await this.prisma.matchRequest.count({
-      where: {
-        targetCardId: dto.targetCardId,
-        status: "PENDING",
-      },
-    });
-
-    if (
-      incomingPendingCount >= MATCHMAKING_LIMITS.MAX_PENDING_INCOMING_PER_CARD
-    ) {
-      throw new BadRequestException(
-        `На данную карточку достигнут лимит входящих заявок (максимум ${MATCHMAKING_LIMITS.MAX_PENDING_INCOMING_PER_CARD})`,
-      );
-    }
-
-    // 6. Проверяем лимит исходящих заявок от автора (максимум 5 PENDING -> 429 Too Many Requests)
-    const outgoingPendingCount = await this.prisma.matchRequest.count({
-      where: {
-        senderId,
-        status: "PENDING",
-      },
-    });
-
-    if (
-      outgoingPendingCount >= MATCHMAKING_LIMITS.MAX_PENDING_OUTGOING_PER_USER
-    ) {
-      throw new HttpException(
-        `Превышен лимит активных исходящих заявок (максимум ${MATCHMAKING_LIMITS.MAX_PENDING_OUTGOING_PER_USER})`,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    // 7. Проверяем 24-часовой кулдаун после предыдущего отклонения (REJECTED) от этого же адресата
-    const cooldownLimitDate = new Date(
-      Date.now() - MATCHMAKING_LIMITS.REJECT_COOLDOWN_HOURS * 60 * 60 * 1000,
-    );
-
-    const recentRejection = await this.prisma.matchRequest.findFirst({
-      where: {
-        senderId,
-        receiverId: targetCard.userId,
-        status: "REJECTED",
-        updatedAt: { gt: cooldownLimitDate },
-      },
-      select: { id: true },
-    });
-
-    if (recentRejection) {
-      throw new BadRequestException(
-        `Вы не можете отправить заявку этому пользователю в течение ${MATCHMAKING_LIMITS.REJECT_COOLDOWN_HOURS} часов после предыдущего отклонения`,
-      );
-    }
-
-    // 8. Проверяем наличие встречной заявки (Cross-invite -> Auto-match)
-    const crossRequest = await this.prisma.matchRequest.findFirst({
-      where: {
-        senderId: targetCard.userId,
-        receiverId: senderId,
-        status: "PENDING",
-      },
-      include: MATCH_REQUEST_INCLUDE,
-    });
-
     // Срок жизни новой заявки (текущее время + 72 часа)
     const expiresAt = new Date(
       Date.now() + MATCHMAKING_LIMITS.REQUEST_TTL_HOURS * 60 * 60 * 1000,
     );
 
-    // Если есть встречная заявка — оформляем взаимный Auto-Match
-    if (crossRequest) {
-      const createdRequest = await this.prisma.$transaction(async (tx) => {
-        // Создаём текущую заявку сразу в статусе ACCEPTED
-        const newRequest = await tx.matchRequest.create({
-          data: {
-            senderId,
-            receiverId: targetCard.userId,
-            targetCardId: dto.targetCardId,
-            senderCardId: dto.senderCardId,
-            message: dto.message,
-            preferredTopic: dto.preferredTopic,
-            status: "ACCEPTED",
-            expiresAt,
+    const MAX_RETRIES = 3;
+    let retries = 0;
+
+    while (true) {
+      try {
+        const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
+          async (tx) => {
+            // 5. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
+            const incomingPendingCount = await tx.matchRequest.count({
+              where: {
+                targetCardId: dto.targetCardId,
+                status: "PENDING",
+              },
+            });
+
+            if (
+              incomingPendingCount >=
+              MATCHMAKING_LIMITS.MAX_PENDING_INCOMING_PER_CARD
+            ) {
+              throw new BadRequestException(
+                `На данную карточку достигнут лимит входящих заявок (максимум ${MATCHMAKING_LIMITS.MAX_PENDING_INCOMING_PER_CARD})`,
+              );
+            }
+
+            // 6. Проверяем лимит исходящих заявок от автора (максимум 5 PENDING -> 429 Too Many Requests)
+            const outgoingPendingCount = await tx.matchRequest.count({
+              where: {
+                senderId,
+                status: "PENDING",
+              },
+            });
+
+            if (
+              outgoingPendingCount >=
+              MATCHMAKING_LIMITS.MAX_PENDING_OUTGOING_PER_USER
+            ) {
+              throw new HttpException(
+                `Превышен лимит активных исходящих заявок (максимум ${MATCHMAKING_LIMITS.MAX_PENDING_OUTGOING_PER_USER})`,
+                HttpStatus.TOO_MANY_REQUESTS,
+              );
+            }
+
+            // 7. Проверяем 24-часовой кулдаун после предыдущего отклонения (REJECTED) от этого же адресата
+            const cooldownLimitDate = new Date(
+              Date.now() -
+                MATCHMAKING_LIMITS.REJECT_COOLDOWN_HOURS * 60 * 60 * 1000,
+            );
+
+            const recentRejection = await tx.matchRequest.findFirst({
+              where: {
+                senderId,
+                receiverId: targetCard.userId,
+                status: "REJECTED",
+                updatedAt: { gt: cooldownLimitDate },
+              },
+              select: { id: true },
+            });
+
+            if (recentRejection) {
+              throw new BadRequestException(
+                `Вы не можете отправить заявку этому пользователю в течение ${MATCHMAKING_LIMITS.REJECT_COOLDOWN_HOURS} часов после предыдущего отклонения`,
+              );
+            }
+
+            // 8. Проверяем наличие встречной заявки (Cross-invite -> Auto-match)
+            const crossRequest = await tx.matchRequest.findFirst({
+              where: {
+                senderId: targetCard.userId,
+                receiverId: senderId,
+                status: "PENDING",
+              },
+              include: MATCH_REQUEST_INCLUDE,
+            });
+
+            // Если есть встречная заявка — оформляем взаимный Auto-Match
+            if (crossRequest) {
+              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING
+              const updateResult = await tx.matchRequest.updateMany({
+                where: {
+                  id: crossRequest.id,
+                  status: "PENDING",
+                },
+                data: { status: "ACCEPTED" },
+              });
+
+              // Если встречная заявка всё ещё была PENDING и успешно обновлена
+              if (updateResult.count === 1) {
+                // Создаём текущую заявку сразу в статусе ACCEPTED
+                const newRequest = await tx.matchRequest.create({
+                  data: {
+                    senderId,
+                    receiverId: targetCard.userId,
+                    targetCardId: dto.targetCardId,
+                    senderCardId: dto.senderCardId,
+                    message: dto.message,
+                    preferredTopic: dto.preferredTopic,
+                    status: "ACCEPTED",
+                    expiresAt,
+                  },
+                  include: MATCH_REQUEST_INCLUDE,
+                });
+
+                return { createdRequest: newRequest, isAutoMatch: true };
+              }
+            }
+
+            // Если встречной заявки нет — создаем обычную заявку в статусе PENDING
+            const newRequest = await tx.matchRequest.create({
+              data: {
+                senderId,
+                receiverId: targetCard.userId,
+                targetCardId: dto.targetCardId,
+                senderCardId: dto.senderCardId,
+                message: dto.message,
+                preferredTopic: dto.preferredTopic,
+                status: "PENDING",
+                expiresAt,
+              },
+              include: MATCH_REQUEST_INCLUDE,
+            });
+
+            return { createdRequest: newRequest, isAutoMatch: false };
           },
-          include: MATCH_REQUEST_INCLUDE,
-        });
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
 
-        // Переводим встречную заявку также в статус ACCEPTED
-        await tx.matchRequest.update({
-          where: { id: crossRequest.id },
-          data: { status: "ACCEPTED" },
-        });
+        if (isAutoMatch) {
+          // Публикуем событие авто-матчинга в Redis Pub/Sub для уведомлений после коммита транзакции
+          await this.publishMatchAcceptedEvent(createdRequest);
+        }
 
-        return newRequest;
-      });
+        return this.formatMatchRequest(createdRequest);
+      } catch (error) {
+        // При конфликте сериализации параллельных транзакций (P2034) повторяем транзакцию
+        if (
+          (error instanceof Prisma.PrismaClientKnownRequestError ||
+            (error instanceof Error && "code" in error)) &&
+          (error as { code?: string }).code === "P2034" &&
+          retries < MAX_RETRIES
+        ) {
+          retries++;
+          continue;
+        }
 
-      // Публикуем событие авто-матчинга в Redis Pub/Sub для уведомлений
-      await this.publishMatchAcceptedEvent(createdRequest);
-
-      return this.formatMatchRequest(createdRequest);
+        this.handleUniqueConflict(
+          error,
+          "Вы уже отправили активную заявку на эту анкету",
+        );
+      }
     }
-
-    // Если встречной заявки нет — создаем обычную заявку в статусе PENDING
-    const createdRequest = await this.prisma.matchRequest.create({
-      data: {
-        senderId,
-        receiverId: targetCard.userId,
-        targetCardId: dto.targetCardId,
-        senderCardId: dto.senderCardId,
-        message: dto.message,
-        preferredTopic: dto.preferredTopic,
-        status: "PENDING",
-        expiresAt,
-      },
-      include: MATCH_REQUEST_INCLUDE,
-    });
-
-    return this.formatMatchRequest(createdRequest);
   }
 
   /**
@@ -462,18 +502,28 @@ export class MatchmakingService {
 
     // 4. Проверяем, не истек ли срок действия заявки
     if (new Date(request.expiresAt).getTime() <= Date.now()) {
-      await this.prisma.matchRequest.update({
-        where: { id: requestId },
+      await this.prisma.matchRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
         data: { status: "EXPIRED" },
       });
 
       throw new BadRequestException("Срок действия заявки истек");
     }
 
-    // 5. Переводим статус в ACCEPTED
-    const updated = await this.prisma.matchRequest.update({
-      where: { id: requestId },
+    // 5. Переводим статус в ACCEPTED атомарно
+    const updateResult = await this.prisma.matchRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
       data: { status: "ACCEPTED" },
+    });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException(
+        "Можно принять только заявку в статусе ожидания (PENDING)",
+      );
+    }
+
+    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
+      where: { id: requestId },
       include: MATCH_REQUEST_INCLUDE,
     });
 
@@ -529,13 +579,23 @@ export class MatchmakingService {
       );
     }
 
-    // 4. Обновляем статус на REJECTED и фиксируем причину
-    const updated = await this.prisma.matchRequest.update({
-      where: { id: requestId },
+    // 4. Обновляем статус на REJECTED атомарно и фиксируем причину
+    const updateResult = await this.prisma.matchRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
       data: {
         status: "REJECTED",
         rejectReason: dto.reason ?? null,
       },
+    });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException(
+        "Можно отклонить только заявку в статусе ожидания (PENDING)",
+      );
+    }
+
+    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
+      where: { id: requestId },
       include: MATCH_REQUEST_INCLUDE,
     });
 
@@ -585,10 +645,20 @@ export class MatchmakingService {
       );
     }
 
-    // 4. Обновляем статус на CANCELLED
-    const updated = await this.prisma.matchRequest.update({
-      where: { id: requestId },
+    // 4. Обновляем статус на CANCELLED атомарно
+    const updateResult = await this.prisma.matchRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
       data: { status: "CANCELLED" },
+    });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException(
+        "Можно отменить только заявку в статусе ожидания (PENDING)",
+      );
+    }
+
+    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
+      where: { id: requestId },
       include: MATCH_REQUEST_INCLUDE,
     });
 
@@ -669,5 +739,20 @@ export class MatchmakingService {
       updatedAt: request.updatedAt,
       expiresAt: request.expiresAt,
     };
+  }
+
+  /**
+   * Перехватывает ошибку нарушения уникального индекса базы данных (Prisma P2002)
+   * и преобразует её в понятный клиенту ConflictException (HTTP 409) для защиты от race condition.
+   */
+  private handleUniqueConflict(error: unknown, message: string): never {
+    if (
+      (error instanceof Prisma.PrismaClientKnownRequestError ||
+        (error instanceof Error && "code" in error)) &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      throw new ConflictException(message);
+    }
+    throw error;
   }
 }

@@ -163,6 +163,7 @@ export class ShowcaseController {
    * 7. Поднять анкету в топ (раз в 24 часа).
    */
   @Post(":id/bump")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Поднять анкету в топ каталога (раз в 24 часа)" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
   @ApiResponse({ status: 200, description: "Анкета поднята в топ" })
@@ -183,6 +184,7 @@ export class ShowcaseController {
    * 8. Перепубликовать истекшую анкету EXPIRED -> ACTIVE (на 15 дней).
    */
   @Post(":id/renew")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Продлить истекшую анкету (EXPIRED -> ACTIVE)" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
   @ApiResponse({ status: 200, description: "Анкета продлена на 15 дней" })

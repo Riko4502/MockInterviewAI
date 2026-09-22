@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -23,9 +24,11 @@ describe("MatchmakingService", () => {
       count: jest.Mock;
       findFirst: jest.Mock;
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       findMany: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -128,9 +131,11 @@ describe("MatchmakingService", () => {
         count: jest.fn(),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       $transaction: jest.fn((callback) => callback(prismaMock)),
     };
@@ -313,6 +318,51 @@ describe("MatchmakingService", () => {
       expect(result.receiver.telegramUsername).toBeNull();
     });
 
+    it("бросает ConflictException при ошибке уникальности P2002 от Prisma (защита от race condition)", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
+      prismaMock.matchRequest.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      prismaMock.matchRequest.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      const p2002Error = new Error("Unique constraint failed");
+      (p2002Error as unknown as { code: string }).code = "P2002";
+      prismaMock.matchRequest.create.mockRejectedValueOnce(p2002Error);
+
+      await expect(service.create(senderId, validDto)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("повторяет транзакцию при конфликте сериализации P2034 и успешно создает заявку", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
+
+      const p2034Error = new Error("Serialization conflict");
+      (p2034Error as unknown as { code: string }).code = "P2034";
+
+      // 1-я попытка транзакции падает с P2034, 2-я проходит успешно
+      prismaMock.$transaction
+        .mockRejectedValueOnce(p2034Error)
+        .mockImplementationOnce((callback) => callback(prismaMock));
+
+      prismaMock.matchRequest.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      prismaMock.matchRequest.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      prismaMock.matchRequest.create.mockResolvedValueOnce(mockMatchRequest);
+
+      const result = await service.create(senderId, validDto);
+
+      expect(result.status).toBe("PENDING");
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    });
+
     it("автоматически переводит обе заявки в ACCEPTED при встречном отклике (Auto-match)", async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
       prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
@@ -329,10 +379,7 @@ describe("MatchmakingService", () => {
       };
 
       prismaMock.matchRequest.create.mockResolvedValueOnce(acceptedMockRequest);
-      prismaMock.matchRequest.update.mockResolvedValueOnce({
-        id: "cross-request-id",
-        status: "ACCEPTED",
-      });
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
 
       const result = await service.create(senderId, validDto);
 
@@ -346,6 +393,26 @@ describe("MatchmakingService", () => {
       // При ACCEPTED контакты раскрываются
       expect(result.sender.telegramUsername).toBe("sender_tg");
       expect(result.receiver.telegramUsername).toBe("receiver_tg");
+    });
+
+    it("создает обычную PENDING заявку, если встречная заявка была отменена параллельно (updateMany count === 0)", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
+      prismaMock.matchRequest.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      prismaMock.matchRequest.findFirst
+        .mockResolvedValueOnce(null) // нет недавнего REJECT
+        .mockResolvedValueOnce({ id: "cross-request-id" }); // найдена в начале
+
+      // В момент updateMany встречная заявка уже отменена (count === 0)
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+      prismaMock.matchRequest.create.mockResolvedValueOnce(mockMatchRequest);
+
+      const result = await service.create(senderId, validDto);
+
+      expect(result.status).toBe("PENDING");
+      expect(redisServiceMock.publish).not.toHaveBeenCalled();
     });
   });
 
@@ -437,10 +504,25 @@ describe("MatchmakingService", () => {
         BadRequestException,
       );
 
-      expect(prismaMock.matchRequest.update).toHaveBeenCalledWith({
-        where: { id: requestId },
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: { id: requestId, status: "PENDING" },
         data: { status: "EXPIRED" },
       });
+    });
+
+    it("бросает BadRequestException, если статус изменился параллельно при accept", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        id: requestId,
+        receiverId,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(service.accept(requestId, receiverId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("успешно переводит заявку в ACCEPTED, публикует в Redis и открывает контакты", async () => {
@@ -451,16 +533,21 @@ describe("MatchmakingService", () => {
         expiresAt: new Date(Date.now() + 100000),
       });
 
-      prismaMock.matchRequest.update.mockResolvedValueOnce({
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
         ...mockMatchRequest,
         status: "ACCEPTED",
       });
 
       const result = await service.accept(requestId, receiverId);
 
-      expect(prismaMock.matchRequest.update).toHaveBeenCalledWith({
-        where: { id: requestId },
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: { id: requestId, status: "PENDING" },
         data: { status: "ACCEPTED" },
+      });
+
+      expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: requestId },
         include: expect.any(Object),
       });
 
@@ -496,6 +583,20 @@ describe("MatchmakingService", () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it("бросает BadRequestException, если статус изменился параллельно при reject", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        id: requestId,
+        receiverId,
+        status: "PENDING",
+      });
+
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.reject(requestId, receiverId, { reason: "Занят" }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("успешно переводит в REJECTED с сохранением причины", async () => {
       prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
         id: requestId,
@@ -503,7 +604,8 @@ describe("MatchmakingService", () => {
         status: "PENDING",
       });
 
-      prismaMock.matchRequest.update.mockResolvedValueOnce({
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
         ...mockMatchRequest,
         status: "REJECTED",
         rejectReason: "Занят на этой неделе",
@@ -513,12 +615,16 @@ describe("MatchmakingService", () => {
         reason: "Занят на этой неделе",
       });
 
-      expect(prismaMock.matchRequest.update).toHaveBeenCalledWith({
-        where: { id: requestId },
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: { id: requestId, status: "PENDING" },
         data: {
           status: "REJECTED",
           rejectReason: "Занят на этой неделе",
         },
+      });
+
+      expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: requestId },
         include: expect.any(Object),
       });
 
@@ -550,6 +656,20 @@ describe("MatchmakingService", () => {
       );
     });
 
+    it("бросает BadRequestException, если статус изменился параллельно при cancel", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        id: requestId,
+        senderId,
+        status: "PENDING",
+      });
+
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(service.cancel(requestId, senderId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it("успешно отменяет заявку отправителем (CANCELLED)", async () => {
       prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
         id: requestId,
@@ -557,18 +677,23 @@ describe("MatchmakingService", () => {
         status: "PENDING",
       });
 
-      prismaMock.matchRequest.update.mockResolvedValueOnce({
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
         ...mockMatchRequest,
         status: "CANCELLED",
       });
 
       const result = await service.cancel(requestId, senderId);
 
-      expect(prismaMock.matchRequest.update).toHaveBeenCalledWith({
-        where: { id: requestId },
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: { id: requestId, status: "PENDING" },
         data: {
           status: "CANCELLED",
         },
+      });
+
+      expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: requestId },
         include: expect.any(Object),
       });
 

@@ -115,6 +115,24 @@ describe("ShowcaseService", () => {
       );
     });
 
+    it("бросает ConflictException при ошибке уникальности P2002 от Prisma (защита от race condition)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: userId,
+        displayName: "John Doe",
+        username: "johndoe",
+      });
+      prismaMock.showcaseCard.count.mockResolvedValue(0);
+      prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
+
+      const p2002Error = new Error("Unique constraint failed");
+      (p2002Error as unknown as { code: string }).code = "P2002";
+      prismaMock.showcaseCard.create.mockRejectedValue(p2002Error);
+
+      await expect(service.create(userId, validDto)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
     it("успешно создаёт карточку со сроком жизни на 15 дней", async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: userId,
@@ -311,7 +329,7 @@ describe("ShowcaseService", () => {
   });
 
   describe("findAll", () => {
-    it("возвращает пагинированный список карточек", async () => {
+    it("возвращает пагинированный список карточек для неавторизованного пользователя", async () => {
       prismaMock.showcaseCard.count.mockResolvedValue(1);
       prismaMock.showcaseCard.findMany.mockResolvedValue([
         {
@@ -327,10 +345,104 @@ describe("ShowcaseService", () => {
         sortBy: "BUMPED",
       });
 
+      expect(prismaMock.showcaseCard.count).toHaveBeenCalledWith({
+        where: {
+          status: "ACTIVE",
+        },
+      });
+      expect(prismaMock.showcaseCard.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: "ACTIVE",
+          },
+          skip: 0,
+          take: 10,
+        }),
+      );
       expect(result.data).toHaveLength(1);
       expect(result.data[0].user.telegramUsername).toBeNull();
       expect(result.meta.total).toBe(1);
       expect(result.meta.totalPages).toBe(1);
+    });
+
+    it("исключает карточки текущего авторизованного пользователя из выдачи", async () => {
+      prismaMock.showcaseCard.count.mockResolvedValue(1);
+      prismaMock.showcaseCard.findMany.mockResolvedValue([
+        {
+          id: "card-2",
+          userId: "other-user",
+          user: { telegramUsername: "secret" },
+        },
+      ]);
+
+      const currentUserId = "my-user-id";
+      const result = await service.findAll(
+        {
+          page: 1,
+          limit: 10,
+          sortBy: "BUMPED",
+        },
+        currentUserId,
+      );
+
+      expect(prismaMock.showcaseCard.count).toHaveBeenCalledWith({
+        where: {
+          status: "ACTIVE",
+          userId: { not: currentUserId },
+        },
+      });
+      expect(prismaMock.showcaseCard.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: "ACTIVE",
+            userId: { not: currentUserId },
+          },
+          skip: 0,
+          take: 10,
+        }),
+      );
+      expect(result.data).toHaveLength(1);
+    });
+
+    it("корректно обрабатывает поиск по навыкам со спецсимволами и LIKE-экранированием", async () => {
+      prismaMock.showcaseCard.count.mockResolvedValue(1);
+      prismaMock.showcaseCard.findMany.mockResolvedValue([
+        {
+          id: "card-3",
+          userId: "other-user",
+          user: { telegramUsername: "secret" },
+        },
+      ]);
+
+      await service.findAll({
+        page: 1,
+        limit: 10,
+        search: "+node_js -vue_3 middle_dev 100%",
+      });
+
+      expect(prismaMock.showcaseCard.count).toHaveBeenCalledWith({
+        where: {
+          status: "ACTIVE",
+          AND: [
+            { skills: { hasEvery: ["node_js"] } },
+            { NOT: { skills: { hasSome: ["vue_3"] } } },
+            {
+              OR: [
+                { title: { contains: "middle\\_dev", mode: "insensitive" } },
+                { bio: { contains: "middle\\_dev", mode: "insensitive" } },
+                { skills: { has: "middle_dev" } },
+              ],
+            },
+            {
+              OR: [
+                { title: { contains: "100\\%", mode: "insensitive" } },
+                { bio: { contains: "100\\%", mode: "insensitive" } },
+                { skills: { has: "100%" } },
+              ],
+            },
+          ],
+        },
+      });
     });
   });
 });

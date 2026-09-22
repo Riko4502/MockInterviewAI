@@ -12,6 +12,7 @@ import {
   parseSearchQuery,
   ShowcaseCardResponseDto,
   ShowcaseQueryDto,
+  sanitizeSearchTerm,
   UpdateShowcaseCardDto,
   UpdateShowcaseCardStatusDto,
 } from "@packages/dto";
@@ -93,26 +94,33 @@ export class ShowcaseService {
     );
 
     // 5. Сохраняем новую анкету в базе данных с публичными данными автора
-    return await this.prisma.showcaseCard.create({
-      data: {
-        userId,
-        title: dto.title,
-        specialization: dto.specialization,
-        level: dto.level,
-        language: dto.language,
-        skills: dto.skills,
-        bio: dto.bio,
-        scheduleInfo: dto.scheduleInfo,
-        isUrgent: dto.isUrgent,
-        autoRenew: dto.autoRenew,
-        expiresAt,
-      },
-      include: {
-        user: {
-          select: PUBLIC_USER_SELECT,
+    try {
+      return await this.prisma.showcaseCard.create({
+        data: {
+          userId,
+          title: dto.title,
+          specialization: dto.specialization,
+          level: dto.level,
+          language: dto.language,
+          skills: dto.skills,
+          bio: dto.bio,
+          scheduleInfo: dto.scheduleInfo,
+          isUrgent: dto.isUrgent,
+          autoRenew: dto.autoRenew,
+          expiresAt,
         },
-      },
-    });
+        include: {
+          user: {
+            select: PUBLIC_USER_SELECT,
+          },
+        },
+      });
+    } catch (error) {
+      this.handleUniqueConflict(
+        error,
+        "У вас уже есть активная анкета с такой специализацией и уровнем",
+      );
+    }
   }
 
   /**
@@ -176,11 +184,12 @@ export class ShowcaseService {
 
       // Свободные поисковые слова (middle) — ищем совпадение в title, bio ИЛИ skills
       for (const term of parsed.terms) {
+        const sanitizedTerm = sanitizeSearchTerm(term);
         andConditions.push({
           OR: [
-            { title: { contains: term, mode: "insensitive" } }, // совпадение в заголовке
-            { bio: { contains: term, mode: "insensitive" } }, // совпадение в описании
-            { skills: { has: term } }, // точное совпадение навыка
+            { title: { contains: sanitizedTerm, mode: "insensitive" } }, // совпадение в заголовке
+            { bio: { contains: sanitizedTerm, mode: "insensitive" } }, // совпадение в описании
+            { skills: { has: term } }, // точное совпадение навыка (без LIKE-экранирования)
           ],
         });
       }
@@ -398,27 +407,34 @@ export class ShowcaseService {
     }
 
     // 5. Применяем только переданные поля и сохраняем обновления
-    return this.prisma.showcaseCard.update({
-      where: { id },
-      data: {
-        ...(dto.title !== undefined && { title: dto.title }),
-        ...(dto.specialization !== undefined && {
-          specialization: dto.specialization,
-        }),
-        ...(dto.level !== undefined && { level: dto.level }),
-        ...(dto.language !== undefined && { language: dto.language }),
-        ...(dto.skills !== undefined && { skills: dto.skills }),
-        ...(dto.bio !== undefined && { bio: dto.bio }),
-        ...(dto.scheduleInfo !== undefined && {
-          scheduleInfo: dto.scheduleInfo,
-        }),
-        ...(dto.isUrgent !== undefined && { isUrgent: dto.isUrgent }),
-        ...(dto.autoRenew !== undefined && { autoRenew: dto.autoRenew }),
-      },
-      include: {
-        user: { select: PUBLIC_USER_SELECT },
-      },
-    });
+    try {
+      return await this.prisma.showcaseCard.update({
+        where: { id },
+        data: {
+          ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.specialization !== undefined && {
+            specialization: dto.specialization,
+          }),
+          ...(dto.level !== undefined && { level: dto.level }),
+          ...(dto.language !== undefined && { language: dto.language }),
+          ...(dto.skills !== undefined && { skills: dto.skills }),
+          ...(dto.bio !== undefined && { bio: dto.bio }),
+          ...(dto.scheduleInfo !== undefined && {
+            scheduleInfo: dto.scheduleInfo,
+          }),
+          ...(dto.isUrgent !== undefined && { isUrgent: dto.isUrgent }),
+          ...(dto.autoRenew !== undefined && { autoRenew: dto.autoRenew }),
+        },
+        include: {
+          user: { select: PUBLIC_USER_SELECT },
+        },
+      });
+    } catch (error) {
+      this.handleUniqueConflict(
+        error,
+        "У вас уже есть активная анкета с такой специализацией и уровнем",
+      );
+    }
   }
 
   /**
@@ -480,13 +496,20 @@ export class ShowcaseService {
     }
 
     // 5. Обновляем статус в базе данных
-    return this.prisma.showcaseCard.update({
-      where: { id },
-      data: { status: dto.status },
-      include: {
-        user: { select: PUBLIC_USER_SELECT },
-      },
-    });
+    try {
+      return await this.prisma.showcaseCard.update({
+        where: { id },
+        data: { status: dto.status },
+        include: {
+          user: { select: PUBLIC_USER_SELECT },
+        },
+      });
+    } catch (error) {
+      this.handleUniqueConflict(
+        error,
+        "У вас уже есть активная анкета с такой специализацией и уровнем",
+      );
+    }
   }
 
   /**
@@ -603,17 +626,24 @@ export class ShowcaseService {
     );
 
     // 5. Переводим в ACTIVE, продлеваем срок и поднимаем в топ
-    return this.prisma.showcaseCard.update({
-      where: { id },
-      data: {
-        status: "ACTIVE",
-        expiresAt,
-        bumpedAt: now,
-      },
-      include: {
-        user: { select: PUBLIC_USER_SELECT },
-      },
-    });
+    try {
+      return await this.prisma.showcaseCard.update({
+        where: { id },
+        data: {
+          status: "ACTIVE",
+          expiresAt,
+          bumpedAt: now,
+        },
+        include: {
+          user: { select: PUBLIC_USER_SELECT },
+        },
+      });
+    } catch (error) {
+      this.handleUniqueConflict(
+        error,
+        "У вас уже есть активная анкета с такой специализацией и уровнем",
+      );
+    }
   }
 
   /**
@@ -647,5 +677,20 @@ export class ShowcaseService {
     await this.prisma.showcaseCard.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Перехватывает ошибку нарушения уникального индекса базы данных (Prisma P2002)
+   * и преобразует её в понятный клиенту ConflictException (HTTP 409) для защиты от race condition.
+   */
+  private handleUniqueConflict(error: unknown, message: string): never {
+    if (
+      (error instanceof Prisma.PrismaClientKnownRequestError ||
+        (error instanceof Error && "code" in error)) &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      throw new ConflictException(message);
+    }
+    throw error;
   }
 }

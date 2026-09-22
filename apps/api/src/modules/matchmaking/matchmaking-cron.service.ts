@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { MatchRequestStatus } from "../../generated/prisma/enums";
@@ -35,10 +36,12 @@ export class MatchmakingCronService {
    */
   @Cron("0 * * * *")
   async handleCron(): Promise<MatchmakingCronResult> {
-    // 1. Захват Distributed Lock в Redis
+    const lockToken = randomUUID();
+
+    // 1. Захват Distributed Lock в Redis с уникальным токеном владельца
     const lockAcquired = await this.redisService.setNx(
       MATCHMAKING_EXPIRY_LOCK_KEY,
-      new Date().toISOString(),
+      lockToken,
       MATCHMAKING_EXPIRY_LOCK_TTL_SECONDS,
     );
 
@@ -64,8 +67,13 @@ export class MatchmakingCronService {
       );
       return { expired: 0 };
     } finally {
-      // 3. Гарантированное освобождение распределенного лока
-      await this.redisService.delete(MATCHMAKING_EXPIRY_LOCK_KEY);
+      // 3. Безопасное освобождение распределенного лока только владельцем (safe unlock)
+      const currentToken = await this.redisService.get(
+        MATCHMAKING_EXPIRY_LOCK_KEY,
+      );
+      if (currentToken === lockToken) {
+        await this.redisService.delete(MATCHMAKING_EXPIRY_LOCK_KEY);
+      }
     }
   }
 

@@ -15,7 +15,14 @@ export const showcaseQuerySchema = z.object({
   specialization: specializationEnum.optional(),
   level: experienceLevelEnum.optional(),
   language: interviewLanguageEnum.optional(),
-  isUrgent: z.coerce.boolean().optional(),
+  isUrgent: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") return true;
+      if (normalized === "false" || normalized === "0") return false;
+    }
+    return val;
+  }, z.boolean().optional()),
   skill: z.string().trim().optional(),
   search: z.string().trim().max(100).optional(), // Поиск с операторами: "+react -vue middle"
   sortBy: showcaseSortByEnum.default("BUMPED"),
