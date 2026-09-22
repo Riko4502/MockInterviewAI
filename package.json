@@ -48,7 +48,7 @@
     "realtime:logs": "docker compose --env-file .env --profile realtime logs -f realtime",
     "realtime:restart": "docker compose --env-file .env --profile realtime restart realtime",
     "code-runner:up": "docker compose --env-file .env --profile code-runner up -d --build",
-    "code-runner:down": "docker compose --env-file .env --profile code-runner down",
+    "code-runner:down": "docker compose --env-file .env --profile code-runner rm -sf code-runner judge0-server judge0-workers judge0-db judge0-redis",
     "code-runner:logs": "docker compose --env-file .env --profile code-runner logs -f code-runner",
     "sse:send": "node scripts/send-sse.mjs",
     "sse:broadcast": "node scripts/send-sse.mjs --broadcast --type system.broadcast",

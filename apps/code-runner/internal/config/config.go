@@ -273,6 +273,14 @@ func loadLimits() (*limits, error) {
 		return nil, fmt.Errorf("invalid JUDGE0_REQUEST_TIMEOUT_MS: %w", err)
 	}
 
+	if memoryLimitKB <= 0 || maxFileSizeKB <= 0 || maxProcesses <= 0 {
+		return nil, fmt.Errorf("RUN_MEMORY_LIMIT_KB, RUN_MAX_FILE_SIZE_KB and RUN_MAX_PROCESSES must be positive")
+	}
+
+	if queueWaitMs < 0 {
+		return nil, fmt.Errorf("RUN_QUEUE_WAIT_MS must not be negative")
+	}
+
 	return &limits{
 		defaultTimeout:   time.Duration(defaultTimeoutMs) * time.Millisecond,
 		maxTimeout:       time.Duration(maxTimeoutMs) * time.Millisecond,

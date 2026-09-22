@@ -50,7 +50,7 @@ apps/api ────────► @packages/types
 apps/web ────────► @packages/dto
 
 (apps/realtime   — независимый Go модуль, потребляет контракты API/Redis)
-(apps/code-runner — независимый Go модуль, вызывается по HTTP из apps/api и apps/realtime)
+(apps/code-runner — независимый Go модуль, внутренний HTTP-контракт)
 ```
 
 ### 🚫 Архитектурные запреты:
