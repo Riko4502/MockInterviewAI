@@ -97,6 +97,26 @@ describe("AuthService", () => {
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
 
+  it("отклоняет вход по паролю для пользователя без пароля даже при успешной проверке фиктивного хеша", async () => {
+    findByEmail.mockResolvedValue({ ...USER, passwordHash: null });
+    await expect(service.login(DTO)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("отклоняет смену пароля для пользователя без пароля", async () => {
+    findById.mockResolvedValue({ ...USER, passwordHash: null });
+    await expect(
+      service.changePassword(USER.id, {
+        currentPassword: "dummy-password",
+        newPassword: "NewPassword123!",
+        newPasswordConfirmation: "NewPassword123!",
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
+  });
+
   beforeEach(async () => {
     jest.clearAllMocks();
 

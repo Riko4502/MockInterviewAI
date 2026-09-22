@@ -485,16 +485,6 @@
               }
             }
           },
-          "409": {
-            "description": "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
             "content": {
@@ -641,6 +631,69 @@
           }
         },
         "summary": "Обновление токенов — refresh token rotation (§65)",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/oauth/providers": {
+      "get": {
+        "operationId": "AuthController_oauthProviders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProvidersResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get configured OAuth providers",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/github": {
+      "get": {
+        "operationId": "AuthController_github",
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "Redirect to GitHub"
+          }
+        },
+        "summary": "Start GitHub OAuth login",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/github/callback": {
+      "get": {
+        "operationId": "AuthController_githubCallback",
+        "parameters": [
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Refresh cookie and redirect to dashboard"
+          }
+        },
+        "summary": "Complete GitHub OAuth login",
         "tags": ["auth"]
       }
     },
@@ -1708,9 +1761,12 @@
             "type": "string"
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
           },
           "email": {
             "type": "string",
@@ -1724,9 +1780,12 @@
             "type": "string"
           },
           "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
@@ -1842,9 +1901,12 @@
             "type": "string"
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            "anyOf": [
+              {},
+              {
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
@@ -2536,8 +2598,7 @@
         "properties": {
           "userId": {
             "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "minLength": 1
           },
           "role": {
             "type": "string",
@@ -2605,6 +2666,15 @@
           }
         },
         "required": ["token", "serverUrl", "roomName"]
+      },
+      "OAuthProvidersResponseDto": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "type": "boolean"
+          }
+        },
+        "required": ["github"]
       }
     }
   }

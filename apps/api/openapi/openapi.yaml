@@ -33,10 +33,10 @@ paths:
                 $ref: "#/components/schemas/UserProfileDto"
         "401":
           description: Не авторизован
-      security: &a1
+      security:
         - bearer: []
       summary: Получить профиль текущего авторизованного пользователя
-      tags: &a2
+      tags:
         - Profile
     patch:
       operationId: ProfileController_updateMyProfile
@@ -59,9 +59,11 @@ paths:
           description: Ошибка валидации входных данных
         "401":
           description: Не авторизован
-      security: *a1
+      security:
+        - bearer: []
       summary: Обновить профиль текущего пользователя
-      tags: *a2
+      tags:
+        - Profile
     delete:
       operationId: ProfileController_deleteMyProfile
       parameters: []
@@ -74,9 +76,11 @@ paths:
                 $ref: "#/components/schemas/MessageResponseDto"
         "401":
           description: Не авторизован
-      security: *a1
+      security:
+        - bearer: []
       summary: Деактивировать аккаунт текущего пользователя
-      tags: *a2
+      tags:
+        - Profile
   /api/v1/profile/avatar:
     post:
       operationId: ProfileController_uploadAvatar
@@ -104,9 +108,11 @@ paths:
           description: Некорректный файл аватара
         "401":
           description: Не авторизован
-      security: *a1
+      security:
+        - bearer: []
       summary: Загрузить аватар профиля
-      tags: *a2
+      tags:
+        - Profile
     delete:
       operationId: ProfileController_deleteAvatar
       parameters: []
@@ -119,9 +125,11 @@ paths:
                 $ref: "#/components/schemas/AvatarDeleteResponseDto"
         "401":
           description: Не авторизован
-      security: *a1
+      security:
+        - bearer: []
       summary: Удалить аватар профиля
-      tags: *a2
+      tags:
+        - Profile
   /api/v1/profile/restore:
     post:
       operationId: ProfileController_restoreMyProfile
@@ -135,9 +143,11 @@ paths:
                 $ref: "#/components/schemas/RestoreProfileResponseDto"
         "401":
           description: Не авторизован
-      security: *a1
+      security:
+        - bearer: []
       summary: Восстановить деактивированный аккаунт
-      tags: *a2
+      tags:
+        - Profile
   /api/v1/users/{idOrUsername}:
     get:
       operationId: UsersController_getPublicProfile
@@ -197,7 +207,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Регистрация нового пользователя (§4)
-      tags: &a3
+      tags:
         - auth
   /api/v1/auth/login:
     post:
@@ -232,7 +242,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Вход пользователя (§58)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/logout:
     post:
       operationId: AuthController_logout
@@ -258,7 +269,8 @@ paths:
       security:
         - bearer: []
       summary: Выход пользователя (§60)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/logout-all:
     post:
       operationId: AuthController_logoutAll
@@ -277,7 +289,8 @@ paths:
       security:
         - bearer: []
       summary: Отзыв всех сессий пользователя (§66)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/change-password:
     post:
       operationId: AuthController_changePassword
@@ -311,13 +324,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
-        "409":
-          description: Состояние пользователя изменилось параллельно — повторите запрос
-            (§67).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponseDto"
         "500":
           description: Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).
           content:
@@ -327,7 +333,8 @@ paths:
       security:
         - bearer: []
       summary: Смена пароля (§67)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/forgot-password:
     post:
       operationId: AuthController_forgotPassword
@@ -354,7 +361,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ValidationErrorResponseDto"
       summary: Запрос ссылки на сброс пароля (Forgot Password)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/reset-password:
     post:
       operationId: AuthController_resetPassword
@@ -382,7 +390,8 @@ paths:
                   - $ref: "#/components/schemas/ValidationErrorResponseDto"
                   - $ref: "#/components/schemas/ErrorResponseDto"
       summary: Установка нового пароля по токену сброса (Reset Password)
-      tags: *a3
+      tags:
+        - auth
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh
@@ -411,7 +420,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Обновление токенов — refresh token rotation (§65)
-      tags: *a3
+      tags:
+        - auth
+  /api/v1/auth/oauth/providers:
+    get:
+      operationId: AuthController_oauthProviders
+      parameters: []
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthProvidersResponseDto"
+      summary: Get configured OAuth providers
+      tags:
+        - auth
+  /api/v1/auth/github:
+    get:
+      operationId: AuthController_github
+      parameters: []
+      responses:
+        "302":
+          description: Redirect to GitHub
+      summary: Start GitHub OAuth login
+      tags:
+        - auth
+  /api/v1/auth/github/callback:
+    get:
+      operationId: AuthController_githubCallback
+      parameters:
+        - name: state
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: code
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Refresh cookie and redirect to dashboard
+      summary: Complete GitHub OAuth login
+      tags:
+        - auth
   /api/v1/admin/users:
     get:
       operationId: AdminUsersController_getUsersList
@@ -485,10 +539,10 @@ paths:
           description: Не авторизован
         "403":
           description: Доступ запрещен (недостаточно прав)
-      security: &a4
+      security:
         - bearer: []
       summary: Получить пагинированный список пользователей с фильтрами и поиском
-      tags: &a5
+      tags:
         - Admin / Users
     post:
       operationId: AdminUsersController_createUser
@@ -515,9 +569,11 @@ paths:
           description: Доступ запрещен
         "409":
           description: Email или username уже заняты
-      security: *a4
+      security:
+        - bearer: []
       summary: Создать нового пользователя администратором
-      tags: *a5
+      tags:
+        - Admin / Users
   /api/v1/admin/users/{id}:
     get:
       operationId: AdminUsersController_getUserById
@@ -542,9 +598,11 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security:
+        - bearer: []
       summary: Получить детальную информацию о пользователе со статистикой
-      tags: *a5
+      tags:
+        - Admin / Users
     patch:
       operationId: AdminUsersController_updateUser
       parameters:
@@ -579,9 +637,11 @@ paths:
           description: Пользователь не найден
         "409":
           description: Email или username уже заняты
-      security: *a4
+      security:
+        - bearer: []
       summary: Обновить данные и/или роль пользователя
-      tags: *a5
+      tags:
+        - Admin / Users
     delete:
       operationId: AdminUsersController_deleteUser
       parameters:
@@ -607,9 +667,11 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security:
+        - bearer: []
       summary: Удалить (деактивировать) пользователя администратором
-      tags: *a5
+      tags:
+        - Admin / Users
   /api/v1/admin/users/{id}/status:
     patch:
       operationId: AdminUsersController_updateStatus
@@ -643,9 +705,11 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security:
+        - bearer: []
       summary: Активировать или деактивировать аккаунт пользователя
-      tags: *a5
+      tags:
+        - Admin / Users
   /api/v1/admin/users/{id}/reset-password:
     post:
       operationId: AdminUsersController_resetPassword
@@ -670,9 +734,11 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security:
+        - bearer: []
       summary: Сбросить пароль пользователя и сгенерировать временный
-      tags: *a5
+      tags:
+        - Admin / Users
   /api/v1/admin/users/{id}/restore:
     post:
       operationId: AdminUsersController_restoreUser
@@ -699,9 +765,11 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security:
+        - bearer: []
       summary: Восстановить удаленного пользователя администратором
-      tags: *a5
+      tags:
+        - Admin / Users
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession
@@ -715,10 +783,10 @@ paths:
                 $ref: "#/components/schemas/CreateSessionResponseDto"
         "401":
           description: Не авторизован
-      security: &a6
+      security:
         - bearer: []
       summary: Создать новую интервью-сессию
-      tags: &a7
+      tags:
         - Sessions
   /api/v1/sessions/{id}/join:
     post:
@@ -752,9 +820,11 @@ paths:
             участником)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security:
+        - bearer: []
       summary: Присоединиться к интервью-сессии
-      tags: *a7
+      tags:
+        - Sessions
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -784,9 +854,11 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security:
+        - bearer: []
       summary: Добавить участника в сессию
-      tags: *a7
+      tags:
+        - Sessions
   /api/v1/sessions/{id}/participants/{userId}:
     delete:
       operationId: SessionsController_removeParticipant
@@ -814,9 +886,11 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия или участник не найдены
-      security: *a6
+      security:
+        - bearer: []
       summary: Удалить участника из сессии
-      tags: *a7
+      tags:
+        - Sessions
   /api/v1/sessions/{id}/close:
     post:
       operationId: SessionsController_closeSession
@@ -837,9 +911,11 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security:
+        - bearer: []
       summary: Закрыть интервью-сессию
-      tags: *a7
+      tags:
+        - Sessions
   /api/v1/sessions/{id}/rotate-invite:
     post:
       operationId: SessionsController_rotateInviteToken
@@ -864,9 +940,11 @@ paths:
           description: Доступ запрещен (не владелец или сессия закрыта)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security:
+        - bearer: []
       summary: Ротировать инвайт-токен сессии
-      tags: *a7
+      tags:
+        - Sessions
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -893,10 +971,10 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: &a8
+      security:
         - bearer: []
       summary: Выдать одноразовый тикет для подключения к WebSocket комнате
-      tags: &a9
+      tags:
         - Realtime
   /api/v1/realtime/media-token:
     post:
@@ -924,9 +1002,11 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: *a8
+      security:
+        - bearer: []
       summary: Выдать LiveKit join-токен для WebRTC медиа
-      tags: *a9
+      tags:
+        - Realtime
   /api/v1/notifications:
     get:
       operationId: NotificationsController_getNotifications
@@ -967,10 +1047,10 @@ paths:
                 $ref: "#/components/schemas/NotificationsListDto"
         "400":
           description: Invalid pagination or category parameters
-      security: &a10
+      security:
         - bearer: []
       summary: Get user notifications
-      tags: &a11
+      tags:
         - Notifications
   /api/v1/notifications/unread-count:
     get:
@@ -983,9 +1063,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadNotificationsCountDto"
-      security: *a10
+      security:
+        - bearer: []
       summary: Get unread notifications count
-      tags: *a11
+      tags:
+        - Notifications
   /api/v1/notifications/read-all:
     post:
       operationId: NotificationsController_markAllAsRead
@@ -997,9 +1079,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
-      security: *a10
+      security:
+        - bearer: []
       summary: Mark all notifications as read
-      tags: *a11
+      tags:
+        - Notifications
   /api/v1/notifications/{id}/read:
     patch:
       operationId: NotificationsController_markAsRead
@@ -1019,9 +1103,11 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a10
+      security:
+        - bearer: []
       summary: Mark notification as read
-      tags: *a11
+      tags:
+        - Notifications
   /api/v1/notifications/{id}:
     delete:
       operationId: NotificationsController_markAsDeleted
@@ -1041,9 +1127,11 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a10
+      security:
+        - bearer: []
       summary: Delete notification
-      tags: *a11
+      tags:
+        - Notifications
 info:
   title: Mock Interview AI API
   description: |-
@@ -1087,9 +1175,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          type: string
-          format: date-time
-          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          anyOf:
+            - {}
+            - type: string
         email:
           type: string
           format: email
@@ -1099,9 +1187,9 @@ components:
         permissions:
           type: string
         updatedAt:
-          type: string
-          format: date-time
-          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          anyOf:
+            - {}
+            - type: string
       required:
         - id
         - displayName
@@ -1192,9 +1280,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          type: string
-          format: date-time
-          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          anyOf:
+            - {}
+            - type: string
       required:
         - id
         - displayName
@@ -1764,8 +1852,7 @@ components:
       properties:
         userId:
           type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          minLength: 1
         role:
           type: string
           enum:
@@ -1825,3 +1912,10 @@ components:
         - token
         - serverUrl
         - roomName
+    OAuthProvidersResponseDto:
+      type: object
+      properties:
+        github:
+          type: boolean
+      required:
+        - github

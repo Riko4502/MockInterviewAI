@@ -66,3 +66,45 @@
 * **OriginCheckGuard**: точный матч `Origin`/`Referer` против `ALLOWED_ORIGINS` (защита от CSRF); допускает self-origin; применяется глобально и на `POST /realtime/ticket`.
 * **Helmet**: устанавливает безопасные HTTP-заголовки (HSTS, X-Content-Type-Options, Frameguard).
 * **CORS**: строгий белый список доменов (`ALLOWED_ORIGINS`) с обязательным `credentials: true`.
+
+## 5. Авторизация через GitHub OAuth
+
+Задайте вместе `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+`GITHUB_CALLBACK_URL` и `FRONTEND_URL`. Без настройки OAuth вход по паролю
+остаётся доступен, а маршруты GitHub возвращают 503. В настройках GitHub OAuth App
+укажите точный URL возврата на backend. Для production требуются HTTPS
+и `COOKIE_SECURE=true`.
+
+- `GET /api/v1/auth/oauth/providers` returns the backend-configured
+  `{ github: boolean }` availability without exposing credentials. Login/register
+  show GitHub only when `github: true`; loading and request errors hide the link.
+- `GET /api/v1/auth/github` сохраняет случайный state, хеш привязки к браузеру
+  и проверочное значение PKCE в Redis на 300 секунд, затем перенаправляет на GitHub
+  с правами `read:user user:email` и PKCE S256. Временная HttpOnly cookie
+  использует существующие атрибуты cookie и привязывает вход к исходному браузеру.
+- `GET /api/v1/auth/github/callback` однократно извлекает state через `GETDEL`,
+  проверяет привязку к браузеру, обменивает код и запрашивает `/user` и
+  `/user/emails`. Предпочтение отдаётся подтверждённому основному email;
+  если его нет, используется другой подтверждённый email. Маршруты OAuth
+  допускают браузерные переходы с других источников. Защиту от CSRF при возврате
+  обеспечивает проверка state вместо глобальной проверки Origin/Referer.
+- Поиск пользователя выполняется сначала по `githubId`, затем по нормализованному
+  email. Условное связывание и повторный поиск при конфликте уникальности
+  предотвращают перезапись связи с другим аккаунтом GitHub. Новые пользователи
+  получают существующую роль USER и `passwordHash = null`.
+- `AuthService.loginUser` сохраняет правила восстановления удалённых аккаунтов
+  и создаёт существующую пару access/refresh JWT и сессию Redis. Контроллер
+  устанавливает существующую refresh cookie и перенаправляет на `/dashboard`
+  по адресу `FRONTEND_URL`. Клиент получает access JWT через существующий
+  `POST /api/v1/auth/refresh`. Токены не передаются в URL перенаправления;
+  отдельный маршрут возврата на frontend не требуется.
+- Токены GitHub не сохраняются. Таймаут HTTP-запросов составляет 10 секунд.
+  Из ошибок исключаются чувствительные данные, из логов запросов — query-параметры.
+
+Повторный запуск OAuth в том же браузере заменяет временную cookie привязки:
+завершить можно только последний начатый вход. Вход по паролю и смена пароля
+отклоняются для пользователей без хеша пароля с общим сообщением об ошибке
+учётных данных. Существующий сброс пароля позволяет задать пароль после
+подтверждения доступа к почте аккаунта.
+
+Описание протокола: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps

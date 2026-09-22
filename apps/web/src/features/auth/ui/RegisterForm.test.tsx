@@ -9,6 +9,7 @@ import { RegisterForm } from "./RegisterForm";
 
 const replaceMock = vi.fn();
 const startSessionMock = vi.fn();
+const registerRequestMock = vi.fn<typeof baseFetch>();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -58,6 +59,20 @@ describe("RegisterForm Integration Flow (T032)", () => {
     resetApiTransportState();
     initApiTransport();
     vi.clearAllMocks();
+    registerRequestMock.mockReset();
+    registerRequestMock.mockRejectedValue(new Error("Unexpected auth request"));
+    vi.mocked(baseFetch).mockReset();
+    vi.mocked(baseFetch).mockImplementation((url, options) => {
+      if (url === "/api/v1/auth/oauth/providers" && options?.method === "GET") {
+        return Promise.resolve({ github: true });
+      }
+      if (url === "/api/v1/auth/register" && options?.method === "POST") {
+        return registerRequestMock(url, options);
+      }
+      return Promise.reject(
+        new Error(`Unexpected request: ${options?.method} ${url}`),
+      );
+    });
   });
 
   afterEach(() => {
@@ -65,7 +80,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
   });
 
   it("успешный flow: useAuthControllerRegister -> customInstance -> web transport -> baseFetch -> startSession -> redirect", async () => {
-    vi.mocked(baseFetch).mockResolvedValueOnce({
+    registerRequestMock.mockResolvedValueOnce({
       accessToken: "mock-access-token-register-888",
     });
 
@@ -92,7 +107,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(registerRequestMock).toHaveBeenCalledTimes(1);
     });
 
     expect(baseFetch).toHaveBeenCalledWith(
@@ -119,7 +134,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
   });
 
   it("error path: ошибка API (409 Conflict) в baseFetch пробрасывается в mutation и не сохраняет токен", async () => {
-    vi.mocked(baseFetch).mockRejectedValueOnce(
+    registerRequestMock.mockRejectedValueOnce(
       new Error("HTTP Error 409: Conflict (Email already exists)"),
     );
 
@@ -146,8 +161,14 @@ describe("RegisterForm Integration Flow (T032)", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(registerRequestMock).toHaveBeenCalledTimes(1);
     });
+
+    expect(
+      await screen.findByText(
+        "HTTP Error 409: Conflict (Email already exists)",
+      ),
+    ).toBeTruthy();
 
     // startSession не должен быть вызван
     expect(startSessionMock).not.toHaveBeenCalled();
@@ -184,11 +205,14 @@ describe("RegisterForm Integration Flow (T032)", () => {
       ).toBeInTheDocument();
     });
 
-    expect(baseFetch).not.toHaveBeenCalled();
+    expect(baseFetch).not.toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.anything(),
+    );
   });
 
   it("validation: разрешает отправку при пароле ровно 12 символов", async () => {
-    vi.mocked(baseFetch).mockResolvedValueOnce({
+    registerRequestMock.mockResolvedValueOnce({
       accessToken: "mock-access-token-12-chars",
     });
 
@@ -215,7 +239,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(registerRequestMock).toHaveBeenCalledTimes(1);
     });
 
     expect(baseFetch).toHaveBeenCalledWith(
@@ -258,7 +282,10 @@ describe("RegisterForm Integration Flow (T032)", () => {
       expect(screen.getByText("Некорректный email")).toBeInTheDocument();
     });
 
-    expect(baseFetch).not.toHaveBeenCalled();
+    expect(baseFetch).not.toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.anything(),
+    );
   });
 
   it("validation: блокирует отправку при пустом email", async () => {
@@ -288,7 +315,10 @@ describe("RegisterForm Integration Flow (T032)", () => {
       expect(screen.getByText("Email обязателен")).toBeInTheDocument();
     });
 
-    expect(baseFetch).not.toHaveBeenCalled();
+    expect(baseFetch).not.toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.anything(),
+    );
   });
 
   it("validation: блокирует отправку и показывает ошибку при несовпадении паролей", async () => {
@@ -318,6 +348,9 @@ describe("RegisterForm Integration Flow (T032)", () => {
       expect(screen.getByText("Пароли не совпадают")).toBeInTheDocument();
     });
 
-    expect(baseFetch).not.toHaveBeenCalled();
+    expect(baseFetch).not.toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.anything(),
+    );
   });
 });

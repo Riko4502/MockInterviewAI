@@ -9,10 +9,8 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
-import type { AddParticipantDtoRole } from './addParticipantDtoRole';
 
-export interface AddParticipantDto {
-  /** @minLength 1 */
-  userId: string;
-  role: AddParticipantDtoRole;
-}
+export type AuthControllerGithubCallbackParams = {
+state?: string;
+code?: string;
+};
