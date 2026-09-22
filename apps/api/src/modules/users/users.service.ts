@@ -133,6 +133,33 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по telegramId.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя или `null`, если не найден.
+   */
+  async findByTelegramId(telegramId: bigint): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { telegramId } });
+  }
+
+  /**
+   * Ищет пользователя по telegramId с подгрузкой роли и прав.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleByTelegramId(
+    telegramId: bigint,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { telegramId },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  /**
    * Ищет пользователя по username.
    *
    * @param username - Уникальный username.
@@ -168,6 +195,46 @@ export class UsersService {
       data: {
         email: data.email,
         passwordHash: data.passwordHash,
+        roleId: defaultRole.id,
+      },
+    });
+  }
+
+  /**
+   * Создаёт нового пользователя через Telegram с назначением дефолтной роли USER.
+   *
+   * @param data - Данные Telegram регистрации: `email`, `passwordHash`, `telegramId`, `telegramUsername`, `displayName`, `avatarUrl`.
+   * @returns Созданный объект пользователя.
+   */
+  async createTelegramUser(data: {
+    email: string;
+    passwordHash: string;
+    telegramId: bigint;
+    telegramUsername?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    roleSlug?: string;
+  }): Promise<User> {
+    const roleSlug = data.roleSlug ?? SystemRole.USER;
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { slug: roleSlug },
+    });
+
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Default role '${roleSlug}' not found in database.`,
+      );
+    }
+
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        telegramId: data.telegramId,
+        telegramUsername: data.telegramUsername ?? null,
+        displayName: data.displayName ?? null,
+        avatarUrl: data.avatarUrl ?? null,
+        username: null,
         roleId: defaultRole.id,
       },
     });

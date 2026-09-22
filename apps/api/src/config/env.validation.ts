@@ -19,6 +19,7 @@ const envSchema = z.object({
   JWT_ISSUER: z.string().min(1).default("mock-interview-ai"),
   JWT_AUDIENCE: z.string().min(1).default("api"),
   REFRESH_TOKEN_HASH_SECRET: z.string().min(32),
+  TELEGRAM_BOT_TOKEN: z.string().optional().default("mock_telegram_bot_token"),
   ARGON2_MEMORY_COST: z.coerce.number().int().positive().default(65536),
   ARGON2_TIME_COST: z.coerce.number().int().positive().default(3),
   ARGON2_PARALLELISM: z.coerce.number().int().positive().default(4),

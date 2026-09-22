@@ -284,6 +284,53 @@ describe("UsersService", () => {
     });
   });
 
+  describe("findByTelegramId and createTelegramUser", () => {
+    it("ищет пользователя по telegramId", async () => {
+      const tgUser = { ...mockUser, telegramId: BigInt(123456789) };
+      prismaMock.user.findUnique.mockResolvedValue(tgUser);
+
+      const result = await service.findByTelegramId(BigInt(123456789));
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { telegramId: BigInt(123456789) },
+      });
+      expect(result).toEqual(tgUser);
+    });
+
+    it("создает нового пользователя через createTelegramUser", async () => {
+      const createdUser = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        username: null,
+      };
+      prismaMock.user.create.mockResolvedValue(createdUser);
+
+      const result = await service.createTelegramUser({
+        email: "tg@example.com",
+        passwordHash: "argon2id$hash",
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        displayName: "Telegram User",
+        avatarUrl: "https://s3.local/avatar.webp",
+      });
+
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: "tg@example.com",
+          passwordHash: "argon2id$hash",
+          telegramId: BigInt(123456789),
+          telegramUsername: "tg_user",
+          displayName: "Telegram User",
+          avatarUrl: "https://s3.local/avatar.webp",
+          username: null,
+          roleId: "00000000-0000-4000-a000-000000000002",
+        },
+      });
+      expect(result).toEqual(createdUser);
+    });
+  });
+
   describe("getPublicProfile", () => {
     it("ищет по UUID и игнорирует удаленные аккаунты", async () => {
       const publicData = {

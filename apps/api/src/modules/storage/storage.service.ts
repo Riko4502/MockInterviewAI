@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Readable } from "node:stream";
 import "multer";
 import {
   DeleteObjectCommand,
@@ -149,6 +150,102 @@ export class StorageService {
       throw new ServiceUnavailableException(
         "Storage service is temporarily unavailable",
       );
+    }
+  }
+
+  /**
+   * Безопасно скачивает аватар по внешней ссылке (например, Telegram photo_url)
+   * с защитой от SSRF и загружает в S3.
+   *
+   * @param userId - UUID пользователя.
+   * @param imageUrl - URL внешнего изображения.
+   * @returns Публичный URL аватара в S3 или null при ошибке.
+   */
+  async uploadAvatarFromUrl(
+    userId: string,
+    imageUrl?: string | null,
+  ): Promise<string | null> {
+    if (!imageUrl) return null;
+
+    try {
+      const parsedUrl = new URL(imageUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        this.logger.warn(
+          `SSRF protection: Invalid protocol ${parsedUrl.protocol}`,
+        );
+        return null;
+      }
+
+      const hostname = parsedUrl.hostname.toLowerCase();
+      if (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname === "169.254.169.254" ||
+        hostname.startsWith("10.") ||
+        hostname.startsWith("192.168.") ||
+        (hostname.startsWith("172.") &&
+          Number.parseInt(hostname.split(".")[1] ?? "0", 10) >= 16 &&
+          Number.parseInt(hostname.split(".")[1] ?? "0", 10) <= 31)
+      ) {
+        this.logger.warn(
+          `SSRF protection: Blocked request to private IP/host ${hostname}`,
+        );
+        return null;
+      }
+
+      const response = await fetch(imageUrl, {
+        signal: AbortSignal.timeout(5000),
+        redirect: "manual",
+      });
+
+      if (!response.ok) {
+        this.logger.warn(
+          `Failed to fetch avatar from URL ${imageUrl}: status ${response.status}`,
+        );
+        return null;
+      }
+
+      const contentLength = response.headers.get("content-length");
+      if (
+        contentLength &&
+        Number.parseInt(contentLength, 10) > this.maxAvatarSizeBytes
+      ) {
+        this.logger.warn(
+          `Avatar from URL ${imageUrl} exceeds maximum size limit`,
+        );
+        return null;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      if (buffer.length > this.maxAvatarSizeBytes) {
+        this.logger.warn(
+          `Avatar buffer from URL ${imageUrl} exceeds maximum size limit`,
+        );
+        return null;
+      }
+
+      const file: Express.Multer.File = {
+        fieldname: "avatar",
+        originalname: "telegram-avatar.jpg",
+        encoding: "7bit",
+        mimetype: response.headers.get("content-type") || "image/jpeg",
+        buffer,
+        size: buffer.length,
+        stream: null as unknown as Readable,
+        destination: "",
+        filename: "",
+        path: "",
+      };
+
+      return await this.uploadAvatar(userId, file);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to upload avatar from URL ${imageUrl}: ${String(err)}`,
+      );
+      return null;
     }
   }
 

@@ -27,6 +27,9 @@ export const configuration = () => ({
     audience: process.env.JWT_AUDIENCE ?? "api",
   },
   refreshTokenHashSecret: process.env.REFRESH_TOKEN_HASH_SECRET ?? "",
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN ?? "mock_telegram_bot_token",
+  },
   argon2: {
     memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? 65536),
     timeCost: Number(process.env.ARGON2_TIME_COST ?? 3),

@@ -44,6 +44,7 @@ model User {
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
+  telegramId       BigInt?   @unique
   telegramUsername String?
   gitUrl           String?
   deletedAt        DateTime?

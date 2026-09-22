@@ -126,4 +126,102 @@ describe("StorageService", () => {
       await expect(service.deleteFile(null)).resolves.not.toThrow();
     });
   });
+
+  describe("uploadAvatarFromUrl", () => {
+    it("блокирует SSRF обращения к приватным IP и localhost", async () => {
+      const urlLocalhost = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://localhost:8080/image.jpg",
+      );
+      expect(urlLocalhost).toBeNull();
+
+      const urlPrivateIp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://192.168.1.1/image.jpg",
+      );
+      expect(urlPrivateIp).toBeNull();
+
+      const urlMetadata = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://169.254.169.254/latest/meta-data/",
+      );
+      expect(urlMetadata).toBeNull();
+    });
+
+    it("отклоняет HTTP редиректы (redirect: manual) во избежание SSRF обхода", async () => {
+      const globalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 302,
+        headers: { get: () => null },
+      });
+
+      const result = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://example.com/redirect-to-internal.jpg",
+      );
+      expect(result).toBeNull();
+
+      global.fetch = globalFetch;
+    });
+
+    it("отклоняет протоколы отличные от http/https", async () => {
+      const urlFtp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "file:///etc/passwd",
+      );
+      expect(urlFtp).toBeNull();
+    });
+
+    it("возвращает null при ошибке сети fetch", async () => {
+      const globalFetch = global.fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+
+      const result = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://example.com/avatar.jpg",
+      );
+      expect(result).toBeNull();
+
+      global.fetch = globalFetch;
+    });
+
+    it("успешно скачивает и загружает валидный аватар по внешней ссылке", async () => {
+      const pngBuffer = await sharp({
+        create: {
+          width: 100,
+          height: 100,
+          channels: 4,
+          background: { r: 0, g: 255, b: 0, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+
+      const globalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (header: string) => {
+            if (header === "content-length") return String(pngBuffer.length);
+            if (header === "content-type") return "image/png";
+            return null;
+          },
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(pngBuffer.buffer),
+      });
+
+      const url = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://cdn.telegram.org/avatar.png",
+      );
+      expect(url).toContain(
+        "http://localhost:9000/mock-interview-storage/avatars/user-123/",
+      );
+      expect(url?.endsWith(".webp")).toBe(true);
+
+      global.fetch = globalFetch;
+    });
+  });
 });

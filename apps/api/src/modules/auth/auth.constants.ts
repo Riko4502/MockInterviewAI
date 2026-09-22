@@ -24,3 +24,9 @@ export const REDIS_DUMMY_PASSWORD_RESET_PREFIX = "dummy:password-reset:";
 
 /** TTL токена сброса пароля в секундах (15 минут). */
 export const PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60;
+
+/** Префикс ключа Redis для онбординга Telegram. Формат: `tg_onboarding:{token}`. */
+export const REDIS_TELEGRAM_ONBOARDING_PREFIX = "tg_onboarding:";
+
+/** TTL онбординг токена Telegram в секундах (15 минут). */
+export const TELEGRAM_ONBOARDING_TTL_SECONDS = 15 * 60;

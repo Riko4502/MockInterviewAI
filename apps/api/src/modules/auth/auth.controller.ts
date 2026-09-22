@@ -28,6 +28,12 @@ import {
   type ResetPasswordDto,
   registerSchema,
   resetPasswordSchema,
+  type TelegramAuthDto,
+  type TelegramCompleteDto,
+  type TelegramLinkDto,
+  telegramAuthSchema,
+  telegramCompleteSchema,
+  telegramLinkSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
 import { Public } from "../../common/decorators/public.decorator";
@@ -507,6 +513,63 @@ export class AuthController {
       }
       throw error;
     }
+  }
+
+  /**
+   * Аутентификация через Telegram Login Widget.
+   */
+  @Post("telegram")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(telegramAuthSchema, "TelegramAuthDto")
+  @ApiOperation({ summary: "Вход через Telegram Widget" })
+  async telegramAuth(
+    @Body(new ZodValidationPipe(telegramAuthSchema)) dto: TelegramAuthDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.telegramAuth(dto);
+
+    if (result.status === "AUTHENTICATED") {
+      this.setRefreshTokenCookie(response, result.refreshToken);
+      return { status: "AUTHENTICATED", accessToken: result.accessToken };
+    }
+
+    return { status: "NEED_EMAIL", onboardingToken: result.onboardingToken };
+  }
+
+  /**
+   * Завершение онбординга через Telegram Widget с указанием email.
+   */
+  @Post("telegram/complete")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(telegramCompleteSchema, "TelegramCompleteDto")
+  @ApiOperation({ summary: "Завершение онбординга Telegram с указом email" })
+  async telegramComplete(
+    @Body(new ZodValidationPipe(telegramCompleteSchema))
+    dto: TelegramCompleteDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ accessToken: string }> {
+    const result = await this.authService.telegramComplete(dto);
+    this.setRefreshTokenCookie(response, result.refreshToken);
+    return { accessToken: result.accessToken };
+  }
+
+  /**
+   * Привязка Telegram аккаунта к авторизованному пользователю.
+   */
+  @Post("telegram/link")
+  @HttpCode(HttpStatus.OK)
+  @ZodBody(telegramLinkSchema, "TelegramLinkDto")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Привязка Telegram аккаунта" })
+  async telegramLink(
+    @Req() request: AuthRequest,
+    @Body(new ZodValidationPipe(telegramLinkSchema)) dto: TelegramLinkDto,
+  ): Promise<{ message: string }> {
+    return this.authService.telegramLink(request.user.sub, dto);
   }
 
   /**

@@ -1,5 +1,6 @@
 import { HttpStatus, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import type { TelegramAuthDto, TelegramLinkDto } from "@packages/dto";
 import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
@@ -49,6 +50,9 @@ describe("AuthController", () => {
   let changePasswordMock: jest.Mock;
   let forgotPasswordMock: jest.Mock;
   let resetPasswordMock: jest.Mock;
+  let telegramAuthMock: jest.Mock;
+  let telegramCompleteMock: jest.Mock;
+  let telegramLinkMock: jest.Mock;
   let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
@@ -69,6 +73,14 @@ describe("AuthController", () => {
       message: "The password has been successfully changed",
     });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramAuthMock = jest.fn().mockResolvedValue({
+      status: "AUTHENTICATED",
+      ...AUTH_RESULT,
+    });
+    telegramCompleteMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramLinkMock = jest
+      .fn()
+      .mockResolvedValue({ message: "Telegram account linked successfully" });
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
     statusMock = jest.fn();
@@ -90,6 +102,9 @@ describe("AuthController", () => {
         forgotPassword: forgotPasswordMock,
         resetPassword: resetPasswordMock,
         refresh: refreshMock,
+        telegramAuth: telegramAuthMock,
+        telegramComplete: telegramCompleteMock,
+        telegramLink: telegramLinkMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
     );
@@ -609,6 +624,82 @@ describe("AuthController", () => {
         AuthController.prototype.forgotPassword,
       ) as unknown[];
       expect(guards).toContain(AuthThrottlerGuard);
+    });
+  });
+
+  describe("POST /auth/telegram", () => {
+    const tgDto = {
+      id: 123456789,
+      auth_date: 1700000000,
+      hash: "hash",
+    };
+
+    it("при статсуе AUTHENTICATED выставляет refresh cookie и возвращает accessToken", async () => {
+      const result = await createController().telegramAuth(
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(telegramAuthMock).toHaveBeenCalledWith(tgDto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        status: "AUTHENTICATED",
+        accessToken: "raw.access.token",
+      });
+    });
+
+    it("при статусе NEED_EMAIL возвращает onboardingToken без вызова cookie", async () => {
+      telegramAuthMock.mockResolvedValue({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+
+      const result = await createController().telegramAuth(
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(cookieMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+    });
+  });
+
+  describe("POST /auth/telegram/complete", () => {
+    it("выставляет refresh cookie и возвращает accessToken", async () => {
+      const dto = { onboardingToken: "token_123", email: "test@example.com" };
+      const result = await createController().telegramComplete(dto, response);
+
+      expect(telegramCompleteMock).toHaveBeenCalledWith(dto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(result).toEqual({ accessToken: "raw.access.token" });
+    });
+  });
+
+  describe("POST /auth/telegram/link", () => {
+    it("привязывает Telegram аккаунт к авторизованному пользователю", async () => {
+      const request = createRequestWithUser({ sub: "user-uuid" });
+      const tgDto = { id: 123456789, auth_date: 1700000000, hash: "hash" };
+
+      const result = await createController().telegramLink(
+        request,
+        tgDto as TelegramLinkDto,
+      );
+
+      expect(telegramLinkMock).toHaveBeenCalledWith("user-uuid", tgDto);
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
     });
   });
 
