@@ -64,6 +64,9 @@ func (m *mockSessionStoreOrder) IsAuthSessionActive(context.Context, string) (bo
 func (m *mockSessionStoreOrder) ConsumeTicket(context.Context, string) (bool, error) {
 	return true, nil
 }
+func (m *mockSessionStoreOrder) CheckMinGeneration(context.Context, string, int) (bool, error) {
+	return true, nil
+}
 func (m *mockSessionStoreOrder) TouchMirror(context.Context, string, time.Duration) error {
 	return nil
 }

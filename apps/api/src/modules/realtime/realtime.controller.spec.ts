@@ -1,4 +1,4 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import type { RedisService } from "../../redis/redis.service";
 import type { TokenService } from "../auth/services/token.service";
 import type { LivekitService } from "./livekit.service";
@@ -10,9 +10,10 @@ describe("RealtimeController", () => {
   let livekitServiceMock: { generateMediaToken: jest.Mock };
   let redisMock: { get: jest.Mock; hget: jest.Mock };
 
-  const userId = "user-uuid-1";
-  const sid = "sid-uuid-1";
-  const sessionId = "session-uuid-1";
+  const userId = "00000000-0000-0000-0000-000000000002";
+  const sid = "00000000-0000-0000-0000-000000000003";
+  const sessionId = "00000000-0000-0000-0000-000000000001";
+  const generation = 1;
 
   beforeEach(() => {
     tokenServiceMock = {
@@ -38,11 +39,16 @@ describe("RealtimeController", () => {
   });
 
   describe("getTicket", () => {
-    it("выдаёт тикет для валидного участника активной сессии", async () => {
+    it("выдаёт тикет для валидного участника активной сессии с generation", async () => {
       redisMock.get.mockResolvedValue("true");
       redisMock.hget.mockResolvedValue("CANDIDATE");
 
-      const result = await controller.getTicket({ sessionId }, userId, sid);
+      const result = await controller.getTicket(
+        { sessionId },
+        userId,
+        sid,
+        generation,
+      );
 
       expect(result).toEqual({ ticket: "jwt-ticket-mock" });
       expect(redisMock.get).toHaveBeenCalledWith(`session:${sessionId}:active`);
@@ -54,7 +60,17 @@ describe("RealtimeController", () => {
         userId,
         sid,
         sessionId,
+        generation,
       );
+    });
+
+    it("бросает UnauthorizedException если generation отсутствует", async () => {
+      await expect(
+        controller.getTicket({ sessionId }, userId, sid, undefined),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(redisMock.get).not.toHaveBeenCalled();
+      expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();
     });
 
     it("бросает ForbiddenException если сессия не активна в Redis", async () => {
@@ -62,7 +78,7 @@ describe("RealtimeController", () => {
       redisMock.hget.mockResolvedValue("CANDIDATE");
 
       await expect(
-        controller.getTicket({ sessionId }, userId, sid),
+        controller.getTicket({ sessionId }, userId, sid, generation),
       ).rejects.toThrow(ForbiddenException);
 
       expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();
@@ -73,7 +89,7 @@ describe("RealtimeController", () => {
       redisMock.hget.mockResolvedValue(null);
 
       await expect(
-        controller.getTicket({ sessionId }, userId, sid),
+        controller.getTicket({ sessionId }, userId, sid, generation),
       ).rejects.toThrow(ForbiddenException);
 
       expect(tokenServiceMock.generateRealtimeTicket).not.toHaveBeenCalled();

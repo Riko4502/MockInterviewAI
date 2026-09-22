@@ -16,10 +16,13 @@ const mockRedisInstance = {
   emit: mockRedisEvents.emit.bind(mockRedisEvents),
   set: jest.fn().mockResolvedValue("OK"),
   get: jest.fn().mockResolvedValue(null),
+  mget: jest.fn().mockResolvedValue([]),
   del: jest.fn().mockResolvedValue(1),
   expire: jest.fn().mockResolvedValue(1),
   ping: jest.fn().mockResolvedValue("PONG"),
+  eval: jest.fn().mockResolvedValue(1),
   scanStream: jest.fn(),
+  xadd: jest.fn().mockResolvedValue("1724500000000-0"),
 };
 
 jest.mock("ioredis", () => {
@@ -202,6 +205,31 @@ describe("RedisService", () => {
     });
   });
 
+  describe("xadd", () => {
+    it("writes the payload field consumed by realtime", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+
+      await expect(
+        service.xadd(stream, "notification.new", payload, 100, 604800),
+      ).resolves.toBe("1724500000000-0");
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+      );
+      expect(mockRedisInstance.expire).toHaveBeenCalledWith(stream, 604800);
+    });
+  });
+
   describe("get", () => {
     it("возвращает значение", async () => {
       mockRedisInstance.get.mockResolvedValue("hello");
@@ -216,6 +244,23 @@ describe("RedisService", () => {
       await service.onModuleInit();
       const result = await service.get("missing");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("mget", () => {
+    it("возвращает массив значений", async () => {
+      mockRedisInstance.mget.mockResolvedValue(["val1", "val2"]);
+      await service.onModuleInit();
+      const result = await service.mget(["k1", "k2"]);
+      expect(result).toEqual(["val1", "val2"]);
+      expect(mockRedisInstance.mget).toHaveBeenCalledWith("k1", "k2");
+    });
+
+    it("возвращает пустой массив если передан пустой список ключей", async () => {
+      await service.onModuleInit();
+      const result = await service.mget([]);
+      expect(result).toEqual([]);
+      expect(mockRedisInstance.mget).not.toHaveBeenCalled();
     });
   });
 
@@ -241,6 +286,23 @@ describe("RedisService", () => {
       const result = await service.ping();
       expect(result).toBe("PONG");
       expect(mockRedisInstance.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("eval", () => {
+    it("выполняет Lua-скрипт с ключами и аргументами", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.eval("return 1", ["k1", "k2"], ["a1", 10]);
+      expect(result).toBe(1);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        "return 1",
+        2,
+        "k1",
+        "k2",
+        "a1",
+        10,
+      );
     });
   });
 

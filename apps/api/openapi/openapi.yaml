@@ -446,6 +446,296 @@ paths:
           description: Refresh cookie and redirect to dashboard
       summary: Complete GitHub OAuth login
       tags: *a3
+  /api/v1/admin/users:
+    get:
+      operationId: AdminUsersController_getUsersList
+      parameters:
+        - name: sortOrder
+          required: false
+          in: query
+          description: Направление сортировки (по умолчанию desc)
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Поле сортировки (по умолчанию createdAt)
+          schema:
+            enum:
+              - createdAt
+              - email
+              - username
+              - displayName
+              - role
+              - updatedAt
+            type: string
+        - name: isDeleted
+          required: false
+          in: query
+          description: Фильтр по статусу удаления (soft-deleted)
+          schema:
+            type: boolean
+        - name: isActive
+          required: false
+          in: query
+          description: Фильтр по статусу активности
+          schema:
+            type: boolean
+        - name: role
+          required: false
+          in: query
+          description: Фильтр по роли пользователя (например, USER или ADMIN)
+          schema:
+            type: string
+        - name: search
+          required: false
+          in: query
+          description: Поиск по email, username или displayName
+          schema:
+            type: string
+        - name: limit
+          required: false
+          in: query
+          description: Количество записей на страницу (по умолчанию 20, макс. 100)
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          description: Номер страницы (по умолчанию 1)
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Пагинированный список пользователей
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedUsersAdminResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен (недостаточно прав)
+      security: &a4
+        - bearer: []
+      summary: Получить пагинированный список пользователей с фильтрами и поиском
+      tags: &a5
+        - Admin / Users
+    post:
+      operationId: AdminUsersController_createUser
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserAdminDto"
+      responses:
+        "201":
+          description: Пользователь успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Некорректные входные данные или роль не найдена
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "409":
+          description: Email или username уже заняты
+      security: *a4
+      summary: Создать нового пользователя администратором
+      tags: *a5
+  /api/v1/admin/users/{id}:
+    get:
+      operationId: AdminUsersController_getUserById
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Детальная информация о пользователе
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminDetailResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Получить детальную информацию о пользователе со статистикой
+      tags: *a5
+    patch:
+      operationId: AdminUsersController_updateUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserAdminDto"
+      responses:
+        "200":
+          description: Данные пользователя успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Некорректные входные данные
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+        "409":
+          description: Email или username уже заняты
+      security: *a4
+      summary: Обновить данные и/или роль пользователя
+      tags: *a5
+    delete:
+      operationId: AdminUsersController_deleteUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Пользователь успешно удален
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Попытка удалить собственный аккаунт администратора
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Удалить (деактивировать) пользователя администратором
+      tags: *a5
+  /api/v1/admin/users/{id}/status:
+    patch:
+      operationId: AdminUsersController_updateStatus
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserStatusAdminDto"
+      responses:
+        "200":
+          description: Статус активности пользователя успешно изменен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Попытка деактивировать собственный аккаунт администратора
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Активировать или деактивировать аккаунт пользователя
+      tags: *a5
+  /api/v1/admin/users/{id}/reset-password:
+    post:
+      operationId: AdminUsersController_resetPassword
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Пароль пользователя успешно сброшен, сгенерирован временный пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Сбросить пароль пользователя и сгенерировать временный
+      tags: *a5
+  /api/v1/admin/users/{id}/restore:
+    post:
+      operationId: AdminUsersController_restoreUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID пользователя
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Пользователь успешно восстановлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdminResponseDto"
+        "400":
+          description: Аккаунт пользователя не был удален
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен
+        "404":
+          description: Пользователь не найден
+      security: *a4
+      summary: Восстановить удаленного пользователя администратором
+      tags: *a5
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession

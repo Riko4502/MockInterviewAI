@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
-import { baseFetch } from "@/shared/api/base";
+import { baseFetch } from "@/shared/api/http/base";
 import { paths } from "@/shared/config";
 import { LoginForm } from "./LoginForm";
 
@@ -22,7 +22,7 @@ vi.mock("@/entities/session", () => ({
   }),
 }));
 
-vi.mock("@/shared/api/base", () => ({
+vi.mock("@/shared/api/http/base", () => ({
   baseFetch: vi.fn(),
   HttpError: class HttpError extends Error {
     constructor(

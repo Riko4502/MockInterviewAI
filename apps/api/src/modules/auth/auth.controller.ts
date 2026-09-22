@@ -310,7 +310,7 @@ export class AuthController {
    * доступен только с валидным access token в `Authorization`. `userId`
    * берётся из `request.user.sub`. При успехе отзываются все Redis-сессии
    * пользователя и сбрасывается refresh cookie; ответ `204 No Content`
-   * (SPEC §66). Access token остаётся валидным до истечения (stateless).
+   * (SPEC §66). Access token становится недействительным сразу после отзыва (live-проверка сессии в AccessTokenGuard).
    *
    * @param request - HTTP-запрос с `request.user` (payload access token).
    * @param response - HTTP-ответ Express для очистки refresh cookie.
@@ -374,6 +374,12 @@ export class AuthController {
   @ApiResponse({
     status: 404,
     description: "Пользователь не найден (§67).",
+    schema: errorResponseRef,
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
     schema: errorResponseRef,
   })
   @ApiResponse({

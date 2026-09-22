@@ -17,9 +17,9 @@
  *   чтобы браузер самостоятельно добавил multipart boundary.
  */
 
-import { RefreshSessionError, refreshAccessToken } from "./auth-session";
-import { authToken } from "./auth-token";
-import { getApiUrl } from "./endpoints";
+import { RefreshSessionError, refreshAccessToken } from "../auth/auth-session";
+import { authToken } from "../auth/auth-token";
+import { getApiUrl } from "../config/endpoints";
 
 export class HttpError<T = unknown> extends Error {
   constructor(

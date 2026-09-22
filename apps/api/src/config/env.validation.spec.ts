@@ -39,6 +39,11 @@ describe("Валидация переменных окружения GitHub OAut
       "GitHub OAuth callback and frontend URLs must use HTTPS in production",
     );
   });
+  it("принимает HTTPS-конфигурацию OAuth в production и сохраняет настройки GitHub", () => {
+    expect(
+      validate({ ...requiredEnv, NODE_ENV: "production", ...github }),
+    ).toMatchObject(github);
+  });
   it("сохраняет HTTP URL для development и test", () => {
     expect(validate({ ...requiredEnv, ...githubHttp })).toMatchObject(
       githubHttp,

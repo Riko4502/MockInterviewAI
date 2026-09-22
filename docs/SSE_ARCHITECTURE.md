@@ -270,7 +270,7 @@ func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 Чтобы Redis не переполнялся старыми уведомлениями:
 1. Публикация выполняется с модификатором приближенной обрезки (O(1) по сложности):
    ```bash
-   XADD user:42:notifications MAXLEN ~ 100 * type "session.invited" data "{...}"
+   XADD user:42:notifications MAXLEN ~ 100 * type "session.invited" payload "{...}"
    ```
 2. Каждому ключу стрима выставляется TTL 7 дней (`EXPIRE user:42:notifications 604800`). Неактивные пользователи автоматически выгружаются из RAM Redis.
 
@@ -343,7 +343,7 @@ func (s *UserSession) Broadcast(event *SSEEvent) {
 event: session.invited
 id: 1724500001000-0
 retry: 3000
-data: {"sessionId":"sess-123","sessionTitle":"Go Senior Interview","inviterName":"Alex"}
+data: {"id":"1724500001000-0","type":"session.invited","timestamp":"2024-08-24T11:46:41Z","payload":{"sessionId":"sess-123","sessionTitle":"Go Senior Interview","inviterName":"Alex"}}
 
 ```
 
@@ -391,7 +391,7 @@ _, err := redisClient.XAdd(ctx, &redis.XAddArgs{
     Approx: true,
     Values: map[string]any{
         "type": "code_runner.status",
-        "data": string(payloadBytes),
+        "payload": string(payloadBytes),
     },
 }).Result()
 ```
@@ -401,10 +401,12 @@ _, err := redisClient.XAdd(ctx, &redis.XAddArgs{
 
 ### Шаг 3: Обработка на Frontend (React / TypeScript)
 ```typescript
-const eventSource = new EventSource('/api/sse/notifications', { withCredentials: true });
+import { openNotificationStream } from "@/shared/api/realtime/notification-stream";
+
+const eventSource = openNotificationStream();
 
 eventSource.addEventListener('code_runner.status', (event) => {
-  const data = JSON.parse(event.data);
+  const { payload: data } = JSON.parse(event.data);
   toast.success(`Тесты пройдены: ${data.passedCount}/${data.totalCount}`);
 });
 ```
@@ -449,3 +451,64 @@ location /sse/ {
 - **Replay (Воспроизведение):** Процесс повторной отправки клиенту тех сообщений из Redis Stream, которые он пропустил за время нахождения в оффлайне.
 - **Slow Consumer:** Клиент, скорость чтения которого ниже скорости генерации событий сервером, что может приводить к переполнению очередей.
 - **Heartbeat (Комментарии SSE):** Периодические пустые строки вида `: ping\n\n`, предотвращающие разрыв соединения промежуточными прокси-серверами по таймауту неактивности.
+
+## Подключение уведомлений в apps/web
+
+`NotificationRealtime` подключён один раз в `AppProviders`, внутри `SessionProvider`
+и `UIProvider` (который включает `ToastProvider`). Соединение открывается после
+авторизации, закрывается при выходе и не пересоздаётся при переходах между страницами.
+
+Клиент использует `EventSource` из пакета `eventsource` с собственным `fetch`:
+access token хранится в памяти и передаётся в `Authorization: Bearer`, а не в URL.
+Это необходимо, поскольку встроенный браузерный EventSource не поддерживает
+произвольные заголовки, а API устанавливает только refresh cookie.
+При HTTP 401 клиент обновляет токен через существующий `refreshAccessToken` и
+повторяет подключение. Отказ refresh с 401/403 или событие `auth.revoked` завершает
+сессию. Временные сбои соединения повторяются клиентом с сохранением Last-Event-ID.
+
+Адрес берётся из `NEXT_PUBLIC_REALTIME_URL` в `apps/web/.env.local`
+(например, `http://localhost:8080`), путь — `/sse/notifications`.
+Допускаются ws/wss URL: для SSE они преобразуются в http/https.
+Realtime должен разрешать origin frontend и заголовок Authorization в CORS.
+Для локальной проверки нужны API, Redis и запущенный `pnpm run dev:realtime`.
+
+- `notification.new`: счётчик увеличивается на 1, появляется информационный тост
+  с кнопкой «Посмотреть», открывающей `/dashboard/notifications`.
+- `notification.badge`: счётчик устанавливается в точное серверное значение,
+  включая 0; повторной прибавки не происходит.
+- Оба события инвалидируют ключи списков и счётчика TanStack Query. Активные
+  запросы обновляются автоматически; при открытии/восстановлении SSE также
+  выполняется инвалидация для сверки с PostgreSQL.
+- Повторные новые уведомления отсеиваются по ID (последние 1000 за соединение).
+  Невалидные JSON/payload игнорируются. Незавершённый запрос старого счётчика
+  отменяется перед применением события.
+
+Тесты: `pnpm --filter web exec vitest run src/features/notification-realtime src/shared/api/realtime/notification-stream.test.ts`.
+
+### notification.new: wire contract and CLI testing
+
+Producers write Redis Stream fields `type` and `payload` (JSON).
+The Go consumer reads `payload`; `Envelope.Frame()` sends this envelope
+in SSE `data:`:
+
+```json
+{"id":"1724500000000-0","type":"notification.new","timestamp":"2024-08-24T11:46:40Z","payload":{"id":"notification-id","title":"Test SSE","message":"Notification delivered"}}
+```
+
+The outer `id` is the Redis Stream cursor; `payload.id` identifies the notification.
+Frontend validates `type` and `payload.id/title/message`. Invalid JSON/payload
+is ignored with a development-only warning containing the event type and Zod
+issues, without logging the notification body.
+
+`pnpm sse:send` writes only to Redis, not PostgreSQL. An empty GET /notifications
+is expected after a CLI event. Refetching unread-count can reset the immediate
++1 to the database count. Do not persist synthetic notifications in frontend cache.
+
+Production flow in `NotificationsService.createNotification`:
+database insert -> REST cache invalidation -> notification.new publication ->
+notification.badge publication -> SSE delivery.
+
+If DevTools shows an event without UI feedback, compare its data with the envelope
+above and inspect the development warning. The current CLI and Go source produce
+a compatible envelope; a flat payload would indicate a running service that differs
+from this contract.

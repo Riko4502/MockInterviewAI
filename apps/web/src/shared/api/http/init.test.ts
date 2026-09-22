@@ -94,7 +94,7 @@ describe("initApiTransport", () => {
     expect(isApiTransportInitialized()).toBe(false);
 
     // Динамический импорт shared/api
-    const api = await import("./index");
+    const api = await import("../index");
     expect(isApiTransportInitialized()).toBe(true);
     expect(typeof api.authControllerLogin).toBe("function");
     expect(typeof api.initApiTransport).toBe("function");

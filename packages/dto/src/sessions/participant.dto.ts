@@ -20,7 +20,7 @@ export type InterviewParticipantRole = z.infer<
  * - role: одна из допустимых ролей (CANDIDATE / INTERVIEWER / OBSERVER).
  */
 export const addParticipantSchema = z.object({
-  userId: z.string().trim().min(1, "userId обязателен"),
+  userId: z.string().uuid("userId must be a valid UUID"),
   role: interviewParticipantRoleSchema,
 });
 

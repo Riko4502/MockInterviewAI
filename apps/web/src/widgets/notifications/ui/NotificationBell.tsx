@@ -4,6 +4,8 @@ import { BellIcon } from "@packages/icons";
 import { Badge, Button, Empty, Popover, Typography } from "@packages/ui";
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import {
   NotificationItem,
   useMarkAllAsReadMutation,
@@ -11,9 +13,12 @@ import {
   useUnreadCountQuery,
 } from "@/entities/notification";
 
+import { BrowserNotificationControl } from "@/features/notification-realtime";
+
 const NOTIFICATIONS_PREVIEW_LIMIT = 5;
 
 export const NotificationBell = () => {
+  const { t } = useTranslation("common");
   const [isOpen, setIsOpen] = useState(false);
 
   const {
@@ -42,8 +47,8 @@ export const NotificationBell = () => {
           className="relative"
           aria-label={
             unreadCount > 0
-              ? `Уведомления: ${unreadCount} непрочитанных`
-              : "Уведомления"
+              ? t("notifications.unreadAria", { count: unreadCount })
+              : t("navigation.notifications")
           }
         >
           <BellIcon size="sm" />
@@ -62,7 +67,7 @@ export const NotificationBell = () => {
       <Popover.Content align="end" sideOffset={8} className="w-96 p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <Typography as="h2" variant="small">
-            Уведомления
+            {t("navigation.notifications")}
           </Typography>
 
           <Button
@@ -72,19 +77,21 @@ export const NotificationBell = () => {
             disabled={unreadCount === 0 || isMarkingAllAsRead}
             onClick={() => markAllAsRead()}
           >
-            Прочитать все
+            {t("notifications.markAllAsRead")}
           </Button>
         </div>
+
+        <BrowserNotificationControl />
 
         <div>
           {isPending ? (
             <output className="block px-4 py-6 text-center">
-              <Typography.Muted>Загрузка уведомлений...</Typography.Muted>
+              <Typography.Muted>{t("notifications.loading")}</Typography.Muted>
             </output>
           ) : isError ? (
             <div role="alert" className="px-4 py-6 text-center">
               <Typography.Muted>
-                Не удалось загрузить уведомления.
+                {t("notifications.loadError")}
               </Typography.Muted>
             </div>
           ) : notifications.length > 0 ? (
@@ -95,7 +102,7 @@ export const NotificationBell = () => {
               />
             ))
           ) : (
-            <Empty title="У вас пока нет уведомлений" media={<BellIcon />} />
+            <Empty title={t("notifications.empty")} media={<BellIcon />} />
           )}
         </div>
 
@@ -105,7 +112,7 @@ export const NotificationBell = () => {
               href="/dashboard/notifications"
               onClick={() => setIsOpen(false)}
             >
-              Посмотреть все уведомления
+              {t("notifications.viewAll")}
             </Link>
           </Button>
         </div>

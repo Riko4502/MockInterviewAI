@@ -4,12 +4,12 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
-import { baseFetch } from "@/shared/api/base";
+import { baseFetch } from "@/shared/api/http/base";
 import { NotificationsList } from "./NotificationsList";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-vi.mock("@/shared/api/base", () => ({ baseFetch: vi.fn() }));
+vi.mock("@/shared/api/http/base", () => ({ baseFetch: vi.fn() }));
 
 const notification = (
   id: string,
