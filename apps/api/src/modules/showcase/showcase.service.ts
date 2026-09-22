@@ -328,7 +328,10 @@ export class ShowcaseService {
    * - Выбрасывает NotFoundException, если анкета с таким ID не существует.
    * - Принудительно скрывает telegramUsername для защиты личных данных на витрине.
    */
-  async findOne(id: string): Promise<ShowcaseCardResponseDto> {
+  async findOne(
+    id: string,
+    currentUserId?: string,
+  ): Promise<ShowcaseCardResponseDto> {
     // 1. Ищем анкету по ID вместе с публичным профилем автора
     const card = await this.prisma.showcaseCard.findUnique({
       where: { id },
@@ -344,7 +347,12 @@ export class ShowcaseService {
       throw new NotFoundException("Анкета не найдена");
     }
 
-    // 3. Скрываем Telegram в публичном просмотре (открывается только после взаимного ACCEPTED)
+    // 3. Защита приватности: неактивные карточки (INACTIVE/EXPIRED) может просматривать только их владелец
+    if (card.status !== "ACTIVE" && card.userId !== currentUserId) {
+      throw new NotFoundException("Анкета не найдена");
+    }
+
+    // 4. Скрываем Telegram в публичном просмотре (открывается только после взаимного ACCEPTED)
     card.user.telegramUsername = null;
 
     return card;
@@ -453,9 +461,8 @@ export class ShowcaseService {
     // 1. Находим карточку и проверяем права автора
     const card = await this.prisma.showcaseCard.findUnique({
       where: { id },
-      select: {
-        userId: true,
-        status: true,
+      include: {
+        user: { select: PUBLIC_USER_SELECT },
       },
     });
 
@@ -474,9 +481,9 @@ export class ShowcaseService {
       );
     }
 
-    // 3. Если статус совпадает с текущим — ничего не меняем
+    // 3. Если статус совпадает с текущим — возвращаем данные владельца без повторной мутации
     if (card.status === dto.status) {
-      return this.findOne(id);
+      return card;
     }
 
     // 4. При включении (ACTIVE) проверяем лимит 5 активных анкет

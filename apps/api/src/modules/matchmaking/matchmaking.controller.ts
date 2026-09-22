@@ -14,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -103,6 +104,24 @@ export class MatchmakingController {
   @ApiOperation({
     summary: "Получить список входящих заявок текущего пользователя",
   })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"],
+    description: "Фильтр по статусу заявки",
+  })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Номер страницы (по умолчанию 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Размер страницы (по умолчанию 20, максимум 50)",
+  })
   @ApiResponse({
     status: 200,
     description: "Пагинированный список входящих заявок",
@@ -121,6 +140,24 @@ export class MatchmakingController {
   @Get("requests/outgoing")
   @ApiOperation({
     summary: "Получить список исходящих заявок текущего пользователя",
+  })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"],
+    description: "Фильтр по статусу заявки",
+  })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Номер страницы (по умолчанию 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Размер страницы (по умолчанию 20, максимум 50)",
   })
   @ApiResponse({
     status: 200,

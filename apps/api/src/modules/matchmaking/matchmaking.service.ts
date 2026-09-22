@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -57,6 +58,8 @@ type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
 
 @Injectable()
 export class MatchmakingService {
+  private readonly logger = new Logger(MatchmakingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
@@ -255,17 +258,19 @@ export class MatchmakingService {
                 senderId: targetCard.userId,
                 receiverId: senderId,
                 status: "PENDING",
+                expiresAt: { gt: new Date() },
               },
               include: MATCH_REQUEST_INCLUDE,
             });
 
             // Если есть встречная заявка — оформляем взаимный Auto-Match
             if (crossRequest) {
-              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING
+              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING и не истекла
               const updateResult = await tx.matchRequest.updateMany({
                 where: {
                   id: crossRequest.id,
                   status: "PENDING",
+                  expiresAt: { gt: new Date() },
                 },
                 data: { status: "ACCEPTED" },
               });
@@ -324,11 +329,15 @@ export class MatchmakingService {
         if (
           (error instanceof Prisma.PrismaClientKnownRequestError ||
             (error instanceof Error && "code" in error)) &&
-          (error as { code?: string }).code === "P2034" &&
-          retries < MAX_RETRIES
+          (error as { code?: string }).code === "P2034"
         ) {
-          retries++;
-          continue;
+          if (retries < MAX_RETRIES) {
+            retries++;
+            continue;
+          }
+          throw new ConflictException(
+            "Не удалось завершить операцию из-за высокой конкуренции параллельных запросов. Пожалуйста, повторите попытку.",
+          );
         }
 
         this.handleUniqueConflict(
@@ -687,8 +696,12 @@ export class MatchmakingService {
           timestamp: new Date().toISOString(),
         }),
       );
-    } catch {
-      // Игнорируем ошибки публикации шины, чтобы не прерывать транзакцию пользователя
+    } catch (error) {
+      // Логируем ошибку для диагностики, сохраняя best-effort поведение без падения бизнес-транзакции
+      this.logger.error(
+        `Failed to publish match.accepted event for request ${request.id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 

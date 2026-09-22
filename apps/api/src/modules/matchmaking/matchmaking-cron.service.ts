@@ -67,13 +67,11 @@ export class MatchmakingCronService {
       );
       return { expired: 0 };
     } finally {
-      // 3. Безопасное освобождение распределенного лока только владельцем (safe unlock)
-      const currentToken = await this.redisService.get(
+      // 3. Безопасное атомарное освобождение распределенного лока только владельцем (safe unlock via Lua compare-and-delete)
+      await this.redisService.compareAndDelete(
         MATCHMAKING_EXPIRY_LOCK_KEY,
+        lockToken,
       );
-      if (currentToken === lockToken) {
-        await this.redisService.delete(MATCHMAKING_EXPIRY_LOCK_KEY);
-      }
     }
   }
 

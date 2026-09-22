@@ -30,6 +30,8 @@ import type {
 
 import type {
   CreateMatchRequestDto,
+  MatchmakingControllerFindIncomingParams,
+  MatchmakingControllerFindOutgoingParams,
   RejectMatchRequestDto
 } from '../../model';
 
@@ -238,20 +240,27 @@ export const useMatchmakingControllerCreate = <TError = void,
       > => {
       return useMutation(getMatchmakingControllerCreateMutationOptions(options), queryClient);
     }
-    export const getMatchmakingControllerFindIncomingUrl = () => {
+    export const getMatchmakingControllerFindIncomingUrl = (params?: MatchmakingControllerFindIncomingParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/matchmaking/requests/incoming`
+  return stringifiedParams.length > 0 ? `/api/v1/matchmaking/requests/incoming?${stringifiedParams}` : `/api/v1/matchmaking/requests/incoming`
 }
 
 /**
  * @summary Получить список входящих заявок текущего пользователя
  */
-export const matchmakingControllerFindIncoming = async ( options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerFindIncoming = async (params?: MatchmakingControllerFindIncomingParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
 
-  return customInstance<void>(getMatchmakingControllerFindIncomingUrl(),
+  return customInstance<void>(getMatchmakingControllerFindIncomingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -264,23 +273,23 @@ export const matchmakingControllerFindIncoming = async ( options?: Parameters<ty
 
 
 
-export const getMatchmakingControllerFindIncomingQueryKey = () => {
+export const getMatchmakingControllerFindIncomingQueryKey = (params?: MatchmakingControllerFindIncomingParams,) => {
     return [
-    `/api/v1/matchmaking/requests/incoming`
+    `/api/v1/matchmaking/requests/incoming`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getMatchmakingControllerFindIncomingQueryOptions = <TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getMatchmakingControllerFindIncomingQueryOptions = <TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>(params?: MatchmakingControllerFindIncomingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getMatchmakingControllerFindIncomingQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getMatchmakingControllerFindIncomingQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>> = ({ signal }) => matchmakingControllerFindIncoming({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>> = ({ signal }) => matchmakingControllerFindIncoming(params, { signal, ...requestOptions });
 
 
 
@@ -294,7 +303,7 @@ export type MatchmakingControllerFindIncomingQueryError = unknown
 
 
 export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>> & Pick<
+ params: undefined |  MatchmakingControllerFindIncomingParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>,
           TError,
@@ -304,7 +313,7 @@ export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>> & Pick<
+ params?: MatchmakingControllerFindIncomingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>,
           TError,
@@ -314,7 +323,7 @@ export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: MatchmakingControllerFindIncomingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -322,11 +331,11 @@ export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<
  */
 
 export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: MatchmakingControllerFindIncomingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindIncoming>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getMatchmakingControllerFindIncomingQueryOptions(options)
+  const queryOptions = getMatchmakingControllerFindIncomingQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -338,20 +347,27 @@ export function useMatchmakingControllerFindIncoming<TData = Awaited<ReturnType<
 
 
 
-export const getMatchmakingControllerFindOutgoingUrl = () => {
+export const getMatchmakingControllerFindOutgoingUrl = (params?: MatchmakingControllerFindOutgoingParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/matchmaking/requests/outgoing`
+  return stringifiedParams.length > 0 ? `/api/v1/matchmaking/requests/outgoing?${stringifiedParams}` : `/api/v1/matchmaking/requests/outgoing`
 }
 
 /**
  * @summary Получить список исходящих заявок текущего пользователя
  */
-export const matchmakingControllerFindOutgoing = async ( options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerFindOutgoing = async (params?: MatchmakingControllerFindOutgoingParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
 
-  return customInstance<void>(getMatchmakingControllerFindOutgoingUrl(),
+  return customInstance<void>(getMatchmakingControllerFindOutgoingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -364,23 +380,23 @@ export const matchmakingControllerFindOutgoing = async ( options?: Parameters<ty
 
 
 
-export const getMatchmakingControllerFindOutgoingQueryKey = () => {
+export const getMatchmakingControllerFindOutgoingQueryKey = (params?: MatchmakingControllerFindOutgoingParams,) => {
     return [
-    `/api/v1/matchmaking/requests/outgoing`
+    `/api/v1/matchmaking/requests/outgoing`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getMatchmakingControllerFindOutgoingQueryOptions = <TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getMatchmakingControllerFindOutgoingQueryOptions = <TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>(params?: MatchmakingControllerFindOutgoingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getMatchmakingControllerFindOutgoingQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getMatchmakingControllerFindOutgoingQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>> = ({ signal }) => matchmakingControllerFindOutgoing({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>> = ({ signal }) => matchmakingControllerFindOutgoing(params, { signal, ...requestOptions });
 
 
 
@@ -394,7 +410,7 @@ export type MatchmakingControllerFindOutgoingQueryError = unknown
 
 
 export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>> & Pick<
+ params: undefined |  MatchmakingControllerFindOutgoingParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>,
           TError,
@@ -404,7 +420,7 @@ export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>> & Pick<
+ params?: MatchmakingControllerFindOutgoingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>,
           TError,
@@ -414,7 +430,7 @@ export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: MatchmakingControllerFindOutgoingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -422,11 +438,11 @@ export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<
  */
 
 export function useMatchmakingControllerFindOutgoing<TData = Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: MatchmakingControllerFindOutgoingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof matchmakingControllerFindOutgoing>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getMatchmakingControllerFindOutgoingQueryOptions(options)
+  const queryOptions = getMatchmakingControllerFindOutgoingQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

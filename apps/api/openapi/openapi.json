@@ -485,6 +485,16 @@
               }
             }
           },
+          "409": {
+            "description": "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
             "content": {
@@ -1713,7 +1723,102 @@
     "/api/v1/showcase": {
       "get": {
         "operationId": "ShowcaseController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "Сортировка анкет (по умолчанию BUMPED)",
+            "schema": {
+              "enum": ["BUMPED", "NEWEST", "LEVEL_ASC", "LEVEL_DESC"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Поисковая строка с поддержкой операторов (+react -vue middle)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skill",
+            "required": false,
+            "in": "query",
+            "description": "Точный навык/технология",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "isUrgent",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр 'Готов провести сегодня'",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Язык проведения собеседования",
+            "schema": {
+              "enum": ["RU", "EN", "ANY"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по уровню квалификации",
+            "schema": {
+              "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "specialization",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по специализации",
+            "schema": {
+              "enum": [
+                "FRONTEND",
+                "BACKEND",
+                "FULLSTACK",
+                "DEVOPS",
+                "QA",
+                "MOBILE",
+                "DATA_ML",
+                "SYSTEM_DESIGN"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Пагинированный список анкет"
@@ -2081,7 +2186,42 @@
     "/api/v1/matchmaking/requests/incoming": {
       "get": {
         "operationId": "MatchmakingController_findIncoming",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заявки",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Пагинированный список входящих заявок"
@@ -2099,7 +2239,42 @@
     "/api/v1/matchmaking/requests/outgoing": {
       "get": {
         "operationId": "MatchmakingController_findOutgoing",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заявки",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Пагинированный список исходящих заявок"
@@ -2290,12 +2465,9 @@
             "type": "string"
           },
           "createdAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "email": {
             "type": "string",
@@ -2309,12 +2481,9 @@
             "type": "string"
           },
           "updatedAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
@@ -2430,12 +2599,9 @@
             "type": "string"
           },
           "createdAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
@@ -2494,6 +2660,15 @@
           }
         },
         "required": ["statusCode", "message"]
+      },
+      "OAuthProvidersResponseDto": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "type": "boolean"
+          }
+        },
+        "required": ["github"]
       },
       "RegisterDto": {
         "type": "object",
@@ -2973,137 +3148,6 @@
         },
         "required": ["status", "db"]
       },
-      "CreateShowcaseCardDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 100
-          },
-          "specialization": {
-            "type": "string",
-            "enum": [
-              "FRONTEND",
-              "BACKEND",
-              "FULLSTACK",
-              "DEVOPS",
-              "QA",
-              "MOBILE",
-              "DATA_ML",
-              "SYSTEM_DESIGN"
-            ]
-          },
-          "level": {
-            "type": "string",
-            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
-          },
-          "language": {
-            "default": "RU",
-            "type": "string",
-            "enum": ["RU", "EN", "ANY"]
-          },
-          "skills": {
-            "minItems": 1,
-            "maxItems": 20,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 30
-            }
-          },
-          "bio": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 500
-          },
-          "scheduleInfo": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 300
-          },
-          "isUrgent": {
-            "default": false,
-            "type": "boolean"
-          },
-          "autoRenew": {
-            "default": false,
-            "type": "boolean"
-          }
-        },
-        "required": ["specialization", "level", "skills"]
-      },
-      "UpdateShowcaseCardDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 100
-          },
-          "specialization": {
-            "type": "string",
-            "enum": [
-              "FRONTEND",
-              "BACKEND",
-              "FULLSTACK",
-              "DEVOPS",
-              "QA",
-              "MOBILE",
-              "DATA_ML",
-              "SYSTEM_DESIGN"
-            ]
-          },
-          "level": {
-            "type": "string",
-            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
-          },
-          "language": {
-            "default": "RU",
-            "type": "string",
-            "enum": ["RU", "EN", "ANY"]
-          },
-          "skills": {
-            "minItems": 1,
-            "maxItems": 20,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 30
-            }
-          },
-          "bio": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 500
-          },
-          "scheduleInfo": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 300
-          },
-          "isUrgent": {
-            "default": false,
-            "type": "boolean"
-          },
-          "autoRenew": {
-            "default": false,
-            "type": "boolean"
-          }
-        }
-      },
-      "UpdateShowcaseCardStatusDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["ACTIVE", "INACTIVE"]
-          }
-        },
-        "required": ["status"]
-      },
       "CreateMatchRequestDto": {
         "type": "object",
         "properties": {
@@ -3291,7 +3335,8 @@
         "properties": {
           "userId": {
             "type": "string",
-            "minLength": 1
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "role": {
             "type": "string",
@@ -3360,14 +3405,136 @@
         },
         "required": ["token", "serverUrl", "roomName"]
       },
-      "OAuthProvidersResponseDto": {
+      "CreateShowcaseCardDto": {
         "type": "object",
         "properties": {
-          "github": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "default": "RU",
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30
+            }
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 500
+          },
+          "scheduleInfo": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 300
+          },
+          "isUrgent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "autoRenew": {
+            "default": false,
             "type": "boolean"
           }
         },
-        "required": ["github"]
+        "required": ["specialization", "level", "skills"]
+      },
+      "UpdateShowcaseCardDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "default": "RU",
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30
+            }
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 500
+          },
+          "scheduleInfo": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 300
+          },
+          "isUrgent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "autoRenew": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateShowcaseCardStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INACTIVE"]
+          }
+        },
+        "required": ["status"]
       }
     }
   }

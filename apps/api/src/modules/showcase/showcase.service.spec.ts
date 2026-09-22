@@ -183,6 +183,7 @@ describe("ShowcaseService", () => {
         id: "card-1",
         userId,
         title: "Test",
+        status: "ACTIVE",
         user: {
           id: userId,
           displayName: "User",
@@ -194,6 +195,24 @@ describe("ShowcaseService", () => {
 
       expect(result.id).toBe("card-1");
       expect(result.user.telegramUsername).toBeNull();
+    });
+
+    it("бросает NotFoundException, если карточка не активна и запрашивается другим пользователем", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId: "owner-id",
+        title: "Test",
+        status: "INACTIVE",
+        user: {
+          id: "owner-id",
+          displayName: "Owner",
+          telegramUsername: "owner_tg",
+        },
+      });
+
+      await expect(service.findOne("card-1", "stranger-id")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -418,6 +437,7 @@ describe("ShowcaseService", () => {
         page: 1,
         limit: 10,
         search: "+node_js -vue_3 middle_dev 100%",
+        sortBy: "BUMPED",
       });
 
       expect(prismaMock.showcaseCard.count).toHaveBeenCalledWith({

@@ -136,10 +136,10 @@ describe("ShowcaseController", () => {
   });
 
   describe("findOne", () => {
-    it("делегирует вызов showcaseService.findOne с id", async () => {
-      const result = await controller.findOne(cardId);
+    it("делегирует вызов showcaseService.findOne с id и currentUserId", async () => {
+      const result = await controller.findOne(cardId, userId);
 
-      expect(showcaseServiceMock.findOne).toHaveBeenCalledWith(cardId);
+      expect(showcaseServiceMock.findOne).toHaveBeenCalledWith(cardId, userId);
       expect(result).toEqual(mockCard);
     });
   });

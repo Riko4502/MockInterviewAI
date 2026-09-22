@@ -11,6 +11,12 @@ import type { RedisService } from "../../redis/redis.service";
 import { REDIS_MATCHMAKING_EVENTS_CHANNEL } from "./matchmaking.constants";
 import { MatchmakingService } from "./matchmaking.service";
 
+type LoggerAccessor = {
+  logger: {
+    error: (...args: unknown[]) => void;
+  };
+};
+
 describe("MatchmakingService", () => {
   let service: MatchmakingService;
   let prismaMock: {
@@ -363,6 +369,22 @@ describe("MatchmakingService", () => {
       expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
     });
 
+    it("бросает ConflictException, если исчерпаны все попытки повтора при P2034", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(mockTargetCard);
+
+      const p2034Error = new Error("Serialization conflict");
+      (p2034Error as unknown as { code: string }).code = "P2034";
+
+      prismaMock.$transaction.mockRejectedValue(p2034Error);
+
+      await expect(service.create(senderId, validDto)).rejects.toThrow(
+        ConflictException,
+      );
+      // Начальная попытка + 3 повтора = 4 вызова
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(4);
+    });
+
     it("автоматически переводит обе заявки в ACCEPTED при встречном отклике (Auto-match)", async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
       prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
@@ -393,6 +415,41 @@ describe("MatchmakingService", () => {
       // При ACCEPTED контакты раскрываются
       expect(result.sender.telegramUsername).toBe("sender_tg");
       expect(result.receiver.telegramUsername).toBe("receiver_tg");
+    });
+
+    it("логирует ошибку и не прерывает операцию, если публикация в Redis Pub/Sub завершилась сбоем", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
+      prismaMock.matchRequest.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      prismaMock.matchRequest.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: "cross-request-id" });
+
+      const acceptedMockRequest = {
+        ...mockMatchRequest,
+        status: "ACCEPTED",
+      };
+
+      prismaMock.matchRequest.create.mockResolvedValueOnce(acceptedMockRequest);
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const loggerSpy = jest.spyOn(
+        (service as unknown as LoggerAccessor).logger,
+        "error",
+      );
+      redisServiceMock.publish.mockRejectedValueOnce(
+        new Error("Redis offline"),
+      );
+
+      const result = await service.create(senderId, validDto);
+
+      expect(result.status).toBe("ACCEPTED");
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to publish match.accepted event"),
+        expect.any(String),
+      );
     });
 
     it("создает обычную PENDING заявку, если встречная заявка была отменена параллельно (updateMany count === 0)", async () => {

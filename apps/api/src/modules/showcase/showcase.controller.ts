@@ -16,6 +16,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -48,6 +49,70 @@ export class ShowcaseController {
    */
   @Get()
   @ApiOperation({ summary: "Получить каталог активных карточек витрины" })
+  @ApiQuery({
+    name: "specialization",
+    required: false,
+    enum: [
+      "FRONTEND",
+      "BACKEND",
+      "FULLSTACK",
+      "DEVOPS",
+      "QA",
+      "MOBILE",
+      "DATA_ML",
+      "SYSTEM_DESIGN",
+    ],
+    description: "Фильтр по специализации",
+  })
+  @ApiQuery({
+    name: "level",
+    required: false,
+    enum: ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"],
+    description: "Фильтр по уровню квалификации",
+  })
+  @ApiQuery({
+    name: "language",
+    required: false,
+    enum: ["RU", "EN", "ANY"],
+    description: "Язык проведения собеседования",
+  })
+  @ApiQuery({
+    name: "isUrgent",
+    required: false,
+    type: Boolean,
+    description: "Фильтр 'Готов провести сегодня'",
+  })
+  @ApiQuery({
+    name: "skill",
+    required: false,
+    type: String,
+    description: "Точный навык/технология",
+  })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    type: String,
+    description:
+      "Поисковая строка с поддержкой операторов (+react -vue middle)",
+  })
+  @ApiQuery({
+    name: "sortBy",
+    required: false,
+    enum: ["BUMPED", "NEWEST", "LEVEL_ASC", "LEVEL_DESC"],
+    description: "Сортировка анкет (по умолчанию BUMPED)",
+  })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Номер страницы (по умолчанию 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Размер страницы (по умолчанию 20, максимум 50)",
+  })
   @ApiResponse({ status: 200, description: "Пагинированный список анкет" })
   @ApiResponse({ status: 400, description: "Некорректные параметры query" })
   async findAll(
@@ -106,8 +171,9 @@ export class ShowcaseController {
   @ApiResponse({ status: 404, description: "Анкета не найдена" })
   async findOne(
     @Param("id", new ParseUUIDPipe()) id: string,
+    @CurrentUser("sub") currentUserId: string,
   ): Promise<ShowcaseCardResponseDto> {
-    return this.showcaseService.findOne(id);
+    return this.showcaseService.findOne(id, currentUserId);
   }
 
   /**

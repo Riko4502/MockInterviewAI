@@ -18,7 +18,7 @@ import { MetricsService } from "../common/metrics/metrics.service";
  *
  * Предоставляет операции для:
  * - key-value (`set`, `get`, `delete`, `expire`);
- * - distributed lock (`setNx`);
+ * - distributed lock (`setNx`, `compareAndDelete`);
  * - hash (`hset`, `hget`, `hdel`);
  * - SCAN (`scanKeys`);
  * - Pub/Sub (`publish`);
@@ -193,6 +193,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async delete(key: string): Promise<void> {
     await this.client.del(key);
+  }
+
+  /**
+   * Атомарно сравнивает значение ключа с ожидаемым и удаляет ключ при совпадении (Lua compare-and-delete).
+   * Используется для безопасного снятия распределенного лока (safe unlock) только владельцем токена.
+   *
+   * @param key - Имя ключа.
+   * @param expectedValue - Ожидаемое значение (токен владельца лока).
+   * @returns `true`, если токен совпал и ключ был удален, иначе `false`.
+   */
+  async compareAndDelete(key: string, expectedValue: string): Promise<boolean> {
+    const script = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+else
+  return 0
+end
+`;
+    const result = await this.client.eval(script, 1, key, expectedValue);
+
+    return result === 1;
   }
 
   /**

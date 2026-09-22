@@ -30,6 +30,7 @@ import type {
 
 import type {
   CreateShowcaseCardDto,
+  ShowcaseControllerFindAllParams,
   UpdateShowcaseCardDto,
   UpdateShowcaseCardStatusDto
 } from '../../model';
@@ -60,20 +61,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getShowcaseControllerFindAllUrl = () => {
+export const getShowcaseControllerFindAllUrl = (params?: ShowcaseControllerFindAllParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/showcase`
+  return stringifiedParams.length > 0 ? `/api/v1/showcase?${stringifiedParams}` : `/api/v1/showcase`
 }
 
 /**
  * @summary Получить каталог активных карточек витрины
  */
-export const showcaseControllerFindAll = async ( options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerFindAll = async (params?: ShowcaseControllerFindAllParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
 
-  return customInstance<void>(getShowcaseControllerFindAllUrl(),
+  return customInstance<void>(getShowcaseControllerFindAllUrl(params),
   {
     ...options,
     method: 'GET'
@@ -86,23 +94,23 @@ export const showcaseControllerFindAll = async ( options?: Parameters<typeof cus
 
 
 
-export const getShowcaseControllerFindAllQueryKey = () => {
+export const getShowcaseControllerFindAllQueryKey = (params?: ShowcaseControllerFindAllParams,) => {
     return [
-    `/api/v1/showcase`
+    `/api/v1/showcase`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getShowcaseControllerFindAllQueryOptions = <TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getShowcaseControllerFindAllQueryOptions = <TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>(params?: ShowcaseControllerFindAllParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getShowcaseControllerFindAllQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getShowcaseControllerFindAllQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof showcaseControllerFindAll>>> = ({ signal }) => showcaseControllerFindAll({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof showcaseControllerFindAll>>> = ({ signal }) => showcaseControllerFindAll(params, { signal, ...requestOptions });
 
 
 
@@ -116,7 +124,7 @@ export type ShowcaseControllerFindAllQueryError = void
 
 
 export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>> & Pick<
+ params: undefined |  ShowcaseControllerFindAllParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof showcaseControllerFindAll>>,
           TError,
@@ -126,7 +134,7 @@ export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof s
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>> & Pick<
+ params?: ShowcaseControllerFindAllParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof showcaseControllerFindAll>>,
           TError,
@@ -136,7 +144,7 @@ export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof s
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: ShowcaseControllerFindAllParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -144,11 +152,11 @@ export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof s
  */
 
 export function useShowcaseControllerFindAll<TData = Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: ShowcaseControllerFindAllParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof showcaseControllerFindAll>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getShowcaseControllerFindAllQueryOptions(options)
+  const queryOptions = getShowcaseControllerFindAllQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

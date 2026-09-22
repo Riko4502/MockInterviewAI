@@ -306,6 +306,30 @@ describe("RedisService", () => {
     });
   });
 
+  describe("compareAndDelete", () => {
+    it("возвращает true, если Lua-скрипт вернул 1 (ключ совпал и удален)", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.compareAndDelete("lock:key", "token-123");
+      expect(result).toBe(true);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'if redis.call("get", KEYS[1]) == ARGV[1] then',
+        ),
+        1,
+        "lock:key",
+        "token-123",
+      );
+    });
+
+    it("возвращает false, если Lua-скрипт вернул 0 (токен не совпал или ключ истек)", async () => {
+      mockRedisInstance.eval.mockResolvedValue(0);
+      await service.onModuleInit();
+      const result = await service.compareAndDelete("lock:key", "token-123");
+      expect(result).toBe(false);
+    });
+  });
+
   describe("scanKeys", () => {
     function mockStream() {
       const stream = new EventEmitter();
