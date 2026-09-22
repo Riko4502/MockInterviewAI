@@ -4,7 +4,7 @@
  * ## Использование
  *
  * ```ts
- * import { getApiUrl } from "@/shared/api/endpoints";
+ * import { getApiUrl } from "@/shared/api/config/endpoints";
  * ```
  *
  * ## Важно

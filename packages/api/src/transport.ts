@@ -147,7 +147,7 @@ export function isHttpTransportSet(): boolean {
 
 /**
  * Устанавливает активный HTTP-транспорт приложения (Dependency Inversion).
- * Вызывается на этапе инициализации приложения (например, в apps/web/src/shared/api/init.ts).
+ * Вызывается на этапе инициализации приложения (например, в apps/web/src/shared/api/http/init.ts).
  */
 export function setHttpTransport(transport: HttpTransport): void {
   activeTransport = transport;

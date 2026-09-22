@@ -7,20 +7,20 @@
  * 3. Реэкспорт сгенерированного API-клиента и хуков из @packages/api.
  */
 
-import { initApiTransport } from "./init";
+import { initApiTransport } from "./http/init";
 
 // Гарантированная инициализация HTTP-транспорта при загрузке модуля shared/api
 initApiTransport();
 
 export * from "@packages/api";
-export { RefreshSessionError, refreshAccessToken } from "./auth-session";
-export { authToken } from "./auth-token";
-export { baseFetch, HttpError } from "./base";
-export { getApiUrl, realtimeWsUrl } from "./endpoints";
+export { RefreshSessionError, refreshAccessToken } from "./auth/auth-session";
+export { authToken } from "./auth/auth-token";
+export { getApiUrl, realtimeWsUrl } from "./config/endpoints";
+export { baseFetch, HttpError } from "./http/base";
 export {
   createBaseFetchTransport,
   initApiTransport,
   isApiTransportInitialized,
   resetApiTransportState,
-} from "./init";
-export { createQueryClient } from "./query-client";
+} from "./http/init";
+export { createQueryClient } from "./query/query-client";
