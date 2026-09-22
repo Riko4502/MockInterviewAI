@@ -23,24 +23,36 @@ export class TelegramOAuthService {
   /**
    * Проверяет подлинность, актуальность и однократность использования payload Telegram.
    *
-   * @param dto - Входящий payload от Telegram Login Widget.
+   * @param dto - Валидированный DTO от Telegram Login Widget.
+   * @param rawPayload - Сырой неочищенный запрос (Request Body) для HMAC проверки всех подписываемых полей.
    * @throws {UnauthorizedException} Если подпись недействительна, данные устарели или токен уже использован.
    */
-  async validateTelegramPayload(dto: TelegramAuthDto): Promise<void> {
+  async validateTelegramPayload(
+    dto: TelegramAuthDto,
+    rawPayload?: Record<string, unknown>,
+  ): Promise<void> {
     const botToken = this.configService.get<string>("telegram.botToken");
-    if (!botToken) {
+    if (!botToken || botToken.trim() === "") {
       this.logger.error("TELEGRAM_BOT_TOKEN is not configured");
       throw new UnauthorizedException("Telegram authentication is unavailable");
     }
 
+    const sourceObj = (
+      rawPayload && Object.keys(rawPayload).length > 0 ? rawPayload : dto
+    ) as Record<string, unknown>;
+
+    const rawHash = (sourceObj.hash ?? dto.hash) as string;
+    const rawAuthDate = sourceObj.auth_date ?? dto.auth_date;
+
     // 1. Проверка актуальности auth_date
     const nowInSeconds = Math.floor(Date.now() / 1000);
     const authDate =
-      typeof dto.auth_date === "number"
-        ? dto.auth_date
-        : Number.parseInt(String(dto.auth_date), 10);
+      typeof rawAuthDate === "number"
+        ? rawAuthDate
+        : Number.parseInt(String(rawAuthDate), 10);
 
     if (
+      Number.isNaN(authDate) ||
       nowInSeconds - authDate > MAX_AUTH_DATE_AGE_SECONDS ||
       authDate > nowInSeconds + 60
     ) {
@@ -51,11 +63,10 @@ export class TelegramOAuthService {
 
     // 2. Формирование data_check_string
     const dataCheckArr: string[] = [];
-    const payloadObj = dto as Record<string, unknown>;
 
-    for (const key of Object.keys(payloadObj).sort()) {
+    for (const key of Object.keys(sourceObj).sort()) {
       if (key === "hash") continue;
-      const val = payloadObj[key];
+      const val = sourceObj[key];
       if (val !== undefined && val !== null) {
         dataCheckArr.push(`${key}=${val}`);
       }
@@ -69,7 +80,7 @@ export class TelegramOAuthService {
       .digest("hex");
 
     // 4. Безопасное сравнение за постоянное время timingSafeEqual
-    const hashBuffer = Buffer.from(dto.hash, "utf-8");
+    const hashBuffer = Buffer.from(rawHash || "", "utf-8");
     const computedBuffer = Buffer.from(computedHash, "utf-8");
 
     if (
@@ -82,7 +93,7 @@ export class TelegramOAuthService {
     }
 
     // 5. Redis replay protection (auth:telegram:replay:{hash}, TTL 5m)
-    const replayKey = `${REDIS_TELEGRAM_REPLAY_PREFIX}${dto.hash}`;
+    const replayKey = `${REDIS_TELEGRAM_REPLAY_PREFIX}${rawHash}`;
     const setSuccess = await this.redisService.setNx(
       replayKey,
       "1",

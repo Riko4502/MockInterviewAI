@@ -93,4 +93,40 @@ describe("TelegramOAuthService", () => {
       "Telegram auth payload has already been used",
     );
   });
+
+  it("успешно валидирует rawPayload, содержащий доп. подписанные поля", async () => {
+    const authDate = Math.floor(Date.now() / 1000);
+    const rawData: Record<string, unknown> = {
+      auth_date: authDate,
+      first_name: "Test",
+      id: 123456789,
+      username: "testuser",
+      photo_url: "https://t.me/i/userpic/320/test.jpg",
+      custom_telegram_field: "extra_val",
+    };
+
+    const dataCheckArr = Object.keys(rawData)
+      .sort()
+      .map((k) => `${k}=${rawData[k]}`);
+    const dataCheckString = dataCheckArr.join("\n");
+
+    const secretKey = createHash("sha256").update(botToken).digest();
+    const hash = createHmac("sha256", secretKey)
+      .update(dataCheckString)
+      .digest("hex");
+
+    const parsedDto: TelegramAuthDto = {
+      id: 123456789,
+      first_name: "Test",
+      username: "testuser",
+      auth_date: authDate,
+      hash,
+    };
+
+    const rawPayload = { ...rawData, hash };
+
+    await expect(
+      service.validateTelegramPayload(parsedDto, rawPayload),
+    ).resolves.not.toThrow();
+  });
 });

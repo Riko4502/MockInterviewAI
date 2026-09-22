@@ -198,6 +198,17 @@ describe("StorageService", () => {
         .png()
         .toBuffer();
 
+      const mockReader = {
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new Uint8Array(pngBuffer),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        cancel: jest.fn().mockResolvedValue(undefined),
+      };
+
       const globalFetch = global.fetch;
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -209,7 +220,9 @@ describe("StorageService", () => {
             return null;
           },
         },
-        arrayBuffer: jest.fn().mockResolvedValue(pngBuffer.buffer),
+        body: {
+          getReader: () => mockReader,
+        },
       });
 
       const url = await service.uploadAvatarFromUrl(
@@ -220,6 +233,61 @@ describe("StorageService", () => {
         "http://localhost:9000/mock-interview-storage/avatars/user-123/",
       );
       expect(url?.endsWith(".webp")).toBe(true);
+
+      global.fetch = globalFetch;
+    });
+
+    it("прекращает чтение и отменяет reader при превышении лимита размера в процессе потоковой передачи", async () => {
+      const cancelMock = jest.fn().mockResolvedValue(undefined);
+      const chunk1 = new Uint8Array(1_500_000);
+      const chunk2 = new Uint8Array(1_000_000); // 1.5MB + 1MB = 2.5MB > 2MB limit
+
+      const mockReader = {
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({ done: false, value: chunk1 })
+          .mockResolvedValueOnce({ done: false, value: chunk2 }),
+        cancel: cancelMock,
+      };
+
+      const globalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: () => null,
+        },
+        body: {
+          getReader: () => mockReader,
+        },
+      });
+
+      const result = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://cdn.telegram.org/large-avatar.png",
+      );
+
+      expect(result).toBeNull();
+      expect(cancelMock).toHaveBeenCalledTimes(1);
+
+      global.fetch = globalFetch;
+    });
+
+    it("возвращает null если response.body отсутствует", async () => {
+      const globalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: null,
+      });
+
+      const result = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://cdn.telegram.org/nobody.png",
+      );
+
+      expect(result).toBeNull();
 
       global.fetch = globalFetch;
     });

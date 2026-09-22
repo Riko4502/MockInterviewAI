@@ -721,8 +721,11 @@ export class AuthService implements OnModuleInit {
    * @param dto - Валидированный payload от Telegram Widget.
    * @returns Ибо токены при входе, либо onboardingToken при необходимости указания email.
    */
-  async telegramAuth(dto: TelegramAuthDto): Promise<TelegramAuthResult> {
-    await this.telegramOAuthService.validateTelegramPayload(dto);
+  async telegramAuth(
+    dto: TelegramAuthDto,
+    rawPayload?: Record<string, unknown>,
+  ): Promise<TelegramAuthResult> {
+    await this.telegramOAuthService.validateTelegramPayload(dto, rawPayload);
 
     const telegramId = BigInt(dto.id);
     const user =
@@ -810,7 +813,7 @@ export class AuthService implements OnModuleInit {
     let rawData: string | null;
 
     try {
-      rawData = await this.redisService.getdel(key);
+      rawData = await this.redisService.get(key);
     } catch (error) {
       this.logger.error(
         "Redis unavailable during telegramComplete",
@@ -836,15 +839,6 @@ export class AuthService implements OnModuleInit {
       throw new ConflictException("Email already registered");
     }
 
-    const tempUserId = randomUUID();
-    let avatarUrl: string | null = null;
-    if (data.photoUrl) {
-      avatarUrl = await this.storageService.uploadAvatarFromUrl(
-        tempUserId,
-        data.photoUrl,
-      );
-    }
-
     const passwordHash = await this.hashPassword(
       randomBytes(32).toString("hex"),
     );
@@ -859,7 +853,7 @@ export class AuthService implements OnModuleInit {
         telegramId: BigInt(data.telegramId),
         telegramUsername: data.telegramUsername,
         displayName,
-        avatarUrl,
+        avatarUrl: null,
       });
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
@@ -867,6 +861,31 @@ export class AuthService implements OnModuleInit {
       }
       throw error;
     }
+
+    if (data.photoUrl) {
+      try {
+        const avatarUrl = await this.storageService.uploadAvatarFromUrl(
+          user.id,
+          data.photoUrl,
+        );
+        if (avatarUrl) {
+          await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarUrl },
+          });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to upload/update avatar for user ${user.id}: ${String(error)}`,
+        );
+      }
+    }
+
+    await this.redisService.delete(key).catch((error) => {
+      this.logger.warn(
+        `Failed to delete onboarding key ${key}: ${String(error)}`,
+      );
+    });
 
     const userWithRole = await this.usersService.findUserWithRoleById(user.id);
     const permissions =
@@ -914,36 +933,14 @@ export class AuthService implements OnModuleInit {
   async telegramLink(
     userId: string,
     dto: TelegramLinkDto,
+    rawPayload?: Record<string, unknown>,
   ): Promise<{ message: string }> {
-    await this.telegramOAuthService.validateTelegramPayload(dto);
+    await this.telegramOAuthService.validateTelegramPayload(dto, rawPayload);
 
-    const telegramId = BigInt(dto.id);
-    const existingTgUser = await this.usersService.findByTelegramId(telegramId);
-
-    if (existingTgUser && existingTgUser.id !== userId) {
-      throw new ConflictException(
-        "Telegram account is already linked to another user",
-      );
-    }
-
-    try {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          telegramId,
-          telegramUsername: dto.username ?? null,
-        },
-      });
-    } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "P2002") {
-        throw new ConflictException(
-          "Telegram account is already linked to another user",
-        );
-      }
-      throw error;
-    }
-
-    return { message: "Telegram account linked successfully" };
+    return this.usersService.linkTelegram(userId, {
+      telegramId: BigInt(dto.id),
+      telegramUsername: dto.username ?? null,
+    });
   }
 
   /**

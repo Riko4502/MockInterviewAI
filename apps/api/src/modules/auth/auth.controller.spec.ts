@@ -635,12 +635,16 @@ describe("AuthController", () => {
     };
 
     it("при статсуе AUTHENTICATED выставляет refresh cookie и возвращает accessToken", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
       const result = await createController().telegramAuth(
+        request,
         tgDto as TelegramAuthDto,
         response,
       );
 
-      expect(telegramAuthMock).toHaveBeenCalledWith(tgDto);
+      expect(telegramAuthMock).toHaveBeenCalledWith(tgDto, tgDto);
       expect(cookieMock).toHaveBeenCalledWith(
         "refresh_token",
         "raw.refresh.token",
@@ -653,12 +657,16 @@ describe("AuthController", () => {
     });
 
     it("при статусе NEED_EMAIL возвращает onboardingToken без вызова cookie", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
       telegramAuthMock.mockResolvedValue({
         status: "NEED_EMAIL",
         onboardingToken: "onboarding_123",
       });
 
       const result = await createController().telegramAuth(
+        request,
         tgDto as TelegramAuthDto,
         response,
       );
@@ -690,13 +698,14 @@ describe("AuthController", () => {
     it("привязывает Telegram аккаунт к авторизованному пользователю", async () => {
       const request = createRequestWithUser({ sub: "user-uuid" });
       const tgDto = { id: 123456789, auth_date: 1700000000, hash: "hash" };
+      request.body = tgDto;
 
       const result = await createController().telegramLink(
         request,
         tgDto as TelegramLinkDto,
       );
 
-      expect(telegramLinkMock).toHaveBeenCalledWith("user-uuid", tgDto);
+      expect(telegramLinkMock).toHaveBeenCalledWith("user-uuid", tgDto, tgDto);
       expect(result).toEqual({
         message: "Telegram account linked successfully",
       });

@@ -217,15 +217,34 @@ export class StorageService {
         return null;
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      if (buffer.length > this.maxAvatarSizeBytes) {
-        this.logger.warn(
-          `Avatar buffer from URL ${imageUrl} exceeds maximum size limit`,
-        );
+      if (!response.body) {
+        this.logger.warn(`Response body is missing for URL ${imageUrl}`);
         return null;
       }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        if (value) {
+          received += value.length;
+          if (received > this.maxAvatarSizeBytes) {
+            await reader.cancel();
+            this.logger.warn(
+              `Avatar buffer from URL ${imageUrl} exceeds maximum size limit`,
+            );
+            return null;
+          }
+          chunks.push(value);
+        }
+      }
+
+      const buffer = Buffer.concat(chunks);
 
       const file: Express.Multer.File = {
         fieldname: "avatar",

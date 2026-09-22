@@ -201,6 +201,62 @@ export class UsersService {
   }
 
   /**
+   * Привязывает Telegram-аккаунт к пользователю.
+   *
+   * @param userId - UUID пользователя.
+   * @param data - Telegram данные: `telegramId` и опционально `telegramUsername`.
+   * @returns Сообщение об успешной привязке.
+   * @throws {NotFoundException} Если пользователь не найден (или P2025).
+   * @throws {ConflictException} Если у пользователя уже привязан иной Telegram аккаунт или этот TelegramId занят другим пользователем (или P2002).
+   */
+  async linkTelegram(
+    userId: string,
+    data: { telegramId: bigint; telegramUsername?: string | null },
+  ): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (user.telegramId !== null && user.telegramId !== data.telegramId) {
+      throw new ConflictException(
+        "Telegram account is already linked to this user",
+      );
+    }
+
+    const existingTgUser = await this.findByTelegramId(data.telegramId);
+    if (existingTgUser && existingTgUser.id !== userId) {
+      throw new ConflictException(
+        "Telegram account is already linked to another user",
+      );
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error) {
+        if (error.code === "P2002") {
+          throw new ConflictException(
+            "Telegram account is already linked to another user",
+          );
+        }
+        if (error.code === "P2025") {
+          throw new NotFoundException("User not found");
+        }
+      }
+      throw error;
+    }
+
+    return { message: "Telegram account linked successfully" };
+  }
+
+  /**
    * Создаёт нового пользователя через Telegram с назначением дефолтной роли USER.
    *
    * @param data - Данные Telegram регистрации: `email`, `passwordHash`, `telegramId`, `telegramUsername`, `displayName`, `avatarUrl`.

@@ -37,3 +37,25 @@ describe("env.validation SENTRY_DSN", () => {
     );
   });
 });
+
+describe("env.validation TELEGRAM_BOT_TOKEN", () => {
+  it("требует TELEGRAM_BOT_TOKEN в production", () => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        NODE_ENV: "production",
+      }),
+    ).toThrow("TELEGRAM_BOT_TOKEN is required in production environment");
+  });
+
+  it("успешно проигрывает валидацию в production при наличии TELEGRAM_BOT_TOKEN", () => {
+    const env = validate({
+      ...requiredEnv,
+      NODE_ENV: "production",
+      TELEGRAM_BOT_TOKEN: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+    });
+    expect(env.TELEGRAM_BOT_TOKEN).toBe(
+      "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+    );
+  });
+});

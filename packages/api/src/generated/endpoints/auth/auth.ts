@@ -28,6 +28,10 @@ import type {
   MessageResponseDto,
   RegisterDto,
   ResetPasswordDto,
+  TelegramAuthDto,
+  TelegramAuthResponseDto,
+  TelegramCompleteDto,
+  TelegramLinkDto,
   ValidationErrorResponseDto
 } from '../../model';
 
@@ -655,4 +659,241 @@ export const useAuthControllerRefresh = <TError = ErrorResponseDto,
         TContext
       > => {
       return useMutation(getAuthControllerRefreshMutationOptions(options), queryClient);
+    }
+    export const getAuthControllerTelegramAuthUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram`
+}
+
+/**
+ * @summary Вход через Telegram Widget
+ */
+export const authControllerTelegramAuth = async (telegramAuthDto: TelegramAuthDto, options?: Parameters<typeof customInstance>[1]): Promise<TelegramAuthResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<TelegramAuthResponseDto>(getAuthControllerTelegramAuthUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramAuthDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramAuthMutationKey = () => ['authControllerTelegramAuth'] as const;
+
+export const getAuthControllerTelegramAuthMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramAuthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramAuth>>, AuthControllerTelegramAuthMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramAuth(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramAuthMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramAuth>>>
+    export type AuthControllerTelegramAuthMutationBody = TelegramAuthDto
+    export type AuthControllerTelegramAuthMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramAuthMutationVariables = {data: TelegramAuthDto}
+
+    /**
+ * @summary Вход через Telegram Widget
+ */
+export const useAuthControllerTelegramAuth = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramAuth>>,
+        TError,
+        AuthControllerTelegramAuthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramAuthMutationOptions(options), queryClient);
+    }
+    export const getAuthControllerTelegramCompleteUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram/complete`
+}
+
+/**
+ * @summary Завершение онбординга Telegram с указанием email
+ */
+export const authControllerTelegramComplete = async (telegramCompleteDto: TelegramCompleteDto, options?: Parameters<typeof customInstance>[1]): Promise<AccessTokenResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<AccessTokenResponseDto>(getAuthControllerTelegramCompleteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramCompleteDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramCompleteMutationKey = () => ['authControllerTelegramComplete'] as const;
+
+export const getAuthControllerTelegramCompleteMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramCompleteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramComplete>>, AuthControllerTelegramCompleteMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramComplete(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramComplete>>>
+    export type AuthControllerTelegramCompleteMutationBody = TelegramCompleteDto
+    export type AuthControllerTelegramCompleteMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramCompleteMutationVariables = {data: TelegramCompleteDto}
+
+    /**
+ * @summary Завершение онбординга Telegram с указанием email
+ */
+export const useAuthControllerTelegramComplete = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramComplete>>,
+        TError,
+        AuthControllerTelegramCompleteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramCompleteMutationOptions(options), queryClient);
+    }
+    export const getAuthControllerTelegramLinkUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram/link`
+}
+
+/**
+ * @summary Привязка Telegram аккаунта
+ */
+export const authControllerTelegramLink = async (telegramLinkDto: TelegramLinkDto, options?: Parameters<typeof customInstance>[1]): Promise<MessageResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<MessageResponseDto>(getAuthControllerTelegramLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramLinkDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramLinkMutationKey = () => ['authControllerTelegramLink'] as const;
+
+export const getAuthControllerTelegramLinkMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramLink>>, AuthControllerTelegramLinkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramLinkMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramLink>>>
+    export type AuthControllerTelegramLinkMutationBody = TelegramLinkDto
+    export type AuthControllerTelegramLinkMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramLinkMutationVariables = {data: TelegramLinkDto}
+
+    /**
+ * @summary Привязка Telegram аккаунта
+ */
+export const useAuthControllerTelegramLink = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramLink>>,
+        TError,
+        AuthControllerTelegramLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramLinkMutationOptions(options), queryClient);
     }

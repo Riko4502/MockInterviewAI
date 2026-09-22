@@ -634,6 +634,174 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/telegram": {
+      "post": {
+        "operationId": "AuthController_telegramAuth",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный вход (AUTHENTICATED) или необходимость ввода email (NEED_EMAIL). Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). Refresh token не возвращается в JSON response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramAuthResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации DTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Недействительная подпись Telegram, истекший auth_date или повторный запрос.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Вход через Telegram Widget",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/telegram/complete": {
+      "post": {
+        "operationId": "AuthController_telegramComplete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramCompleteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешное завершение онбординга и создание аккаунта. Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). Refresh token не возвращается в JSON response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Недействительный или истекший onboardingToken / ошибка валидации.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email уже зарегистрирован.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Завершение онбординга Telegram с указанием email",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/telegram/link": {
+      "post": {
+        "operationId": "AuthController_telegramLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Telegram аккаунт успешно привязан.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации DTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Недействительная подпись Telegram или неавторизованный запрос.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Telegram аккаунт уже привязан к другому пользователю.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Привязка Telegram аккаунта",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/sessions": {
       "post": {
         "operationId": "SessionsController_createSession",
@@ -1441,6 +1609,38 @@
         },
         "required": ["statusCode", "message"]
       },
+      "TelegramAuthResponseDto": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "example": "AUTHENTICATED"
+              },
+              "accessToken": {
+                "type": "string",
+                "description": "JWT access token"
+              }
+            },
+            "required": ["status", "accessToken"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "example": "NEED_EMAIL"
+              },
+              "onboardingToken": {
+                "type": "string",
+                "description": "Одноразовый токен онбординга для завершения регистрации"
+              }
+            },
+            "required": ["status", "onboardingToken"]
+          }
+        ]
+      },
       "RegisterDto": {
         "type": "object",
         "properties": {
@@ -1530,6 +1730,107 @@
           }
         },
         "required": ["token", "newPassword", "newPasswordConfirmation"]
+      },
+      "TelegramAuthDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "photo_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "auth_date": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "auth_date", "hash"]
+      },
+      "TelegramCompleteDto": {
+        "type": "object",
+        "properties": {
+          "onboardingToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": ["onboardingToken", "email"]
+      },
+      "TelegramLinkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "photo_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "auth_date": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "auth_date", "hash"]
       },
       "HealthResponseDto": {
         "type": "object",

@@ -103,6 +103,31 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
   required: ["statusCode", "message"],
 };
 
+const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    status: { type: "string", example: "AUTHENTICATED" },
+    accessToken: { type: "string", description: "JWT access token" },
+  },
+  required: ["status", "accessToken"],
+};
+
+const TELEGRAM_AUTH_NEED_EMAIL_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    status: { type: "string", example: "NEED_EMAIL" },
+    onboardingToken: {
+      type: "string",
+      description: "Одноразовый токен онбординга для завершения регистрации",
+    },
+  },
+  required: ["status", "onboardingToken"],
+};
+
+const TELEGRAM_AUTH_RESPONSE_SCHEMA: SchemaObject = {
+  oneOf: [TELEGRAM_AUTH_SUCCESS_SCHEMA, TELEGRAM_AUTH_NEED_EMAIL_SCHEMA],
+};
+
 const accessTokenResponseRef = registerOpenApiSchema(
   "AccessTokenResponseDto",
   ACCESS_TOKEN_RESPONSE_SCHEMA,
@@ -118,6 +143,10 @@ const validationErrorResponseRef = registerOpenApiSchema(
 const errorResponseRef = registerOpenApiSchema(
   "ErrorResponseDto",
   ERROR_RESPONSE_SCHEMA,
+);
+const telegramAuthResponseRef = registerOpenApiSchema(
+  "TelegramAuthResponseDto",
+  TELEGRAM_AUTH_RESPONSE_SCHEMA,
 );
 
 const REFRESH_COOKIE_DESCRIPTION =
@@ -524,11 +553,29 @@ export class AuthController {
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(telegramAuthSchema, "TelegramAuthDto")
   @ApiOperation({ summary: "Вход через Telegram Widget" })
+  @ApiResponse({
+    status: 200,
+    description: `Успешный вход (AUTHENTICATED) или необходимость ввода email (NEED_EMAIL). ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: telegramAuthResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: validationErrorResponseRef,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Недействительная подпись Telegram, истекший auth_date или повторный запрос.",
+    schema: errorResponseRef,
+  })
   async telegramAuth(
+    @Req() request: Request,
     @Body(new ZodValidationPipe(telegramAuthSchema)) dto: TelegramAuthDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.authService.telegramAuth(dto);
+    const rawPayload = request.body as Record<string, unknown> | undefined;
+    const result = await this.authService.telegramAuth(dto, rawPayload);
 
     if (result.status === "AUTHENTICATED") {
       this.setRefreshTokenCookie(response, result.refreshToken);
@@ -546,7 +593,23 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(telegramCompleteSchema, "TelegramCompleteDto")
-  @ApiOperation({ summary: "Завершение онбординга Telegram с указом email" })
+  @ApiOperation({ summary: "Завершение онбординга Telegram с указанием email" })
+  @ApiResponse({
+    status: 200,
+    description: `Успешное завершение онбординга и создание аккаунта. ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: accessTokenResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      "Недействительный или истекший onboardingToken / ошибка валидации.",
+    schema: validationErrorResponseRef,
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Email уже зарегистрирован.",
+    schema: errorResponseRef,
+  })
   async telegramComplete(
     @Body(new ZodValidationPipe(telegramCompleteSchema))
     dto: TelegramCompleteDto,
@@ -565,11 +628,33 @@ export class AuthController {
   @ZodBody(telegramLinkSchema, "TelegramLinkDto")
   @ApiBearerAuth()
   @ApiOperation({ summary: "Привязка Telegram аккаунта" })
+  @ApiResponse({
+    status: 200,
+    description: "Telegram аккаунт успешно привязан.",
+    schema: messageResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: validationErrorResponseRef,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Недействительная подпись Telegram или неавторизованный запрос.",
+    schema: errorResponseRef,
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Telegram аккаунт уже привязан к другому пользователю.",
+    schema: errorResponseRef,
+  })
   async telegramLink(
     @Req() request: AuthRequest,
     @Body(new ZodValidationPipe(telegramLinkSchema)) dto: TelegramLinkDto,
   ): Promise<{ message: string }> {
-    return this.authService.telegramLink(request.user.sub, dto);
+    const rawPayload = request.body as Record<string, unknown> | undefined;
+    return this.authService.telegramLink(request.user.sub, dto, rawPayload);
   }
 
   /**

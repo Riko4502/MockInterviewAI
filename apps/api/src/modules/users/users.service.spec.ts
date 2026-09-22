@@ -284,6 +284,94 @@ describe("UsersService", () => {
     });
   });
 
+  describe("linkTelegram", () => {
+    it("успешно привязывает Telegram аккаунт к пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        return null;
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      const result = await service.linkTelegram(mockUser.id, {
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          telegramId: BigInt(123456789),
+          telegramUsername: "new_tg",
+        },
+      });
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.linkTelegram("non-existent", {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("выбрасывает ConflictException если пользователь уже имеет другой привязанный telegramId", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(999999999),
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+    });
+
+    it("выбрасывает ConflictException если telegramId уже привязан к другому пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        if (args.where.telegramId)
+          return {
+            id: "22222222-2222-4222-a222-222222222222",
+            telegramId: BigInt(123456789),
+          };
+        return null;
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to another user");
+    });
+
+    it("обрабатывает Prisma P2025 ошибки как NotFoundException", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: null,
+      });
+      const p2025 = Object.assign(new Error("Record not found"), {
+        code: "P2025",
+      });
+      prismaMock.user.update.mockRejectedValue(p2025);
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("findByTelegramId and createTelegramUser", () => {
     it("ищет пользователя по telegramId", async () => {
       const tgUser = { ...mockUser, telegramId: BigInt(123456789) };

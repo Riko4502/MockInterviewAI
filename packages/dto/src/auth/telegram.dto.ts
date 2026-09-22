@@ -6,18 +6,12 @@ import { normalizeEmail } from "./email";
  * Поля payload: id, first_name, last_name, username, photo_url, auth_date, hash
  */
 export const telegramAuthSchema = z.object({
-  id: z.union([
-    z.number(),
-    z.string().transform((val) => Number.parseInt(val, 10)),
-  ]),
+  id: z.coerce.number().int().positive(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   username: z.string().optional(),
   photo_url: z.string().url().optional(),
-  auth_date: z.union([
-    z.number(),
-    z.string().transform((val) => Number.parseInt(val, 10)),
-  ]),
+  auth_date: z.coerce.number().int().positive(),
   hash: z.string().min(1),
 });
 

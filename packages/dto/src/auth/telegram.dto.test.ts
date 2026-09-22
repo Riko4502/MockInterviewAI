@@ -24,6 +24,101 @@ describe("telegramAuthSchema", () => {
     expect(result.id).toBe(123456789);
     expect(result.auth_date).toBe(1700000000);
   });
+
+  it("отклоняет нечисловые значения для id и auth_date", () => {
+    expect(
+      telegramAuthSchema.safeParse({
+        id: "not_a_number",
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 123456789,
+        auth_date: "abc",
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: Number.NaN,
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("отклоняет отсутствие hash", () => {
+    const input = {
+      id: 123456789,
+      auth_date: 1700000000,
+    };
+    const result = telegramAuthSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  it("отклоняет дробные значения для id и auth_date", () => {
+    expect(
+      telegramAuthSchema.safeParse({
+        id: "123.45",
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 123456789.5,
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 123456789,
+        auth_date: 1700000000.75,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("отклоняет 0 и отрицательные значения для id и auth_date", () => {
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 0,
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: -12345,
+        auth_date: 1700000000,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 123456789,
+        auth_date: 0,
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      telegramAuthSchema.safeParse({
+        id: 123456789,
+        auth_date: "-1700000000",
+        hash: "abcdef1234567890",
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("telegramCompleteSchema", () => {
