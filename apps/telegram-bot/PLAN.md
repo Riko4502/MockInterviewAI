@@ -7,7 +7,9 @@
 | 1.0.0 | 2026-09-16 | Заменена ревью (1.0.1) |
 | 1.0.1 | 2026-09-20 | Заменена ревью (1.0.2) |
 | 1.0.2 | 2026-09-20 | Заменена ревью (1.0.3) |
-| 1.0.3 | 2026-09-20 | Актуальный |
+| 1.0.3 | 2026-09-20 | Заменена ревью (1.0.4) |
+| 1.0.4 | 2026-09-22 | Заменена ревью (1.0.5) |
+| 1.0.5 | 2026-09-22 | Актуальный |
 
 ## Область v1.0.0
 
@@ -109,7 +111,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
   - `bot.command("start", startHandler)`, `me`, `interviews`, `unlink`, `lang`;
   - `bot.callbackQuery("lang:ru" | "lang:en", langCallback)`;
   - `bot.catch(...)` — лог без чувствительных данных (SPEC §13).
-- [ ] `src/index.ts` — bootstrap:
+- [x] `src/index.ts` — bootstrap:
   - загрузка config;
   - webhook-режим (задан `TELEGRAM_WEBHOOK_URL`): `setWebhook(url, { secret_token: SECRET })` + `webhookCallback(bot, "http", { secretToken: SECRET })` — `secretToken` обязателен в обоих местах, иначе грамми принимает любые updates; `http.createServer` на `TELEGRAM_WEBHOOK_PORT` (path `/telegram/webhook`);
   - иначе Long Polling: `bot.start({ drop_pending_updates: true })`;
@@ -137,7 +139,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
   - callback → `apiPatch("/telegram/preferences", { chatId, locale })` (при наличии привязки):
     - успех → `ctx.session.locale = code`, `lang.changedRu`/`lang.changedEn`;
     - `404` → `lang.notLinked`; ошибка API → `lang.persistError`.
-- [ ] Тесты (Vitest, mock `api-client`):
+- [x] Тесты (Vitest, mock `api-client`):
   - `i18n.spec.ts` — приоритет локали (manual > profile > `language_code` > fallback `ru`);
   - `api-client.spec.ts` — передача `X-Internal-Service-Key`, маппинг `ApiError` (409/410/404/5xx);
   - `start/me/interviews/unlink/lang.handler.spec.ts` — ведущие сценарии (успех и ошибки).
@@ -155,7 +157,7 @@ pnpm --filter @apps/telegram-bot lint && pnpm --filter @apps/telegram-bot typech
 pnpm run build:telegram-bot
 ```
 
-- [ ] Проверить OpenAPI: `pnpm generate:api` — telegram-эндпоинты **отсутствуют** в `apps/api/openapi/openapi.yaml` (`@ApiExcludeController`, SPEC §13); регрессий в существующих путях нет.
+- [x] Проверить OpenAPI: `pnpm generate:api` — telegram-эндпоинты **отсутствуют** в `apps/api/openapi/openapi.yaml` (`@ApiExcludeController`, SPEC §13); регрессий в существующих путях нет. Для запуска генерации в корневой `.env` добавлен блок `# Telegram Bot` (`INTERNAL_SERVICE_KEY`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_LINK_TTL_SECONDS`).
 - [ ] Ручной сквозной сценарий (dev, Long Polling):
   1. `docker compose up -d`; заполнить `.env` (в т.ч. `INTERNAL_SERVICE_KEY`, `TELEGRAM_BOT_TOKEN`);
   2. поднять API (`pnpm --filter api dev`) и бот (`pnpm run dev:telegram-bot`);
@@ -163,7 +165,7 @@ pnpm run build:telegram-bot
   4. перейти по `t.me/...?start=TOKEN` → бот отвечает `start.linked`; повторно открыть ту же ссылку → `start.tokenExpired` (single-use);
   5. `/me` → профиль; `/interviews` → список/пусто; `/lang` → смена языка, затем повторный `/me` на выбранном языке; `/unlink` → `unlink.success`, повторный `/me` → `me.notLinked`.
 - [ ] Проверить join-кнопку `/interviews`: переход по `{WEB_APP_URL}/dashboard/sandbox?room={id}` — на момент v1.0.0 веб-роут не реализован (`docs/tasks/session-join-flow.md`), фиксируем 404 как известный gap и возвращаемся после реализации веб-задачи.
-- [ ] Зафиксировать отклонения/решения, обновить этот план и SPEC (Behavior-driven, как в `apps/api/PLAN.md`).
+- [x] Зафиксировать отклонения/решения, обновить этот план и SPEC (Behavior-driven, как в `apps/api/PLAN.md`). Отклонения: manual e2e требует поднятой БД (docker) и реальных токенов; unit-сьют `apps/api` `openapi-generation.spec.ts` требует поднятую БД (`docker compose up -d`) — с docker оба сьюта (`openapi-generation` 35 тестов, полный `apps/api` 397 тестов) зелёные. Возникший при полном прогоне 5s hook-timeout `beforeAll` (boot всего `AppModule` под параллельной нагрузкой ts-jest) устранён: `testTimeout: 30000` в `apps/api/jest.config.ts` — не регрессия кода (см. v1.0.5).
 
 ---
 
@@ -185,3 +187,5 @@ pnpm run build:telegram-bot
 | 1.0.1 | 2026-09-20 | Синхронизация с ревью SPEC 1.0.1: токен randomBytes+sha256 (лимит `?start=`), атомарный GETDEL, guard против разной длины ключа, `unlink` очищает локаль, private-chat guard в `/start`, повторный link → `410` в сценарии и тестах, `--env-file` в scripts. |
 | 1.0.2 | 2026-09-20 | Синхронизация с ревью SPEC 1.0.2: `@Public()` на service-key эндпоинтах (обход глобального `AccessTokenGuard`), per-route `AuthThrottlerGuard` на `link-token` (глобального throttling нет), бот импортирует dto только типы. |
 | 1.0.3 | 2026-09-20 | Синхронизация с ревью SPEC 1.0.3: `secretToken` в `webhookCallback` (иначе принимает любые updates), timeout api-client (AbortSignal.timeout 10s), лимиты `linkRequestSchema` (token ≤ 64, chatId ≤ 32), `5xx → interviews.unexpected`, join-URL через константу `JOIN_PATH` + зависимость от `/dashboard/sandbox` (web не реализован, проверка в Phase 8), in-memory session для одной реплики. |
+| 1.0.4 | 2026-09-22 | Завершение реализации: `src/index.ts` (bootstrap webhook/LL + graceful shutdown), тесты хендлеров (Vitest, mock api-client, 5 spec-файлов + test-context), верификация: dto test/build, i18n typecheck, api lint, telegram-specs (39 тестов), telegram-bot lint/typecheck/test (44 теста), `build:telegram-bot`, `generate:api` (telegram-routes отсутствуют, openapi.yaml без регрессий). Ручной сценарий и join-кнопка — вне авто-верификации (требуют docker/токенов и веб-роута). |
+| 1.0.5 | 2026-09-22 | Верификация env-зависимых сьютов `apps/api`: поднят `docker compose up -d` (postgres/redis/minio/rabbitmq/livekit; livekit-переменные задаются инлайн); `openapi-generation.spec.ts` — 35/35 зелёный; полный `pnpm --filter api test` — 30/30 сьютов, 397 тестов зелёные. Flaky 5s hook-timeout в `beforeAll` (boot AppModule под параллельным прогоном) устранён добавлением `testTimeout: 30000` в `apps/api/jest.config.ts`. |
