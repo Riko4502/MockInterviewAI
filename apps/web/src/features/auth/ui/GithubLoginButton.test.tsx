@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initApiTransport, resetApiTransportState } from "@/shared/api/init";
+import { initApiTransport, resetApiTransportState } from "@/shared/api";
 import i18n from "@/shared/lib/i18n";
 import { LoginForm } from "./LoginForm";
 import { RegisterForm } from "./RegisterForm";
