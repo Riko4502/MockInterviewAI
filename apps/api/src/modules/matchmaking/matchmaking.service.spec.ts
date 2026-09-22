@@ -170,6 +170,7 @@ describe("MatchmakingService", () => {
         where: {
           receiverId,
           status: "PENDING",
+          expiresAt: { gt: expect.any(Date) },
         },
       });
       expect(result).toEqual({ pendingCount: 3 });

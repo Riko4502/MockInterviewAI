@@ -75,11 +75,12 @@ export class MatchmakingService {
    * @returns Объект с числом входящих заявок в ожидании
    */
   async getUnreadCount(userId: string): Promise<UnreadMatchRequestsCountDto> {
-    // 1. Считаем количество входящих заявок в статусе PENDING
+    // 1. Считаем количество входящих активных заявок в статусе PENDING (не просроченных)
     const pendingCount = await this.prisma.matchRequest.count({
       where: {
         receiverId: userId,
         status: "PENDING",
+        expiresAt: { gt: new Date() },
       },
     });
 

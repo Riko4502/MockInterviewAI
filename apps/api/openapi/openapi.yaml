@@ -2429,7 +2429,6 @@ components:
             - SENIOR
             - LEAD
         language:
-          default: RU
           type: string
           enum:
             - RU
@@ -2452,10 +2451,8 @@ components:
           type: string
           maxLength: 300
         isUrgent:
-          default: false
           type: boolean
         autoRenew:
-          default: false
           type: boolean
     UpdateShowcaseCardStatusDto:
       type: object

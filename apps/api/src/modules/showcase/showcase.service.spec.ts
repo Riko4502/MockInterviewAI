@@ -250,6 +250,101 @@ describe("ShowcaseService", () => {
     });
   });
 
+  describe("updateStatus", () => {
+    it("бросает NotFoundException, если карточка не найдена", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus("card-1", userId, { status: "INACTIVE" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("бросает ForbiddenException, если пользователь не является автором", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId: "another-user",
+        status: "ACTIVE",
+        user: { id: "another-user", telegramUsername: "user_tg" },
+      });
+
+      await expect(
+        service.updateStatus("card-1", userId, { status: "INACTIVE" }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("бросает BadRequestException при попытке изменить статус EXPIRED карточки", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        status: "EXPIRED",
+        user: { id: userId, telegramUsername: "tg" },
+      });
+
+      await expect(
+        service.updateStatus("card-1", userId, { status: "ACTIVE" }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("возвращает карточку без мутации в базе, если статус совпадает с текущим (no-op)", async () => {
+      const existingCard = {
+        id: "card-1",
+        userId,
+        status: "ACTIVE",
+        user: { id: userId, telegramUsername: "tg" },
+      };
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(existingCard);
+
+      const result = await service.updateStatus("card-1", userId, {
+        status: "ACTIVE",
+      });
+
+      expect(result).toEqual(existingCard);
+      expect(prismaMock.showcaseCard.update).not.toHaveBeenCalled();
+      expect(prismaMock.showcaseCard.count).not.toHaveBeenCalled();
+    });
+
+    it("бросает BadRequestException при переводе в ACTIVE, если достигнут лимит 5 активных анкет", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        status: "INACTIVE",
+        user: { id: userId, telegramUsername: "tg" },
+      });
+      prismaMock.showcaseCard.count.mockResolvedValue(5);
+
+      await expect(
+        service.updateStatus("card-1", userId, { status: "ACTIVE" }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("успешно переводит карточку в новый статус при соблюдении всех правил", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        status: "ACTIVE",
+        user: { id: userId, telegramUsername: "tg" },
+      });
+      const updatedCard = {
+        id: "card-1",
+        userId,
+        status: "INACTIVE",
+        user: { id: userId, telegramUsername: "tg" },
+      };
+      prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
+
+      const result = await service.updateStatus("card-1", userId, {
+        status: "INACTIVE",
+      });
+
+      expect(result.status).toBe("INACTIVE");
+      expect(prismaMock.showcaseCard.update).toHaveBeenCalledWith({
+        where: { id: "card-1" },
+        data: { status: "INACTIVE" },
+        include: expect.any(Object),
+      });
+    });
+  });
+
   describe("bump", () => {
     it("бросает BadRequestException, если с момента прошлого бампа прошло менее 24ч", async () => {
       prismaMock.showcaseCard.findUnique.mockResolvedValue({

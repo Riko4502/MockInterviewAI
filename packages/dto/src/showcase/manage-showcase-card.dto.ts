@@ -6,11 +6,7 @@ import {
   specializationEnum,
 } from "./showcase.enums";
 
-/**
- * [Request] Схема валидации данных для создания карточки на витрине (POST /showcase).
- * Проверяет обязательные поля (специализация, уровень, навыки) и очищает текст от XSS.
- */
-export const createShowcaseCardSchema = z.object({
+const baseShowcaseCardFields = {
   title: z
     .string()
     .trim()
@@ -20,7 +16,7 @@ export const createShowcaseCardSchema = z.object({
     .optional(),
   specialization: specializationEnum,
   level: experienceLevelEnum,
-  language: interviewLanguageEnum.default("RU"),
+  language: interviewLanguageEnum,
   skills: z
     .array(
       z
@@ -47,15 +43,28 @@ export const createShowcaseCardSchema = z.object({
     .transform(stripHtmlTags)
     .optional()
     .nullable(),
-  isUrgent: z.boolean().default(false),
-  autoRenew: z.boolean().default(false),
+  isUrgent: z.boolean(),
+  autoRenew: z.boolean(),
+};
+
+/**
+ * [Request] Схема валидации данных для создания карточки на витрине (POST /showcase).
+ * Проверяет обязательные поля (специализация, уровень, навыки) и очищает текст от XSS.
+ */
+export const createShowcaseCardSchema = z.object({
+  ...baseShowcaseCardFields,
+  language: baseShowcaseCardFields.language.default("RU"),
+  isUrgent: baseShowcaseCardFields.isUrgent.default(false),
+  autoRenew: baseShowcaseCardFields.autoRenew.default(false),
 });
 
 /**
  * [Request] Схема валидации для частичного обновления карточки (PATCH /showcase/:id).
- * Все поля опциональны — пользователь может обновить только то, что изменил.
+ * Все поля опциональны — пользователь может обновить только то, что изменил (без подстановки дефолтов).
  */
-export const updateShowcaseCardSchema = createShowcaseCardSchema.partial();
+export const updateShowcaseCardSchema = z
+  .object(baseShowcaseCardFields)
+  .partial();
 
 /**
  * [Request] Схема переключения статуса карточки (PATCH /showcase/:id/status).
