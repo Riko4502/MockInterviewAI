@@ -8,7 +8,8 @@
     "storybook": "storybook dev -p 6006",
     "build": "storybook build",
     "build-storybook": "storybook build",
-    "test": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --ci\"",
+    "test": "echo \"No unit tests for ui-docs\"",
+    "test:storybook": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && test-storybook --ci\"",
     "typecheck": "tsc --noEmit",
     "vercel-ignore": "bash ../../scripts/vercel-ignore-ui-docs.sh"
   },
