@@ -114,7 +114,7 @@ describe("AuthService", () => {
         newPasswordConfirmation: "NewPassword123!",
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(updatePassword).not.toHaveBeenCalled();
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
   });
 
   beforeEach(async () => {

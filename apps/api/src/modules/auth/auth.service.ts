@@ -216,7 +216,7 @@ export class AuthService implements OnModuleInit {
     const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
     const passwordValid = await argon2.verify(passwordHash, password);
 
-    if (!user || !passwordValid) {
+    if (!user?.passwordHash || !passwordValid) {
       throw new UnauthorizedException("Invalid credentials");
     }
 
