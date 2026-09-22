@@ -1,5 +1,5 @@
 import { baseFetch } from "@/shared/api";
-import type { TelegramAuthData, TelegramAuthResponse } from "../model/types";
+import type { TelegramAuthData, TelegramAuthResponse } from "./types";
 
 const TELEGRAM_AUTH_ENDPOINT = "/api/v1/auth/telegram";
 
