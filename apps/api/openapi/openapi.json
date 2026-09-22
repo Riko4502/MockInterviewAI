@@ -485,6 +485,16 @@
               }
             }
           },
+          "409": {
+            "description": "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).",
             "content": {
@@ -1709,6 +1719,700 @@
         "summary": "Delete notification",
         "tags": ["Notifications"]
       }
+    },
+    "/api/v1/showcase": {
+      "get": {
+        "operationId": "ShowcaseController_findAll",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "Сортировка анкет (по умолчанию BUMPED)",
+            "schema": {
+              "enum": ["BUMPED", "NEWEST", "LEVEL_ASC", "LEVEL_DESC"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Поисковая строка с поддержкой операторов (+react -vue middle)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skill",
+            "required": false,
+            "in": "query",
+            "description": "Точный навык/технология",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "isUrgent",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр 'Готов провести сегодня'",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Язык проведения собеседования",
+            "schema": {
+              "enum": ["RU", "EN", "ANY"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по уровню квалификации",
+            "schema": {
+              "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "specialization",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по специализации",
+            "schema": {
+              "enum": [
+                "FRONTEND",
+                "BACKEND",
+                "FULLSTACK",
+                "DEVOPS",
+                "QA",
+                "MOBILE",
+                "DATA_ML",
+                "SYSTEM_DESIGN"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Пагинированный список анкет"
+          },
+          "400": {
+            "description": "Некорректные параметры query"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить каталог активных карточек витрины",
+        "tags": ["Showcase"]
+      },
+      "post": {
+        "operationId": "ShowcaseController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShowcaseCardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Анкета успешно создана"
+          },
+          "400": {
+            "description": "Не заполнен профиль или превышен лимит 5 анкет"
+          },
+          "409": {
+            "description": "Уже есть активная анкета с такой специализацией и уровнем"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Создать новую анкету на витрине",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/showcase/my": {
+      "get": {
+        "operationId": "ShowcaseController_findMy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Список анкет пользователя"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить анкеты текущего пользователя со статистикой заявок",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/showcase/{id}": {
+      "get": {
+        "operationId": "ShowcaseController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Данные анкеты"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить детальную информацию об анкете по ID",
+        "tags": ["Showcase"]
+      },
+      "patch": {
+        "operationId": "ShowcaseController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShowcaseCardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Анкета успешно обновлена"
+          },
+          "403": {
+            "description": "Недостаточно прав для редактирования"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          },
+          "409": {
+            "description": "Конфликт уникальности специализации и уровня"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Редактировать анкету (только автор)",
+        "tags": ["Showcase"]
+      },
+      "delete": {
+        "operationId": "ShowcaseController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Анкета успешно удалена"
+          },
+          "403": {
+            "description": "Недостаточно прав"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удалить анкету",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/showcase/{id}/status": {
+      "patch": {
+        "operationId": "ShowcaseController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShowcaseCardStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Статус успешно изменен"
+          },
+          "400": {
+            "description": "Превышен лимит 5 активных карточек или анкета просрочена"
+          },
+          "403": {
+            "description": "Недостаточно прав"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Переключить статус анкеты ACTIVE <-> INACTIVE",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/showcase/{id}/bump": {
+      "post": {
+        "operationId": "ShowcaseController_bump",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Анкета поднята в топ"
+          },
+          "400": {
+            "description": "Не прошёл кулдаун 24 часа или анкета не активна"
+          },
+          "403": {
+            "description": "Недостаточно прав"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Поднять анкету в топ каталога (раз в 24 часа)",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/showcase/{id}/renew": {
+      "post": {
+        "operationId": "ShowcaseController_renew",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID карточки витрины",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Анкета продлена на 15 дней"
+          },
+          "400": {
+            "description": "Анкета не в статусе EXPIRED или достигнут лимит 5 анкет"
+          },
+          "403": {
+            "description": "Недостаточно прав"
+          },
+          "404": {
+            "description": "Анкета не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Продлить истекшую анкету (EXPIRED -> ACTIVE)",
+        "tags": ["Showcase"]
+      }
+    },
+    "/api/v1/matchmaking/requests/unread-count": {
+      "get": {
+        "operationId": "MatchmakingController_getUnreadCount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Количество непрочитанных заявок"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить количество входящих заявок в ожидании ответа (статус PENDING)",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests": {
+      "post": {
+        "operationId": "MatchmakingController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Заявка успешно отправлена (или согласована при авто-матче)"
+          },
+          "400": {
+            "description": "Не заполнен профиль, попытка отклика на себя, исчерпан лимит входящих на карточке или действует кулдаун"
+          },
+          "403": {
+            "description": "Указанная карточка отправителя не принадлежит пользователю"
+          },
+          "404": {
+            "description": "Целевая карточка не найдена или не активна"
+          },
+          "429": {
+            "description": "Превышен лимит активных исходящих заявок (максимум 5)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отправить заявку (отклик) на карточку собеседования",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests/incoming": {
+      "get": {
+        "operationId": "MatchmakingController_findIncoming",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заявки",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Пагинированный список входящих заявок"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить список входящих заявок текущего пользователя",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests/outgoing": {
+      "get": {
+        "operationId": "MatchmakingController_findOutgoing",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы (по умолчанию 20, максимум 50)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Номер страницы (по умолчанию 1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заявки",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Пагинированный список исходящих заявок"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить список исходящих заявок текущего пользователя",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests/{id}/accept": {
+      "post": {
+        "operationId": "MatchmakingController_accept",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID заявки",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Заявка успешно принята, контакты открыты"
+          },
+          "400": {
+            "description": "Заявка не в статусе ожидания или срок её действия истёк"
+          },
+          "403": {
+            "description": "Недостаточно прав для принятия чужой заявки"
+          },
+          "404": {
+            "description": "Заявка не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Принять входящую заявку на собеседование",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests/{id}/reject": {
+      "post": {
+        "operationId": "MatchmakingController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID заявки",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectMatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Заявка успешно отклонена"
+          },
+          "400": {
+            "description": "Заявка не в статусе ожидания"
+          },
+          "403": {
+            "description": "Недостаточно прав для отклонения чужой заявки"
+          },
+          "404": {
+            "description": "Заявка не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отклонить входящую заявку на собеседование",
+        "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/matchmaking/requests/{id}/cancel": {
+      "post": {
+        "operationId": "MatchmakingController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID заявки",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Заявка успешно отменена"
+          },
+          "400": {
+            "description": "Заявка не в статусе ожидания"
+          },
+          "403": {
+            "description": "Недостаточно прав для отмены чужой заявки"
+          },
+          "404": {
+            "description": "Заявка не найдена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отменить свою исходящую заявку на собеседование",
+        "tags": ["Matchmaking"]
+      }
     }
   },
   "info": {
@@ -1761,12 +2465,9 @@
             "type": "string"
           },
           "createdAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "email": {
             "type": "string",
@@ -1780,12 +2481,9 @@
             "type": "string"
           },
           "updatedAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
@@ -1901,12 +2599,9 @@
             "type": "string"
           },
           "createdAt": {
-            "anyOf": [
-              {},
-              {
-                "type": "string"
-              }
-            ]
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
@@ -1965,6 +2660,15 @@
           }
         },
         "required": ["statusCode", "message"]
+      },
+      "OAuthProvidersResponseDto": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "type": "boolean"
+          }
+        },
+        "required": ["github"]
       },
       "RegisterDto": {
         "type": "object",
@@ -2444,6 +3148,39 @@
         },
         "required": ["status", "db"]
       },
+      "CreateMatchRequestDto": {
+        "type": "object",
+        "properties": {
+          "targetCardId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "senderCardId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "preferredTopic": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": ["targetCardId"]
+      },
+      "RejectMatchRequestDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
       "NotificationsListDto": {
         "type": "object",
         "properties": {
@@ -2598,7 +3335,8 @@
         "properties": {
           "userId": {
             "type": "string",
-            "minLength": 1
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "role": {
             "type": "string",
@@ -2667,14 +3405,133 @@
         },
         "required": ["token", "serverUrl", "roomName"]
       },
-      "OAuthProvidersResponseDto": {
+      "CreateShowcaseCardDto": {
         "type": "object",
         "properties": {
-          "github": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "default": "RU",
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30
+            }
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 500
+          },
+          "scheduleInfo": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 300
+          },
+          "isUrgent": {
+            "default": false,
+            "type": "boolean"
+          },
+          "autoRenew": {
+            "default": false,
             "type": "boolean"
           }
         },
-        "required": ["github"]
+        "required": ["specialization", "level", "skills"]
+      },
+      "UpdateShowcaseCardDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30
+            }
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 500
+          },
+          "scheduleInfo": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 300
+          },
+          "isUrgent": {
+            "type": "boolean"
+          },
+          "autoRenew": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateShowcaseCardStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INACTIVE"]
+          }
+        },
+        "required": ["status"]
       }
     }
   }

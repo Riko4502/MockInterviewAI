@@ -33,10 +33,10 @@ paths:
                 $ref: "#/components/schemas/UserProfileDto"
         "401":
           description: Не авторизован
-      security:
+      security: &a1
         - bearer: []
       summary: Получить профиль текущего авторизованного пользователя
-      tags:
+      tags: &a2
         - Profile
     patch:
       operationId: ProfileController_updateMyProfile
@@ -59,11 +59,9 @@ paths:
           description: Ошибка валидации входных данных
         "401":
           description: Не авторизован
-      security:
-        - bearer: []
+      security: *a1
       summary: Обновить профиль текущего пользователя
-      tags:
-        - Profile
+      tags: *a2
     delete:
       operationId: ProfileController_deleteMyProfile
       parameters: []
@@ -76,11 +74,9 @@ paths:
                 $ref: "#/components/schemas/MessageResponseDto"
         "401":
           description: Не авторизован
-      security:
-        - bearer: []
+      security: *a1
       summary: Деактивировать аккаунт текущего пользователя
-      tags:
-        - Profile
+      tags: *a2
   /api/v1/profile/avatar:
     post:
       operationId: ProfileController_uploadAvatar
@@ -108,11 +104,9 @@ paths:
           description: Некорректный файл аватара
         "401":
           description: Не авторизован
-      security:
-        - bearer: []
+      security: *a1
       summary: Загрузить аватар профиля
-      tags:
-        - Profile
+      tags: *a2
     delete:
       operationId: ProfileController_deleteAvatar
       parameters: []
@@ -125,11 +119,9 @@ paths:
                 $ref: "#/components/schemas/AvatarDeleteResponseDto"
         "401":
           description: Не авторизован
-      security:
-        - bearer: []
+      security: *a1
       summary: Удалить аватар профиля
-      tags:
-        - Profile
+      tags: *a2
   /api/v1/profile/restore:
     post:
       operationId: ProfileController_restoreMyProfile
@@ -143,11 +135,9 @@ paths:
                 $ref: "#/components/schemas/RestoreProfileResponseDto"
         "401":
           description: Не авторизован
-      security:
-        - bearer: []
+      security: *a1
       summary: Восстановить деактивированный аккаунт
-      tags:
-        - Profile
+      tags: *a2
   /api/v1/users/{idOrUsername}:
     get:
       operationId: UsersController_getPublicProfile
@@ -207,7 +197,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Регистрация нового пользователя (§4)
-      tags:
+      tags: &a3
         - auth
   /api/v1/auth/login:
     post:
@@ -242,8 +232,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Вход пользователя (§58)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/logout:
     post:
       operationId: AuthController_logout
@@ -269,8 +258,7 @@ paths:
       security:
         - bearer: []
       summary: Выход пользователя (§60)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/logout-all:
     post:
       operationId: AuthController_logoutAll
@@ -289,8 +277,7 @@ paths:
       security:
         - bearer: []
       summary: Отзыв всех сессий пользователя (§66)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/change-password:
     post:
       operationId: AuthController_changePassword
@@ -324,6 +311,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
+        "409":
+          description: Состояние пользователя изменилось параллельно — повторите запрос
+            (§67).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDto"
         "500":
           description: Redis недоступен — сессии не отозваны. Cookie НЕ сбрасывается (§67).
           content:
@@ -333,8 +327,7 @@ paths:
       security:
         - bearer: []
       summary: Смена пароля (§67)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/forgot-password:
     post:
       operationId: AuthController_forgotPassword
@@ -361,8 +354,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ValidationErrorResponseDto"
       summary: Запрос ссылки на сброс пароля (Forgot Password)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/reset-password:
     post:
       operationId: AuthController_resetPassword
@@ -390,8 +382,7 @@ paths:
                   - $ref: "#/components/schemas/ValidationErrorResponseDto"
                   - $ref: "#/components/schemas/ErrorResponseDto"
       summary: Установка нового пароля по токену сброса (Reset Password)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/refresh:
     post:
       operationId: AuthController_refresh
@@ -420,8 +411,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDto"
       summary: Обновление токенов — refresh token rotation (§65)
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/oauth/providers:
     get:
       operationId: AuthController_oauthProviders
@@ -434,8 +424,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/OAuthProvidersResponseDto"
       summary: Get configured OAuth providers
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/github:
     get:
       operationId: AuthController_github
@@ -444,8 +433,7 @@ paths:
         "302":
           description: Redirect to GitHub
       summary: Start GitHub OAuth login
-      tags:
-        - auth
+      tags: *a3
   /api/v1/auth/github/callback:
     get:
       operationId: AuthController_githubCallback
@@ -464,8 +452,7 @@ paths:
         "302":
           description: Refresh cookie and redirect to dashboard
       summary: Complete GitHub OAuth login
-      tags:
-        - auth
+      tags: *a3
   /api/v1/admin/users:
     get:
       operationId: AdminUsersController_getUsersList
@@ -539,10 +526,10 @@ paths:
           description: Не авторизован
         "403":
           description: Доступ запрещен (недостаточно прав)
-      security:
+      security: &a4
         - bearer: []
       summary: Получить пагинированный список пользователей с фильтрами и поиском
-      tags:
+      tags: &a5
         - Admin / Users
     post:
       operationId: AdminUsersController_createUser
@@ -569,11 +556,9 @@ paths:
           description: Доступ запрещен
         "409":
           description: Email или username уже заняты
-      security:
-        - bearer: []
+      security: *a4
       summary: Создать нового пользователя администратором
-      tags:
-        - Admin / Users
+      tags: *a5
   /api/v1/admin/users/{id}:
     get:
       operationId: AdminUsersController_getUserById
@@ -598,11 +583,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security:
-        - bearer: []
+      security: *a4
       summary: Получить детальную информацию о пользователе со статистикой
-      tags:
-        - Admin / Users
+      tags: *a5
     patch:
       operationId: AdminUsersController_updateUser
       parameters:
@@ -637,11 +620,9 @@ paths:
           description: Пользователь не найден
         "409":
           description: Email или username уже заняты
-      security:
-        - bearer: []
+      security: *a4
       summary: Обновить данные и/или роль пользователя
-      tags:
-        - Admin / Users
+      tags: *a5
     delete:
       operationId: AdminUsersController_deleteUser
       parameters:
@@ -667,11 +648,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security:
-        - bearer: []
+      security: *a4
       summary: Удалить (деактивировать) пользователя администратором
-      tags:
-        - Admin / Users
+      tags: *a5
   /api/v1/admin/users/{id}/status:
     patch:
       operationId: AdminUsersController_updateStatus
@@ -705,11 +684,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security:
-        - bearer: []
+      security: *a4
       summary: Активировать или деактивировать аккаунт пользователя
-      tags:
-        - Admin / Users
+      tags: *a5
   /api/v1/admin/users/{id}/reset-password:
     post:
       operationId: AdminUsersController_resetPassword
@@ -734,11 +711,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security:
-        - bearer: []
+      security: *a4
       summary: Сбросить пароль пользователя и сгенерировать временный
-      tags:
-        - Admin / Users
+      tags: *a5
   /api/v1/admin/users/{id}/restore:
     post:
       operationId: AdminUsersController_restoreUser
@@ -765,11 +740,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security:
-        - bearer: []
+      security: *a4
       summary: Восстановить удаленного пользователя администратором
-      tags:
-        - Admin / Users
+      tags: *a5
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession
@@ -783,10 +756,10 @@ paths:
                 $ref: "#/components/schemas/CreateSessionResponseDto"
         "401":
           description: Не авторизован
-      security:
+      security: &a6
         - bearer: []
       summary: Создать новую интервью-сессию
-      tags:
+      tags: &a7
         - Sessions
   /api/v1/sessions/{id}/join:
     post:
@@ -820,11 +793,9 @@ paths:
             участником)
         "404":
           description: Сессия не найдена
-      security:
-        - bearer: []
+      security: *a6
       summary: Присоединиться к интервью-сессии
-      tags:
-        - Sessions
+      tags: *a7
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -854,11 +825,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security:
-        - bearer: []
+      security: *a6
       summary: Добавить участника в сессию
-      tags:
-        - Sessions
+      tags: *a7
   /api/v1/sessions/{id}/participants/{userId}:
     delete:
       operationId: SessionsController_removeParticipant
@@ -886,11 +855,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия или участник не найдены
-      security:
-        - bearer: []
+      security: *a6
       summary: Удалить участника из сессии
-      tags:
-        - Sessions
+      tags: *a7
   /api/v1/sessions/{id}/close:
     post:
       operationId: SessionsController_closeSession
@@ -911,11 +878,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security:
-        - bearer: []
+      security: *a6
       summary: Закрыть интервью-сессию
-      tags:
-        - Sessions
+      tags: *a7
   /api/v1/sessions/{id}/rotate-invite:
     post:
       operationId: SessionsController_rotateInviteToken
@@ -940,11 +905,9 @@ paths:
           description: Доступ запрещен (не владелец или сессия закрыта)
         "404":
           description: Сессия не найдена
-      security:
-        - bearer: []
+      security: *a6
       summary: Ротировать инвайт-токен сессии
-      tags:
-        - Sessions
+      tags: *a7
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -971,10 +934,10 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security:
+      security: &a8
         - bearer: []
       summary: Выдать одноразовый тикет для подключения к WebSocket комнате
-      tags:
+      tags: &a9
         - Realtime
   /api/v1/realtime/media-token:
     post:
@@ -1002,11 +965,9 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security:
-        - bearer: []
+      security: *a8
       summary: Выдать LiveKit join-токен для WebRTC медиа
-      tags:
-        - Realtime
+      tags: *a9
   /api/v1/notifications:
     get:
       operationId: NotificationsController_getNotifications
@@ -1047,10 +1008,10 @@ paths:
                 $ref: "#/components/schemas/NotificationsListDto"
         "400":
           description: Invalid pagination or category parameters
-      security:
+      security: &a10
         - bearer: []
       summary: Get user notifications
-      tags:
+      tags: &a11
         - Notifications
   /api/v1/notifications/unread-count:
     get:
@@ -1063,11 +1024,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadNotificationsCountDto"
-      security:
-        - bearer: []
+      security: *a10
       summary: Get unread notifications count
-      tags:
-        - Notifications
+      tags: *a11
   /api/v1/notifications/read-all:
     post:
       operationId: NotificationsController_markAllAsRead
@@ -1079,11 +1038,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
-      security:
-        - bearer: []
+      security: *a10
       summary: Mark all notifications as read
-      tags:
-        - Notifications
+      tags: *a11
   /api/v1/notifications/{id}/read:
     patch:
       operationId: NotificationsController_markAsRead
@@ -1103,11 +1060,9 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security:
-        - bearer: []
+      security: *a10
       summary: Mark notification as read
-      tags:
-        - Notifications
+      tags: *a11
   /api/v1/notifications/{id}:
     delete:
       operationId: NotificationsController_markAsDeleted
@@ -1127,11 +1082,456 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security:
-        - bearer: []
+      security: *a10
       summary: Delete notification
-      tags:
-        - Notifications
+      tags: *a11
+  /api/v1/showcase:
+    get:
+      operationId: ShowcaseController_findAll
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          description: Размер страницы (по умолчанию 20, максимум 50)
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          description: Номер страницы (по умолчанию 1)
+          schema:
+            type: number
+        - name: sortBy
+          required: false
+          in: query
+          description: Сортировка анкет (по умолчанию BUMPED)
+          schema:
+            enum:
+              - BUMPED
+              - NEWEST
+              - LEVEL_ASC
+              - LEVEL_DESC
+            type: string
+        - name: search
+          required: false
+          in: query
+          description: Поисковая строка с поддержкой операторов (+react -vue middle)
+          schema:
+            type: string
+        - name: skill
+          required: false
+          in: query
+          description: Точный навык/технология
+          schema:
+            type: string
+        - name: isUrgent
+          required: false
+          in: query
+          description: Фильтр 'Готов провести сегодня'
+          schema:
+            type: boolean
+        - name: language
+          required: false
+          in: query
+          description: Язык проведения собеседования
+          schema:
+            enum:
+              - RU
+              - EN
+              - ANY
+            type: string
+        - name: level
+          required: false
+          in: query
+          description: Фильтр по уровню квалификации
+          schema:
+            enum:
+              - JUNIOR
+              - MIDDLE
+              - SENIOR
+              - LEAD
+            type: string
+        - name: specialization
+          required: false
+          in: query
+          description: Фильтр по специализации
+          schema:
+            enum:
+              - FRONTEND
+              - BACKEND
+              - FULLSTACK
+              - DEVOPS
+              - QA
+              - MOBILE
+              - DATA_ML
+              - SYSTEM_DESIGN
+            type: string
+      responses:
+        "200":
+          description: Пагинированный список анкет
+        "400":
+          description: Некорректные параметры query
+      security: &a12
+        - bearer: []
+      summary: Получить каталог активных карточек витрины
+      tags: &a13
+        - Showcase
+    post:
+      operationId: ShowcaseController_create
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShowcaseCardDto"
+      responses:
+        "201":
+          description: Анкета успешно создана
+        "400":
+          description: Не заполнен профиль или превышен лимит 5 анкет
+        "409":
+          description: Уже есть активная анкета с такой специализацией и уровнем
+      security: *a12
+      summary: Создать новую анкету на витрине
+      tags: *a13
+  /api/v1/showcase/my:
+    get:
+      operationId: ShowcaseController_findMy
+      parameters: []
+      responses:
+        "200":
+          description: Список анкет пользователя
+      security: *a12
+      summary: Получить анкеты текущего пользователя со статистикой заявок
+      tags: *a13
+  /api/v1/showcase/{id}:
+    get:
+      operationId: ShowcaseController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Данные анкеты
+        "404":
+          description: Анкета не найдена
+      security: *a12
+      summary: Получить детальную информацию об анкете по ID
+      tags: *a13
+    patch:
+      operationId: ShowcaseController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShowcaseCardDto"
+      responses:
+        "200":
+          description: Анкета успешно обновлена
+        "403":
+          description: Недостаточно прав для редактирования
+        "404":
+          description: Анкета не найдена
+        "409":
+          description: Конфликт уникальности специализации и уровня
+      security: *a12
+      summary: Редактировать анкету (только автор)
+      tags: *a13
+    delete:
+      operationId: ShowcaseController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Анкета успешно удалена
+        "403":
+          description: Недостаточно прав
+        "404":
+          description: Анкета не найдена
+      security: *a12
+      summary: Удалить анкету
+      tags: *a13
+  /api/v1/showcase/{id}/status:
+    patch:
+      operationId: ShowcaseController_updateStatus
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShowcaseCardStatusDto"
+      responses:
+        "200":
+          description: Статус успешно изменен
+        "400":
+          description: Превышен лимит 5 активных карточек или анкета просрочена
+        "403":
+          description: Недостаточно прав
+        "404":
+          description: Анкета не найдена
+      security: *a12
+      summary: Переключить статус анкеты ACTIVE <-> INACTIVE
+      tags: *a13
+  /api/v1/showcase/{id}/bump:
+    post:
+      operationId: ShowcaseController_bump
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Анкета поднята в топ
+        "400":
+          description: Не прошёл кулдаун 24 часа или анкета не активна
+        "403":
+          description: Недостаточно прав
+        "404":
+          description: Анкета не найдена
+      security: *a12
+      summary: Поднять анкету в топ каталога (раз в 24 часа)
+      tags: *a13
+  /api/v1/showcase/{id}/renew:
+    post:
+      operationId: ShowcaseController_renew
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID карточки витрины
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Анкета продлена на 15 дней
+        "400":
+          description: Анкета не в статусе EXPIRED или достигнут лимит 5 анкет
+        "403":
+          description: Недостаточно прав
+        "404":
+          description: Анкета не найдена
+      security: *a12
+      summary: Продлить истекшую анкету (EXPIRED -> ACTIVE)
+      tags: *a13
+  /api/v1/matchmaking/requests/unread-count:
+    get:
+      operationId: MatchmakingController_getUnreadCount
+      parameters: []
+      responses:
+        "200":
+          description: Количество непрочитанных заявок
+      security: &a14
+        - bearer: []
+      summary: Получить количество входящих заявок в ожидании ответа (статус PENDING)
+      tags: &a15
+        - Matchmaking
+  /api/v1/matchmaking/requests:
+    post:
+      operationId: MatchmakingController_create
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMatchRequestDto"
+      responses:
+        "201":
+          description: Заявка успешно отправлена (или согласована при авто-матче)
+        "400":
+          description: Не заполнен профиль, попытка отклика на себя, исчерпан лимит
+            входящих на карточке или действует кулдаун
+        "403":
+          description: Указанная карточка отправителя не принадлежит пользователю
+        "404":
+          description: Целевая карточка не найдена или не активна
+        "429":
+          description: Превышен лимит активных исходящих заявок (максимум 5)
+      security: *a14
+      summary: Отправить заявку (отклик) на карточку собеседования
+      tags: *a15
+  /api/v1/matchmaking/requests/incoming:
+    get:
+      operationId: MatchmakingController_findIncoming
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          description: Размер страницы (по умолчанию 20, максимум 50)
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          description: Номер страницы (по умолчанию 1)
+          schema:
+            type: number
+        - name: status
+          required: false
+          in: query
+          description: Фильтр по статусу заявки
+          schema:
+            enum:
+              - PENDING
+              - ACCEPTED
+              - REJECTED
+              - CANCELLED
+              - EXPIRED
+            type: string
+      responses:
+        "200":
+          description: Пагинированный список входящих заявок
+      security: *a14
+      summary: Получить список входящих заявок текущего пользователя
+      tags: *a15
+  /api/v1/matchmaking/requests/outgoing:
+    get:
+      operationId: MatchmakingController_findOutgoing
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          description: Размер страницы (по умолчанию 20, максимум 50)
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          description: Номер страницы (по умолчанию 1)
+          schema:
+            type: number
+        - name: status
+          required: false
+          in: query
+          description: Фильтр по статусу заявки
+          schema:
+            enum:
+              - PENDING
+              - ACCEPTED
+              - REJECTED
+              - CANCELLED
+              - EXPIRED
+            type: string
+      responses:
+        "200":
+          description: Пагинированный список исходящих заявок
+      security: *a14
+      summary: Получить список исходящих заявок текущего пользователя
+      tags: *a15
+  /api/v1/matchmaking/requests/{id}/accept:
+    post:
+      operationId: MatchmakingController_accept
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID заявки
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Заявка успешно принята, контакты открыты
+        "400":
+          description: Заявка не в статусе ожидания или срок её действия истёк
+        "403":
+          description: Недостаточно прав для принятия чужой заявки
+        "404":
+          description: Заявка не найдена
+      security: *a14
+      summary: Принять входящую заявку на собеседование
+      tags: *a15
+  /api/v1/matchmaking/requests/{id}/reject:
+    post:
+      operationId: MatchmakingController_reject
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID заявки
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectMatchRequestDto"
+      responses:
+        "200":
+          description: Заявка успешно отклонена
+        "400":
+          description: Заявка не в статусе ожидания
+        "403":
+          description: Недостаточно прав для отклонения чужой заявки
+        "404":
+          description: Заявка не найдена
+      security: *a14
+      summary: Отклонить входящую заявку на собеседование
+      tags: *a15
+  /api/v1/matchmaking/requests/{id}/cancel:
+    post:
+      operationId: MatchmakingController_cancel
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: ID заявки
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Заявка успешно отменена
+        "400":
+          description: Заявка не в статусе ожидания
+        "403":
+          description: Недостаточно прав для отмены чужой заявки
+        "404":
+          description: Заявка не найдена
+      security: *a14
+      summary: Отменить свою исходящую заявку на собеседование
+      tags: *a15
 info:
   title: Mock Interview AI API
   description: |-
@@ -1175,9 +1575,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         email:
           type: string
           format: email
@@ -1187,9 +1587,9 @@ components:
         permissions:
           type: string
         updatedAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - displayName
@@ -1280,9 +1680,9 @@ components:
           nullable: true
           type: string
         createdAt:
-          anyOf:
-            - {}
-            - type: string
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - displayName
@@ -1329,6 +1729,13 @@ components:
       required:
         - statusCode
         - message
+    OAuthProvidersResponseDto:
+      type: object
+      properties:
+        github:
+          type: boolean
+      required:
+        - github
     RegisterDto:
       type: object
       properties:
@@ -1718,6 +2125,31 @@ components:
       required:
         - status
         - db
+    CreateMatchRequestDto:
+      type: object
+      properties:
+        targetCardId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        senderCardId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        message:
+          type: string
+          maxLength: 300
+        preferredTopic:
+          type: string
+          maxLength: 100
+      required:
+        - targetCardId
+    RejectMatchRequestDto:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 200
     NotificationsListDto:
       type: object
       properties:
@@ -1852,7 +2284,8 @@ components:
       properties:
         userId:
           type: string
-          minLength: 1
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         role:
           type: string
           enum:
@@ -1912,10 +2345,122 @@ components:
         - token
         - serverUrl
         - roomName
-    OAuthProvidersResponseDto:
+    CreateShowcaseCardDto:
       type: object
       properties:
-        github:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        language:
+          default: RU
+          type: string
+          enum:
+            - RU
+            - EN
+            - ANY
+        skills:
+          minItems: 1
+          maxItems: 20
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        bio:
+          nullable: true
+          type: string
+          maxLength: 500
+        scheduleInfo:
+          nullable: true
+          type: string
+          maxLength: 300
+        isUrgent:
+          default: false
+          type: boolean
+        autoRenew:
+          default: false
           type: boolean
       required:
-        - github
+        - specialization
+        - level
+        - skills
+    UpdateShowcaseCardDto:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        language:
+          type: string
+          enum:
+            - RU
+            - EN
+            - ANY
+        skills:
+          minItems: 1
+          maxItems: 20
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        bio:
+          nullable: true
+          type: string
+          maxLength: 500
+        scheduleInfo:
+          nullable: true
+          type: string
+          maxLength: 300
+        isUrgent:
+          type: boolean
+        autoRenew:
+          type: boolean
+    UpdateShowcaseCardStatusDto:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+      required:
+        - status
