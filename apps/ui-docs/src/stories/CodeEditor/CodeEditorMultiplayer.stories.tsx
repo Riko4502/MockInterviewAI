@@ -46,19 +46,49 @@ type Story = StoryObj<typeof meta>;
  */
 export const PairProgramming: Story = {
   render: () => {
-    const [yDoc] = useState(() => {
+    const [candidateDoc] = useState(() => {
       const doc = new Y.Doc();
       const text = doc.getText("monaco");
       text.insert(0, getTemplate("typescript", "algorithm"));
       return doc;
     });
 
-    const yText = useMemo(() => yDoc.getText("monaco"), [yDoc]);
+    const [interviewerDoc] = useState(() => {
+      const doc = new Y.Doc();
+      // Синхронизируем начальное состояние из candidateDoc, чтобы CRDT item ID совпадали
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(candidateDoc));
+      return doc;
+    });
 
-    const [candidateAwareness] = useState(() => new Awareness(yDoc));
-    const [interviewerAwareness] = useState(() => new Awareness(yDoc));
+    const candidateYText = useMemo(
+      () => candidateDoc.getText("monaco"),
+      [candidateDoc],
+    );
+    const interviewerYText = useMemo(
+      () => interviewerDoc.getText("monaco"),
+      [interviewerDoc],
+    );
+
+    const [candidateAwareness] = useState(() => new Awareness(candidateDoc));
+    const [interviewerAwareness] = useState(
+      () => new Awareness(interviewerDoc),
+    );
 
     useEffect(() => {
+      const syncDocToInterviewer = (update: Uint8Array, origin: unknown) => {
+        if (origin !== "interviewer-sync") {
+          Y.applyUpdate(interviewerDoc, update, "candidate-sync");
+        }
+      };
+      const syncDocToCandidate = (update: Uint8Array, origin: unknown) => {
+        if (origin !== "candidate-sync") {
+          Y.applyUpdate(candidateDoc, update, "interviewer-sync");
+        }
+      };
+
+      candidateDoc.on("update", syncDocToInterviewer);
+      interviewerDoc.on("update", syncDocToCandidate);
+
       candidateAwareness.setLocalStateField("user", {
         name: "Кандидат",
         color: "#3b82f6",
@@ -68,29 +98,47 @@ export const PairProgramming: Story = {
         color: "#a855f7",
       });
 
-      const syncCandidateToInterviewer = ({
-        added,
-        updated,
-        removed,
-      }: {
-        added: number[];
-        updated: number[];
-        removed: number[];
-      }) => {
+      // Начальные позиции курсоров участников для немедленного отображения
+      candidateAwareness.setLocalStateField("selection", {
+        anchor: Y.createRelativePositionFromTypeIndex(candidateYText, 0),
+        head: Y.createRelativePositionFromTypeIndex(candidateYText, 0),
+      });
+      interviewerAwareness.setLocalStateField("selection", {
+        anchor: Y.createRelativePositionFromTypeIndex(interviewerYText, 62),
+        head: Y.createRelativePositionFromTypeIndex(interviewerYText, 62),
+      });
+
+      const syncCandidateToInterviewer = (
+        {
+          added,
+          updated,
+          removed,
+        }: {
+          added: number[];
+          updated: number[];
+          removed: number[];
+        },
+        origin: unknown,
+      ) => {
+        if (origin === "remote") return;
         const changed = added.concat(updated, removed);
         const update = encodeAwarenessUpdate(candidateAwareness, changed);
         applyAwarenessUpdate(interviewerAwareness, update, "remote");
       };
 
-      const syncInterviewerToCandidate = ({
-        added,
-        updated,
-        removed,
-      }: {
-        added: number[];
-        updated: number[];
-        removed: number[];
-      }) => {
+      const syncInterviewerToCandidate = (
+        {
+          added,
+          updated,
+          removed,
+        }: {
+          added: number[];
+          updated: number[];
+          removed: number[];
+        },
+        origin: unknown,
+      ) => {
+        if (origin === "remote") return;
         const changed = added.concat(updated, removed);
         const update = encodeAwarenessUpdate(interviewerAwareness, changed);
         applyAwarenessUpdate(candidateAwareness, update, "remote");
@@ -99,11 +147,30 @@ export const PairProgramming: Story = {
       candidateAwareness.on("update", syncCandidateToInterviewer);
       interviewerAwareness.on("update", syncInterviewerToCandidate);
 
+      const initCandidate = encodeAwarenessUpdate(candidateAwareness, [
+        candidateAwareness.clientID,
+      ]);
+      applyAwarenessUpdate(interviewerAwareness, initCandidate, "remote");
+
+      const initInterviewer = encodeAwarenessUpdate(interviewerAwareness, [
+        interviewerAwareness.clientID,
+      ]);
+      applyAwarenessUpdate(candidateAwareness, initInterviewer, "remote");
+
       return () => {
+        candidateDoc.off("update", syncDocToInterviewer);
+        interviewerDoc.off("update", syncDocToCandidate);
         candidateAwareness.off("update", syncCandidateToInterviewer);
         interviewerAwareness.off("update", syncInterviewerToCandidate);
       };
-    }, [candidateAwareness, interviewerAwareness]);
+    }, [
+      candidateDoc,
+      interviewerDoc,
+      candidateYText,
+      interviewerYText,
+      candidateAwareness,
+      interviewerAwareness,
+    ]);
 
     return (
       <div style={{ display: "flex", gap: "16px", height: "100%" }}>
@@ -131,7 +198,7 @@ export const PairProgramming: Story = {
           <div style={{ flex: 1 }}>
             <CodeEditorLazy
               language="typescript"
-              yText={yText}
+              yText={candidateYText}
               awareness={candidateAwareness}
             />
           </div>
@@ -161,7 +228,7 @@ export const PairProgramming: Story = {
           <div style={{ flex: 1 }}>
             <CodeEditorLazy
               language="typescript"
-              yText={yText}
+              yText={interviewerYText}
               awareness={interviewerAwareness}
             />
           </div>
@@ -177,19 +244,41 @@ export const PairProgramming: Story = {
  */
 export const AnimatedRemoteCollaborator: Story = {
   render: () => {
-    const [yDoc] = useState(() => {
+    const [userDoc] = useState(() => {
       const doc = new Y.Doc();
       const text = doc.getText("monaco");
       text.insert(0, getTemplate("python", "algorithm"));
       return doc;
     });
 
-    const yText = useMemo(() => yDoc.getText("monaco"), [yDoc]);
+    const [remoteDoc] = useState(() => {
+      const doc = new Y.Doc();
+      const text = doc.getText("monaco");
+      text.insert(0, getTemplate("python", "algorithm"));
+      return doc;
+    });
 
-    const [userAwareness] = useState(() => new Awareness(yDoc));
-    const [remoteAwareness] = useState(() => new Awareness(yDoc));
+    const userYText = useMemo(() => userDoc.getText("monaco"), [userDoc]);
+    const remoteYText = useMemo(() => remoteDoc.getText("monaco"), [remoteDoc]);
+
+    const [userAwareness] = useState(() => new Awareness(userDoc));
+    const [remoteAwareness] = useState(() => new Awareness(remoteDoc));
 
     useEffect(() => {
+      const syncRemoteDoc = (update: Uint8Array, origin: unknown) => {
+        if (origin !== "user-sync") {
+          Y.applyUpdate(userDoc, update, "remote-sync");
+        }
+      };
+      const syncUserDoc = (update: Uint8Array, origin: unknown) => {
+        if (origin !== "remote-sync") {
+          Y.applyUpdate(remoteDoc, update, "user-sync");
+        }
+      };
+
+      remoteDoc.on("update", syncRemoteDoc);
+      userDoc.on("update", syncUserDoc);
+
       userAwareness.setLocalStateField("user", {
         name: "Вы (Кандидат)",
         color: "#10b981",
@@ -215,24 +304,88 @@ export const AnimatedRemoteCollaborator: Story = {
 
       remoteAwareness.on("update", handleRemoteUpdate);
 
-      // Имитация активности удаленного интервьюера: добавление комментария и перемещение курсора
+      const baseOffset = 25;
+      remoteAwareness.setLocalStateField("selection", {
+        anchor: Y.createRelativePositionFromTypeIndex(remoteYText, baseOffset),
+        head: Y.createRelativePositionFromTypeIndex(remoteYText, baseOffset),
+      });
+
+      const initRemote = encodeAwarenessUpdate(remoteAwareness, [
+        remoteAwareness.clientID,
+      ]);
+      applyAwarenessUpdate(userAwareness, initRemote, "remote");
+
+      // Имитация активности удаленного интервьюера: набор комментария и перемещение курсора
       let step = 0;
-      const commentText = "  # Review: complexity is O(n)\n";
+      let isPaused = false;
+      const commentText = "    # Review: time complexity is O(n)\n";
+
       const interval = setInterval(() => {
+        if (isPaused) return;
+
         if (step < commentText.length) {
-          yDoc.transact(() => {
-            const insertPos = Math.min(25 + step, yText.length);
-            yText.insert(insertPos, commentText[step]);
+          const char = commentText[step];
+          const insertPos = baseOffset + step;
+
+          remoteDoc.transact(() => {
+            remoteYText.insert(Math.min(insertPos, remoteYText.length), char);
           }, "remote-collaborator");
+
+          const cursorIndex = Math.min(insertPos + 1, remoteYText.length);
+          remoteAwareness.setLocalStateField("selection", {
+            anchor: Y.createRelativePositionFromTypeIndex(
+              remoteYText,
+              cursorIndex,
+            ),
+            head: Y.createRelativePositionFromTypeIndex(
+              remoteYText,
+              cursorIndex,
+            ),
+          });
+
           step++;
+        } else {
+          isPaused = true;
+          // Выделяем набранный комментарий для демонстрации selection
+          remoteAwareness.setLocalStateField("selection", {
+            anchor: Y.createRelativePositionFromTypeIndex(
+              remoteYText,
+              baseOffset,
+            ),
+            head: Y.createRelativePositionFromTypeIndex(
+              remoteYText,
+              baseOffset + commentText.length,
+            ),
+          });
+
+          setTimeout(() => {
+            // Очищаем комментарий и зацикливаем демонстрацию
+            remoteDoc.transact(() => {
+              remoteYText.delete(baseOffset, commentText.length);
+            }, "remote-collaborator");
+            remoteAwareness.setLocalStateField("selection", {
+              anchor: Y.createRelativePositionFromTypeIndex(
+                remoteYText,
+                baseOffset,
+              ),
+              head: Y.createRelativePositionFromTypeIndex(
+                remoteYText,
+                baseOffset,
+              ),
+            });
+            step = 0;
+            isPaused = false;
+          }, 4000);
         }
-      }, 300);
+      }, 200);
 
       return () => {
         clearInterval(interval);
+        remoteDoc.off("update", syncRemoteDoc);
+        userDoc.off("update", syncUserDoc);
         remoteAwareness.off("update", handleRemoteUpdate);
       };
-    }, [yDoc, yText, userAwareness, remoteAwareness]);
+    }, [userDoc, remoteDoc, remoteYText, userAwareness, remoteAwareness]);
 
     return (
       <div
@@ -260,7 +413,7 @@ export const AnimatedRemoteCollaborator: Story = {
         <div style={{ flex: 1 }}>
           <CodeEditorLazy
             language="python"
-            yText={yText}
+            yText={userYText}
             awareness={userAwareness}
           />
         </div>

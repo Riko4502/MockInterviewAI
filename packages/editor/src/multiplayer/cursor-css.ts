@@ -5,6 +5,10 @@ import type { Awareness } from "y-protocols/awareness";
  */
 export const YJS_AWARENESS_STYLE_ID = "yjs-monaco-awareness-styles";
 
+export function getAwarenessStyleId(awareness: Awareness): string {
+  return `${YJS_AWARENESS_STYLE_ID}-${awareness.doc.clientID}`;
+}
+
 /**
  * Динамически генерирует и внедряет CSS-стили для курсоров и выделений Yjs Awareness (T021).
  * Стилизует сгенерированные y-monaco классы:
@@ -12,11 +16,12 @@ export const YJS_AWARENESS_STYLE_ID = "yjs-monaco-awareness-styles";
  */
 export function updateYjsAwarenessStyles(awareness: Awareness) {
   if (typeof document === "undefined") return;
-  let styleEl = document.getElementById(YJS_AWARENESS_STYLE_ID);
+  const styleId = getAwarenessStyleId(awareness);
+  let styleEl = document.getElementById(styleId);
 
   if (!styleEl) {
     styleEl = document.createElement("style");
-    styleEl.id = YJS_AWARENESS_STYLE_ID;
+    styleEl.id = styleId;
     document.head.appendChild(styleEl);
   }
 
@@ -25,7 +30,6 @@ export function updateYjsAwarenessStyles(awareness: Awareness) {
     /* Базовые стили для выделений и курсоров y-monaco */
     .yRemoteSelection {
       background-color: rgba(250, 120, 30, 0.25);
-      position: absolute;
     }
     .yRemoteSelectionHead {
       position: absolute;
@@ -83,10 +87,19 @@ export function updateYjsAwarenessStyles(awareness: Awareness) {
 /**
  * Удаляет динамические стили Awareness из документа при размонтировании.
  */
-export function removeYjsAwarenessStyles() {
+export function removeYjsAwarenessStyles(awareness?: Awareness) {
   if (typeof document === "undefined") return;
-  const styleEl = document.getElementById(YJS_AWARENESS_STYLE_ID);
-  if (styleEl) {
-    styleEl.remove();
+  if (awareness) {
+    const styleEl = document.getElementById(getAwarenessStyleId(awareness));
+    if (styleEl) {
+      styleEl.remove();
+    }
+  } else {
+    const styles = document.querySelectorAll(
+      `[id^="${YJS_AWARENESS_STYLE_ID}"]`,
+    );
+    for (const el of styles) {
+      el.remove();
+    }
   }
 }

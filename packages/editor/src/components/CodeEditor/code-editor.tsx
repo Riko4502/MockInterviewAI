@@ -98,7 +98,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     awareness.on("change", handleAwarenessChange);
     return () => {
       awareness.off("change", handleAwarenessChange);
-      removeYjsAwarenessStyles();
+      removeYjsAwarenessStyles(awareness);
     };
   }, [awareness]);
 
@@ -122,6 +122,20 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
       allowNonTextExtensions: true,
     });
+
+    // Отключаем фоновую валидацию через воркеры по умолчанию во избежание Unexpected usage
+    monacoInstance.languages.typescript.typescriptDefaults.setDiagnosticsOptions(
+      {
+        noSemanticValidation: true,
+        noSyntaxValidation: true,
+      },
+    );
+    monacoInstance.languages.typescript.javascriptDefaults.setDiagnosticsOptions(
+      {
+        noSemanticValidation: true,
+        noSyntaxValidation: true,
+      },
+    );
   };
 
   const handleEditorDidMount = (

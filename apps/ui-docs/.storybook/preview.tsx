@@ -3,6 +3,25 @@ import { UIProvider } from "@packages/ui";
 import { themes } from "storybook/theming";
 import type { Preview } from "storybook-react-rsbuild";
 
+if (typeof window !== "undefined" && !window.MonacoEnvironment) {
+  window.MonacoEnvironment = {
+    getWorker() {
+      return new Worker(
+        URL.createObjectURL(
+          new Blob(
+            [
+              `/* dummy monaco worker */
+               self.onmessage = function () {};
+              `,
+            ],
+            { type: "application/javascript" },
+          ),
+        ),
+      );
+    },
+  };
+}
+
 const preview: Preview = {
   decorators: [
     (Story) => (
