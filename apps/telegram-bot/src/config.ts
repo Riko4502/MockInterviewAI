@@ -1,9 +1,38 @@
 import { z } from "zod";
 
+/**
+ * Разрешает HTTP только для локальной разработки (`localhost`, `127.0.0.1`,
+ * `::1`). Для остальных хостов требуется HTTPS: `API_INTERNAL_URL` получает
+ * `INTERNAL_SERVICE_KEY` в заголовке `X-Internal-Service-Key`, и передача ключа
+ * по открытому HTTP вне локальной сети раскрывает его наблюдателю (CWE-319).
+ */
+function isLocalhost(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return (
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
 const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN обязателен"),
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("MockInterviewBot"),
-  API_INTERNAL_URL: z.string().url().default("http://localhost:3001/api/v1"),
+  API_INTERNAL_URL: z
+    .string()
+    .url()
+    .default("http://localhost:3001/api/v1")
+    .superRefine((url, ctx) => {
+      if (url.startsWith("http://") && !isLocalhost(url)) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "API_INTERNAL_URL: HTTP разрешён только для localhost (dev); для остальных хостов требуется HTTPS",
+        });
+      }
+    }),
   INTERNAL_SERVICE_KEY: z
     .string()
     .min(32, "INTERNAL_SERVICE_KEY должен содержать минимум 32 символа"),
