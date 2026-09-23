@@ -106,7 +106,7 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
 const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
   type: "object",
   properties: {
-    status: { type: "string", example: "AUTHENTICATED" },
+    status: { type: "string", enum: ["AUTHENTICATED"] },
     accessToken: { type: "string", description: "JWT access token" },
   },
   required: ["status", "accessToken"],
@@ -115,7 +115,7 @@ const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
 const TELEGRAM_AUTH_NEED_EMAIL_SCHEMA: SchemaObject = {
   type: "object",
   properties: {
-    status: { type: "string", example: "NEED_EMAIL" },
+    status: { type: "string", enum: ["NEED_EMAIL"] },
     onboardingToken: {
       type: "string",
       description: "Одноразовый токен онбординга для завершения регистрации",

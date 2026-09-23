@@ -11,12 +11,20 @@
  */
 
 export interface TelegramLinkDto {
-  id: number | string;
+  /**
+     * @maximum 9007199254740991
+     * @exclusiveMinimum 0
+     */
+  id: number;
   first_name?: string;
   last_name?: string;
   username?: string;
   photo_url?: string;
-  auth_date: number | string;
+  /**
+     * @maximum 9007199254740991
+     * @exclusiveMinimum 0
+     */
+  auth_date: number;
   /** @minLength 1 */
   hash: string;
 }
