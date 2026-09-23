@@ -1061,7 +1061,8 @@ components:
           properties:
             status:
               type: string
-              example: AUTHENTICATED
+              enum:
+                - AUTHENTICATED
             accessToken:
               type: string
               description: JWT access token
@@ -1072,7 +1073,8 @@ components:
           properties:
             status:
               type: string
-              example: NEED_EMAIL
+              enum:
+                - NEED_EMAIL
             onboardingToken:
               type: string
               description: Одноразовый токен онбординга для завершения регистрации
@@ -1159,9 +1161,10 @@ components:
       type: object
       properties:
         id:
-          anyOf:
-            - type: number
-            - type: string
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
         first_name:
           type: string
         last_name:
@@ -1172,9 +1175,10 @@ components:
           type: string
           format: uri
         auth_date:
-          anyOf:
-            - type: number
-            - type: string
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
         hash:
           type: string
           minLength: 1
@@ -1199,9 +1203,10 @@ components:
       type: object
       properties:
         id:
-          anyOf:
-            - type: number
-            - type: string
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
         first_name:
           type: string
         last_name:
@@ -1212,9 +1217,10 @@ components:
           type: string
           format: uri
         auth_date:
-          anyOf:
-            - type: number
-            - type: string
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
         hash:
           type: string
           minLength: 1
