@@ -10,7 +10,7 @@ import type { TelegramUserProfileDto, TgCommandContext } from "../types";
  * - без токена — приветствие;
  * - с токеном из deep-link `?start=<token>` — привязка через
  *   `POST /api/v1/telegram/link`:
- *   - 200 → привязано (`start.linked`), локаль профиля в сессию;
+ *   - 200 → привязано (`start.linked`);
  *   - 409 → уже привязан;
  *   - 410 → токен истёк;
  *   - 400/401/5xx → ошибка привязки;
@@ -45,7 +45,6 @@ export async function startHandler(ctx: TgCommandContext): Promise<void> {
       profile.telegramLocale,
       ctx.from?.language_code,
     );
-    ctx.session.locale = locale;
     await ctx.reply(t(locale, "start.linked"));
     await ctx.reply(t(locale, "start.linkedHint"));
   } catch (err) {

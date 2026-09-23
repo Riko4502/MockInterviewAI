@@ -5,16 +5,18 @@ import { langCallbackHandler, langHandler } from "./lang";
 import { stubHandlerContext } from "./test-context";
 
 const mocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
   apiPatch: vi.fn(),
 }));
 
 vi.mock("../api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api-client")>();
-  return { ...actual, apiPatch: mocks.apiPatch };
+  return { ...actual, apiGet: mocks.apiGet, apiPatch: mocks.apiPatch };
 });
 
 describe("lang.handler / langCallback (SPEC §11.5)", () => {
   beforeEach(() => {
+    mocks.apiGet.mockReset();
     mocks.apiPatch.mockReset();
   });
 
@@ -46,6 +48,34 @@ describe("lang.handler / langCallback (SPEC §11.5)", () => {
     expect(ruButton.callback_data).toBe("lang:ru");
     expect(enButton.text).toBe(t("ru", "lang.enLabel"));
     expect(enButton.callback_data).toBe("lang:en");
+  });
+
+  it("/lang без аргумента при профильной локали en и language_code ru → клавиатура на английском", async () => {
+    mocks.apiGet.mockResolvedValue({ telegramLocale: "en" });
+    const { commandCtx, reply } = stubHandlerContext({
+      from: { language_code: "ru" },
+    });
+
+    await langHandler(commandCtx);
+
+    expect(reply).toHaveBeenCalledWith(
+      t("en", "lang.select"),
+      expect.anything(),
+    );
+    const [, options] = reply.mock.calls[0] as [
+      string,
+      {
+        reply_markup: {
+          inline_keyboard: { text: string; callback_data: string }[][];
+        };
+      },
+    ];
+    const [ruButton, enButton] = options.reply_markup.inline_keyboard[0] as [
+      { text: string; callback_data: string },
+      { text: string; callback_data: string },
+    ];
+    expect(ruButton.text).toBe(t("en", "lang.ruLabel"));
+    expect(enButton.text).toBe(t("en", "lang.enLabel"));
   });
 
   it("/lang ru → PATCH preferences и lang.changedRu", async () => {
@@ -119,6 +149,21 @@ describe("lang.handler / langCallback (SPEC §11.5)", () => {
     await langHandler(commandCtx);
 
     expect(reply).toHaveBeenCalledWith(t("ru", "lang.notLinked"));
+  });
+
+  it("PATCH 404 при профильной локали en → lang.notLinked на английском", async () => {
+    mocks.apiGet.mockResolvedValue({ telegramLocale: "en" });
+    mocks.apiPatch.mockRejectedValue(
+      new ApiError(404, { message: "Not found" }),
+    );
+    const { commandCtx, reply } = stubHandlerContext({
+      from: { language_code: "ru" },
+      match: "ru",
+    });
+
+    await langHandler(commandCtx);
+
+    expect(reply).toHaveBeenCalledWith(t("en", "lang.notLinked"));
   });
 
   it("PATCH 5xx → lang.persistError", async () => {

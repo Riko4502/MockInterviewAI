@@ -1,6 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { ApiError, apiGet } from "../api-client";
-import { resolveLocale, t } from "../i18n";
+import { getProfileLocale, resolveLocale, t } from "../i18n";
 import type {
   Locale,
   TelegramInterviewDto,
@@ -46,6 +46,7 @@ export function createInterviewsHandler(webAppUrl: string) {
   return async function interviewsHandler(ctx: TgContext): Promise<void> {
     if (ctx.chat === undefined) return;
     const chatId = String(ctx.chat.id);
+    const profileLocale = await getProfileLocale(chatId);
 
     try {
       const list = await apiGet<TelegramInterviewsListDto>(
@@ -55,7 +56,7 @@ export function createInterviewsHandler(webAppUrl: string) {
 
       const locale = resolveLocale(
         ctx.session.locale,
-        undefined,
+        profileLocale,
         ctx.from?.language_code,
       );
 
@@ -83,7 +84,7 @@ export function createInterviewsHandler(webAppUrl: string) {
     } catch (err) {
       const fallbackLocale = resolveLocale(
         ctx.session.locale,
-        undefined,
+        profileLocale,
         ctx.from?.language_code,
       );
 

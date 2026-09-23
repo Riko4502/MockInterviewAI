@@ -41,7 +41,7 @@ describe("start.handler (SPEC §6.3, §11.1)", () => {
     expect(reply).toHaveBeenCalledWith(t("en", "start.welcome"));
   });
 
-  it("успех привязки → start.linked + start.linkedHint, локаль профиля в сессию", async () => {
+  it("успех привязки → start.linked + start.linkedHint на языке профиля, без записи локали в сессию", async () => {
     mocks.apiPost.mockResolvedValue({ telegramLocale: "en" });
     const { commandCtx, reply } = stubHandlerContext({
       chat: { id: 42, type: "private" },
@@ -55,7 +55,7 @@ describe("start.handler (SPEC §6.3, §11.1)", () => {
       token: "rawToken",
       chatId: "42",
     });
-    expect(commandCtx.session.locale).toBe("en");
+    expect(commandCtx.session.locale).toBeUndefined();
     expect(reply).toHaveBeenNthCalledWith(1, t("en", "start.linked"));
     expect(reply).toHaveBeenNthCalledWith(2, t("en", "start.linkedHint"));
   });

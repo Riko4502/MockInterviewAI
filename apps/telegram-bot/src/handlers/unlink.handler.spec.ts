@@ -5,16 +5,18 @@ import { stubHandlerContext } from "./test-context";
 import { unlinkHandler } from "./unlink";
 
 const mocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
   apiPost: vi.fn(),
 }));
 
 vi.mock("../api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api-client")>();
-  return { ...actual, apiPost: mocks.apiPost };
+  return { ...actual, apiGet: mocks.apiGet, apiPost: mocks.apiPost };
 });
 
 describe("unlink.handler (SPEC §11.4)", () => {
   beforeEach(() => {
+    mocks.apiGet.mockReset();
     mocks.apiPost.mockReset();
   });
 
@@ -30,6 +32,18 @@ describe("unlink.handler (SPEC §11.4)", () => {
       chatId: "42",
     });
     expect(reply).toHaveBeenCalledWith(t("ru", "unlink.success"));
+  });
+
+  it("профильная локаль en при language_code ru → unlink.success на английском", async () => {
+    mocks.apiGet.mockResolvedValue({ telegramLocale: "en" });
+    mocks.apiPost.mockResolvedValue({ success: true });
+    const { ctx, reply } = stubHandlerContext({
+      from: { language_code: "ru" },
+    });
+
+    await unlinkHandler(ctx);
+
+    expect(reply).toHaveBeenCalledWith(t("en", "unlink.success"));
   });
 
   it("404 → unlink.notLinked", async () => {

@@ -67,6 +67,9 @@ describe("interviews.handler (SPEC §11.3)", () => {
     expect(mocks.apiGet).toHaveBeenCalledWith("/telegram/interviews", {
       chatId: "42",
     });
+    expect(mocks.apiGet).toHaveBeenCalledWith("/telegram/profile", {
+      chatId: "42",
+    });
 
     const body = [
       t("ru", "interviews.title"),
@@ -86,6 +89,27 @@ describe("interviews.handler (SPEC §11.3)", () => {
       expect(button.text).toBe(t("ru", "interviews.joinButton"));
       expect(button.url).toBe(`${WEB_APP_URL}${JOIN_PATH}${item.id}`);
     }
+  });
+
+  it("профильная локаль en при language_code ru → ответ на английском (SPEC §10.2 п.2)", async () => {
+    mocks.apiGet
+      .mockResolvedValueOnce({ telegramLocale: "en" })
+      .mockResolvedValueOnce({ items });
+    const { ctx, reply } = stubHandlerContext({
+      from: { language_code: "ru" },
+    });
+
+    await handler(ctx);
+
+    const body = [
+      t("en", "interviews.title"),
+      ...items.map((item) => formatItem("en", item)),
+    ].join("\n");
+    expect(reply).toHaveBeenCalledWith(body, expect.anything());
+    expect(reply).not.toHaveBeenCalledWith(
+      t("ru", "interviews.title"),
+      expect.anything(),
+    );
   });
 
   it("пустой список → interviews.empty", async () => {

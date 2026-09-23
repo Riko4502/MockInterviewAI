@@ -1,5 +1,5 @@
 import { ApiError, apiPost } from "../api-client";
-import { resolveLocale, t } from "../i18n";
+import { getProfileLocale, resolveLocale, t } from "../i18n";
 import type { TgContext } from "../types";
 
 /**
@@ -12,9 +12,10 @@ import type { TgContext } from "../types";
 export async function unlinkHandler(ctx: TgContext): Promise<void> {
   if (ctx.chat === undefined) return;
   const chatId = String(ctx.chat.id);
+  const profileLocale = await getProfileLocale(chatId);
   const fallbackLocale = resolveLocale(
     ctx.session.locale,
-    undefined,
+    profileLocale,
     ctx.from?.language_code,
   );
 

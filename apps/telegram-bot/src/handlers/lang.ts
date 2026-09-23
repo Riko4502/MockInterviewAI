@@ -1,6 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { ApiError, apiPatch } from "../api-client";
-import { resolveLocale, t } from "../i18n";
+import { getProfileLocale, resolveLocale, t } from "../i18n";
 import type { Locale, TgCommandContext, TgContext } from "../types";
 
 const LANG_CALLBACK_PATTERN = /^lang:(ru|en)$/;
@@ -30,6 +30,7 @@ async function handleApiError(
 async function applyLocale(ctx: TgContext, code: Locale): Promise<void> {
   if (ctx.chat === undefined) return;
   const chatId = String(ctx.chat.id);
+  const profileLocale = await getProfileLocale(chatId);
 
   try {
     await apiPatch("/telegram/preferences", { chatId, locale: code });
@@ -40,7 +41,7 @@ async function applyLocale(ctx: TgContext, code: Locale): Promise<void> {
   } catch (err) {
     const fallbackLocale = resolveLocale(
       ctx.session.locale,
-      undefined,
+      profileLocale,
       ctx.from?.language_code,
     );
     await handleApiError(ctx, fallbackLocale, err);
@@ -62,9 +63,13 @@ export async function langHandler(ctx: TgCommandContext): Promise<void> {
     return;
   }
 
+  const profileLocale =
+    ctx.chat === undefined
+      ? undefined
+      : await getProfileLocale(String(ctx.chat.id));
   const locale = resolveLocale(
     ctx.session.locale,
-    undefined,
+    profileLocale,
     ctx.from?.language_code,
   );
 

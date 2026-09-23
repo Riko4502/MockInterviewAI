@@ -4,6 +4,34 @@ import {
   type Locale,
   type TelegramMessages,
 } from "@packages/i18n";
+import { apiGet } from "./api-client";
+import type { TelegramUserProfileDto } from "./types";
+
+/**
+ * Загружает персистентную локаль профиля (SPEC §10.2, п.2) из
+ * `GET /api/v1/telegram/profile?chatId=`.
+ *
+ * Возвращает `undefined` при отсутствии валидной локали, а также при любой
+ * ошибке API (404 «не привязан», 5xx, сетевой сбой) — вызов никогда не
+ * бросает, чтобы не ронять обработчик команды.
+ *
+ * @param chatId - ID Telegram-чата.
+ * @returns `"ru"`/`"en"` либо `undefined`.
+ */
+export async function getProfileLocale(
+  chatId: string,
+): Promise<Locale | undefined> {
+  try {
+    const profile = await apiGet<TelegramUserProfileDto>("/telegram/profile", {
+      chatId,
+    });
+    return profile.telegramLocale === "ru" || profile.telegramLocale === "en"
+      ? profile.telegramLocale
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Определяет локаль пользователя по приоритету SPEC §10.2:

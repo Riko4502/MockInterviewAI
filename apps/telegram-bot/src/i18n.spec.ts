@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { resolveLocale, t } from "./i18n";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getProfileLocale, resolveLocale, t } from "./i18n";
+
+const mocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+}));
+
+vi.mock("./api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./api-client")>();
+  return { ...actual, apiGet: mocks.apiGet };
+});
 
 describe("resolveLocale (SPEC §10.2)", () => {
   it("приоритет: manual > profileLocale > language_code", () => {
@@ -54,5 +63,40 @@ describe("t (SPEC §10.3)", () => {
   it("отсутствующий перевод возвращается как есть (без падения)", () => {
     expect(t("ru", "start.missingKey")).toBe("start.missingKey");
     expect(t("en", "nope.deep.key")).toBe("nope.deep.key");
+  });
+});
+
+describe("getProfileLocale (SPEC §10.2, п.2)", () => {
+  beforeEach(() => {
+    mocks.apiGet.mockReset();
+  });
+
+  it("валидная локаль профиля → возвращает её", async () => {
+    mocks.apiGet.mockResolvedValue({ telegramLocale: "en" });
+
+    await expect(getProfileLocale("42")).resolves.toBe("en");
+    expect(mocks.apiGet).toHaveBeenCalledWith("/telegram/profile", {
+      chatId: "42",
+    });
+  });
+
+  it("telegramLocale null (не задан) → undefined", async () => {
+    mocks.apiGet.mockResolvedValue({ telegramLocale: null });
+
+    await expect(getProfileLocale("42")).resolves.toBeUndefined();
+  });
+
+  it("404 (не привязан) → undefined", async () => {
+    mocks.apiGet.mockRejectedValue(
+      new Error("API request failed with status 404"),
+    );
+
+    await expect(getProfileLocale("42")).resolves.toBeUndefined();
+  });
+
+  it("прочие ошибки (5xx/сеть) → undefined", async () => {
+    mocks.apiGet.mockRejectedValue(new Error("connection refused"));
+
+    await expect(getProfileLocale("42")).resolves.toBeUndefined();
   });
 });
