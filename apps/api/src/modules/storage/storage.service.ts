@@ -15,6 +15,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import sharp from "sharp";
+import { resolveAndValidateUrl } from "./ssrf.util";
 
 /** Максимально допустимые габариты изображения (защита от Decompression Bombs) */
 const MAX_IMAGE_DIMENSION = 4096;
@@ -168,36 +169,23 @@ export class StorageService {
     if (!imageUrl) return null;
 
     try {
-      const parsedUrl = new URL(imageUrl);
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      const validated = await resolveAndValidateUrl(imageUrl);
+      if (!validated) {
         this.logger.warn(
-          `SSRF protection: Invalid protocol ${parsedUrl.protocol}`,
+          `SSRF protection: Blocked request or invalid URL ${imageUrl}`,
         );
         return null;
       }
 
-      const hostname = parsedUrl.hostname.toLowerCase();
-      if (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "::1" ||
-        hostname === "169.254.169.254" ||
-        hostname.startsWith("10.") ||
-        hostname.startsWith("192.168.") ||
-        (hostname.startsWith("172.") &&
-          Number.parseInt(hostname.split(".")[1] ?? "0", 10) >= 16 &&
-          Number.parseInt(hostname.split(".")[1] ?? "0", 10) <= 31)
-      ) {
-        this.logger.warn(
-          `SSRF protection: Blocked request to private IP/host ${hostname}`,
-        );
-        return null;
-      }
-
-      const response = await fetch(imageUrl, {
+      const fetchOptions: RequestInit & { lookup?: unknown } = {
         signal: AbortSignal.timeout(5000),
         redirect: "manual",
-      });
+      };
+      if (validated.lookupFn) {
+        fetchOptions.lookup = validated.lookupFn;
+      }
+
+      const response = await fetch(validated.fetchUrl, fetchOptions);
 
       if (!response.ok) {
         this.logger.warn(
