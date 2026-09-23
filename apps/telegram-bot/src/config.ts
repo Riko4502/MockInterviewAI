@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const WEBHOOK_PATH = "/telegram/webhook";
+
 /**
  * Разрешает HTTP только для локальной разработки (`localhost`, `127.0.0.1`,
  * `::1`). Для остальных хостов требуется HTTPS: `API_INTERNAL_URL` получает
@@ -37,7 +39,13 @@ const envSchema = z.object({
     .string()
     .min(32, "INTERNAL_SERVICE_KEY должен содержать минимум 32 символа"),
   WEB_APP_URL: z.string().url().default("http://localhost:3000"),
-  TELEGRAM_WEBHOOK_URL: z.string().url().optional(),
+  TELEGRAM_WEBHOOK_URL: z
+    .string()
+    .url()
+    .refine((url) => new URL(url).pathname === WEBHOOK_PATH, {
+      message: `TELEGRAM_WEBHOOK_URL должен использовать путь ${WEBHOOK_PATH}`,
+    })
+    .optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(1).optional(),
   TELEGRAM_WEBHOOK_PORT: z.coerce.number().int().positive().default(8443),
   NODE_ENV: z.string().min(1).default("development"),

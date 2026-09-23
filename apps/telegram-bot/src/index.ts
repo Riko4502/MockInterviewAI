@@ -3,10 +3,8 @@ import { createServer } from "node:http";
 import { webhookCallback } from "grammy";
 import { initApiClient } from "./api-client";
 import { createBot } from "./bot";
-import { loadConfig } from "./config";
+import { loadConfig, WEBHOOK_PATH } from "./config";
 import { createHandlers } from "./handlers";
-
-const WEBHOOK_PATH = "/telegram/webhook";
 
 /**
  * Point входа Telegram-бота (SPEC §5).

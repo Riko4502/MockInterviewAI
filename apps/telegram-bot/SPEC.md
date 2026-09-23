@@ -39,7 +39,7 @@
 
 | Область | Решение |
 |---|---|
-| Рантайм | Node.js >= 20, TypeScript (strict) |
+| Рантайм | Node.js >= 20.6, TypeScript (strict) |
 | Монорепо | Turborepo + pnpm workspace |
 | Telegram Bot Framework | `grammY` (strict typing, `session`, `InlineKeyboard`, `webhookCallback`) |
 | Режим получения updates | Long Polling (dev) / Webhook (prod) |
@@ -120,8 +120,8 @@ packages/i18n/src/locales/
 
 | Скрипт | Команда | Назначение |
 |---|---|---|
-| `dev` | `tsx watch src/index.ts` | Разработка (auto-restart) |
-| `start` | `tsx src/index.ts` | Запуск (rust runtime, компиляция TS на лету) |
+| `dev` | `tsx watch --env-file=.env src/index.ts` | Разработка (auto-restart) |
+| `start` | `tsx --env-file=.env src/index.ts` | Запуск (rust runtime, компиляция TS на лету) |
 | `build` | `tsc --noEmit` | Gate: typecheck в `turbo build` |
 | `typecheck` | `tsc --noEmit` | Проверка типов |
 | `lint` | `biome check --no-errors-on-unmatched` | Линтинг |

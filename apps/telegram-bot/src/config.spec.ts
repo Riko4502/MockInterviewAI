@@ -37,3 +37,27 @@ describe("loadConfig: API_INTERNAL_URL (HTTP только для localhost)", ()
     ).toThrow(/API_INTERNAL_URL/);
   });
 });
+
+describe("loadConfig: TELEGRAM_WEBHOOK_URL", () => {
+  it("разрешает URL с webhook-путём", () => {
+    const env = loadConfig({
+      ...BASE_ENV,
+      TELEGRAM_WEBHOOK_URL: "https://bot.example.com/telegram/webhook",
+      TELEGRAM_WEBHOOK_SECRET: "webhook-secret",
+    });
+
+    expect(env.TELEGRAM_WEBHOOK_URL).toBe(
+      "https://bot.example.com/telegram/webhook",
+    );
+  });
+
+  it("отклоняет URL с другим путём", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE_ENV,
+        TELEGRAM_WEBHOOK_URL: "https://bot.example.com/another-webhook",
+        TELEGRAM_WEBHOOK_SECRET: "webhook-secret",
+      }),
+    ).toThrow(/TELEGRAM_WEBHOOK_URL/);
+  });
+});
