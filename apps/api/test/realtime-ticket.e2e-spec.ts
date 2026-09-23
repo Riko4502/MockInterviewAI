@@ -11,6 +11,7 @@ import {
 const PASSWORD = "Str0ngPassw0rd!123";
 const REGISTER_PATH = "/api/v1/auth/register";
 const LOGIN_PATH = "/api/v1/auth/login";
+const SESSIONS_PATH = "/api/v1/sessions";
 const TICKET_PATH = "/api/v1/realtime/ticket";
 
 describe("E2E: POST /api/v1/realtime/ticket (Phase C)", () => {
@@ -42,10 +43,18 @@ describe("E2E: POST /api/v1/realtime/ticket (Phase C)", () => {
     return login.body.accessToken as string;
   }
 
-  it("выдаёт одноразовый тикет typ=realtime с bound sessionId и sid из access-токена", async () => {
+  async function createSession(accessToken: string): Promise<string> {
+    const res = await request(started.app.getHttpServer())
+      .post(SESSIONS_PATH)
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(res.status).toBe(201);
+    return res.body.sessionId as string;
+  }
+
+  it("выдаёт одноразовый тикет typ=realtime с bound sessionId и sid из access-токена для участника активной сессии", async () => {
     const accessToken = await registerAndLogin();
     const accessPayload = jwt.decode(accessToken) as jwt.JwtPayload;
-    const interviewSessionId = randomUUID();
+    const interviewSessionId = await createSession(accessToken);
 
     const res = await request(started.app.getHttpServer())
       .post(TICKET_PATH)
@@ -83,5 +92,29 @@ describe("E2E: POST /api/v1/realtime/ticket (Phase C)", () => {
       .send({ sessionId: randomUUID() });
 
     expect(res.status).toBe(401);
+  });
+
+  it("отклоняет запрос для несуществующей сессии → 403", async () => {
+    const accessToken = await registerAndLogin();
+
+    const res = await request(started.app.getHttpServer())
+      .post(TICKET_PATH)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ sessionId: randomUUID() });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("отклоняет запрос пользователя, не являющегося участником активной сессии → 403", async () => {
+    const ownerToken = await registerAndLogin();
+    const otherToken = await registerAndLogin();
+    const sessionId = await createSession(ownerToken);
+
+    const res = await request(started.app.getHttpServer())
+      .post(TICKET_PATH)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ sessionId });
+
+    expect(res.status).toBe(403);
   });
 });

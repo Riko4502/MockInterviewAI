@@ -84,7 +84,7 @@ pnpm --filter api add -D @nestjs/cli @types/express @types/node @types/jsonwebto
   - `src/common/pipes/zod-validation.pipe.spec.ts` — валидные/невалидные данные, формат ошибок `{ field: message }`, `_root`, вложенные пути.
   - `src/common/guards/origin-check.guard.spec.ts` — нет заголовков, совпадает/не совпадает, Referer fallback, приоритет Origin, startsWith matching.
   - `src/common/interceptors/sensitive-logging.interceptor.spec.ts` — логирует method/url/latency, не логирует body, пропускает observable.
-  - `src/redis/redis.service.spec.ts` — set/get/delete/expire/ping, onModuleInit/onModuleDestroy, дефолты конфига.
+  - `src/redis/redis.service.spec.ts` — set/get/delete/expire/ping, onModuleInit/onModuleDestroy, дефолты конфига, connection events (ready/error/close/reconnecting → setRedisStatus, classifyRedisError: NOAUTH/ECONNREFUSED/ECONNRESET/ETIMEDOUT/other).
 
 ## Phase 5 — Auth module
 
@@ -341,7 +341,7 @@ curl http://localhost:3001/api/v1/health
 
 **Код:**
 
-- [x] `AuthSessionService.revokeAllUserSessions(userId)`: `SCAN 0 MATCH auth:session:*` → `GET` → filter by `userId` → `DELETE` совпадающих.
+- [x] `AuthSessionService.revokeAllUserSessions(userId)`: чтение индекса `auth:user:{userId}:sessions` (ZSET), поднятие fence `auth:user:{userId}:min_generation`, удаление сессий из индекса с фильтрами `maxCreatedAt` и `maxGeneration` (без keyspace SCAN).
 - [x] `AuthService.logoutAll(userId)`: вызов `revokeAllUserSessions(userId)`.
 - [x] `AuthController.logoutAll()`: `@Post("logout-all")`, защищён глобальным `AccessTokenGuard` (без `@Public()`; явный `@UseGuards` избыточен), чтение `request.user.sub`, вызов сервиса, `204`, clear cookie.
 - [x] Добавить `revokeAllUserSessions` в `AuthSessionService` (§39 SPEC.md — расширение методов).

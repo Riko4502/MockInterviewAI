@@ -477,6 +477,10 @@ func (h *Hub) runUserReader(ctx context.Context, session *userSession) {
 
 		backoff = readerErrorBackoff
 
+		if len(events) > 0 {
+			h.metrics.ObservePollBatch(len(events))
+		}
+
 		for i := range events {
 			lastID = events[i].ID
 			h.metrics.ObserveStreamLag(streamLagSeconds(events[i].ID))
