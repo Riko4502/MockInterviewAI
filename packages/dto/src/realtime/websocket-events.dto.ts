@@ -229,11 +229,25 @@ export const taskSwitchedEnvelopeSchema = baseWebSocketEnvelopeSchema(
 );
 export type TaskSwitchedEnvelope = z.infer<typeof taskSwitchedEnvelopeSchema>;
 
+export const roomErrorPayloadSchema = z.object({
+  code: z.string().min(1, "code обязателен"),
+  message: z.string().min(1, "message обязателен"),
+  taskKey: z.string().optional(),
+});
+export type RoomErrorPayload = z.infer<typeof roomErrorPayloadSchema>;
+
+export const roomErrorEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("room.error"),
+  roomErrorPayloadSchema,
+);
+export type RoomErrorEnvelope = z.infer<typeof roomErrorEnvelopeSchema>;
+
 /**
  * Дискриминированное объединение всех входящих и исходящих WebSocket-событий.
  */
 export type AnyWebSocketEnvelope =
   | BaseWebSocketEnvelope<"room.sync", RoomSyncPayload>
+  | BaseWebSocketEnvelope<"room.error", RoomErrorPayload>
   | BaseWebSocketEnvelope<"presence.join", PresenceJoinPayload>
   | BaseWebSocketEnvelope<"presence.leave", PresenceLeavePayload>
   | BaseWebSocketEnvelope<"yjs.update", YjsUpdatePayload>

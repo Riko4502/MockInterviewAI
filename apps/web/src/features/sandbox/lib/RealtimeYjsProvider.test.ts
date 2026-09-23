@@ -292,7 +292,7 @@ describe("RealtimeYjsProvider (T017)", () => {
 
       expect(absoluteAnchor).not.toBeNull();
       // Позиция сместилась ровно на длину вставленных 5 строк
-      expect(absoluteAnchor!.index).toBe(originalCursorOffset + insertedLength);
+      expect(absoluteAnchor?.index).toBe(originalCursorOffset + insertedLength);
 
       provider1.destroy();
       provider2.destroy();
@@ -487,6 +487,614 @@ describe("RealtimeYjsProvider (T017)", () => {
       // Провайдер должен отправить свое актуальное состояние присутствия
       expect(sentEnvelopes.length).toBe(1);
       expect(sentEnvelopes[0].type).toBe("yjs.awareness");
+
+      provider.destroy();
+      doc.destroy();
+    });
+  });
+
+  describe("Phase 5: Reconnect & Reliability (T024–T027)", () => {
+    it("T024: holds deltas in unsentQueue until receiving Ingress ACK (yjs.ack)", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "SYNCED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      expect(provider.unsentQueueLength).toBe(0);
+
+      // 1. Локальная правка
+      doc.getText("content").insert(0, "delta-1");
+      expect(sentEnvelopes.length).toBe(1);
+      expect(provider.unsentQueueLength).toBe(1);
+
+      const firstSent = sentEnvelopes[0];
+      const updateId1 = (firstSent.payload as YjsUpdatePayload).updateId;
+      expect(provider.getUnsentQueue()[0]?.updateId).toBe(updateId1);
+
+      // 2. Вторая локальная правка
+      doc.getText("content").insert(7, " delta-2");
+      expect(sentEnvelopes.length).toBe(2);
+      expect(provider.unsentQueueLength).toBe(2);
+
+      const updateId2 = (sentEnvelopes[1].payload as YjsUpdatePayload).updateId;
+
+      // 3. Отправка сама по себе НЕ удаляет элементы из unsentQueue!
+      expect(provider.unsentQueueLength).toBe(2);
+
+      // 4. Приходит yjs.ack для первого updateId
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack-1",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: updateId1,
+        },
+      });
+
+      // Первый удален, второй остался
+      expect(provider.unsentQueueLength).toBe(1);
+      expect(provider.getUnsentQueue()[0]?.updateId).toBe(updateId2);
+
+      // 5. Приходит yjs.ack для второго updateId
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack-2",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: updateId2,
+        },
+      });
+
+      expect(provider.unsentQueueLength).toBe(0);
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("Scenario A (T024, T025): queues edits during disconnect and drains them upon reconnect without loss", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "SYNCED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Связь разорвана
+      provider.disconnect();
+      expect(provider.status).toBe("DISCONNECTED");
+      sentEnvelopes.length = 0;
+
+      // 2. Пользователь вносит три правки во время обрыва связи: A, B, C
+      const text = doc.getText("content");
+      text.insert(0, "A");
+      text.insert(1, "B");
+      text.insert(2, "C");
+
+      // Во время disconnect сообщения в сокет НЕ уходят!
+      expect(sentEnvelopes.length).toBe(0);
+      // Но все сохранены в unsentQueue
+      expect(provider.unsentQueueLength).toBe(3);
+
+      // 3. Восстановление соединения -> получение yjs.init
+      provider.connect();
+      expect(provider.status).toBe("INITIALIZING");
+
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_init",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+
+      // Провайдер перешел в SYNCED
+      expect(provider.status).toBe("SYNCED");
+
+      // Все три обновления объединены через Y.mergeUpdates и отправлены единым батчем
+      expect(sentEnvelopes.length).toBe(1);
+      const batchEnv = sentEnvelopes[0];
+      expect(batchEnv.type).toBe("yjs.update");
+      const batchPayload = batchEnv.payload as YjsUpdatePayload;
+      expect(batchPayload.updateId).toContain(":batch_");
+
+      // До подтверждения ACK очередь unsentQueue все еще содержит элементы!
+      expect(provider.unsentQueueLength).toBe(3);
+
+      // 4. Сервер подтверждает получение батча через yjs.ack
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack_batch",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: batchPayload.updateId,
+        },
+      });
+
+      // Очередь полностью очищена!
+      expect(provider.unsentQueueLength).toBe(0);
+      expect(text.toString()).toBe("ABC");
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("Scenario B (T025, T026): buffers remote updates during reconnect in liveQueue and applies them without echo loop", () => {
+      const localDoc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc: localDoc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "DISCONNECTED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Локальная правка в оффлайне
+      localDoc.getText("content").insert(0, "local_edit");
+      expect(provider.unsentQueueLength).toBe(1);
+      expect(sentEnvelopes.length).toBe(0);
+
+      // 2. Начинается реконнект (INITIALIZING)
+      provider.connect();
+      expect(provider.status).toBe("INITIALIZING");
+
+      // 3. Во время INITIALIZING до yjs.init приходит remote update от соавтора
+      const remoteDoc = new Y.Doc();
+      remoteDoc.getText("content").insert(0, "remote_prefix_");
+      const remoteUpdate = Y.encodeStateAsUpdate(remoteDoc);
+
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_remote_1",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: "remote_up_1",
+          data: uint8ArrayToBase64(remoteUpdate),
+        },
+      });
+
+      // Должно попасть в liveQueue, а не применяться прямо сейчас!
+      expect(provider.liveQueueLength).toBe(1);
+      expect(localDoc.getText("content").toString()).toBe("local_edit");
+
+      // 4. Еще одна локальная правка во время ожидания yjs.init
+      localDoc.getText("content").insert(10, "_local_suffix");
+      expect(provider.unsentQueueLength).toBe(2);
+
+      // 5. Приходит yjs.init
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_init_b",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+
+      // Статус перешел в SYNCED
+      expect(provider.status).toBe("SYNCED");
+      // liveQueue синхронно опустошена
+      expect(provider.liveQueueLength).toBe(0);
+
+      // Удаленное обновление применилось бесконфликтно к локальному документу
+      const finalText = localDoc.getText("content").toString();
+      expect(finalText).toContain("remote_prefix_");
+      expect(finalText).toContain("local_edit");
+      expect(finalText).toContain("_local_suffix");
+
+      // В сокет отправлены ТОЛЬКО локальные правки (объединенные), НЕТ эхо-петли remote-обновления!
+      expect(sentEnvelopes.length).toBe(1);
+      const sentPayload = sentEnvelopes[0].payload as YjsUpdatePayload;
+      expect(sentPayload.updateId).toContain(":batch_");
+
+      provider.destroy();
+      localDoc.destroy();
+      remoteDoc.destroy();
+    });
+
+    it("Scenario C (T027): handles lost ACK across disconnect and reconnect without losing deltas", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "SYNCED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Клиент отправил обновление
+      doc.getText("content").insert(0, "important-code");
+      expect(sentEnvelopes.length).toBe(1);
+      const firstUpdateId = (sentEnvelopes[0].payload as YjsUpdatePayload)
+        .updateId;
+
+      // Дельта в unsentQueue
+      expect(provider.unsentQueueLength).toBe(1);
+
+      // 2. Сервер принял, но до отправки ACK произошел обрыв соединения (ACK lost)
+      provider.disconnect();
+      expect(provider.status).toBe("DISCONNECTED");
+      sentEnvelopes.length = 0;
+
+      // Дельта НЕ удалена, потому что ACK не был получен!
+      expect(provider.unsentQueueLength).toBe(1);
+
+      // 3. Реконнект
+      provider.connect();
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "init_rec",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+
+      expect(provider.status).toBe("SYNCED");
+
+      // Неподтвержденная дельта повторно отправлена!
+      expect(sentEnvelopes.length).toBe(1);
+      const resentPayload = sentEnvelopes[0].payload as YjsUpdatePayload;
+      expect(resentPayload.updateId).toBe(firstUpdateId);
+
+      // 4. Теперь сервер присылает ACK
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack_resent",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: firstUpdateId,
+        },
+      });
+
+      // Только теперь удаляется из unsentQueue!
+      expect(provider.unsentQueueLength).toBe(0);
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("Scenario D (T025, T027): handles concurrent local typing during batch ACK wait", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "DISCONNECTED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Оффлайн-правки 1 и 2
+      const text = doc.getText("content");
+      text.insert(0, "line1\n");
+      text.insert(6, "line2\n");
+      expect(provider.unsentQueueLength).toBe(2);
+
+      // 2. Реконнект -> получение yjs.init
+      provider.connect();
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "init_d",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+
+      // Батч отправлен
+      expect(sentEnvelopes.length).toBe(1);
+      const batchUpdateId = (sentEnvelopes[0].payload as YjsUpdatePayload)
+        .updateId;
+
+      // 3. ДО получения ACK на батч пользователь печатает новую правку 3
+      text.insert(12, "line3\n");
+
+      // Новая правка отправлена со своим собственным updateId, добавленным в хвост unsentQueue
+      expect(sentEnvelopes.length).toBe(2);
+      const singleUpdateId = (sentEnvelopes[1].payload as YjsUpdatePayload)
+        .updateId;
+      expect(provider.unsentQueueLength).toBe(3);
+
+      // 4. Приходит ACK на первый батч
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack_d1",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: batchUpdateId,
+        },
+      });
+
+      // Правки из батча удалены, а правка 3 из хвоста сохранена!
+      expect(provider.unsentQueueLength).toBe(1);
+      expect(provider.getUnsentQueue()[0]?.updateId).toBe(singleUpdateId);
+
+      // 5. Приходит ACK на правку 3
+      provider.handleMessage({
+        type: "yjs.ack",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "ack_d2",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: singleUpdateId,
+        },
+      });
+
+      expect(provider.unsentQueueLength).toBe(0);
+      expect(text.toString()).toBe("line1\nline2\nline3\n");
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("Scenario E (T027): repeated disconnect/reconnect cycles cause no listener leaks or echo loops", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "SYNCED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // Выполняем 5 последовательных циклов disconnect / reconnect
+      for (let i = 0; i < 5; i++) {
+        provider.disconnect();
+        expect(provider.status).toBe("DISCONNECTED");
+
+        doc.getText("content").insert(i, `${i}`);
+
+        provider.connect();
+        expect(provider.status).toBe("INITIALIZING");
+
+        provider.handleMessage({
+          type: "yjs.init",
+          version: 1,
+          sessionId: "session-123",
+          requestId: `init_rep_${i}`,
+          timestamp: new Date().toISOString(),
+          payload: {
+            taskKey: "task-1:typescript",
+            updates: [],
+          },
+        });
+
+        expect(provider.status).toBe("SYNCED");
+
+        // Подтверждаем отправленные дельты
+        const lastSent = sentEnvelopes[sentEnvelopes.length - 1];
+        if (lastSent && lastSent.type === "yjs.update") {
+          const payload = lastSent.payload as YjsUpdatePayload;
+          provider.handleMessage({
+            type: "yjs.ack",
+            version: 1,
+            sessionId: "session-123",
+            requestId: `ack_rep_${i}`,
+            timestamp: new Date().toISOString(),
+            payload: {
+              taskKey: "task-1:typescript",
+              updateId: payload.updateId,
+            },
+          });
+        }
+      }
+
+      // Все дельты подтверждены, нет утечек
+      expect(provider.unsentQueueLength).toBe(0);
+      expect(provider.liveQueueLength).toBe(0);
+
+      // Проверяем, что listener Y.Doc не продублировался (одна правка порождает ровно одно сообщение)
+      const countBefore = sentEnvelopes.length;
+      doc.getText("content").insert(0, "X");
+      expect(sentEnvelopes.length).toBe(countBefore + 1);
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("Scenario F (T027): provider.destroy() completely frees queues and subscriptions", () => {
+      const doc = new Y.Doc();
+      let sentCount = 0;
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "DISCONNECTED",
+        sendEnvelope: () => sentCount++,
+      });
+
+      // Наполняем unsentQueue
+      doc.getText("content").insert(0, "unsent-text");
+      expect(provider.unsentQueueLength).toBe(1);
+
+      // Наполняем liveQueue
+      provider.connect();
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_live",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: "rem_1",
+          data: uint8ArrayToBase64(new Uint8Array([0, 0])),
+        },
+      });
+      expect(provider.liveQueueLength).toBe(1);
+
+      // Уничтожаем провайдер
+      provider.destroy();
+
+      // Очереди очищены
+      expect(provider.unsentQueueLength).toBe(0);
+      expect(provider.liveQueueLength).toBe(0);
+      expect(provider.status).toBe("DISCONNECTED");
+
+      // Последующие правки в Y.Doc не обрабатываются
+      doc.getText("content").insert(0, "after-destroy");
+      expect(sentCount).toBe(0);
+
+      // Сообщения из сети не обрабатываются
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "late_init",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+      expect(provider.status).toBe("DISCONNECTED");
+
+      doc.destroy();
+    });
+
+    it("T026: overflows liveQueue beyond MAX_LIVE_QUEUE_SIZE (1000) and transitions to ERROR", () => {
+      const doc = new Y.Doc();
+      let capturedError: Error | null = null;
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "INITIALIZING",
+        onError: (err) => {
+          capturedError = err;
+        },
+      });
+
+      const dummyUpdate = uint8ArrayToBase64(new Uint8Array([1, 2, 3]));
+
+      // Заполняем liveQueue до 1000
+      for (let i = 0; i < 1000; i++) {
+        provider.handleMessage({
+          type: "yjs.update",
+          version: 1,
+          sessionId: "session-123",
+          requestId: `req_${i}`,
+          timestamp: new Date().toISOString(),
+          payload: {
+            taskKey: "task-1:typescript",
+            updateId: `up_${i}`,
+            data: dummyUpdate,
+          },
+        });
+      }
+
+      expect(provider.liveQueueLength).toBe(1000);
+      expect(provider.status).toBe("INITIALIZING");
+
+      // 1001-е сообщение вызывает переполнение
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "req_1001",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updateId: "up_1001",
+          data: dummyUpdate,
+        },
+      });
+
+      expect(provider.status).toBe("ERROR");
+      expect(provider.liveQueueLength).toBe(0);
+      expect(capturedError).not.toBeNull();
+      expect((capturedError as unknown as Error)?.message).toContain(
+        "live queue overflow",
+      );
+
+      provider.destroy();
+      doc.destroy();
+    });
+
+    it("T026: transitions to ERROR when receiving room.error with SYNC_FAILED", () => {
+      const doc = new Y.Doc();
+      let capturedError: Error | null = null;
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "INITIALIZING",
+        onError: (err) => {
+          capturedError = err;
+        },
+      });
+
+      provider.handleMessage({
+        type: "room.error",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "err_sync",
+        timestamp: new Date().toISOString(),
+        payload: {
+          code: "SYNC_FAILED",
+          message: "Redis stream read failed",
+          taskKey: "task-1:typescript",
+        },
+      });
+
+      expect(provider.status).toBe("ERROR");
+      expect(capturedError).not.toBeNull();
+      expect((capturedError as unknown as Error)?.message).toContain(
+        "SYNC_FAILED",
+      );
 
       provider.destroy();
       doc.destroy();

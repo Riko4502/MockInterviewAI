@@ -72,6 +72,8 @@ export function SandboxRoomWorkspace({
   const subscribeEnvelopeRef = useRef(realtime.subscribeEnvelope);
   subscribeEnvelopeRef.current = realtime.subscribeEnvelope;
 
+  const providerRef = useRef<RealtimeYjsProvider | null>(null);
+
   useEffect(() => {
     const text = yDoc.getText("monaco");
     setYText(text);
@@ -88,6 +90,7 @@ export function SandboxRoomWorkspace({
       },
       sendEnvelope: (envelope) => sendEnvelopeRef.current?.(envelope),
     });
+    providerRef.current = provider;
     setYAwareness(provider.awareness);
 
     const unsubscribe = subscribeEnvelopeRef.current?.((envelope) => {
@@ -97,9 +100,20 @@ export function SandboxRoomWorkspace({
     return () => {
       unsubscribe?.();
       provider.destroy();
+      providerRef.current = null;
       setYAwareness(null);
     };
   }, [yDoc, taskKey, roomId, realtime.userId, realtime.userName]);
+
+  // Синхронизация состояния подключения провайдера при обрыве и восстановлении WebSocket
+  useEffect(() => {
+    if (!providerRef.current) return;
+    if (realtime.wsConnected) {
+      providerRef.current.connect();
+    } else {
+      providerRef.current.disconnect();
+    }
+  }, [realtime.wsConnected]);
 
   // Корректное освобождение Y.Doc при размонтировании рабочей области
   useEffect(() => {

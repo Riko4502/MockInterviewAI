@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  roomErrorEnvelopeSchema,
+  roomErrorPayloadSchema,
   taskSwitchEnvelopeSchema,
   taskSwitchedEnvelopeSchema,
   taskSwitchedPayloadSchema,
@@ -279,6 +281,26 @@ describe("Yjs WebSocket DTO Validation", () => {
         payload: { taskKey: validTaskKey },
       });
       expect(switchedResult.success).toBe(true);
+    });
+
+    it("успешно валидирует roomErrorEnvelopeSchema и roomErrorPayloadSchema", () => {
+      const payloadResult = roomErrorPayloadSchema.safeParse({
+        code: "SYNC_FAILED",
+        message: "Failed to load document history",
+        taskKey: validTaskKey,
+      });
+      expect(payloadResult.success).toBe(true);
+
+      const envelopeResult = roomErrorEnvelopeSchema.safeParse({
+        ...baseEnvelope,
+        type: "room.error",
+        payload: {
+          code: "SYNC_FAILED",
+          message: "Failed to load document history",
+          taskKey: validTaskKey,
+        },
+      });
+      expect(envelopeResult.success).toBe(true);
     });
   });
 });

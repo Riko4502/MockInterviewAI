@@ -73,6 +73,7 @@ export type {
   ParticipantRole,
   PresenceJoinPayload,
   PresenceLeavePayload,
+  RoomErrorPayload,
   RoomSyncPayload,
   SupportedLanguage,
   SystemAckPayload,
@@ -81,6 +82,9 @@ export type {
 export {
   BASE64_REGEX,
   baseWebSocketEnvelopeSchema,
+  type RoomErrorEnvelope,
+  roomErrorEnvelopeSchema,
+  roomErrorPayloadSchema,
   type TaskSwitchEnvelope,
   type TaskSwitchedEnvelope,
   type TaskSwitchedPayload,
