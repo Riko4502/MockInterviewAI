@@ -74,7 +74,7 @@ pnpm --filter @apps/telegram-bot add -D tsx typescript vitest @types/node @biome
   - `createLinkToken(userId): { linkUrl }` — `rawToken = randomBytes(24).toString("hex")` (48 симв., укладывается в лимит `?start=` Telegram), `tokenHash = createHash("sha256").update(rawToken).digest("hex")`, `RedisService.set("tg:link:" + tokenHash, JSON.stringify({ userId }), ttl)`, `linkUrl = https://t.me/{botUsername}?start={rawToken}`;
   - `link(token, chatId)` — атомарный `RedisService.getdel("tg:link:" + sha256(token))` (single-use, паттерн `resetPassword`): `null` → `410`; проверка пользователя/совпадений, update `telegramChatId`, rethrow Prisma `P2002` → `409`;
   - `unlink(chatId)` — updateMany `{ telegramChatId, telegramLocale }` в `null` → count 0 → `404`;
-  - `getProfileByChatId(chatId)` — `findUnique where telegramChatId`, без `deletedAt` → `404`;
+  - `getProfileByChatId(chatId)` — `findUnique where telegramChatId`; не найден или `deletedAt` установлен → `404`;
   - `getInterviewsByChatId(chatId)` — собственник или участник, `status ∈ {CREATED, ACTIVE}`, `take: 10`, `role` из владения/партиципации;
   - `updatePreferences(chatId, locale)` — update `telegramLocale` → `404` при отсутствии.
 - [x] `apps/api/src/modules/telegram/telegram.controller.ts`:

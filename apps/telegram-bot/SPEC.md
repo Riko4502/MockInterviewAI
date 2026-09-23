@@ -232,7 +232,7 @@ apps/web (ЛК)          apps/api                        Telegram          apps/
 ### 7.2. `GET /telegram/profile`
 
 - Query: `chatId`.
-- Алгоритм: `findUnique user where telegramChatId = chatId` (без `deletedAt`) → не найден → `404`.
+- Алгоритм: `findUnique user where telegramChatId = chatId`; не найден или `deletedAt` установлен (аккаунт удалён) → `404`.
 - Ответ — `TelegramUserProfileDto`:
 
 ```json
