@@ -138,6 +138,7 @@ packages/i18n/src/locales/
   - `TELEGRAM_WEBHOOK_URL` не задан (dev) → **Long Polling**: `bot.start({ drop_pending_updates: true })`;
   - `TELEGRAM_WEBHOOK_URL` задан (prod) → **Webhook**: `bot.api.setWebhook(url, { secret_token })` + `webhookCallback(bot, "http", { secretToken })` на внутреннем HTTP-сервере (порт `TELEGRAM_WEBHOOK_PORT`, путь `/telegram/webhook`).
   - **`secretToken` обязателен и в `setWebhook`, и в `webhookCallback`**: без опции `secretToken` grammY принимает **любые** updates (constant-time сравнение `X-Telegram-Bot-Api-Secret-Token` пропускается, когда токен не задан), т.е. webhook-эндпоинт аутентифицирует только сам факт поступления от Telegram. Оба значения берутся из `TELEGRAM_WEBHOOK_SECRET` (§12.1).
+  - **Ошибки webhook не роняют процесс**: отклонение Promise от `webhookCallback` (битый JSON, ошибка чтения, timeout) логируется, и если ответ ещё не отправлен — возвращается `500`; сервер продолжает работу.
 - **Graceful shutdown** по SIGTERM/SIGINT: `bot.stop()`.
 - Среды обмена сообщениями: `ctx.reply`, `InlineKeyboard` (кнопки-ссылки и callback).
 

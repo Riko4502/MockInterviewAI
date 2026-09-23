@@ -55,7 +55,15 @@ export async function main(): Promise<void> {
         res.end();
         return;
       }
-      handler(req, res);
+      handler(req, res).catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "unknown webhook error";
+        console.error(`[telegram-bot] webhook error: ${message}`);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end();
+        }
+      });
     });
 
     await new Promise<void>((resolve) => {
