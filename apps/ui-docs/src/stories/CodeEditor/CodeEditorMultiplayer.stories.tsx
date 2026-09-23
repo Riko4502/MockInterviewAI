@@ -1,7 +1,12 @@
-import type { Collaborator } from "@packages/editor";
 import { CodeEditorLazy, getTemplate } from "@packages/editor";
 import type { Meta, StoryObj } from "@storybook/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
+import * as Y from "yjs";
 
 const meta = {
   title: "Editor/Multiplayer",
@@ -11,14 +16,12 @@ const meta = {
     docs: {
       description: {
         component: `
-### **CodeEditor — Мультиплеер**
+### **CodeEditor — Yjs CRDT Мультиплеер**
 
-Демонстрация совместного редактирования кода.
-Компонент принимает массив соавторов (collaborators) и рисует цветные курсоры-флажки
-(каретка + имя участника) поверх кода.
-
-Цвета курсоров приходят снаружи (с бэкенда или из стейт-менеджера apps/web).
-Пакет редактора не генерирует цвета самостоятельно.
+Демонстрация совместной работы в реальном времени на базе **Yjs CRDT** и **Yjs Awareness**:
+- **Детерминированный CRDT-мердж**: Все правки синхронизируются через бинарные дельты документа \`Y.Doc\`.
+- **Многопользовательские курсоры и селекшены**: Позиции курсоров участников, имена и цвета транслируются через протокол Awareness.
+- **Изолированный Undo/Redo**: Локальный \`Y.UndoManager\` отменяет только собственные действия пользователя и не затирает правки соавторов.
 `,
       },
     },
@@ -26,7 +29,7 @@ const meta = {
   tags: ["autodocs"],
   decorators: [
     (Story) => (
-      <div style={{ height: "500px", padding: "16px" }}>
+      <div style={{ height: "650px", padding: "16px" }}>
         <Story />
       </div>
     ),
@@ -37,132 +40,231 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Статичные курсоры двух участников.
- * Алексей стоит на 2-й строке, Анна выделила текст на 3-4 строке.
+ * Парное программирование (Кандидат и Интервьюер).
+ * Два редактора работают с единым документом Y.Doc и обмениваются курсорами через Awareness.
+ * Любой ввод в левом окне моментально отображается в правом и наоборот!
  */
-export const StaticCursors: Story = {
+export const PairProgramming: Story = {
   render: () => {
-    const [code, setCode] = useState(getTemplate("typescript", "algorithm"));
-    const collaborators: Collaborator[] = [
-      {
-        id: "user-123",
-        name: "Алексей (Tech Lead)",
-        color: "#a855f7",
-        cursor: { line: 2, column: 5 },
-      },
-      {
-        id: "user-456",
-        name: "Анна (Reviewer)",
-        color: "#22c55e",
-        cursor: {
-          line: 3,
-          column: 3,
-          selectionEndLine: 3,
-          selectionEndColumn: 20,
-        },
-      },
-    ];
+    const [yDoc] = useState(() => {
+      const doc = new Y.Doc();
+      const text = doc.getText("monaco");
+      text.insert(0, getTemplate("typescript", "algorithm"));
+      return doc;
+    });
 
-    return (
-      <CodeEditorLazy
-        value={code}
-        onChange={setCode}
-        language="typescript"
-        collaborators={collaborators}
-      />
-    );
-  },
-};
+    const yText = useMemo(() => yDoc.getText("monaco"), [yDoc]);
 
-/**
- * Анимированный курсор — имитация реального набора текста другим участником.
- * Курсор «Алексея» прыгает по строке каждую секунду.
- */
-export const AnimatedCursor: Story = {
-  render: () => {
-    const [code, setCode] = useState(getTemplate("typescript", "algorithm"));
-    const [collaborators, setCollaborators] = useState<Collaborator[]>([
-      {
-        id: "user-123",
-        name: "Алексей (печатает...)",
-        color: "#f97316",
-        cursor: { line: 2, column: 5 },
-      },
-    ]);
+    const [candidateAwareness] = useState(() => new Awareness(yDoc));
+    const [interviewerAwareness] = useState(() => new Awareness(yDoc));
 
     useEffect(() => {
-      const interval = setInterval(() => {
-        setCollaborators((prev) => {
-          const newCol = 5 + Math.floor(Math.random() * 20);
-          return [
-            {
-              ...prev[0],
-              cursor: { line: 2, column: newCol },
-            },
-          ];
-        });
-      }, 800);
-      return () => clearInterval(interval);
-    }, []);
+      candidateAwareness.setLocalStateField("user", {
+        name: "Кандидат",
+        color: "#3b82f6",
+      });
+      interviewerAwareness.setLocalStateField("user", {
+        name: "Интервьюер (Tech Lead)",
+        color: "#a855f7",
+      });
+
+      const syncCandidateToInterviewer = ({
+        added,
+        updated,
+        removed,
+      }: {
+        added: number[];
+        updated: number[];
+        removed: number[];
+      }) => {
+        const changed = added.concat(updated, removed);
+        const update = encodeAwarenessUpdate(candidateAwareness, changed);
+        applyAwarenessUpdate(interviewerAwareness, update, "remote");
+      };
+
+      const syncInterviewerToCandidate = ({
+        added,
+        updated,
+        removed,
+      }: {
+        added: number[];
+        updated: number[];
+        removed: number[];
+      }) => {
+        const changed = added.concat(updated, removed);
+        const update = encodeAwarenessUpdate(interviewerAwareness, changed);
+        applyAwarenessUpdate(candidateAwareness, update, "remote");
+      };
+
+      candidateAwareness.on("update", syncCandidateToInterviewer);
+      interviewerAwareness.on("update", syncInterviewerToCandidate);
+
+      return () => {
+        candidateAwareness.off("update", syncCandidateToInterviewer);
+        interviewerAwareness.off("update", syncInterviewerToCandidate);
+      };
+    }, [candidateAwareness, interviewerAwareness]);
 
     return (
-      <CodeEditorLazy
-        value={code}
-        onChange={setCode}
-        language="typescript"
-        collaborators={collaborators}
-        onCursorChange={(pos) => console.log("Мой курсор:", pos)}
-      />
+      <div style={{ display: "flex", gap: "16px", height: "100%" }}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            border: "1px solid #3b82f6",
+            borderRadius: "8px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "8px 12px",
+              backgroundColor: "#1e293b",
+              color: "#3b82f6",
+              fontWeight: 600,
+              fontSize: "14px",
+            }}
+          >
+            👤 Окно кандидата (Синий курсор)
+          </div>
+          <div style={{ flex: 1 }}>
+            <CodeEditorLazy
+              language="typescript"
+              yText={yText}
+              awareness={candidateAwareness}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            border: "1px solid #a855f7",
+            borderRadius: "8px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "8px 12px",
+              backgroundColor: "#1e293b",
+              color: "#a855f7",
+              fontWeight: 600,
+              fontSize: "14px",
+            }}
+          >
+            👤 Окно интервьюера (Фиолетовый курсор)
+          </div>
+          <div style={{ flex: 1 }}>
+            <CodeEditorLazy
+              language="typescript"
+              yText={yText}
+              awareness={interviewerAwareness}
+            />
+          </div>
+        </div>
+      </div>
     );
   },
 };
 
 /**
- * Панельное собеседование — 4 участника одновременно.
- * Показывает, что курсоры не сливаются и не перекрывают друг друга.
+ * Анимированный удаленный соавтор.
+ * Имитирует живой набор кода удаленным участником в документе Yjs и трансляцию его курсора.
  */
-export const PanelInterview: Story = {
+export const AnimatedRemoteCollaborator: Story = {
   render: () => {
-    const [code, setCode] = useState(getTemplate("python", "algorithm"));
-    const collaborators: Collaborator[] = [
-      {
-        id: "user-1",
-        name: "Кандидат",
-        color: "#3b82f6",
-        cursor: { line: 2, column: 8 },
-      },
-      {
-        id: "user-2",
-        name: "Интервьюер #1",
-        color: "#ef4444",
-        cursor: { line: 3, column: 5 },
-      },
-      {
-        id: "user-3",
-        name: "Интервьюер #2",
-        color: "#22c55e",
-        cursor: {
-          line: 2,
-          column: 15,
-          selectionEndLine: 2,
-          selectionEndColumn: 25,
-        },
-      },
-      {
-        id: "user-4",
-        name: "Наблюдатель",
-        color: "#eab308",
-        cursor: { line: 1, column: 1 },
-      },
-    ];
+    const [yDoc] = useState(() => {
+      const doc = new Y.Doc();
+      const text = doc.getText("monaco");
+      text.insert(0, getTemplate("python", "algorithm"));
+      return doc;
+    });
+
+    const yText = useMemo(() => yDoc.getText("monaco"), [yDoc]);
+
+    const [userAwareness] = useState(() => new Awareness(yDoc));
+    const [remoteAwareness] = useState(() => new Awareness(yDoc));
+
+    useEffect(() => {
+      userAwareness.setLocalStateField("user", {
+        name: "Вы (Кандидат)",
+        color: "#10b981",
+      });
+      remoteAwareness.setLocalStateField("user", {
+        name: "Интервьюер (live)",
+        color: "#f97316",
+      });
+
+      const handleRemoteUpdate = ({
+        added,
+        updated,
+        removed,
+      }: {
+        added: number[];
+        updated: number[];
+        removed: number[];
+      }) => {
+        const changed = added.concat(updated, removed);
+        const update = encodeAwarenessUpdate(remoteAwareness, changed);
+        applyAwarenessUpdate(userAwareness, update, "remote");
+      };
+
+      remoteAwareness.on("update", handleRemoteUpdate);
+
+      // Имитация активности удаленного интервьюера: добавление комментария и перемещение курсора
+      let step = 0;
+      const commentText = "  # Review: complexity is O(n)\n";
+      const interval = setInterval(() => {
+        if (step < commentText.length) {
+          yDoc.transact(() => {
+            const insertPos = Math.min(25 + step, yText.length);
+            yText.insert(insertPos, commentText[step]);
+          }, "remote-collaborator");
+          step++;
+        }
+      }, 300);
+
+      return () => {
+        clearInterval(interval);
+        remoteAwareness.off("update", handleRemoteUpdate);
+      };
+    }, [yDoc, yText, userAwareness, remoteAwareness]);
 
     return (
-      <CodeEditorLazy
-        value={code}
-        onChange={setCode}
-        language="python"
-        collaborators={collaborators}
-      />
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          border: "1px solid #334155",
+          borderRadius: "8px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "8px 12px",
+            backgroundColor: "#1e293b",
+            color: "#f97316",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          ● Совместная сессия: Интервьюер комментирует решение в реальном
+          времени
+        </div>
+        <div style={{ flex: 1 }}>
+          <CodeEditorLazy
+            language="python"
+            yText={yText}
+            awareness={userAwareness}
+          />
+        </div>
+      </div>
     );
   },
 };
