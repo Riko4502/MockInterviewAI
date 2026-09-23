@@ -2,6 +2,7 @@ import type {
   AnyWebSocketEnvelope,
   BaseWebSocketEnvelope,
   RoomErrorPayload,
+  TaskSwitchedPayload,
   YjsAckPayload,
   YjsAwarenessPayload,
   YjsInitPayload,
@@ -62,11 +63,33 @@ export interface QueuedUpdate {
   data: Uint8Array;
 }
 
-export interface RealtimeYjsProviderOptions {
-  doc: Y.Doc;
+/**
+ * Изолированный контекст состояния задачи (T029).
+ */
+export interface TaskContext {
   taskKey: string;
+  doc: Y.Doc;
+  awareness: Awareness;
+  ownsDoc: boolean;
+  ownsAwareness: boolean;
+  status: ProviderStatus;
+  unsentQueue: QueuedUpdate[];
+  liveQueue: Uint8Array[];
+  batchMap: Map<string, Set<string>>; // batchUpdateId -> Set<originalUpdateId>
+  updateListener: (update: Uint8Array, origin: unknown) => void;
+  awarenessUpdateListener: (
+    changes: { added: number[]; updated: number[]; removed: number[] },
+    origin: unknown,
+  ) => void;
+}
+
+export interface RealtimeYjsProviderOptions {
+  /** Опциональный начальный документ (для обратной совместимости) */
+  doc?: Y.Doc;
+  /** Опциональный начальный taskKey (по умолчанию "default:typescript") */
+  taskKey?: string;
   sessionId: string;
-  /** Опциональный инстанс Awareness (если не передан, создается new Awareness(doc)) */
+  /** Опциональный инстанс Awareness для начальной задачи */
   awareness?: Awareness;
   /** Пользовательские данные для awareness (userId, name, color) */
   user?: {
@@ -85,133 +108,79 @@ export interface RealtimeYjsProviderOptions {
   /** Колбэк при возникновении критических ошибок синхронизации */
   onError?: (error: Error) => void;
   /** Колбэк при смене статуса провайдера */
-  onStatusChange?: (status: ProviderStatus) => void;
+  onStatusChange?: (status: ProviderStatus, taskKey?: string) => void;
   /** Колбэк при успешном переходе в статус SYNCED */
-  onSynced?: () => void;
+  onSynced?: (taskKey?: string) => void;
 }
 
 /**
- * RealtimeYjsProvider (Phase 1–5: T017, T019, T022, T024–T028)
+ * RealtimeYjsProvider (Phase 1–6: T017, T019, T022, T024–T029)
  *
  * Отвечает за:
- * 1. Подписку на локальные doc.on('update') и буферизацию в unsentQueue (T024).
- * 2. Удержание дельт в unsentQueue до получения Ingress ACK (yjs.ack) (T024).
- * 3. Контракт повторной отправки очереди unsentQueue при реконнекте (Unsent Queue Drain Contract)
- *    с батчингом через Y.mergeUpdates и сохранением соответствия batchUpdateId (T025).
- * 4. Буферизацию входящих дельт в liveQueue при статусе INITIALIZING и строго синхронный
- *    цикл накатки истории и опустошения liveQueue при получении yjs.init (T026).
- * 5. Контроль переполнения очередей (MAX_LIVE_QUEUE_SIZE, MAX_UNSENT_QUEUE_SIZE) с переходом в ERROR (T026).
- * 6. Фильтрацию собственных обновлений (origin === this) для полного исключения сетевых петель (echo-loop).
- * 7. Протокол Awareness (T019): трансляция кареток и выделений, упаковка в yjs.awareness.
- * 8. Очистка присутствия (T022): обработка presence.leave, вызов removeAwarenessStates, локальный destroy.
+ * 1. Изоляцию CRDT-документов по taskKey (вида `<taskId>:<lang>`) (T029).
+ * 2. Изолированные инстансы Y.Doc, Y.Text и Awareness для каждой задачи (T029, T031).
+ * 3. Раздельные очереди unsentQueue[taskKey] и liveQueue[taskKey] (T029).
+ * 4. Подписку на локальные doc.on('update') и буферизацию в unsentQueue[taskKey] (T024, T029).
+ * 5. Удержание дельт в unsentQueue[taskKey] до получения Ingress ACK (yjs.ack) (T024).
+ * 6. Контракт повторной отправки очереди unsentQueue при реконнекте (Unsent Queue Drain Contract)
+ *    с батчингом через Y.mergeUpdates строго по taskKey (T025, T029).
+ * 7. Буферизацию входящих дельт в liveQueue[taskKey] при статусе INITIALIZING и строго синхронный
+ *    цикл накатки истории и опустошения liveQueue при получении yjs.init (T026, T029).
+ * 8. Контроль переполнения очередей (MAX_LIVE_QUEUE_SIZE, MAX_UNSENT_QUEUE_SIZE) с переходом в ERROR.
+ * 9. Фильтрацию собственных обновлений (origin === this) для полного исключения сетевых петель.
+ * 10. Протокол Awareness (T019, T031): трансляция кареток и выделений изолированно по taskKey.
+ * 11. Очистка присутствия (T022): обработка presence.leave во всех контекстах задач.
  */
 export class RealtimeYjsProvider {
-  public readonly doc: Y.Doc;
-  public readonly taskKey: string;
   public readonly sessionId: string;
-  public readonly awareness: Awareness;
 
   private readonly socket: WebSocket | null;
   private readonly sendEnvelopeFn?: (envelope: AnyWebSocketEnvelope) => void;
   private readonly onError?: (error: Error) => void;
-  private readonly onStatusChange?: (status: ProviderStatus) => void;
-  private readonly onSynced?: () => void;
+  private readonly onStatusChange?: (
+    status: ProviderStatus,
+    taskKey?: string,
+  ) => void;
+  private readonly onSynced?: (taskKey?: string) => void;
+  private readonly user?: {
+    userId?: string;
+    id?: string;
+    name?: string;
+    color?: string;
+    [key: string]: unknown;
+  };
+  private readonly initialStatus?: ProviderStatus;
 
   private seq = 0;
   private readonly providerId: string;
   private isDestroyed = false;
-  private readonly ownsAwareness: boolean;
 
-  private _status: ProviderStatus;
-  private unsentQueue: QueuedUpdate[] = [];
-  private liveQueue: Uint8Array[] = [];
-  private batchMap = new Map<string, Set<string>>(); // batchUpdateId -> Set<originalUpdateId>
+  private activeTaskKey: string;
+  private readonly tasks = new Map<string, TaskContext>();
 
-  private readonly updateListener: (
-    update: Uint8Array,
-    origin: unknown,
-  ) => void;
-  private readonly awarenessUpdateListener: (
-    changes: { added: number[]; updated: number[]; removed: number[] },
-    origin: unknown,
-  ) => void;
   private readonly socketOpenListener?: () => void;
   private readonly socketCloseListener?: () => void;
   private readonly socketErrorListener?: () => void;
   private readonly socketMessageListener?: (event: MessageEvent) => void;
 
   constructor(options: RealtimeYjsProviderOptions) {
-    this.doc = options.doc;
-    this.taskKey = options.taskKey;
     this.sessionId = options.sessionId;
     this.socket = options.socket ?? null;
     this.sendEnvelopeFn = options.sendEnvelope;
     this.onError = options.onError;
     this.onStatusChange = options.onStatusChange;
     this.onSynced = options.onSynced;
+    this.user = options.user;
+    this.initialStatus = options.initialStatus;
     this.providerId = `client_${Math.random().toString(36).substring(2, 9)}`;
 
-    this.ownsAwareness = !options.awareness;
-    this.awareness = options.awareness ?? new Awareness(this.doc);
+    const initialKey = options.taskKey ?? "default:typescript";
+    this.activeTaskKey = initialKey;
 
-    // Определяем начальный статус
-    if (options.initialStatus) {
-      this._status = options.initialStatus;
-    } else if (this.socket) {
-      this._status =
-        this.socket.readyState === WebSocket.OPEN
-          ? "INITIALIZING"
-          : "DISCONNECTED";
-    } else {
-      this._status = "SYNCED";
-    }
+    // Инициализируем начальную задачу (с поддержкой переданного doc/awareness)
+    this.getOrCreateTask(initialKey, options.doc, options.awareness);
 
-    // 1. Слушатель локальных изменений Y.Doc (T017, T024)
-    this.updateListener = (update: Uint8Array, origin: unknown) => {
-      // Игнорируем обновления, примененные провайдером из сети (исключаем echo loop)
-      if (origin === this || this.isDestroyed) {
-        return;
-      }
-
-      if (this.unsentQueue.length >= MAX_UNSENT_QUEUE_SIZE) {
-        const err = new Error(
-          `SyncError: unsent queue limit exceeded (${MAX_UNSENT_QUEUE_SIZE})`,
-        );
-        this.transitionTo("ERROR");
-        this.onError?.(err);
-        return;
-      }
-
-      const updateId = `${this.providerId}:${++this.seq}`;
-      const queuedItem: QueuedUpdate = { updateId, data: update };
-      this.unsentQueue.push(queuedItem);
-
-      // При нормальном активном подключении (SYNCED) отправляем сразу в сокет (T024)
-      if (this._status === "SYNCED") {
-        this.sendUpdate(updateId, update);
-      }
-    };
-    this.doc.on("update", this.updateListener);
-
-    // 2. Слушатель изменений Awareness (T019)
-    this.awarenessUpdateListener = ({ added, updated, removed }, origin) => {
-      if (origin === this || this.isDestroyed) {
-        return;
-      }
-      const changedClients = added.concat(updated, removed);
-      if (changedClients.length === 0) {
-        return;
-      }
-      const update = encodeAwarenessUpdate(this.awareness, changedClients);
-      this.sendAwareness(update);
-    };
-    this.awareness.on("update", this.awarenessUpdateListener);
-
-    if (options.user) {
-      this.awareness.setLocalStateField("user", options.user);
-    }
-
-    // 3. Слушатели событий WebSocket (если передан сырой WebSocket)
+    // Слушатели событий WebSocket (если передан сырой WebSocket)
     if (this.socket) {
       this.socketOpenListener = () => {
         if (!this.isDestroyed) {
@@ -251,76 +220,272 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Текущий статус синхронизации провайдера.
+   * Получает или создает изолированный контекст для указанного taskKey (T029).
+   */
+  public getOrCreateTask(
+    taskKey: string,
+    existingDoc?: Y.Doc,
+    existingAwareness?: Awareness,
+  ): TaskContext {
+    let context = this.tasks.get(taskKey);
+    if (context) {
+      return context;
+    }
+
+    const ownsDoc = !existingDoc;
+    const doc = existingDoc ?? new Y.Doc();
+
+    const ownsAwareness = !existingAwareness;
+    const awareness = existingAwareness ?? new Awareness(doc);
+
+    // Определение статуса для новой задачи
+    let status: ProviderStatus;
+    if (this.initialStatus) {
+      status = this.initialStatus;
+    } else if (this.socket) {
+      status =
+        this.socket.readyState === WebSocket.OPEN
+          ? "INITIALIZING"
+          : "DISCONNECTED";
+    } else {
+      status = "SYNCED";
+    }
+
+    const unsentQueue: QueuedUpdate[] = [];
+    const liveQueue: Uint8Array[] = [];
+    const batchMap = new Map<string, Set<string>>();
+
+    // 1. Слушатель локальных изменений Y.Doc для этого taskKey (T017, T024, T029)
+    const updateListener = (update: Uint8Array, origin: unknown) => {
+      // Игнорируем сетевые обновления и вызовы после уничтожения
+      if (origin === this || this.isDestroyed) {
+        return;
+      }
+
+      if (unsentQueue.length >= MAX_UNSENT_QUEUE_SIZE) {
+        const err = new Error(
+          `SyncError: unsent queue limit exceeded (${MAX_UNSENT_QUEUE_SIZE}) for task ${taskKey}`,
+        );
+        this.transitionTaskTo(taskKey, "ERROR");
+        this.onError?.(err);
+        return;
+      }
+
+      const updateId = `${this.providerId}:${++this.seq}`;
+      const queuedItem: QueuedUpdate = { updateId, data: update };
+      unsentQueue.push(queuedItem);
+
+      // При статусе SYNCED отправляем немедленно в сокет (T024, T029)
+      const currentTask = this.tasks.get(taskKey);
+      if (currentTask && currentTask.status === "SYNCED") {
+        this.sendUpdate(taskKey, updateId, update);
+      }
+    };
+    doc.on("update", updateListener);
+
+    // 2. Слушатель изменений Awareness для этого taskKey (T019, T029, T031)
+    const awarenessUpdateListener = (
+      {
+        added,
+        updated,
+        removed,
+      }: { added: number[]; updated: number[]; removed: number[] },
+      origin: unknown,
+    ) => {
+      if (origin === this || this.isDestroyed) {
+        return;
+      }
+      const changedClients = added.concat(updated, removed);
+      if (changedClients.length === 0) {
+        return;
+      }
+      const update = encodeAwarenessUpdate(awareness, changedClients);
+      this.sendAwareness(taskKey, update);
+    };
+    awareness.on("update", awarenessUpdateListener);
+
+    if (this.user) {
+      awareness.setLocalStateField("user", this.user);
+    }
+
+    context = {
+      taskKey,
+      doc,
+      awareness,
+      ownsDoc,
+      ownsAwareness,
+      status,
+      unsentQueue,
+      liveQueue,
+      batchMap,
+      updateListener,
+      awarenessUpdateListener,
+    };
+
+    this.tasks.set(taskKey, context);
+    return context;
+  }
+
+  /**
+   * Переключает активную задачу и возвращает ее изолированный контекст (T029, T031).
+   */
+  public switchTask(newTaskKey: string): TaskContext {
+    this.activeTaskKey = newTaskKey;
+    const context = this.getOrCreateTask(newTaskKey);
+
+    // Если соединение уже открыто, переводим новую задачу в INITIALIZING при первом входе
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      if (context.status === "DISCONNECTED") {
+        this.transitionTaskTo(newTaskKey, "INITIALIZING");
+      }
+    }
+
+    return context;
+  }
+
+  /**
+   * Возвращает активный taskKey.
+   */
+  public get taskKey(): string {
+    return this.activeTaskKey;
+  }
+
+  /**
+   * Возвращает Y.Doc активной задачи (для обратной совместимости).
+   */
+  public get doc(): Y.Doc {
+    return this.getDoc(this.activeTaskKey);
+  }
+
+  /**
+   * Возвращает Awareness активной задачи (для обратной совместимости).
+   */
+  public get awareness(): Awareness {
+    return this.getAwareness(this.activeTaskKey);
+  }
+
+  /**
+   * Возвращает текущий статус активной задачи.
    */
   public get status(): ProviderStatus {
-    return this._status;
+    return this.getTaskStatus(this.activeTaskKey);
   }
 
   /**
-   * Возвращает true, если провайдер полностью синхронизирован с сервером.
+   * Возвращает true, если активная задача полностью синхронизирована с сервером.
    */
   public get isSynced(): boolean {
-    return this._status === "SYNCED";
+    return this.status === "SYNCED";
   }
 
   /**
-   * Число неотправленных/неподтвержденных локальных дельт в очереди.
+   * Число неотправленных дельт в очереди активной задачи.
    */
   public get unsentQueueLength(): number {
-    return this.unsentQueue.length;
+    return this.getUnsentQueue(this.activeTaskKey).length;
   }
 
   /**
-   * Число входящих дельт, ожидающих завершения инициализации (yjs.init).
+   * Число входящих дельт в liveQueue активной задачи.
    */
   public get liveQueueLength(): number {
-    return this.liveQueue.length;
+    return this.getLiveQueue(this.activeTaskKey).length;
   }
 
   /**
-   * Возвращает срез текущей очереди unsentQueue (для тестирования и мониторинга).
+   * Возвращает Y.Doc для запрошенного taskKey (или активной задачи).
    */
-  public getUnsentQueue(): ReadonlyArray<QueuedUpdate> {
-    return this.unsentQueue;
+  public getDoc(taskKey: string = this.activeTaskKey): Y.Doc {
+    return this.getOrCreateTask(taskKey).doc;
   }
 
   /**
-   * Возвращает срез текущей очереди liveQueue (для тестирования и мониторинга).
+   * Возвращает Y.Text для запрошенного taskKey.
    */
-  public getLiveQueue(): ReadonlyArray<Uint8Array> {
-    return this.liveQueue;
+  public getText(
+    taskKey: string = this.activeTaskKey,
+    name = "monaco",
+  ): Y.Text {
+    return this.getDoc(taskKey).getText(name);
   }
 
   /**
-   * Переводит провайдер в статус INITIALIZING при установлении соединения/реконнекте.
+   * Возвращает Awareness для запрошенного taskKey.
+   */
+  public getAwareness(taskKey: string = this.activeTaskKey): Awareness {
+    return this.getOrCreateTask(taskKey).awareness;
+  }
+
+  /**
+   * Возвращает статус синхронизации для запрошенного taskKey.
+   */
+  public getTaskStatus(taskKey: string = this.activeTaskKey): ProviderStatus {
+    const task = this.tasks.get(taskKey);
+    return task ? task.status : "DISCONNECTED";
+  }
+
+  /**
+   * Возвращает срез текущей очереди unsentQueue для taskKey.
+   */
+  public getUnsentQueue(
+    taskKey: string = this.activeTaskKey,
+  ): ReadonlyArray<QueuedUpdate> {
+    const task = this.tasks.get(taskKey);
+    return task ? task.unsentQueue : [];
+  }
+
+  /**
+   * Возвращает срез текущей очереди liveQueue для taskKey.
+   */
+  public getLiveQueue(
+    taskKey: string = this.activeTaskKey,
+  ): ReadonlyArray<Uint8Array> {
+    const task = this.tasks.get(taskKey);
+    return task ? task.liveQueue : [];
+  }
+
+  /**
+   * Возвращает список всех зарегистрированных taskKey.
+   */
+  public getAllTaskKeys(): string[] {
+    return Array.from(this.tasks.keys());
+  }
+
+  /**
+   * Переводит контекст конкретной задачи в новый статус.
+   */
+  private transitionTaskTo(taskKey: string, newStatus: ProviderStatus): void {
+    const task = this.tasks.get(taskKey);
+    if (!task || task.status === newStatus || this.isDestroyed) {
+      return;
+    }
+    task.status = newStatus;
+    this.onStatusChange?.(newStatus, taskKey);
+  }
+
+  /**
+   * Переводит все задачи в статус INITIALIZING при установлении соединения/реконнекте.
    */
   public connect(): void {
     if (this.isDestroyed) return;
-    if (this._status !== "INITIALIZING" && this._status !== "SYNCED") {
-      this.transitionTo("INITIALIZING");
+    for (const [taskKey, task] of this.tasks.entries()) {
+      if (task.status !== "INITIALIZING") {
+        this.transitionTaskTo(taskKey, "INITIALIZING");
+      }
     }
   }
 
   /**
-   * Переводит провайдер в статус DISCONNECTED при потере соединения.
+   * Переводит все задачи в статус DISCONNECTED при потере соединения.
    */
   public disconnect(): void {
     if (this.isDestroyed) return;
-    if (this._status !== "DISCONNECTED") {
-      this.transitionTo("DISCONNECTED");
+    for (const [taskKey, task] of this.tasks.entries()) {
+      task.liveQueue = [];
+      if (task.status !== "DISCONNECTED") {
+        this.transitionTaskTo(taskKey, "DISCONNECTED");
+      }
     }
-  }
-
-  /**
-   * Безопасный переход между состояниями с вызовом onStatusChange.
-   */
-  private transitionTo(newStatus: ProviderStatus): void {
-    if (this._status === newStatus || this.isDestroyed) {
-      return;
-    }
-    this._status = newStatus;
-    this.onStatusChange?.(newStatus);
   }
 
   /**
@@ -335,9 +500,13 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Отправляет дельту обновления в сокет в виде конверта yjs.update.
+   * Отправляет дельту обновления в сокет с обязательным taskKey (T017, T029).
    */
-  private sendUpdate(updateId: string, update: Uint8Array): void {
+  private sendUpdate(
+    taskKey: string,
+    updateId: string,
+    update: Uint8Array,
+  ): void {
     const base64Data = uint8ArrayToBase64(update);
 
     const envelope: BaseWebSocketEnvelope<"yjs.update", YjsUpdatePayload> = {
@@ -347,7 +516,7 @@ export class RealtimeYjsProvider {
       requestId: `req_${updateId}`,
       timestamp: new Date().toISOString(),
       payload: {
-        taskKey: this.taskKey,
+        taskKey,
         updateId,
         data: base64Data,
       },
@@ -357,85 +526,94 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Обязательный контракт повторной отправки очереди unsentQueue при реконнекте (T025: Unsent Queue Drain Contract).
-   *
-   * 1. Фиксирует срез неподтвержденных дельт `unackedBatch = unsentQueue.slice()`.
-   * 2. Объединяет через `Y.mergeUpdates` с генерацией `batchUpdateId` и сохранением маппинга.
-   * 3. Любые новые локальные правки во время ожидания ACK добавляются строго в хвост unsentQueue.
-   * 4. Удаляет элементы среза строго по получению ACK батча.
+   * Обязательный контракт повторной отправки очереди unsentQueue при реконнекте (T025, T029: Unsent Queue Drain Contract).
+   * Работает изолированно для указанного taskKey (или для всех синхронизированных задач).
    */
-  public drainUnsentQueue(): void {
-    if (
-      this.isDestroyed ||
-      this._status !== "SYNCED" ||
-      this.unsentQueue.length === 0
-    ) {
+  public drainUnsentQueue(targetTaskKey?: string): void {
+    if (this.isDestroyed) {
       return;
     }
 
-    const unackedBatch = this.unsentQueue.slice();
-    if (unackedBatch.length === 0) {
-      return;
-    }
+    const taskKeys = targetTaskKey
+      ? [targetTaskKey]
+      : Array.from(this.tasks.keys());
 
-    if (unackedBatch.length === 1) {
-      const item = unackedBatch[0];
-      this.sendUpdate(item.updateId, item.data);
-      return;
-    }
-
-    try {
-      const mergedData = Y.mergeUpdates(unackedBatch.map((item) => item.data));
-      // Проверяем лимит размера пакета 64 КБ (65536 байт)
-      if (mergedData.byteLength <= 65536) {
-        const batchUpdateId = `${this.providerId}:batch_${++this.seq}`;
-        const originalIds = new Set(unackedBatch.map((item) => item.updateId));
-        this.batchMap.set(batchUpdateId, originalIds);
-        this.sendUpdate(batchUpdateId, mergedData);
-      } else {
-        // Если размер объединенных дельт превышает 64 КБ, отправляем по отдельности
-        for (const item of unackedBatch) {
-          this.sendUpdate(item.updateId, item.data);
-        }
+    for (const key of taskKeys) {
+      const task = this.tasks.get(key);
+      if (!task || task.status !== "SYNCED" || task.unsentQueue.length === 0) {
+        continue;
       }
-    } catch (err) {
-      console.error(
-        `[RealtimeYjsProvider] Failed to merge updates in drainUnsentQueue:`,
-        err,
-      );
-      for (const item of unackedBatch) {
-        this.sendUpdate(item.updateId, item.data);
+
+      const unackedBatch = task.unsentQueue.slice();
+      if (unackedBatch.length === 0) {
+        continue;
+      }
+
+      if (unackedBatch.length === 1) {
+        const item = unackedBatch[0];
+        this.sendUpdate(key, item.updateId, item.data);
+        continue;
+      }
+
+      try {
+        const mergedData = Y.mergeUpdates(
+          unackedBatch.map((item) => item.data),
+        );
+        // Проверяем лимит размера пакета 64 КБ (65536 байт)
+        if (mergedData.byteLength <= 65536) {
+          const batchUpdateId = `${this.providerId}:batch_${++this.seq}`;
+          const originalIds = new Set(
+            unackedBatch.map((item) => item.updateId),
+          );
+          task.batchMap.set(batchUpdateId, originalIds);
+          this.sendUpdate(key, batchUpdateId, mergedData);
+        } else {
+          // Если размер превышает 64 КБ, отправляем элементы по отдельности
+          for (const item of unackedBatch) {
+            this.sendUpdate(key, item.updateId, item.data);
+          }
+        }
+      } catch (err) {
+        console.error(
+          `[RealtimeYjsProvider] Failed to merge updates in drainUnsentQueue for task ${key}:`,
+          err,
+        );
+        for (const item of unackedBatch) {
+          this.sendUpdate(key, item.updateId, item.data);
+        }
       }
     }
   }
 
   /**
-   * Обрабатывает получение Ingress ACK от сервера (T024, T025, T027).
-   * Удаляет дельту из очереди строго при получении соответствующего подтверждения.
+   * Обрабатывает получение Ingress ACK от сервера для конкретного taskKey (T024, T025, T029).
    */
-  private handleAck(updateId: string): void {
+  private handleAck(taskKey: string, updateId: string): void {
+    const task = this.tasks.get(taskKey);
+    if (!task) return;
+
     // 1. Проверяем, является ли updateId идентификатором батча
-    const batchedIds = this.batchMap.get(updateId);
+    const batchedIds = task.batchMap.get(updateId);
     if (batchedIds) {
-      this.batchMap.delete(updateId);
-      this.unsentQueue = this.unsentQueue.filter(
+      task.batchMap.delete(updateId);
+      task.unsentQueue = task.unsentQueue.filter(
         (item) => !batchedIds.has(item.updateId),
       );
       return;
     }
 
     // 2. Проверяем точное совпадение с updateId единичного обновления
-    const index = this.unsentQueue.findIndex(
+    const index = task.unsentQueue.findIndex(
       (item) => item.updateId === updateId,
     );
     if (index !== -1) {
-      this.unsentQueue.splice(index, 1);
-      // Также удаляем из батч-мап, если присутствовал
-      for (const [batchId, idSet] of this.batchMap.entries()) {
+      task.unsentQueue.splice(index, 1);
+      // Удаляем из батч-мап при необходимости
+      for (const [batchId, idSet] of task.batchMap.entries()) {
         if (idSet.has(updateId)) {
           idSet.delete(updateId);
           if (idSet.size === 0) {
-            this.batchMap.delete(batchId);
+            task.batchMap.delete(batchId);
           }
         }
       }
@@ -443,9 +621,9 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Отправляет локальные изменения Awareness в сокет в виде конверта yjs.awareness (T019).
+   * Отправляет локальные изменения Awareness в сокет с taskKey (T019, T029).
    */
-  private sendAwareness(update: Uint8Array): void {
+  private sendAwareness(taskKey: string, update: Uint8Array): void {
     const base64Data = uint8ArrayToBase64(update);
 
     const envelope: BaseWebSocketEnvelope<
@@ -458,7 +636,7 @@ export class RealtimeYjsProvider {
       requestId: `req_aw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       timestamp: new Date().toISOString(),
       payload: {
-        taskKey: this.taskKey,
+        taskKey,
         data: base64Data,
       },
     };
@@ -467,8 +645,7 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Обрабатывает входящий конверт WebSocket от сервера.
-   * Может вызываться напрямую из общего WebSocket-диспетчера сессии.
+   * Обрабатывает входящий конверт WebSocket от сервера с динамической маршрутизацией по taskKey (T029).
    */
   public handleMessage(envelope: AnyWebSocketEnvelope): void {
     if (this.isDestroyed || !envelope) {
@@ -482,37 +659,38 @@ export class RealtimeYjsProvider {
     switch (envelope.type) {
       case "yjs.update": {
         const payload = envelope.payload as YjsUpdatePayload | undefined;
-        if (!payload || payload.taskKey !== this.taskKey || !payload.data) {
+        if (!payload || !payload.taskKey || !payload.data) {
           return;
         }
+
+        const taskContext = this.getOrCreateTask(payload.taskKey);
 
         try {
           const binary = base64ToUint8Array(payload.data);
 
-          // T026: Если провайдер еще не синхронизирован (INITIALIZING или DISCONNECTED),
-          // входящие удаленные дельты буферизуются в liveQueue!
+          // T026: Буферизация в liveQueue при INITIALIZING / DISCONNECTED
           if (
-            this._status === "INITIALIZING" ||
-            this._status === "DISCONNECTED"
+            taskContext.status === "INITIALIZING" ||
+            taskContext.status === "DISCONNECTED"
           ) {
-            if (this.liveQueue.length >= MAX_LIVE_QUEUE_SIZE) {
+            if (taskContext.liveQueue.length >= MAX_LIVE_QUEUE_SIZE) {
               const err = new Error(
-                `SyncError: live queue overflow (>${MAX_LIVE_QUEUE_SIZE})`,
+                `SyncError: live queue overflow (>${MAX_LIVE_QUEUE_SIZE}) for task ${payload.taskKey}`,
               );
-              this.liveQueue = [];
-              this.transitionTo("ERROR");
+              taskContext.liveQueue = [];
+              this.transitionTaskTo(payload.taskKey, "ERROR");
               this.onError?.(err);
               return;
             }
-            this.liveQueue.push(binary);
+            taskContext.liveQueue.push(binary);
             return;
           }
 
-          // Применяем с origin = this, чтобы наш doc.on('update') не ретранслировал обратно (T017, T025)
-          Y.applyUpdate(this.doc, binary, this);
+          // Применяем обновление строго к Y.Doc целевой задачи с origin = this (T017, T029)
+          Y.applyUpdate(taskContext.doc, binary, this);
         } catch (err) {
           console.error(
-            `[RealtimeYjsProvider] Failed to apply yjs.update for task ${this.taskKey}:`,
+            `[RealtimeYjsProvider] Failed to apply yjs.update for task ${payload.taskKey}:`,
             err,
           );
         }
@@ -521,88 +699,95 @@ export class RealtimeYjsProvider {
 
       case "yjs.init": {
         const payload = envelope.payload as YjsInitPayload | undefined;
-        if (!payload || payload.taskKey !== this.taskKey) {
+        if (!payload || !payload.taskKey) {
           return;
         }
 
-        // T026: Строго синхронный цикл накатки истории и опустошения liveQueue
-        // в рамках одного тика Event Loop
+        const taskContext = this.getOrCreateTask(payload.taskKey);
+
+        // T026: Синхронный цикл накатки истории и опустошения liveQueue в рамках одного тика Event Loop
         if (Array.isArray(payload.updates)) {
           for (const base64Update of payload.updates) {
             try {
               const binary = base64ToUint8Array(base64Update);
-              Y.applyUpdate(this.doc, binary, this);
+              Y.applyUpdate(taskContext.doc, binary, this);
             } catch (err) {
               console.error(
-                `[RealtimeYjsProvider] Failed to apply yjs.init update for task ${this.taskKey}:`,
+                `[RealtimeYjsProvider] Failed to apply yjs.init update for task ${payload.taskKey}:`,
                 err,
               );
             }
           }
         }
 
-        // Синхронный drain liveQueue
-        while (this.liveQueue.length > 0) {
-          const liveUpdate = this.liveQueue.shift();
-          if (!liveUpdate) {
-            break;
-          }
+        // Синхронный drain liveQueue для этой задачи
+        while (taskContext.liveQueue.length > 0) {
+          const liveUpdate = taskContext.liveQueue.shift();
+          if (!liveUpdate) break;
           try {
-            Y.applyUpdate(this.doc, liveUpdate, this);
+            Y.applyUpdate(taskContext.doc, liveUpdate, this);
           } catch (err) {
             console.error(
-              `[RealtimeYjsProvider] Failed to apply liveQueue update for task ${this.taskKey}:`,
+              `[RealtimeYjsProvider] Failed to apply liveQueue update for task ${payload.taskKey}:`,
               err,
             );
           }
         }
 
-        // Переводим провайдер в статус SYNCED
-        this.transitionTo("SYNCED");
-        this.onSynced?.();
+        // Переводим задачу в статус SYNCED
+        this.transitionTaskTo(payload.taskKey, "SYNCED");
+        this.onSynced?.(payload.taskKey);
 
-        // T025: После перехода в SYNCED выполняем drain накопленных локальных unsent updates
-        this.drainUnsentQueue();
+        // T025: После перехода в SYNCED выполняем drain очереди неподтвержденных дельт этой задачи
+        this.drainUnsentQueue(payload.taskKey);
 
-        // Транслируем актуальное состояние Awareness новому участнику / комнате
-        const localState = this.awareness.getLocalState();
+        // Транслируем актуальное состояние Awareness новому участнику
+        const localState = taskContext.awareness.getLocalState();
         if (localState && Object.keys(localState).length > 0) {
-          const update = encodeAwarenessUpdate(this.awareness, [
-            this.doc.clientID,
+          const update = encodeAwarenessUpdate(taskContext.awareness, [
+            taskContext.doc.clientID,
           ]);
-          this.sendAwareness(update);
+          this.sendAwareness(payload.taskKey, update);
         }
         break;
       }
 
       case "yjs.ack": {
         const payload = envelope.payload as YjsAckPayload | undefined;
-        if (!payload || payload.taskKey !== this.taskKey || !payload.updateId) {
+        if (!payload || !payload.taskKey || !payload.updateId) {
           return;
         }
-        this.handleAck(payload.updateId);
+        this.handleAck(payload.taskKey, payload.updateId);
+        break;
+      }
+
+      case "task.switched": {
+        const payload = envelope.payload as TaskSwitchedPayload | undefined;
+        if (payload?.taskKey) {
+          this.switchTask(payload.taskKey);
+        }
         break;
       }
 
       case "room.sync": {
-        // При переподключении комнаты (reconnect) сервер шлет room.sync
-        if (this._status !== "INITIALIZING") {
-          this.liveQueue = [];
-          this.transitionTo("INITIALIZING");
+        // При переподключении комнаты сервер шлет room.sync
+        for (const [taskKey, task] of this.tasks.entries()) {
+          if (task.status !== "INITIALIZING") {
+            this.transitionTaskTo(taskKey, "INITIALIZING");
+          }
         }
         break;
       }
 
       case "room.error": {
         const payload = envelope.payload as RoomErrorPayload | undefined;
-        if (!payload || (payload.taskKey && payload.taskKey !== this.taskKey)) {
-          return;
-        }
+        if (!payload) return;
+        const targetTaskKey = payload.taskKey ?? this.activeTaskKey;
         if (payload.code === "SYNC_FAILED") {
           const err = new Error(
             `SYNC_FAILED: ${payload.message || "Failed to sync room"}`,
           );
-          this.transitionTo("ERROR");
+          this.transitionTaskTo(targetTaskKey, "ERROR");
           this.onError?.(err);
         }
         break;
@@ -610,17 +795,17 @@ export class RealtimeYjsProvider {
 
       case "yjs.awareness": {
         const payload = envelope.payload as YjsAwarenessPayload | undefined;
-        if (!payload || payload.taskKey !== this.taskKey || !payload.data) {
+        if (!payload || !payload.taskKey || !payload.data) {
           return;
         }
 
+        const taskContext = this.getOrCreateTask(payload.taskKey);
         try {
           const binary = base64ToUint8Array(payload.data);
-          // Применяем с origin = this, чтобы awarenessUpdateListener не ретранслировал обратно
-          applyAwarenessUpdate(this.awareness, binary, this);
+          applyAwarenessUpdate(taskContext.awareness, binary, this);
         } catch (err) {
           console.error(
-            `[RealtimeYjsProvider] Failed to apply yjs.awareness for task ${this.taskKey}:`,
+            `[RealtimeYjsProvider] Failed to apply yjs.awareness for task ${payload.taskKey}:`,
             err,
           );
         }
@@ -628,37 +813,42 @@ export class RealtimeYjsProvider {
       }
 
       case "presence.join": {
-        // При подключении нового участника транслируем наше актуальное состояние awareness
-        const localState = this.awareness.getLocalState();
-        if (localState && Object.keys(localState).length > 0) {
-          const update = encodeAwarenessUpdate(this.awareness, [
-            this.doc.clientID,
-          ]);
-          this.sendAwareness(update);
+        // При подключении участника отправляем awareness для активной задачи
+        const activeContext = this.tasks.get(this.activeTaskKey);
+        if (activeContext) {
+          const localState = activeContext.awareness.getLocalState();
+          if (localState && Object.keys(localState).length > 0) {
+            const update = encodeAwarenessUpdate(activeContext.awareness, [
+              activeContext.doc.clientID,
+            ]);
+            this.sendAwareness(this.activeTaskKey, update);
+          }
         }
         break;
       }
 
       case "presence.leave": {
-        // Очистка присутствия при отключении участника (T022)
+        // Очистка присутствия при отключении участника во всех контекстах (T022, T029)
         const payload = envelope.payload as { userId?: string } | undefined;
         const userId = payload?.userId;
         if (userId) {
-          const targetClients: number[] = [];
-          this.awareness.getStates().forEach((state, clientID) => {
-            const stateUser = (
-              state as { user?: { userId?: string; id?: string } }
-            )?.user;
-            if (stateUser?.userId === userId || stateUser?.id === userId) {
-              targetClients.push(clientID);
+          for (const context of this.tasks.values()) {
+            const targetClients: number[] = [];
+            context.awareness.getStates().forEach((state, clientID) => {
+              const stateUser = (
+                state as { user?: { userId?: string; id?: string } }
+              )?.user;
+              if (stateUser?.userId === userId || stateUser?.id === userId) {
+                targetClients.push(clientID);
+              }
+            });
+            if (targetClients.length > 0) {
+              removeAwarenessStates(
+                context.awareness,
+                targetClients,
+                "server-leave",
+              );
             }
-          });
-          if (targetClients.length > 0) {
-            removeAwarenessStates(
-              this.awareness,
-              targetClients,
-              "server-leave",
-            );
           }
         }
         break;
@@ -670,14 +860,32 @@ export class RealtimeYjsProvider {
   }
 
   /**
-   * Освобождает ресурсы, отписывается от doc, awareness и WebSocket.
+   * Освобождает ресурсы всех контекстов задач и сокета.
    */
   public destroy(): void {
     if (this.isDestroyed) return;
-    this.transitionTo("DISCONNECTED");
     this.isDestroyed = true;
 
-    this.doc.off("update", this.updateListener);
+    for (const context of this.tasks.values()) {
+      context.status = "DISCONNECTED";
+      context.doc.off("update", context.updateListener);
+      context.awareness.off("update", context.awarenessUpdateListener);
+      removeAwarenessStates(
+        context.awareness,
+        [context.doc.clientID],
+        "local-destroy",
+      );
+      if (context.ownsAwareness) {
+        context.awareness.destroy();
+      }
+      if (context.ownsDoc) {
+        context.doc.destroy();
+      }
+      context.unsentQueue = [];
+      context.liveQueue = [];
+      context.batchMap.clear();
+    }
+    this.tasks.clear();
 
     if (this.socket) {
       if (this.socketOpenListener) {
@@ -693,15 +901,5 @@ export class RealtimeYjsProvider {
         this.socket.removeEventListener("message", this.socketMessageListener);
       }
     }
-
-    this.awareness.off("update", this.awarenessUpdateListener);
-    removeAwarenessStates(this.awareness, [this.doc.clientID], "local-destroy");
-    if (this.ownsAwareness) {
-      this.awareness.destroy();
-    }
-
-    this.unsentQueue = [];
-    this.liveQueue = [];
-    this.batchMap.clear();
   }
 }

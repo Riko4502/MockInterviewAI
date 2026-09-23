@@ -582,46 +582,44 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 		}
 	}
 
-	// 3. Обработка переключения задачи task.switch
+	// 3. Обработка переключения задачи task.switch (T030)
 	if raw.Type == EventTaskSwitch {
 		if payload, unpackErr := UnpackPayload[TaskSwitchPayload](raw); unpackErr == nil && payload.TaskKey != "" {
 			r.mu.Lock()
 			r.activeTaskKey = payload.TaskKey
 			r.mu.Unlock()
 
-			// Ленивый сидинг целевой задачи в Redis
-			r.mu.RLock()
-			ys := r.yjsStore
-			r.mu.RUnlock()
-			if ys != nil {
-				go func(taskKey string) {
+			go func(taskKey, requestID string) {
+				// 1. Атомарный сидинг / проверка целевой задачи в Redis через seed_task_doc.lua
+				r.mu.RLock()
+				ys := r.yjsStore
+				r.mu.RUnlock()
+				if ys != nil {
 					sCtx, sCancel := context.WithTimeout(context.Background(), 3*time.Second)
-					defer sCancel()
 					_, _ = ys.SeedTaskDoc(sCtx, r.ID, taskKey, "AAA=", 86400)
-				}(payload.TaskKey)
-			}
+					sCancel()
+				}
 
-			// Широковещательная рассылка task.switched
-			switchedEnv := NewEnvelope(EventTaskSwitched, r.ID, raw.RequestID, TaskSwitchedPayload{
-				TaskKey: payload.TaskKey,
-			})
-			if switchedBytes, mErr := switchedEnv.ToBytes(); mErr == nil {
-				r.Broadcast(switchedBytes, "")
-			}
+				// 2. Широковещательная рассылка task.switched всем участникам
+				switchedEnv := NewEnvelope(EventTaskSwitched, r.ID, requestID, TaskSwitchedPayload{
+					TaskKey: taskKey,
+				})
+				if switchedBytes, mErr := switchedEnv.ToBytes(); mErr == nil {
+					r.Broadcast(switchedBytes, "")
+				}
 
-			// Отгрузка yjs.init для новой задачи всем участникам
-			r.mu.RLock()
-			clients := make([]*Client, 0, len(r.clients))
-			for _, c := range r.clients {
-				clients = append(clients, c)
-			}
-			r.mu.RUnlock()
+				// 3. Отгрузка yjs.init для новой задачи всем участникам
+				r.mu.RLock()
+				clients := make([]*Client, 0, len(r.clients))
+				for _, c := range r.clients {
+					clients = append(clients, c)
+				}
+				r.mu.RUnlock()
 
-			for _, c := range clients {
-				go func(cl *Client) {
-					_ = r.sendYjsInit(context.Background(), cl, payload.TaskKey)
-				}(c)
-			}
+				for _, c := range clients {
+					_ = r.sendYjsInit(context.Background(), c, taskKey)
+				}
+			}(payload.TaskKey, raw.RequestID)
 			return
 		}
 	}

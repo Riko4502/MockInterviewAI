@@ -1,6 +1,6 @@
 import type { AnyWebSocketEnvelope, YjsUpdatePayload } from "@packages/dto";
 import { describe, expect, it, vi } from "vitest";
-import { encodeAwarenessUpdate } from "y-protocols/awareness";
+import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 import {
   base64ToUint8Array,
@@ -563,6 +563,56 @@ describe("RealtimeYjsProvider (T017)", () => {
       doc.destroy();
     });
 
+    it("T024: repeated getOrCreateTask or connect does not duplicate doc.on('update') listeners or enqueue duplicate updates", () => {
+      const doc = new Y.Doc();
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+
+      const provider = new RealtimeYjsProvider({
+        doc,
+        taskKey: "task-1:typescript",
+        sessionId: "session-123",
+        initialStatus: "SYNCED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // Повторный вызов getOrCreateTask и connect для той же задачи
+      provider.getOrCreateTask("task-1:typescript");
+      provider.getOrCreateTask("task-1:typescript");
+      provider.connect();
+      provider.connect();
+
+      // Разовый ввод символов в статусе INITIALIZING (после connect)
+      doc.getText("content").insert(0, "single-edit");
+
+      // Ровно одно обновление поставлено в unsentQueue, в сокет пока не ушло
+      expect(provider.unsentQueueLength).toBe(1);
+      expect(sentEnvelopes.length).toBe(0);
+
+      // При получении yjs.init отправляется ровно один конверт (нет дублирования слушателей/обновлений)
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-123",
+        requestId: "init-single",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          updates: [],
+        },
+      });
+
+      expect(sentEnvelopes.length).toBe(1);
+      expect(provider.unsentQueueLength).toBe(1);
+
+      // Еще один ввод уже в статусе SYNCED
+      doc.getText("content").insert(11, " second-edit");
+      expect(sentEnvelopes.length).toBe(2);
+      expect(provider.unsentQueueLength).toBe(2);
+
+      provider.destroy();
+      doc.destroy();
+    });
+
     it("Scenario A (T024, T025): queues edits during disconnect and drains them upon reconnect without loss", () => {
       const doc = new Y.Doc();
       const sentEnvelopes: AnyWebSocketEnvelope[] = [];
@@ -1098,6 +1148,233 @@ describe("RealtimeYjsProvider (T017)", () => {
 
       provider.destroy();
       doc.destroy();
+    });
+  });
+
+  describe("Task Isolation & Dynamic Routing (T029, Phase 6)", () => {
+    it("Scenario A: creates isolated Y.Docs and Y.Texts for different taskKeys without cross-contamination", () => {
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+      const provider = new RealtimeYjsProvider({
+        taskKey: "task-a:typescript",
+        sessionId: "session-iso",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Вводим текст в Task A
+      const textA = provider.getText("task-a:typescript", "monaco");
+      textA.insert(0, "function solutionA() {}");
+
+      // 2. Переключаемся на Task B и вводим другой текст
+      provider.switchTask("task-b:python");
+      const textB = provider.getText("task-b:python", "monaco");
+      textB.insert(0, "def solution_b(): pass");
+
+      // 3. Проверяем полную изоляцию текстов и инстансов Y.Doc
+      expect(textA.toString()).toBe("function solutionA() {}");
+      expect(textB.toString()).toBe("def solution_b(): pass");
+      expect(provider.getDoc("task-a:typescript")).not.toBe(
+        provider.getDoc("task-b:python"),
+      );
+
+      // 4. Проверяем, что отправленные envelopes имеют строго свой taskKey
+      const envA = sentEnvelopes.find(
+        (e) => (e.payload as YjsUpdatePayload).taskKey === "task-a:typescript",
+      );
+      const envB = sentEnvelopes.find(
+        (e) => (e.payload as YjsUpdatePayload).taskKey === "task-b:python",
+      );
+
+      expect(envA).toBeDefined();
+      expect(envB).toBeDefined();
+
+      provider.destroy();
+    });
+
+    it("Scenario B: preserves Task A state across switch Task A -> Task B -> Task A", () => {
+      const provider = new RealtimeYjsProvider({
+        taskKey: "task-1:typescript",
+        sessionId: "session-switch",
+        sendEnvelope: () => {},
+      });
+
+      // Шаг 1: Работа в Task 1
+      const doc1 = provider.getDoc("task-1:typescript");
+      doc1.getText("monaco").insert(0, "const x = 42;");
+
+      // Шаг 2: Переключение на Task 2 и редактирование
+      provider.switchTask("task-2:python");
+      const doc2 = provider.getDoc("task-2:python");
+      doc2.getText("monaco").insert(0, "y = 100");
+
+      // Шаг 3: Переключение обратно на Task 1
+      provider.switchTask("task-1:typescript");
+      expect(provider.getText("task-1:typescript", "monaco").toString()).toBe(
+        "const x = 42;",
+      );
+      expect(provider.getText("task-2:python", "monaco").toString()).toBe(
+        "y = 100",
+      );
+
+      provider.destroy();
+    });
+
+    it("Scenario C: applies incoming remote update strictly to matching taskKey without leaking to active task", () => {
+      const provider = new RealtimeYjsProvider({
+        taskKey: "active-task:python",
+        sessionId: "session-remote-iso",
+        sendEnvelope: () => {},
+      });
+
+      // Создаем дельту для неактивной задачи "background-task:typescript"
+      const remoteDoc = new Y.Doc();
+      remoteDoc.getText("monaco").insert(0, "remote code for task A");
+      const remoteDelta = Y.encodeStateAsUpdate(remoteDoc);
+
+      // Доставляем конверт с taskKey: "background-task:typescript"
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-remote-iso",
+        requestId: "req_remote_bg",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "background-task:typescript",
+          updateId: "remote_bg_1",
+          data: uint8ArrayToBase64(remoteDelta),
+        },
+      });
+
+      // 1. Проверяем, что активная задача осталась нетронутой и пустой
+      expect(provider.getText("active-task:python", "monaco").toString()).toBe(
+        "",
+      );
+
+      // 2. Проверяем, что дельта применилась строго к целевой задаче
+      expect(
+        provider.getText("background-task:typescript", "monaco").toString(),
+      ).toBe("remote code for task A");
+
+      provider.destroy();
+      remoteDoc.destroy();
+    });
+
+    it("Scenario D: isolates Awareness state and cursors between tasks", () => {
+      const provider = new RealtimeYjsProvider({
+        taskKey: "task-1:typescript",
+        sessionId: "session-aw-iso",
+        sendEnvelope: () => {},
+      });
+
+      const awareness1 = provider.getAwareness("task-1:typescript");
+      const awareness2 = provider.getAwareness("task-2:python");
+
+      expect(awareness1).not.toBe(awareness2);
+
+      // Создаем удаленный курсор для Task 1
+      const remoteDoc1 = new Y.Doc();
+      const remoteAwareness1 = new Awareness(remoteDoc1);
+      remoteAwareness1.setLocalState({
+        user: { name: "Collaborator 1", color: "#ff0000" },
+        cursor: { line: 10, column: 5 },
+      });
+      const awUpdate1 = encodeAwarenessUpdate(remoteAwareness1, [
+        remoteDoc1.clientID,
+      ]);
+
+      // Доставляем awareness для Task 1
+      provider.handleMessage({
+        type: "yjs.awareness",
+        version: 1,
+        sessionId: "session-aw-iso",
+        requestId: "req_aw_1",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-1:typescript",
+          data: uint8ArrayToBase64(awUpdate1),
+        },
+      });
+
+      // Проверяем: курсор соавтора присутствует в Awareness Task 1
+      const states1 = Array.from(awareness1.getStates().values());
+      const states2 = Array.from(awareness2.getStates().values());
+
+      const remoteInTask1 = states1.find(
+        (s: Record<string, unknown>) =>
+          (s.user as { name?: string } | undefined)?.name === "Collaborator 1",
+      );
+      const remoteInTask2 = states2.find(
+        (s: Record<string, unknown>) =>
+          (s.user as { name?: string } | undefined)?.name === "Collaborator 1",
+      );
+
+      expect(remoteInTask1).toBeDefined();
+      expect(remoteInTask2).toBeUndefined(); // В Task 2 курсор Task 1 отсутствует!
+
+      provider.destroy();
+      remoteDoc1.destroy();
+      remoteAwareness1.destroy();
+    });
+
+    it("Scenario E: maintains queue isolation during disconnect and preserves taskKey during reconnect drain", () => {
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+      const provider = new RealtimeYjsProvider({
+        taskKey: "task-a:typescript",
+        sessionId: "session-queue-iso",
+        initialStatus: "DISCONNECTED",
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Оффлайн-правки в Task A
+      provider.getText("task-a:typescript", "monaco").insert(0, "edit in A");
+      expect(provider.getUnsentQueue("task-a:typescript").length).toBe(1);
+
+      // 2. Переключаемся в Task B и делаем оффлайн-правки в Task B
+      provider.switchTask("task-b:python");
+      provider.getText("task-b:python", "monaco").insert(0, "edit in B");
+      expect(provider.getUnsentQueue("task-b:python").length).toBe(1);
+
+      // До реконнекта ничего не отправлено
+      expect(sentEnvelopes.length).toBe(0);
+
+      // 3. Реконнект: Task A получает yjs.init и переходит в SYNCED
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-queue-iso",
+        requestId: "init_a",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-a:typescript",
+          updates: [],
+        },
+      });
+
+      // Проверяем: отправлен срез очереди строго для Task A с taskKey: "task-a:typescript"
+      expect(sentEnvelopes.length).toBe(1);
+      expect((sentEnvelopes[0].payload as YjsUpdatePayload).taskKey).toBe(
+        "task-a:typescript",
+      );
+
+      // 4. Task B получает yjs.init и переходит в SYNCED
+      provider.handleMessage({
+        type: "yjs.init",
+        version: 1,
+        sessionId: "session-queue-iso",
+        requestId: "init_b",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-b:python",
+          updates: [],
+        },
+      });
+
+      // Проверяем: отправлен срез очереди для Task B с taskKey: "task-b:python"
+      expect(sentEnvelopes.length).toBe(2);
+      expect((sentEnvelopes[1].payload as YjsUpdatePayload).taskKey).toBe(
+        "task-b:python",
+      );
+
+      provider.destroy();
     });
   });
 });

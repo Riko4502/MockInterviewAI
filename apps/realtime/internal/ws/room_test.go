@@ -621,3 +621,101 @@ leaveLoop:
 	}
 }
 
+// TestRoom_TaskSwitch_SeedsAndBroadcasts (T030) проверяет:
+// 1. Атомарный вызов SeedTaskDoc для новой задачи
+// 2. Рассылку клиентам события task.switched с новым taskKey
+// 3. Доставку клиентам yjs.init для запрошенного taskKey
+func TestRoom_TaskSwitch_SeedsAndBroadcasts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := newMockYjsStore()
+	store.streamUpdates["task-initial:ts"] = []string{"initial-data"}
+
+	room := NewRoom("test-session-switch", nil, nil, logger, nil)
+	room.SetYjsStore(store)
+	go room.Run(ctx)
+	defer room.Close()
+
+	client := NewClient("client-sw", "user-sw", "alice", "interviewer", room.ID, nil, room, logger)
+	room.Register(client)
+
+	if !waitForRegistration(room, 1, 1*time.Second) {
+		t.Fatal("client registration timed out")
+	}
+
+	// Очищаем стартовые сообщения регистрации (room.sync, yjs.init, presence.join)
+	drainMessages := func() {
+		timeout := time.After(100 * time.Millisecond)
+		for {
+			select {
+			case <-client.sendCh:
+			case <-timeout:
+				return
+			}
+		}
+	}
+	drainMessages()
+
+	// Отправляем событие task.switch на "task-new:python"
+	switchEnv := NewEnvelope(EventTaskSwitch, room.ID, "req-switch-1", TaskSwitchPayload{
+		TaskKey: "task-new:python",
+	})
+	switchBytes, err := switchEnv.ToBytes()
+	if err != nil {
+		t.Fatalf("failed to marshal task.switch envelope: %v", err)
+	}
+
+	room.Broadcast(switchBytes, "")
+
+	var receivedSwitched *TaskSwitchedPayload
+	var receivedInit *YjsInitPayload
+
+	timeout := time.After(2 * time.Second)
+	for receivedSwitched == nil || receivedInit == nil {
+		select {
+		case msg := <-client.sendCh:
+			raw, pErr := ParseRawEnvelope(msg)
+			if pErr != nil {
+				continue
+			}
+			if raw.Type == EventTaskSwitched {
+				if swP, uErr := UnpackPayload[TaskSwitchedPayload](raw); uErr == nil {
+					receivedSwitched = &swP
+				}
+			} else if raw.Type == EventYjsInit {
+				if initP, uErr := UnpackPayload[YjsInitPayload](raw); uErr == nil {
+					if initP.TaskKey == "task-new:python" {
+						receivedInit = &initP
+					}
+				}
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for task.switched and yjs.init: switched=%v, init=%v",
+				receivedSwitched != nil, receivedInit != nil)
+		}
+	}
+
+	// 1. Проверяем task.switched
+	if receivedSwitched.TaskKey != "task-new:python" {
+		t.Errorf("expected task.switched taskKey 'task-new:python', got '%s'", receivedSwitched.TaskKey)
+	}
+
+	// 2. Проверяем yjs.init
+	if receivedInit.TaskKey != "task-new:python" {
+		t.Errorf("expected yjs.init taskKey 'task-new:python', got '%s'", receivedInit.TaskKey)
+	}
+	if len(receivedInit.Updates) == 0 {
+		t.Errorf("expected yjs.init to contain seeded starter code update, got 0 updates")
+	}
+
+	// 3. Проверяем, что SeedTaskDoc был вызван
+	store.mu.Lock()
+	seedCalls := store.seedCalls
+	store.mu.Unlock()
+	if seedCalls == 0 {
+		t.Errorf("expected SeedTaskDoc to be called on task.switch, got %d calls", seedCalls)
+	}
+}
+

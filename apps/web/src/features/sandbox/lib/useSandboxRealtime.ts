@@ -44,7 +44,7 @@ interface PendingTaskState {
 interface UseSandboxRealtimeOptions {
   roomId: string;
   onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
-  onRemoteTaskChange?: (taskId: string) => void;
+  onRemoteTaskChange?: (taskId: string, language?: LanguageId) => void;
   onRemoteWebRTCSignal?: (signal: WebRTCSignal) => void;
   onRemoteRunResult?: (result: RunResult) => void;
   onPeerJoined?: (peerId: string) => void;
@@ -266,12 +266,31 @@ export function useSandboxRealtime({
   );
 
   const broadcastTaskChange = useCallback(
-    (taskId: string) => {
+    (taskId: string, lang?: LanguageId) => {
       const id = uuidv4();
       pendingTaskRef.current = { id, taskId };
+      const taskKey = lang ? `${taskId}:${lang}` : taskId;
+      if (lang) {
+        try {
+          const socket = wsConnRef.current?.socket;
+          if (socket?.readyState === WebSocket.OPEN) {
+            const envelope: AnyWebSocketEnvelope = {
+              type: "task.switch",
+              version: 1,
+              sessionId: roomId,
+              requestId: `req_switch_${id}`,
+              timestamp: new Date().toISOString(),
+              payload: { taskKey },
+            };
+            socket.send(JSON.stringify(envelope));
+          }
+        } catch {
+          // Игнорируем сетевые сбои
+        }
+      }
       sendMessage("task-change", { taskId }, id);
     },
-    [sendMessage],
+    [roomId, sendMessage],
   );
 
   const broadcastWebRTCSignal = useCallback(
@@ -318,6 +337,19 @@ export function useSandboxRealtime({
         });
 
         switch (envelope.type) {
+          case "task.switched": {
+            const taskKey = (envelope.payload as { taskKey?: string })?.taskKey;
+            if (taskKey) {
+              const parts = taskKey.split(":");
+              const newTaskId = parts[0];
+              const newLang = parts[1] as LanguageId | undefined;
+              if (newTaskId) {
+                callbacksRef.current.onRemoteTaskChange?.(newTaskId, newLang);
+              }
+            }
+            break;
+          }
+
           case "system.ack": {
             const targetId = envelope.payload?.targetRequestId;
             if (targetId) {

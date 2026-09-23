@@ -7,7 +7,7 @@ import type {
 
 export interface SandboxCallbacks {
   onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
-  onRemoteTaskChange?: (taskId: string) => void;
+  onRemoteTaskChange?: (taskId: string, language?: LanguageId) => void;
   onRemoteWebRTCSignal?: (signal: WebRTCSignal) => void;
   onRemoteRunResult?: (result: RunResult) => void;
   onPeerJoined?: (peerId: string) => void;

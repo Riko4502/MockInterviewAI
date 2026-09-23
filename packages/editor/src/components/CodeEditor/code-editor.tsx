@@ -221,6 +221,19 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       if (!externalUndoManager) {
         currentUndoManager.destroy();
       }
+      // Очистка старых курсоров и выделений из Monaco Editor при смене задачи (T031)
+      if (editorInstance && !editorInstance.getModel()?.isDisposed()) {
+        const currentModel = editorInstance.getModel();
+        if (currentModel) {
+          const oldDecorations = currentModel
+            .getAllDecorations()
+            .filter((d) => d.options.className?.includes("yRemoteSelection"))
+            .map((d) => d.id);
+          if (oldDecorations.length > 0) {
+            editorInstance.deltaDecorations(oldDecorations, []);
+          }
+        }
+      }
     };
   }, [
     editorInstance,

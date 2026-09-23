@@ -4,7 +4,7 @@ import { CodeEditorLazy, type LanguageId } from "@packages/editor";
 import { Resizable } from "@packages/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
-import * as Y from "yjs";
+import type * as Y from "yjs";
 import { getColorForUser } from "../lib/mapPeerToCollaborator";
 import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
@@ -42,8 +42,7 @@ export function SandboxRoomWorkspace({
 
   useSandboxTimer();
 
-  // Yjs CRDT: Инициализация Y.Doc и Y.Text активного документа (Phase 3: T018)
-  const [yDoc] = useState(() => new Y.Doc());
+  // Yjs CRDT: Изолированные Y.Text и Awareness активной задачи (Phase 6: T029, T031)
   const [yText, setYText] = useState<Y.Text | null>(null);
   const [yAwareness, setYAwareness] = useState<Awareness | null>(null);
 
@@ -53,8 +52,11 @@ export function SandboxRoomWorkspace({
     onRemoteCodeUpdate: (remoteCode, remoteLang) => {
       applyRemoteCodeUpdate(remoteCode, remoteLang);
     },
-    onRemoteTaskChange: (newTaskId) => {
+    onRemoteTaskChange: (newTaskId, newLang) => {
       setTaskId(newTaskId);
+      if (newLang) {
+        setLanguage(newLang);
+      }
     },
     onRemoteWebRTCSignal: (signal) => {
       if (signal?.type === "call-started" || signal?.type === "offer") {
@@ -63,8 +65,9 @@ export function SandboxRoomWorkspace({
     },
   });
 
-  // Подключение RealtimeYjsProvider к сессионному сокету (T018, T021)
+  // Идентификатор активного документа задачи
   const taskKey = `${currentTaskId || "default"}:${language}`;
+  const initialTaskKeyRef = useRef(taskKey);
 
   const sendEnvelopeRef = useRef(realtime.sendEnvelope);
   sendEnvelopeRef.current = realtime.sendEnvelope;
@@ -74,14 +77,12 @@ export function SandboxRoomWorkspace({
 
   const providerRef = useRef<RealtimeYjsProvider | null>(null);
 
+  // Инициализация единого провайдера сессии с поддержкой изолированных задач (T029, T031)
   useEffect(() => {
-    const text = yDoc.getText("monaco");
-    setYText(text);
-
+    const initialKey = initialTaskKeyRef.current;
     const userColor = getColorForUser(realtime.userId);
     const provider = new RealtimeYjsProvider({
-      doc: yDoc,
-      taskKey,
+      taskKey: initialKey,
       sessionId: roomId,
       user: {
         userId: realtime.userId || "anonymous",
@@ -91,7 +92,10 @@ export function SandboxRoomWorkspace({
       sendEnvelope: (envelope) => sendEnvelopeRef.current?.(envelope),
     });
     providerRef.current = provider;
-    setYAwareness(provider.awareness);
+
+    const taskContext = provider.getOrCreateTask(initialKey);
+    setYText(taskContext.doc.getText("monaco"));
+    setYAwareness(taskContext.awareness);
 
     const unsubscribe = subscribeEnvelopeRef.current?.((envelope) => {
       provider.handleMessage(envelope);
@@ -101,9 +105,18 @@ export function SandboxRoomWorkspace({
       unsubscribe?.();
       provider.destroy();
       providerRef.current = null;
+      setYText(null);
       setYAwareness(null);
     };
-  }, [yDoc, taskKey, roomId, realtime.userId, realtime.userName]);
+  }, [roomId, realtime.userId, realtime.userName]);
+
+  // Переключение активного контекста задачи при смене taskKey (T031)
+  useEffect(() => {
+    if (!providerRef.current) return;
+    const taskContext = providerRef.current.switchTask(taskKey);
+    setYText(taskContext.doc.getText("monaco"));
+    setYAwareness(taskContext.awareness);
+  }, [taskKey]);
 
   // Синхронизация состояния подключения провайдера при обрыве и восстановлении WebSocket
   useEffect(() => {
@@ -114,13 +127,6 @@ export function SandboxRoomWorkspace({
       providerRef.current.disconnect();
     }
   }, [realtime.wsConnected]);
-
-  // Корректное освобождение Y.Doc при размонтировании рабочей области
-  useEffect(() => {
-    return () => {
-      yDoc.destroy();
-    };
-  }, [yDoc]);
 
   const handleCodeChange = useCallback(
     (newCode: string) => {
@@ -133,17 +139,17 @@ export function SandboxRoomWorkspace({
   const handleTaskChange = useCallback(
     (newTaskId: string) => {
       setTaskId(newTaskId);
-      realtime.broadcastTaskChange(newTaskId);
+      realtime.broadcastTaskChange(newTaskId, language);
     },
-    [setTaskId, realtime],
+    [setTaskId, realtime, language],
   );
 
   const handleLanguageChange = useCallback(
     (newLang: LanguageId) => {
-      const newCode = setLanguage(newLang);
-      realtime.broadcastCodeUpdate(newCode, newLang);
+      setLanguage(newLang);
+      realtime.broadcastTaskChange(currentTaskId, newLang);
     },
-    [setLanguage, realtime],
+    [setLanguage, realtime, currentTaskId],
   );
 
   const handleResetCode = useCallback(() => {
