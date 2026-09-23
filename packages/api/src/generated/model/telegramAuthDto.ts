@@ -11,20 +11,12 @@
  */
 
 export interface TelegramAuthDto {
-  /**
-     * @maximum 9007199254740991
-     * @exclusiveMinimum 0
-     */
-  id: number;
+  id: number | string;
   first_name?: string;
   last_name?: string;
   username?: string;
   photo_url?: string;
-  /**
-     * @maximum 9007199254740991
-     * @exclusiveMinimum 0
-     */
-  auth_date: number;
+  auth_date: number | string;
   /** @minLength 1 */
   hash: string;
 }

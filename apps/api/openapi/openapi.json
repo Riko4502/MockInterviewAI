@@ -1616,7 +1616,7 @@
             "properties": {
               "status": {
                 "type": "string",
-                "enum": ["AUTHENTICATED"]
+                "example": "AUTHENTICATED"
               },
               "accessToken": {
                 "type": "string",
@@ -1630,7 +1630,7 @@
             "properties": {
               "status": {
                 "type": "string",
-                "enum": ["NEED_EMAIL"]
+                "example": "NEED_EMAIL"
               },
               "onboardingToken": {
                 "type": "string",
@@ -1735,10 +1735,14 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 9007199254740991
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
           },
           "first_name": {
             "type": "string"
@@ -1754,10 +1758,14 @@
             "format": "uri"
           },
           "auth_date": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 9007199254740991
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
           },
           "hash": {
             "type": "string",
@@ -1785,10 +1793,14 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 9007199254740991
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
           },
           "first_name": {
             "type": "string"
@@ -1804,10 +1816,14 @@
             "format": "uri"
           },
           "auth_date": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 9007199254740991
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
           },
           "hash": {
             "type": "string",

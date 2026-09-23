@@ -11,11 +11,11 @@
  */
 
 export type TelegramAuthResponseDto = {
-  status: 'AUTHENTICATED';
+  status: string;
   /** JWT access token */
   accessToken: string;
 } | {
-  status: 'NEED_EMAIL';
+  status: string;
   /** Одноразовый токен онбординга для завершения регистрации */
   onboardingToken: string;
 };

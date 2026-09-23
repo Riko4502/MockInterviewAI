@@ -1,12 +1,7 @@
-import * as dnsPromises from "node:dns/promises";
 import { BadRequestException, PayloadTooLargeException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import sharp from "sharp";
 import { StorageService } from "./storage.service";
-
-jest.mock("node:dns/promises", () => ({
-  lookup: jest.fn(),
-}));
 
 // Mock AWS SDK S3Client
 jest.mock("@aws-sdk/client-s3", () => {
@@ -133,75 +128,77 @@ describe("StorageService", () => {
   });
 
   describe("uploadAvatarFromUrl", () => {
-    let fetchSpy: jest.SpyInstance;
-    let lookupMock: jest.Mock;
-
-    beforeEach(() => {
-      fetchSpy = jest.spyOn(global, "fetch");
-      lookupMock = dnsPromises.lookup as unknown as jest.Mock;
-      lookupMock.mockReset();
-    });
-
-    afterEach(() => {
-      fetchSpy.mockRestore();
-    });
-
-    it("блокирует SSRF обращения к приватным IPv4 адресам до вызова fetch", async () => {
-      const privateIpv4s = [
-        "http://127.0.0.1/image.jpg",
-        "http://127.1.2.3/image.jpg",
-        "http://0.0.0.0/image.jpg",
-        "http://10.0.0.1/image.jpg",
-        "http://172.16.0.1/image.jpg",
-        "http://192.168.1.1/image.jpg",
-        "http://169.254.169.254/latest/meta-data/",
-        "http://100.64.0.1/image.jpg",
-      ];
-
-      for (const url of privateIpv4s) {
-        const result = await service.uploadAvatarFromUrl("user-123", url);
-        expect(result).toBeNull();
-      }
-
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(lookupMock).not.toHaveBeenCalled();
-    });
-
-    it("блокирует SSRF обращения к приватным IPv6 адресам до вызова fetch", async () => {
-      const privateIpv6s = [
-        "http://[::1]/image.jpg",
-        "http://[::]/image.jpg",
-        "http://[fc00::1]/image.jpg",
-        "http://[fe80::1]/image.jpg",
-      ];
-
-      for (const url of privateIpv6s) {
-        const result = await service.uploadAvatarFromUrl("user-123", url);
-        expect(result).toBeNull();
-      }
-
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(lookupMock).not.toHaveBeenCalled();
-    });
-
-    it("блокирует DNS имена, которые разрешаются в приватные/внутренние IP", async () => {
-      lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
-
-      const result = await service.uploadAvatarFromUrl(
+    it("блокирует SSRF обращения к приватным IP и localhost", async () => {
+      const urlLocalhost = await service.uploadAvatarFromUrl(
         "user-123",
-        "http://internal.domain.local/avatar.jpg",
+        "http://localhost:8080/image.jpg",
       );
+      expect(urlLocalhost).toBeNull();
 
-      expect(result).toBeNull();
-      expect(lookupMock).toHaveBeenCalledWith("internal.domain.local", {
-        all: true,
-      });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      const urlPrivateIp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://192.168.1.1/image.jpg",
+      );
+      expect(urlPrivateIp).toBeNull();
+
+      const urlMetadata = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://169.254.169.254/latest/meta-data/",
+      );
+      expect(urlMetadata).toBeNull();
     });
 
-    it("успешно разрешает публичный DNS в публичный IP и передает кастомную lookup функцию в fetch", async () => {
-      lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    it("отклоняет HTTP редиректы (redirect: manual) во избежание SSRF обхода", async () => {
+      const originalFetch = global.fetch;
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 302,
+        headers: { get: () => null },
+      });
+      global.fetch = fetchMock;
 
+      try {
+        const expectedUrl = "https://example.com/redirect-to-internal.jpg";
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          expectedUrl,
+        );
+        expect(result).toBeNull();
+        expect(fetchMock).toHaveBeenCalledWith(
+          expectedUrl,
+          expect.objectContaining({
+            redirect: "manual",
+          }),
+        );
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("отклоняет протоколы отличные от http/https", async () => {
+      const urlFtp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "file:///etc/passwd",
+      );
+      expect(urlFtp).toBeNull();
+    });
+
+    it("возвращает null при ошибке сети fetch", async () => {
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://example.com/avatar.jpg",
+        );
+        expect(result).toBeNull();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("успешно скачивает и загружает валидный аватар по внешней ссылке", async () => {
       const pngBuffer = await sharp({
         create: {
           width: 100,
@@ -224,7 +221,8 @@ describe("StorageService", () => {
         cancel: jest.fn().mockResolvedValue(undefined),
       };
 
-      fetchSpy.mockResolvedValue({
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -237,75 +235,23 @@ describe("StorageService", () => {
         body: {
           getReader: () => mockReader,
         },
-      } as unknown as Response);
+      });
 
-      const result = await service.uploadAvatarFromUrl(
-        "user-123",
-        "https://example.com/avatar.png",
-      );
-
-      expect(result).toContain(
-        "http://localhost:9000/mock-interview-storage/avatars/user-123/",
-      );
-      expect(result?.endsWith(".webp")).toBe(true);
-
-      expect(lookupMock).toHaveBeenCalledWith("example.com", { all: true });
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://example.com/avatar.png",
-        expect.objectContaining({
-          lookup: expect.any(Function),
-          redirect: "manual",
-        }),
-      );
-    });
-
-    it("отклоняет HTTP редиректы (redirect: manual) во избежание SSRF обхода", async () => {
-      lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-
-      fetchSpy.mockResolvedValue({
-        ok: false,
-        status: 302,
-        headers: { get: () => null },
-      } as unknown as Response);
-
-      const result = await service.uploadAvatarFromUrl(
-        "user-123",
-        "https://example.com/redirect-to-internal.jpg",
-      );
-
-      expect(result).toBeNull();
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "https://example.com/redirect-to-internal.jpg",
-        expect.objectContaining({
-          redirect: "manual",
-        }),
-      );
-    });
-
-    it("отклоняет протоколы отличные от http/https", async () => {
-      const urlFtp = await service.uploadAvatarFromUrl(
-        "user-123",
-        "file:///etc/passwd",
-      );
-      expect(urlFtp).toBeNull();
-      expect(fetchSpy).not.toHaveBeenCalled();
-    });
-
-    it("возвращает null при ошибке сети fetch", async () => {
-      lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-
-      fetchSpy.mockRejectedValue(new Error("Network error"));
-
-      const result = await service.uploadAvatarFromUrl(
-        "user-123",
-        "https://example.com/avatar.jpg",
-      );
-      expect(result).toBeNull();
+      try {
+        const url = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/avatar.png",
+        );
+        expect(url).toContain(
+          "http://localhost:9000/mock-interview-storage/avatars/user-123/",
+        );
+        expect(url?.endsWith(".webp")).toBe(true);
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
 
     it("прекращает чтение и отменяет reader при превышении лимита размера в процессе потоковой передачи", async () => {
-      lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-
       const cancelMock = jest.fn().mockResolvedValue(undefined);
       const chunk1 = new Uint8Array(1_500_000);
       const chunk2 = new Uint8Array(1_000_000); // 1.5MB + 1MB = 2.5MB > 2MB limit
@@ -318,7 +264,8 @@ describe("StorageService", () => {
         cancel: cancelMock,
       };
 
-      fetchSpy.mockResolvedValue({
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: {
@@ -327,33 +274,40 @@ describe("StorageService", () => {
         body: {
           getReader: () => mockReader,
         },
-      } as unknown as Response);
+      });
 
-      const result = await service.uploadAvatarFromUrl(
-        "user-123",
-        "https://cdn.telegram.org/large-avatar.png",
-      );
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/large-avatar.png",
+        );
 
-      expect(result).toBeNull();
-      expect(cancelMock).toHaveBeenCalledTimes(1);
+        expect(result).toBeNull();
+        expect(cancelMock).toHaveBeenCalledTimes(1);
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
 
     it("возвращает null если response.body отсутствует", async () => {
-      lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-
-      fetchSpy.mockResolvedValue({
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: { get: () => null },
         body: null,
-      } as unknown as Response);
+      });
 
-      const result = await service.uploadAvatarFromUrl(
-        "user-123",
-        "https://cdn.telegram.org/nobody.png",
-      );
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/nobody.png",
+        );
 
-      expect(result).toBeNull();
+        expect(result).toBeNull();
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
   });
 });

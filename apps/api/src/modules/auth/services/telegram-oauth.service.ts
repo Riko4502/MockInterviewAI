@@ -92,12 +92,21 @@ export class TelegramOAuthService {
       );
     }
 
-    // 5. Redis replay protection (auth:telegram:replay:{hash}, TTL 5m)
+    // 5. Redis replay protection (auth:telegram:replay:{hash})
+    const remainingValiditySeconds = Math.max(
+      1,
+      authDate + MAX_AUTH_DATE_AGE_SECONDS - nowInSeconds + 1,
+    );
+    const replayTtlSeconds = Math.max(
+      REPLAY_GUARD_TTL_SECONDS,
+      remainingValiditySeconds,
+    );
+
     const replayKey = `${REDIS_TELEGRAM_REPLAY_PREFIX}${rawHash}`;
     const setSuccess = await this.redisService.setNx(
       replayKey,
       "1",
-      REPLAY_GUARD_TTL_SECONDS,
+      replayTtlSeconds,
     );
 
     if (!setSuccess) {

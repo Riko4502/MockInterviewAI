@@ -57,7 +57,7 @@ describe("TelegramOAuthService", () => {
     service = new TelegramOAuthService(configService, redisService);
   });
 
-  it("успешно валидирует подлинный payload", async () => {
+  it("успешно валидирует подлинный payload со стандартным auth_date (TTL >= 300)", async () => {
     const payload = createValidPayload();
     await expect(
       service.validateTelegramPayload(payload),
@@ -65,7 +65,40 @@ describe("TelegramOAuthService", () => {
     expect(redisService.setNx).toHaveBeenCalledWith(
       `auth:telegram:replay:${payload.hash}`,
       "1",
-      300,
+      expect.any(Number),
+    );
+    const ttlArg = (redisService.setNx as jest.Mock).mock.calls[0][2];
+    expect(ttlArg).toBeGreaterThanOrEqual(300);
+  });
+
+  it("рассчитывает увеличенный TTL для replay protection при auth_date в будущем (+60s skew)", async () => {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const futureAuthDate = nowInSeconds + 60;
+    const payload = createValidPayload({ auth_date: futureAuthDate });
+
+    await expect(
+      service.validateTelegramPayload(payload),
+    ).resolves.not.toThrow();
+
+    expect(redisService.setNx).toHaveBeenCalledWith(
+      `auth:telegram:replay:${payload.hash}`,
+      "1",
+      expect.any(Number),
+    );
+
+    const ttlArg = (redisService.setNx as jest.Mock).mock.calls[0][2];
+    // Для auth_date = now + 60 оставшаяся валидность = 60 + 300 + 1 = 361 c.
+    // Фиксированное старое значение 300 вызвало бы ошибку регрессии.
+    expect(ttlArg).toBeGreaterThanOrEqual(361);
+  });
+
+  it("отклоняет payload с auth_date из слишком далекого будущего (> 60s)", async () => {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const tooFutureAuthDate = nowInSeconds + 65;
+    const payload = createValidPayload({ auth_date: tooFutureAuthDate });
+
+    await expect(service.validateTelegramPayload(payload)).rejects.toThrow(
+      "Telegram authentication payload has expired",
     );
   });
 
