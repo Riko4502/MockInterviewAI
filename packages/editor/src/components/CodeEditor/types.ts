@@ -20,16 +20,6 @@ export interface CursorPosition {
 }
 
 /**
- * Участник комнаты для отображения его курсора
- */
-export interface Collaborator {
-  id: string;
-  name: string;
-  color: string;
-  cursor?: CursorPosition;
-}
-
-/**
  * Пропсы главного компонента редактора
  */
 export interface CodeEditorProps {
@@ -43,10 +33,6 @@ export interface CodeEditorProps {
   theme?: Theme;
   /** Режим только для чтения */
   readOnly?: boolean;
-  /**
-   * Массив других участников для отображения их курсоров.
-   */
-  collaborators?: Collaborator[];
   /**
    * Коллбэк при перемещении курсора нашим пользователем.
    * Срабатывает с ограничением частоты (throttle).

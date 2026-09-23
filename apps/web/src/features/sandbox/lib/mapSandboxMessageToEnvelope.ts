@@ -17,32 +17,6 @@ export function mapSandboxMessageToEnvelope(
   };
 
   switch (msg.type) {
-    case "code-update":
-      return {
-        ...base,
-        type: "code.update",
-        payload: {
-          filePath: "main",
-          language: msg.payload.language || "typescript",
-          content: msg.payload.code ?? "",
-          version: 0,
-        },
-      };
-
-    case "cursor-move":
-      return {
-        ...base,
-        type: "cursor.move",
-        payload: {
-          userId: msg.senderId,
-          username: msg.senderName,
-          line: msg.payload.cursor?.line ?? 1,
-          column: msg.payload.cursor?.column ?? 1,
-          selectionStart: msg.payload.cursor?.selectionEndLine,
-          selectionEnd: msg.payload.cursor?.selectionEndColumn,
-        },
-      };
-
     case "presence-leave":
       return {
         ...base,

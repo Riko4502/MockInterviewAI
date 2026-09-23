@@ -35,7 +35,6 @@ export function SandboxRoomWorkspace({
   const setCode = useSandboxStore((s) => s.setCode);
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
-  const applyRemoteCodeUpdate = useSandboxStore((s) => s.applyRemoteCodeUpdate);
   const resetCode = useSandboxStore((s) => s.resetCode);
   const theme = useSandboxStore((s) => s.theme);
   const setTaskId = useSandboxStore((s) => s.setTaskId);
@@ -53,9 +52,6 @@ export function SandboxRoomWorkspace({
   // Реалтайм синхронизация состояния и сигналов
   const realtime = useSandboxRealtime({
     roomId,
-    onRemoteCodeUpdate: (remoteCode, remoteLang) => {
-      applyRemoteCodeUpdate(remoteCode, remoteLang);
-    },
     onRemoteTaskChange: (newTaskId, newLang) => {
       setTaskId(newTaskId);
       if (newLang) {
@@ -139,9 +135,8 @@ export function SandboxRoomWorkspace({
   const handleCodeChange = useCallback(
     (newCode: string) => {
       setCode(newCode);
-      realtime.broadcastCodeUpdate(newCode, language);
     },
-    [setCode, realtime, language],
+    [setCode],
   );
 
   const handleTaskChange = useCallback(
@@ -164,8 +159,13 @@ export function SandboxRoomWorkspace({
     resetCode();
     const currentTask = useSandboxStore.getState().getCurrentTask();
     const starter = currentTask.starterCode[language] ?? "";
-    realtime.broadcastCodeUpdate(starter, language);
-  }, [resetCode, realtime, language]);
+    if (yText) {
+      yText.doc?.transact(() => {
+        yText.delete(0, yText.length);
+        yText.insert(0, starter);
+      });
+    }
+  }, [resetCode, yText, language]);
 
   // Неизменяемый срез yText.toString() для запуска тестов в Code Runner (T033)
   const handleRunCode = useCallback(async () => {
@@ -276,8 +276,6 @@ export function SandboxRoomWorkspace({
                       awareness={yAwareness ?? undefined}
                       language={language}
                       theme={theme}
-                      collaborators={realtime.collaborators}
-                      onCursorChange={realtime.broadcastCursorMove}
                       options={{
                         fontSize: 14,
                         minimap: { enabled: false },

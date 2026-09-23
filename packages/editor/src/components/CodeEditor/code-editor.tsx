@@ -17,7 +17,6 @@ import { LANGUAGE_CONFIGS } from "@/languages/config";
 import {
   removeYjsAwarenessStyles,
   updateYjsAwarenessStyles,
-  useRemoteCursors,
 } from "@/multiplayer";
 import { registerThemes } from "@/themes";
 import { DEFAULT_EDITOR_OPTIONS } from "./constants";
@@ -53,7 +52,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   language = "typescript",
   theme = "dark",
   readOnly = false,
-  collaborators = [],
   onCursorChange,
   cursorThrottleMs = 50,
   options = {},
@@ -64,7 +62,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 }) => {
   const [isMonacoReady, setIsMonacoReady] = useState(false);
 
-  // Сохраняем инстанс в state, чтобы хук useRemoteCursors получил его после onMount
+  // Сохраняем инстанс в state для MonacoBinding и перехвата Undo/Redo (Phase 3)
   const [editorInstance, setEditorInstance] =
     useState<editor.IStandaloneCodeEditor | null>(null);
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,9 +101,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       removeYjsAwarenessStyles();
     };
   }, [awareness]);
-
-  // Этот хук автоматически рисует чужие курсоры поверх кода (legacy fallback, если awareness не задан)
-  useRemoteCursors(awareness ? null : editorInstance, collaborators);
 
   // Вызывается ДО монтирования редактора.
   // Регистрируем темы и базовые сниппеты/ключевые слова для языков

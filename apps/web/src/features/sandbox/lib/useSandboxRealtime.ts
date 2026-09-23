@@ -1,11 +1,7 @@
 "use client";
 
 import type { AnyWebSocketEnvelope } from "@packages/dto";
-import type {
-  Collaborator,
-  CursorPosition,
-  LanguageId,
-} from "@packages/editor";
+import type { LanguageId } from "@packages/editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -23,18 +19,8 @@ import {
   type SandboxCallbacks,
 } from "./dispatchSandboxMessage";
 import { getAuthUser } from "./getAuthUser";
-import {
-  getColorForUser,
-  mapPeerToCollaborator,
-} from "./mapPeerToCollaborator";
+import { getColorForUser } from "./mapPeerToCollaborator";
 import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
-
-interface PendingCodeState {
-  id: string;
-  code: string;
-  language: LanguageId;
-  baseVersion: number;
-}
 
 interface PendingTaskState {
   id: string;
@@ -43,7 +29,6 @@ interface PendingTaskState {
 
 interface UseSandboxRealtimeOptions {
   roomId: string;
-  onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
   onRemoteTaskChange?: (taskId: string, language?: LanguageId) => void;
   onRemoteWebRTCSignal?: (signal: WebRTCSignal) => void;
   onRemoteRunResult?: (result: RunResult) => void;
@@ -52,7 +37,6 @@ interface UseSandboxRealtimeOptions {
 
 export function useSandboxRealtime({
   roomId,
-  onRemoteCodeUpdate,
   onRemoteTaskChange,
   onRemoteWebRTCSignal,
   onRemoteRunResult,
@@ -71,8 +55,6 @@ export function useSandboxRealtime({
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const lastServerVersionRef = useRef<number>(0);
-  const pendingCodeRef = useRef<PendingCodeState | null>(null);
   const pendingTaskRef = useRef<PendingTaskState | null>(null);
 
   const isSelfServerPeer = useCallback(
@@ -160,7 +142,6 @@ export function useSandboxRealtime({
 
   // Храним актуальные колбэки в ref, чтобы не пересоздавать подписку при ререндерах
   const callbacksRef = useRef<SandboxCallbacks>({
-    onRemoteCodeUpdate,
     onRemoteTaskChange,
     onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
       onRemoteWebRTCSignal?.(signal);
@@ -181,7 +162,6 @@ export function useSandboxRealtime({
 
   useEffect(() => {
     callbacksRef.current = {
-      onRemoteCodeUpdate,
       onRemoteTaskChange,
       onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
         onRemoteWebRTCSignal?.(signal);
@@ -242,27 +222,6 @@ export function useSandboxRealtime({
       return msgId;
     },
     [roomId, userId, userName],
-  );
-
-  const broadcastCodeUpdate = useCallback(
-    (code: string, language: LanguageId) => {
-      const id = uuidv4();
-      pendingCodeRef.current = {
-        id,
-        code,
-        language,
-        baseVersion: lastServerVersionRef.current,
-      };
-      sendMessage("code-update", { code, language }, id);
-    },
-    [sendMessage],
-  );
-
-  const broadcastCursorMove = useCallback(
-    (cursor: CursorPosition) => {
-      sendMessage("cursor-move", { cursor });
-    },
-    [sendMessage],
   );
 
   const broadcastTaskChange = useCallback(
@@ -353,9 +312,6 @@ export function useSandboxRealtime({
           case "system.ack": {
             const targetId = envelope.payload?.targetRequestId;
             if (targetId) {
-              if (pendingCodeRef.current?.id === targetId) {
-                pendingCodeRef.current = null;
-              }
               if (pendingTaskRef.current?.id === targetId) {
                 pendingTaskRef.current = null;
               }
@@ -378,51 +334,6 @@ export function useSandboxRealtime({
               }
             }
             updatePeers();
-
-            // Восстановление начального состояния кода при синхронизации комнаты
-            const serverCodeState = envelope.payload.codeState;
-            if (serverCodeState?.content !== undefined) {
-              const serverVersion =
-                serverCodeState.version ?? envelope.version ?? 0;
-              lastServerVersionRef.current = Math.max(
-                lastServerVersionRef.current,
-                serverVersion,
-              );
-
-              if (pendingCodeRef.current) {
-                if (pendingCodeRef.current.code === serverCodeState.content) {
-                  // Сервер уже содержит идентичный локальному код
-                  pendingCodeRef.current = null;
-                } else if (
-                  pendingCodeRef.current.baseVersion === serverVersion
-                ) {
-                  // Локально-новое состояние: базовая ревизия совпадает с серверной,
-                  // сервер не продвинулся дальше наших правок — повторно отправляем локальный код
-                  sendMessage(
-                    "code-update",
-                    {
-                      code: pendingCodeRef.current.code,
-                      language: pendingCodeRef.current.language,
-                    },
-                    pendingCodeRef.current.id,
-                  );
-                } else {
-                  // Серверно-новое состояние (serverVersion > baseVersion):
-                  // сервер ушел вперед (изменения другого участника),
-                  // сбрасываем устаревший локальный буфер во избежание затирания правок
-                  pendingCodeRef.current = null;
-                  callbacksRef.current.onRemoteCodeUpdate?.(
-                    serverCodeState.content,
-                    serverCodeState.language as LanguageId,
-                  );
-                }
-              } else {
-                callbacksRef.current.onRemoteCodeUpdate?.(
-                  serverCodeState.content,
-                  serverCodeState.language as LanguageId,
-                );
-              }
-            }
             break;
           }
 
@@ -450,58 +361,6 @@ export function useSandboxRealtime({
             if (p.userId && peersRef.current.has(p.userId)) {
               peersRef.current.delete(p.userId);
               updatePeers();
-            }
-            break;
-          }
-
-          case "cursor.move": {
-            const p = envelope.payload;
-            if (p.userId && !isSelfServerPeer(p.userId)) {
-              let existing = peersRef.current.get(p.userId);
-              if (!existing) {
-                existing = {
-                  id: p.userId,
-                  name: p.username || "Участник",
-                  color: getColorForUser(p.userId),
-                  lastSeen: Date.now(),
-                };
-                peersRef.current.set(p.userId, existing);
-              }
-              existing.cursor = {
-                line: p.line,
-                column: p.column,
-                selectionEndLine: p.selectionStart,
-                selectionEndColumn: p.selectionEnd,
-              };
-              existing.lastSeen = Date.now();
-              updatePeers();
-            }
-            break;
-          }
-
-          case "code.update": {
-            const reqId = envelope.requestId;
-            const isOwnPending = pendingCodeRef.current?.id === reqId;
-            if (isOwnPending) {
-              pendingCodeRef.current = null;
-            }
-            const incomingVersion =
-              envelope.payload?.version ?? envelope.version ?? 0;
-            if (incomingVersion > 0) {
-              lastServerVersionRef.current = Math.max(
-                lastServerVersionRef.current,
-                incomingVersion,
-              );
-            }
-            if (markMessageSeen(reqId) || isOwnPending) {
-              break;
-            }
-            const p = envelope.payload;
-            if (p.content !== undefined) {
-              callbacksRef.current.onRemoteCodeUpdate?.(
-                p.content,
-                p.language as LanguageId,
-              );
             }
             break;
           }
@@ -634,9 +493,6 @@ export function useSandboxRealtime({
           peersRef.current.set(msg.senderId, existing);
         }
 
-        if (msg.type === "cursor-move" && msg.payload.cursor) {
-          existing.cursor = msg.payload.cursor;
-        }
         existing.lastSeen = Date.now();
         updatePeersState();
 
@@ -690,20 +546,12 @@ export function useSandboxRealtime({
     };
   }, [roomId, userId, userName, isSelfLocalPeer, markMessageSeen]);
 
-  // Формируем список соавторов с курсорами для Monaco Editor (исключая самого себя)
-  const collaborators: Collaborator[] = otherPeers
-    .filter((peer) => !isSelfLocalPeer(peer.id))
-    .map(mapPeerToCollaborator);
-
   return {
     userId,
     userName,
     peerCount: Math.max(1, otherPeers.length + 1),
     otherPeers,
-    collaborators,
     wsConnected,
-    broadcastCodeUpdate,
-    broadcastCursorMove,
     broadcastTaskChange,
     broadcastWebRTCSignal,
     broadcastRunResult,
