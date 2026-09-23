@@ -217,8 +217,8 @@ export class TelegramService {
   async getInterviewsByChatId(
     chatId: string,
   ): Promise<TelegramInterviewsListDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { telegramChatId: chatId },
+    const user = await this.prisma.user.findFirst({
+      where: { telegramChatId: chatId, deletedAt: null },
       select: { id: true },
     });
 
@@ -273,8 +273,8 @@ export class TelegramService {
     chatId: string,
     locale: "ru" | "en",
   ): Promise<TelegramUserProfileDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { telegramChatId: chatId },
+    const user = await this.prisma.user.findFirst({
+      where: { telegramChatId: chatId, deletedAt: null },
       select: { id: true },
     });
 

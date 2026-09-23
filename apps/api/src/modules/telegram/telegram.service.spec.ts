@@ -51,6 +51,7 @@ describe("TelegramService", () => {
   let prismaMock: {
     user: {
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
     };
@@ -66,6 +67,7 @@ describe("TelegramService", () => {
     prismaMock = {
       user: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
       },
@@ -252,14 +254,27 @@ describe("TelegramService", () => {
 
   describe("getInterviewsByChatId", () => {
     it("пользователь не найден → 404", async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.findFirst.mockResolvedValue(null);
       await expect(service.getInterviewsByChatId(CHAT_ID)).rejects.toThrow(
         NotFoundException,
       );
     });
 
+    it("soft-deleted аккаунт не ищется (deletedAt: null в where) → 404", async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null);
+
+      await expect(service.getInterviewsByChatId(CHAT_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: { telegramChatId: CHAT_ID, deletedAt: null },
+        select: { id: true },
+      });
+    });
+
     it("пустой список предстоящих сессий", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: USER_ID });
+      prismaMock.user.findFirst.mockResolvedValue({ id: USER_ID });
       prismaMock.interviewSession.findMany.mockResolvedValue([]);
 
       const result = await service.getInterviewsByChatId(CHAT_ID);
@@ -267,7 +282,7 @@ describe("TelegramService", () => {
     });
 
     it("владелец → роль INTERVIEWER, участник → роль из InterviewParticipant", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: USER_ID });
+      prismaMock.user.findFirst.mockResolvedValue({ id: USER_ID });
       prismaMock.interviewSession.findMany.mockResolvedValue([
         {
           id: "22222222-2222-4222-a222-222222222222",
@@ -324,13 +339,17 @@ describe("TelegramService", () => {
 
   describe("updatePreferences", () => {
     it("успех: сохраняет локаль и возвращает профиль", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: USER_ID });
+      prismaMock.user.findFirst.mockResolvedValue({ id: USER_ID });
       prismaMock.user.update.mockResolvedValue(
         mockUser({ telegramChatId: CHAT_ID, telegramLocale: "en" }),
       );
 
       const result = await service.updatePreferences(CHAT_ID, "en");
 
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: { telegramChatId: CHAT_ID, deletedAt: null },
+        select: { id: true },
+      });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: USER_ID },
         data: { telegramLocale: "en" },
@@ -340,10 +359,20 @@ describe("TelegramService", () => {
     });
 
     it("пользователь не найден → 404", async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.findFirst.mockResolvedValue(null);
       await expect(
         service.updatePreferences(CHAT_ID, LOCALE_RU),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("soft-deleted аккаунт → 404 (лока спекти изменена)", async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updatePreferences(CHAT_ID, LOCALE_RU),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
   });
 });
