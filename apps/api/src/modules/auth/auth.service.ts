@@ -27,7 +27,10 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { MailService } from "../mail/mail.service";
-import { UsersService } from "../users/users.service";
+import {
+  UsersService,
+  type UserWithRoleAndPermissions,
+} from "../users/users.service";
 import {
   PASSWORD_RESET_TOKEN_TTL_SECONDS,
   REDIS_DUMMY_PASSWORD_RESET_PREFIX,
@@ -213,7 +216,7 @@ export class AuthService implements OnModuleInit {
     const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
     const passwordValid = await argon2.verify(passwordHash, password);
 
-    if (!user || !passwordValid) {
+    if (!user?.passwordHash || !passwordValid) {
       throw new UnauthorizedException("Invalid credentials");
     }
 
@@ -303,6 +306,63 @@ export class AuthService implements OnModuleInit {
    * @throws {UnauthorizedException} При невалидном токене или несовпадении сессии (§60).
    * @throws {InternalServerErrorException} При ошибке Redis (§60).
    */
+  async loginUser(user: UserWithRoleAndPermissions): Promise<LoginResult> {
+    if (user.isActive === false) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    const freshUser = await this.usersService.findUserWithRoleById(user.id);
+    if (
+      !freshUser ||
+      freshUser.isActive === false ||
+      freshUser.generation !== user.generation
+    ) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (freshUser.deletedAt) {
+      const elapsedMs = Date.now() - freshUser.deletedAt.getTime();
+      if (elapsedMs > THIRTY_DAYS_MS)
+        throw new UnauthorizedException("Invalid credentials");
+      await this.usersService.restoreAccount(freshUser.id);
+    }
+
+    const sessionId = randomUUID();
+    const tokenFamilyId = randomUUID();
+    const generation = freshUser.generation ?? 1;
+    const permissions = freshUser.role?.permissions ?? SystemPermission.NONE;
+    const accessToken = this.tokenService.generateAccessToken(
+      freshUser.id,
+      sessionId,
+      permissions,
+      generation,
+    );
+    const refreshToken = this.tokenService.generateRefreshToken(
+      freshUser.id,
+      sessionId,
+      generation,
+    );
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+
+    try {
+      await this.sessionService.createSession(
+        sessionId,
+        freshUser.id,
+        refreshTokenHash,
+        tokenFamilyId,
+        generation,
+      );
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      this.logger.error(
+        "Redis unavailable during login",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    return { accessToken, refreshToken };
+  }
   async logout(refreshToken?: string): Promise<void> {
     if (!refreshToken) {
       throw new UnauthorizedException("Invalid credentials");
@@ -425,6 +485,10 @@ export class AuthService implements OnModuleInit {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new NotFoundException("Пользователь не найден");
+    }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException("Неверные учётные данные");
     }
 
     const passwordValid = await argon2.verify(

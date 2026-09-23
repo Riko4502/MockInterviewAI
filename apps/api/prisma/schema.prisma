@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -8,19 +9,19 @@ datasource db {
 }
 
 model Role {
-  id          String       @id @default(uuid()) @db.Uuid
-  slug        String       @unique
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
   name        String
   description String?
-  permissions BigInt       @default(0)
-  isSystem    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  permissions BigInt   @default(0)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  users       User[]
+  users User[]
 
-  @@map("roles")
   @@index([slug])
+  @@map("roles")
 }
 
 model Permission {
@@ -31,14 +32,15 @@ model Permission {
   bitValue    BigInt
   createdAt   DateTime @default(now())
 
-  @@map("permissions")
   @@index([slug])
+  @@map("permissions")
 }
 
 model User {
   id               String    @id @default(uuid()) @db.Uuid
   email            String    @unique
-  passwordHash     String
+  passwordHash     String?
+  githubId         String?   @unique
   roleId           String?   @db.Uuid
   role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive         Boolean   @default(true)
@@ -55,17 +57,21 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  notifications  Notification[]
-  sessions       InterviewSession[]
-  participations InterviewParticipant[]
-  revocationTasks  AuthRevocationTask[]
+  notifications         Notification[]
+  sessions              InterviewSession[]
+  participations        InterviewParticipant[]
+  revocationTasks       AuthRevocationTask[]
+  showcaseCards         ShowcaseCard[]         @relation("UserShowcaseCards")
+  sentMatchRequests     MatchRequest[]         @relation("UserSentMatchRequests")
+  receivedMatchRequests MatchRequest[]         @relation("UserReceivedMatchRequests")
 
-  @@map("users")
+  @@index([githubId])
   @@index([username])
   @@index([roleId])
   @@index([isActive])
   @@index([deletedAt])
   @@index([createdAt])
+  @@map("users")
 }
 
 model AuthRevocationTask {
@@ -75,9 +81,9 @@ model AuthRevocationTask {
   generation Int?
   createdAt  DateTime @default(now())
 
-  @@map("auth_revocation_tasks")
   @@index([userId])
   @@index([createdAt])
+  @@map("auth_revocation_tasks")
 }
 
 enum InterviewSessionStatus {
@@ -93,32 +99,32 @@ enum InterviewParticipantRole {
 }
 
 model InterviewSession {
-  id           String                  @id @default(uuid()) @db.Uuid
-  userId       String                  @db.Uuid // владелец (создатель) сессии
-  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status       InterviewSessionStatus  @default(ACTIVE)
+  id           String                 @id @default(uuid()) @db.Uuid
+  userId       String                 @db.Uuid // владелец (создатель) сессии
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       InterviewSessionStatus @default(ACTIVE)
   startedAt    DateTime?
   endedAt      DateTime?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
   participants InterviewParticipant[]
 
-  @@map("interview_sessions")
   @@index([userId])
   @@index([status])
+  @@map("interview_sessions")
 }
 
 model InterviewParticipant {
-  sessionId String  @db.Uuid
-  userId    String  @db.Uuid
+  sessionId String                   @db.Uuid
+  userId    String                   @db.Uuid
   role      InterviewParticipantRole
 
-  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([sessionId, userId])
-  @@map("interview_participants")
   @@index([userId])
+  @@map("interview_participants")
 }
 
 enum NotificationType {
@@ -141,8 +147,122 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("notifications")
   @@index([userId])
   @@index([readAt])
   @@index([deletedAt])
+  @@map("notifications")
+}
+
+enum Specialization {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  DEVOPS
+  QA
+  MOBILE
+  DATA_ML
+  SYSTEM_DESIGN
+}
+
+enum ExperienceLevel {
+  JUNIOR
+  MIDDLE
+  SENIOR
+  LEAD
+}
+
+enum InterviewLanguage {
+  RU
+  EN
+  ANY
+}
+
+enum ShowcaseCardStatus {
+  ACTIVE // Активна и отображается на витрине
+  INACTIVE // Временно скрыта пользователем вручную
+  EXPIRED // Истек 15-дневный срок жизни (архив)
+}
+
+enum MatchRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+// Анкета на витрине
+model ShowcaseCard {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation("UserShowcaseCards", fields: [userId], references: [id], onDelete: Cascade)
+
+  title          String?           @db.VarChar(100) // Например: "Ищу Middle Go для мока по алгоритмам"
+  specialization Specialization
+  level          ExperienceLevel
+  language       InterviewLanguage @default(RU)
+  skills         String[]          @default([]) // ["react", "typescript", "tailwind"]
+  bio            String?           @db.VarChar(500)
+  scheduleInfo   String?           @map("schedule_info") @db.VarChar(300) // Например: "Будни 19:00-22:00 МСК"
+
+  isUrgent  Boolean            @default(false) @map("is_urgent") // Бейдж "Готов сегодня"
+  status    ShowcaseCardStatus @default(ACTIVE)
+  autoRenew Boolean            @default(false) @map("auto_renew") // Авто-продление каждые 15 дней
+
+  bumpedAt  DateTime @default(now()) @map("bumped_at") // Время последнего поднятия в топ
+  expiresAt DateTime @map("expires_at") // now() + 15 days
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  receivedRequests MatchRequest[] @relation("TargetCardRequests")
+  senderRequests   MatchRequest[] @relation("SenderCardRequests")
+
+  @@unique([userId, specialization, level], map: "unique_active_user_specialization_level", where: { status: "ACTIVE" })
+  @@index([specialization, level])
+  @@index([language])
+  @@index([status])
+  @@index([isUrgent])
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@index([bumpedAt(sort: Desc)])
+  @@index([skills], type: Gin)
+  @@map("showcase_cards")
+}
+
+// Запрос на интервью
+model MatchRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Отправитель
+  senderId String @map("sender_id") @db.Uuid
+  sender   User   @relation("UserSentMatchRequests", fields: [senderId], references: [id], onDelete: Cascade)
+
+  // Получатель
+  receiverId String @map("receiver_id") @db.Uuid
+  receiver   User   @relation("UserReceivedMatchRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  // Целевая карта
+  targetCardId String       @map("target_card_id") @db.Uuid
+  targetCard   ShowcaseCard @relation("TargetCardRequests", fields: [targetCardId], references: [id], onDelete: Cascade)
+
+  // Карта отправителя
+  senderCardId String?       @map("sender_card_id") @db.Uuid
+  senderCard   ShowcaseCard? @relation("SenderCardRequests", fields: [senderCardId], references: [id], onDelete: SetNull)
+
+  status         MatchRequestStatus @default(PENDING)
+  message        String?            @db.VarChar(300)
+  preferredTopic String?            @map("preferred_topic") @db.VarChar(100)
+  rejectReason   String?            @map("reject_reason") @db.VarChar(200) // Причина отклонения
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  expiresAt DateTime @map("expires_at") // now() + 72h
+
+  @@unique([senderId, targetCardId], map: "unique_pending_match_request_per_card", where: { status: "PENDING" })
+  @@index([receiverId, status])
+  @@index([senderId, status])
+  @@index([targetCardId, status])
+  @@index([status, expiresAt])
+  @@map("match_requests")
 }

@@ -45,6 +45,23 @@ describe("SensitiveLoggingInterceptor", () => {
     });
   });
 
+  it("не записывает в логи секретные query-параметры возврата из OAuth", (done) => {
+    interceptor
+      .intercept(
+        createExecutionContext(
+          "GET",
+          "/api/v1/auth/github/callback?code=secret-code&state=secret-state",
+        ),
+        createCallHandler(),
+      )
+      .subscribe(() => {
+        const output = logSpy.mock.calls.flat().join(" ");
+        expect(output).toContain("/api/v1/auth/github/callback");
+        expect(output).not.toContain("secret");
+        done();
+      });
+  });
+
   it("latency — неотрицательное число", (done) => {
     const context = createExecutionContext("POST", "/api/v1/auth/register");
     const next = createCallHandler();

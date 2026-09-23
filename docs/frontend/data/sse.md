@@ -27,7 +27,7 @@ SSE-поток открывается один раз на вкладку (в к
 
 Нативный `EventSource` в этом проекте **не подходит**:
 
-1. Он не умеет ставить заголовки, а access-токен у нас лежит в `sessionStorage` и передаётся как `Authorization: Bearer` (см. [base.ts](../../../apps/web/src/shared/api/base.ts)). Cookie `access_token` API не выставляет — есть только `refresh_token`.
+1. Он не умеет ставить заголовки, а access-токен у нас лежит в `sessionStorage` и передаётся как `Authorization: Bearer` (см. [base.ts](../../../apps/web/src/shared/api/http/base.ts)). Cookie `access_token` API не выставляет — есть только `refresh_token`.
 2. Передать токен в query string нельзя: сервер отвечает `400 Bad Request`, потому что query утекает в access-логи прокси, историю браузера и `Referer`.
 
 Поэтому клиент строится на `fetch` + `ReadableStream`. Плюсом получаем то, чего у `EventSource` нет: собственный контроль реконнекта, ручную установку `Last-Event-ID` и чтение HTTP-статуса ошибки.
@@ -54,10 +54,10 @@ CORS на сервере настроен под это: origin отражает
 
 ### 2.1. Переменная окружения
 
-`NEXT_PUBLIC_REALTIME_URL` сейчас хранит **ws**-схему (`ws://localhost:8080`) и используется для WebSocket. Для SSE нужен http-origin того же сервиса — добавьте производный урл в [endpoints.ts](../../../apps/web/src/shared/api/endpoints.ts):
+`NEXT_PUBLIC_REALTIME_URL` сейчас хранит **ws**-схему (`ws://localhost:8080`) и используется для WebSocket. Для SSE нужен http-origin того же сервиса — добавьте производный урл в [endpoints.ts](../../../apps/web/src/shared/api/config/endpoints.ts):
 
 ```ts
-// apps/web/src/shared/api/endpoints.ts
+// apps/web/src/shared/api/config/endpoints.ts
 export const realtimeWsUrl =
   process.env.NEXT_PUBLIC_REALTIME_URL ?? "ws://localhost:8080";
 
@@ -212,7 +212,7 @@ export type SSEStatus = "idle" | "connecting" | "open" | "reconnecting" | "close
 * `Last-Event-ID` проставляется при переподключении и обновляется **только при непустом `id`**.
 * Реконнект — экспоненциальный backoff с джиттером, база берётся из кадра `retry:` (по умолчанию 3000 мс), потолок ~30 с.
 * Watchdog: если байтов нет дольше ~45 с (сервер шлёт heartbeat раз в 15 с) — рвём соединение сами и переподключаемся.
-* `401` → **один** рефреш токена (переиспользуйте логику из [base.ts](../../../apps/web/src/shared/api/base.ts)) и повторная попытка; неудача → логаут.
+* `401` → **один** рефреш токена (переиспользуйте логику из [base.ts](../../../apps/web/src/shared/api/http/base.ts)) и повторная попытка; неудача → логаут.
 * `429` и `503` → ждать `Retry-After` (по умолчанию 30 с), не считать это ошибкой соединения.
 * `auth.revoked` → остановиться насовсем: реконнекта быть не должно.
 * После каждого успешного открытия потока — колбэк `onOpen` для добора данных через REST.

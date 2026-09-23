@@ -104,7 +104,7 @@
 | A4. Источник правды о членстве — Postgres (Prisma) + Redis-зеркало | Prisma — синхронная правда, Redis — быстрый lookup для realtime |
 | A5. Одноразовое потребление тикета через `SET ticket:consumed:{jti} NX EX` | Атомарность, отсутствие TOCTOU-гонки; отдельный namespace, не смешивает семантику «использован» и «отозван» |
 | A6. Проверка живой auth-сессии `auth:session:{sid}` в realtime | Симметрия с API после A8; общий Redis |
-| A7. Веб-клиент: тикет через `baseFetch` (Bearer) → WS с subprotocol, reconnect с backoff | Reuse существующего авто-refresh (`apps/web/src/shared/api/base.ts:47-102`) |
+| A7. Веб-клиент: тикет через `baseFetch` (Bearer) → WS с subprotocol, reconnect с backoff | Reuse существующего авто-refresh (`apps/web/src/shared/api/http/base.ts:47-102`) |
 | A8. Объединить гуарды: перенести live-проверку `JwtAuthGuard` в глобальный `AccessTokenGuard` (async), удалить `JwtAuthGuard` | Единое место авторизации; logout/деактивация инвалидируют API везде; убирает двойную верификацию на `/profile`; live-проверка — через `EXISTS` (`isSessionActive`), без чтения/парсинга JSON |
 | A9. Точный Origin-матч в `OriginCheckGuard` (равенство, не `startsWith`) | Закрывает CSWSH-обход префиксом `https://app.example.com.evil.com` |
 
@@ -235,7 +235,7 @@ close-сессии: publish по участникам {"instanceId","data":"<use
 
 ### 5.3 Web (Next.js)
 
-- `apps/web/src/shared/api/endpoints.ts`: `realtime: { ticket: "/realtime/ticket" }`,
+- `apps/web/src/shared/api/config/endpoints.ts`: `realtime: { ticket: "/realtime/ticket" }`,
   база ws из `NEXT_PUBLIC_REALTIME_URL`.
 - `apps/web/src/features/realtime/lib/ticket.ts` (новый):
   - `getTicket(sessionId)` через `baseFetch` (Bearer + авто-refresh);
@@ -448,7 +448,7 @@ default «ежечасно»; `ScheduleModule` уже зарегистриров
 - [нов] `apps/realtime/internal/handler/revocation_test.go` (P11)
 
 ### Web
-- [изм] `apps/web/src/shared/api/endpoints.ts`
+- [изм] `apps/web/src/shared/api/config/endpoints.ts`
 - [нов] `apps/web/src/features/realtime/lib/ticket.ts`
 - [изм] `apps/web/package.json`
 

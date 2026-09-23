@@ -12,6 +12,16 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("http://localhost:3000,http://127.0.0.1:3000"),
+  GITHUB_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+  GITHUB_CALLBACK_URL: z
+    .url()
+    .regex(/^https?:\/\//)
+    .optional(),
+  FRONTEND_URL: z
+    .url()
+    .regex(/^https?:\/\//)
+    .optional(),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRATION: z.string().min(1).default("15m"),
@@ -81,6 +91,29 @@ export function validate(config: Record<string, unknown>): Env {
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
       .join("; ");
     throw new Error(`Invalid environment configuration: ${issues}`);
+  }
+  const oauth = [
+    parsed.data.GITHUB_CLIENT_ID,
+    parsed.data.GITHUB_CLIENT_SECRET,
+    parsed.data.GITHUB_CALLBACK_URL,
+  ];
+  if (
+    oauth.some(Boolean) &&
+    (!oauth.every(Boolean) || !parsed.data.FRONTEND_URL)
+  ) {
+    throw new Error(
+      "GitHub OAuth requires GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_CALLBACK_URL and FRONTEND_URL",
+    );
+  }
+  if (
+    parsed.data.NODE_ENV === "production" &&
+    [parsed.data.GITHUB_CALLBACK_URL, parsed.data.FRONTEND_URL].some(
+      (url) => url !== undefined && !url.startsWith("https://"),
+    )
+  ) {
+    throw new Error(
+      "GitHub OAuth callback and frontend URLs must use HTTPS in production",
+    );
   }
   return parsed.data;
 }
