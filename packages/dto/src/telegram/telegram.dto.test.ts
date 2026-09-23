@@ -148,6 +148,7 @@ describe("telegramInterviewsListSchema", () => {
         {
           id: "00000000-0000-4000-8000-000000000000",
           status: "ARCHIVED",
+          startedAt: null,
           role: "INTERVIEWER",
           createdAt: "2026-09-16T12:00:00.000Z",
         },
