@@ -253,8 +253,8 @@ export const AnimatedRemoteCollaborator: Story = {
 
     const [remoteDoc] = useState(() => {
       const doc = new Y.Doc();
-      const text = doc.getText("monaco");
-      text.insert(0, getTemplate("python", "algorithm"));
+      // Синхронизируем начальное состояние из userDoc, чтобы CRDT item ID совпадали
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(userDoc));
       return doc;
     });
 
@@ -288,15 +288,19 @@ export const AnimatedRemoteCollaborator: Story = {
         color: "#f97316",
       });
 
-      const handleRemoteUpdate = ({
-        added,
-        updated,
-        removed,
-      }: {
-        added: number[];
-        updated: number[];
-        removed: number[];
-      }) => {
+      const handleRemoteUpdate = (
+        {
+          added,
+          updated,
+          removed,
+        }: {
+          added: number[];
+          updated: number[];
+          removed: number[];
+        },
+        origin: unknown,
+      ) => {
+        if (origin === "remote") return;
         const changed = added.concat(updated, removed);
         const update = encodeAwarenessUpdate(remoteAwareness, changed);
         applyAwarenessUpdate(userAwareness, update, "remote");

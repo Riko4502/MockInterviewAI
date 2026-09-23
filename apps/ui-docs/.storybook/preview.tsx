@@ -3,6 +3,15 @@ import { UIProvider } from "@packages/ui";
 import { themes } from "storybook/theming";
 import type { Preview } from "storybook-react-rsbuild";
 
+declare global {
+  interface Window {
+    MonacoEnvironment?: {
+      getWorker?(workerId: string, label: string): Worker;
+      getWorkerUrl?(workerId: string, label: string): string;
+    };
+  }
+}
+
 if (typeof window !== "undefined" && !window.MonacoEnvironment) {
   window.MonacoEnvironment = {
     getWorker() {
