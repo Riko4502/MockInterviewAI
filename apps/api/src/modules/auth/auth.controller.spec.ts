@@ -1,4 +1,8 @@
-import { HttpStatus, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  HttpStatus,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { TelegramAuthDto, TelegramLinkDto } from "@packages/dto";
 import type { Request, Response } from "express";
@@ -691,6 +695,20 @@ describe("AuthController", () => {
         expect.any(Object),
       );
       expect(result).toEqual({ accessToken: "raw.access.token" });
+    });
+
+    it("пробрасывает BadRequestException при невалидном или истекшем onboardingToken", async () => {
+      const dto = {
+        onboardingToken: "invalid_token",
+        email: "test@example.com",
+      };
+      telegramCompleteMock.mockRejectedValue(
+        new BadRequestException("Invalid or expired onboarding token"),
+      );
+
+      await expect(
+        createController().telegramComplete(dto, response),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
