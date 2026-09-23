@@ -1,0 +1,111 @@
+name: "CI Telegram Bot"
+
+on:
+  workflow_call:
+    inputs:
+      should_build_docker:
+        type: boolean
+        default: true
+        description: "Флаг запуска сборки Docker"
+    secrets:
+      TELEGRAM_BOT_TOKEN:
+        required: false
+      INTERNAL_SERVICE_KEY:
+        required: false
+      API_INTERNAL_URL:
+        required: false
+      WEB_APP_URL:
+        required: false
+    outputs:
+      coverage:
+        description: "Процент покрытия тестами Telegram Bot"
+        value: ${{ jobs.test-and-build.outputs.coverage }}
+
+jobs:
+  test-and-build:
+    name: "Тесты и сборка Telegram Bot"
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.tb_coverage.outputs.pct }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Telegram Bot (apps/telegram-bot)"
+        id: check_tb
+        run: |
+          if [ -d "apps/telegram-bot" ] && [ -f "apps/telegram-bot/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка pnpm"
+        if: steps.check_tb.outputs.exists == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        if: steps.check_tb.outputs.exists == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: "Установка зависимостей (frozen-lockfile)"
+        if: steps.check_tb.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: "Восстановление / сохранение кэша Turborepo"
+        if: steps.check_tb.outputs.exists == 'true'
+        uses: actions/cache@v6
+        with:
+          path: |
+            .turbo
+            node_modules/.cache/turbo
+          key: ${{ runner.os }}-turbo-tb-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-tb-
+            ${{ runner.os }}-turbo-
+
+      - name: "Сборка зависимостей Telegram Bot (@packages/dto, @packages/i18n, @packages/types)"
+        if: steps.check_tb.outputs.exists == 'true'
+        run: pnpm turbo run build --filter=@apps/telegram-bot^...
+
+      - name: "Проверка стиля и линтинг (Biome)"
+        if: steps.check_tb.outputs.exists == 'true'
+        run: pnpm --filter @apps/telegram-bot lint
+
+      - name: "Проверка типов TypeScript"
+        if: steps.check_tb.outputs.exists == 'true'
+        run: pnpm --filter @apps/telegram-bot typecheck
+
+      - name: "Запуск unit-тестов (Vitest)"
+        id: tb_coverage
+        if: steps.check_tb.outputs.exists == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          INTERNAL_SERVICE_KEY: ${{ secrets.INTERNAL_SERVICE_KEY }}
+          API_INTERNAL_URL: ${{ secrets.API_INTERNAL_URL }}
+          WEB_APP_URL: ${{ secrets.WEB_APP_URL }}
+        run: |
+          pnpm --filter @apps/telegram-bot test
+          TB_COV=$(node -e "try { const c = require('./apps/telegram-bot/coverage/coverage-summary.json'); console.log(c.total.lines.pct + '%'); } catch(e) { console.log('—'); }")
+          echo "pct=$TB_COV" >> $GITHUB_OUTPUT
+          echo "### 📊 Отчет о покрытии тестами Telegram Bot" >> $GITHUB_STEP_SUMMARY
+          echo "- **Общее покрытие кода (Lines):** \`$TB_COV\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Тесты Telegram Bot успешно выполнены." >> $GITHUB_STEP_SUMMARY
+
+      - name: "Настройка Docker Buildx"
+        if: steps.check_tb.outputs.exists == 'true' && inputs.should_build_docker
+        uses: docker/setup-buildx-action@v4
+
+      - name: "Проверка сборки Docker-образа Telegram Bot (Smoke Test)"
+        if: steps.check_tb.outputs.exists == 'true' && inputs.should_build_docker
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./apps/telegram-bot/Dockerfile
+          push: false
+          tags: mockinterviewai-telegram-bot:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

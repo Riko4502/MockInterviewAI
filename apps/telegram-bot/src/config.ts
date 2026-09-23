@@ -42,12 +42,21 @@ const envSchema = z.object({
   TELEGRAM_WEBHOOK_URL: z
     .string()
     .url()
+    .refine((url) => new URL(url).protocol === "https:", {
+      message: "TELEGRAM_WEBHOOK_URL должен использовать HTTPS",
+    })
     .refine((url) => new URL(url).pathname === WEBHOOK_PATH, {
       message: `TELEGRAM_WEBHOOK_URL должен использовать путь ${WEBHOOK_PATH}`,
     })
     .optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(1).optional(),
-  TELEGRAM_WEBHOOK_PORT: z.coerce.number().int().positive().default(8443),
+  // В проде (Render) порт прослушивания webhook-сервера берётся из $PORT,
+  // который платформа инжектит в process.env; локально — 8443 (SPEC §12.1).
+  TELEGRAM_WEBHOOK_PORT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(() => Number(process.env.PORT ?? 8443)),
   NODE_ENV: z.string().min(1).default("development"),
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { loadConfig } from "./config";
 
 const BASE_ENV: Record<string, string> = {
@@ -38,6 +38,28 @@ describe("loadConfig: API_INTERNAL_URL (HTTP только для localhost)", ()
   });
 });
 
+describe("loadConfig: TELEGRAM_WEBHOOK_PORT", () => {
+  it("default: 8443 без PORT (dev)", () => {
+    const env = loadConfig(BASE_ENV);
+    expect(env.TELEGRAM_WEBHOOK_PORT).toBe(8443);
+  });
+
+  it("default: берётся из process.env.PORT (Render)", () => {
+    vi.stubEnv("PORT", "10000");
+    const env = loadConfig(BASE_ENV);
+    expect(env.TELEGRAM_WEBHOOK_PORT).toBe(10000);
+    vi.unstubAllEnvs();
+  });
+
+  it("продакшн значимое значение из TELEGRAM_WEBHOOK_PORT", () => {
+    const env = loadConfig({
+      ...BASE_ENV,
+      TELEGRAM_WEBHOOK_PORT: "9000",
+    });
+    expect(env.TELEGRAM_WEBHOOK_PORT).toBe(9000);
+  });
+});
+
 describe("loadConfig: TELEGRAM_WEBHOOK_URL", () => {
   it("разрешает URL с webhook-путём", () => {
     const env = loadConfig({
@@ -59,5 +81,15 @@ describe("loadConfig: TELEGRAM_WEBHOOK_URL", () => {
         TELEGRAM_WEBHOOK_SECRET: "webhook-secret",
       }),
     ).toThrow(/TELEGRAM_WEBHOOK_URL/);
+  });
+
+  it("отклоняет URL с http-схемой (Telegram требует HTTPS)", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE_ENV,
+        TELEGRAM_WEBHOOK_URL: "http://bot.example.com/telegram/webhook",
+        TELEGRAM_WEBHOOK_SECRET: "webhook-secret",
+      }),
+    ).toThrow(/HTTPS/);
   });
 });

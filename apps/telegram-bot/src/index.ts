@@ -48,6 +48,12 @@ export async function main(): Promise<void> {
     const handler = webhookCallback(bot, "http", { secretToken: secret });
     server = createServer((req, res) => {
       const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+      // Health-check для платформ (Render и др.) пингуют "/" — отвечаем 200.
+      if (pathname === "/") {
+        res.writeHead(200);
+        res.end("ok");
+        return;
+      }
       if (pathname !== WEBHOOK_PATH) {
         res.writeHead(404);
         res.end();
