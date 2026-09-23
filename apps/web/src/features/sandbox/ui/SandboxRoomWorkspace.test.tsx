@@ -4,13 +4,30 @@ import type { LanguageId } from "@packages/editor";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
+import { baseFetch } from "@/shared/api/base";
 import { uint8ArrayToBase64 } from "../lib/RealtimeYjsProvider";
+import type { RunResult } from "../model/types";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxRoomWorkspace } from "./SandboxRoomWorkspace";
 
+vi.mock("@/shared/api/base", () => ({
+  baseFetch: vi.fn(),
+}));
+
 // Заглушка для дочерних панелей тулбара и медиа
 vi.mock("./SandboxHeader", () => ({
-  SandboxHeader: () => <div data-testid="sandbox-header" />,
+  SandboxHeader: ({ onRunCode }: { onRunCode?: () => void }) => (
+    <div data-testid="sandbox-header">
+      <button
+        type="button"
+        data-testid="run-code-button"
+        onClick={onRunCode}
+        disabled={!onRunCode}
+      >
+        Run Code
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("./SandboxTaskPanel", () => ({
@@ -80,9 +97,11 @@ vi.mock("@packages/editor", () => {
 // Mock реалтайм хука с управляемыми слушателями конвертов
 let envelopeListeners: Array<(env: AnyWebSocketEnvelope) => void> = [];
 const mockSendEnvelope = vi.fn();
+const mockBroadcastRunResult = vi.fn();
 let mockOnRemoteTaskChange:
   | ((taskId: string, lang?: LanguageId) => void)
   | undefined;
+let mockOnRemoteRunResult: ((result: RunResult) => void) | undefined;
 
 let mockWsConnected = true;
 
@@ -90,9 +109,11 @@ vi.mock("../lib/useSandboxRealtime", () => ({
   useSandboxRealtime: (
     options: {
       onRemoteTaskChange?: (taskId: string, lang?: LanguageId) => void;
+      onRemoteRunResult?: (result: RunResult) => void;
     } = {},
   ) => {
     mockOnRemoteTaskChange = options.onRemoteTaskChange;
+    mockOnRemoteRunResult = options.onRemoteRunResult;
     return {
       userId: "user-newcomer-123",
       userName: "Newcomer",
@@ -104,7 +125,7 @@ vi.mock("../lib/useSandboxRealtime", () => ({
       broadcastCursorMove: vi.fn(),
       broadcastTaskChange: vi.fn(),
       broadcastWebRTCSignal: vi.fn(),
-      broadcastRunResult: vi.fn(),
+      broadcastRunResult: mockBroadcastRunResult,
       subscribeWebRTCSignal: vi.fn(() => vi.fn()),
       subscribeEnvelope: vi.fn(
         (listener: (env: AnyWebSocketEnvelope) => void) => {
@@ -120,14 +141,16 @@ vi.mock("../lib/useSandboxRealtime", () => ({
   },
 }));
 
-describe("SandboxRoomWorkspace (T028 & T032 Integration Tests)", () => {
+describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
   const roomId = "session-test-workspace-uuid";
 
   beforeEach(() => {
     vi.clearAllMocks();
     envelopeListeners = [];
     mockOnRemoteTaskChange = undefined;
+    mockOnRemoteRunResult = undefined;
     mockWsConnected = true;
+    useSandboxStore.getState().resetStore();
     useSandboxStore.getState().setTaskId("two-sum");
     useSandboxStore.getState().setLanguage("typescript");
   });
@@ -468,5 +491,281 @@ describe("SandboxRoomWorkspace (T028 & T032 Integration Tests)", () => {
     });
 
     seededDoc.destroy();
+  });
+
+  describe("T034: Run Code and immutable snapshot execution", () => {
+    it("captures immutable code snapshot yText.toString() and does not alter sent payload when typing continues in editor", async () => {
+      let resolveRunFetch: (value: RunResult) => void = () => {};
+      const runFetchPromise = new Promise<RunResult>((resolve) => {
+        resolveRunFetch = resolve;
+      });
+      vi.mocked(baseFetch).mockReturnValue(runFetchPromise as Promise<unknown>);
+
+      const props = {
+        roomId,
+        role: "CANDIDATE" as const,
+        pathname: "/dashboard/sandbox",
+      };
+      render(<SandboxRoomWorkspace {...props} />);
+
+      // Инициализируем документ Yjs начальным решением
+      const initialDoc = new Y.Doc();
+      const initialText = initialDoc.getText("monaco");
+      initialText.insert(0, "function solution() {\n  return 42;\n}");
+      const initialUpdate = Y.encodeStateAsUpdate(initialDoc);
+
+      act(() => {
+        envelopeListeners.forEach((listener) => {
+          listener({
+            type: "yjs.init",
+            version: 1,
+            sessionId: roomId,
+            requestId: "init_run_code",
+            timestamp: new Date().toISOString(),
+            payload: {
+              taskKey: "two-sum:typescript",
+              updates: [uint8ArrayToBase64(initialUpdate)],
+            },
+          });
+        });
+      });
+
+      await waitFor(() => {
+        const editor = screen.getByTestId("code-editor-lazy");
+        expect(editor.getAttribute("data-ytext")).toContain(
+          "function solution()",
+        );
+      });
+
+      // 1. Нажимаем кнопку «Run Code»
+      const runBtn = screen.getByTestId("run-code-button");
+      act(() => {
+        runBtn.click();
+      });
+
+      // Проверяем, что состояние перешло в isRunning: true
+      expect(useSandboxStore.getState().isRunning).toBe(true);
+      expect(baseFetch).toHaveBeenCalledTimes(1);
+
+      // 2. Пока запрос выполняется (in-flight), соавтор или кандидат продолжает ввод в редакторе
+      const additionalDoc = new Y.Doc();
+      const additionalText = additionalDoc.getText("monaco");
+      additionalText.insert(0, "\n// added by peer while tests are running");
+      const additionalUpdate = Y.encodeStateAsUpdate(additionalDoc);
+
+      act(() => {
+        envelopeListeners.forEach((listener) => {
+          listener({
+            type: "yjs.update",
+            version: 1,
+            sessionId: roomId,
+            requestId: "req_concurrent_edit",
+            timestamp: new Date().toISOString(),
+            payload: {
+              taskKey: "two-sum:typescript",
+              updateId: "peer_update_999",
+              data: uint8ArrayToBase64(additionalUpdate),
+            },
+          });
+        });
+      });
+
+      // Проверяем, что в редакторе новый текст отобразился
+      await waitFor(() => {
+        const editor = screen.getByTestId("code-editor-lazy");
+        expect(editor.getAttribute("data-ytext")).toContain(
+          "added by peer while tests are running",
+        );
+      });
+
+      // 3. Завершаем выполнение тестов на бэкенде (resolve promise)
+      const mockResult = {
+        success: true,
+        totalTests: 3,
+        passedTests: 3,
+        results: [
+          {
+            testCaseId: "tc-1",
+            passed: true,
+            input: "[2, 7, 11, 15], 9",
+            expectedOutput: "[0, 1]",
+            actualOutput: "[0, 1]",
+            executionTimeMs: 4,
+          },
+        ],
+        logs: ["Test suite passed"],
+        totalTimeMs: 12,
+      };
+
+      await act(async () => {
+        resolveRunFetch(mockResult);
+      });
+
+      // 4. Проверяем, что в POST /api/v1/code/run ушел исходный неизменяемый снимок, БЕЗ добавленного соавтором кода
+      expect(baseFetch).toHaveBeenCalledWith("/api/v1/code/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: "function solution() {\n  return 42;\n}",
+          taskKey: "two-sum:typescript",
+          taskId: "two-sum",
+          language: "typescript",
+        }),
+      });
+
+      // 5. Проверяем обновление стора и бродкаст результата
+      expect(useSandboxStore.getState().isRunning).toBe(false);
+      expect(useSandboxStore.getState().runResult).toEqual(mockResult);
+      expect(mockBroadcastRunResult).toHaveBeenCalledWith(mockResult);
+
+      initialDoc.destroy();
+      additionalDoc.destroy();
+    });
+
+    it("handles code runner API error gracefully, stops spinner, and updates store with fallback result", async () => {
+      vi.mocked(baseFetch).mockRejectedValueOnce(
+        new Error("Sandbox timeout exceeded"),
+      );
+
+      const props = {
+        roomId,
+        role: "CANDIDATE" as const,
+        pathname: "/dashboard/sandbox",
+      };
+      render(<SandboxRoomWorkspace {...props} />);
+
+      const runBtn = screen.getByTestId("run-code-button");
+      await act(async () => {
+        runBtn.click();
+      });
+
+      expect(useSandboxStore.getState().isRunning).toBe(false);
+      const runResult = useSandboxStore.getState().runResult;
+      expect(runResult?.success).toBe(false);
+      expect(runResult?.logs).toContain("Sandbox timeout exceeded");
+      expect(mockBroadcastRunResult).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          logs: ["Sandbox timeout exceeded"],
+        }),
+      );
+    });
+
+    it("syncs runResult received from remote collaborator via realtime callback", () => {
+      const props = {
+        roomId,
+        role: "CANDIDATE" as const,
+        pathname: "/dashboard/sandbox",
+      };
+      render(<SandboxRoomWorkspace {...props} />);
+
+      useSandboxStore.setState({ isRunning: true });
+
+      const remoteResult = {
+        success: true,
+        totalTests: 5,
+        passedTests: 5,
+        results: [],
+        logs: ["Peer ran tests"],
+        totalTimeMs: 25,
+      };
+
+      act(() => {
+        mockOnRemoteRunResult?.(remoteResult);
+      });
+
+      expect(useSandboxStore.getState().isRunning).toBe(false);
+      expect(useSandboxStore.getState().runResult).toEqual(remoteResult);
+    });
+
+    it("sends active taskKey, taskId and language when switching tasks prior to Run Code", async () => {
+      vi.mocked(baseFetch).mockResolvedValueOnce({
+        success: true,
+        totalTests: 1,
+        passedTests: 1,
+        results: [],
+        logs: [],
+        totalTimeMs: 5,
+      });
+
+      const props = {
+        roomId,
+        role: "INTERVIEWER" as const,
+        pathname: "/dashboard/sandbox",
+      };
+      render(<SandboxRoomWorkspace {...props} />);
+
+      // 1. Первичная инициализация текущей задачи
+      act(() => {
+        envelopeListeners.forEach((listener) => {
+          listener({
+            type: "yjs.init",
+            version: 1,
+            sessionId: roomId,
+            requestId: "init_initial",
+            timestamp: new Date().toISOString(),
+            payload: {
+              taskKey: "two-sum:typescript",
+              updates: [],
+            },
+          });
+        });
+      });
+
+      // 2. Переключаем задачу на valid-palindrome и язык на python
+      act(() => {
+        useSandboxStore.getState().setTaskId("valid-palindrome");
+        useSandboxStore.getState().setLanguage("python");
+      });
+
+      const pyDoc = new Y.Doc();
+      pyDoc
+        .getText("monaco")
+        .insert(0, "def is_valid(s: str) -> bool:\n    return True");
+      const pyUpdate = Y.encodeStateAsUpdate(pyDoc);
+
+      act(() => {
+        envelopeListeners.forEach((listener) => {
+          listener({
+            type: "yjs.init",
+            version: 1,
+            sessionId: roomId,
+            requestId: "init_py",
+            timestamp: new Date().toISOString(),
+            payload: {
+              taskKey: "valid-palindrome:python",
+              updates: [uint8ArrayToBase64(pyUpdate)],
+            },
+          });
+        });
+      });
+
+      await waitFor(() => {
+        const editor = screen.getByTestId("code-editor-lazy");
+        expect(editor.getAttribute("data-ytext")).toContain("def is_valid");
+      });
+
+      const runBtn = screen.getByTestId("run-code-button");
+      await act(async () => {
+        runBtn.click();
+      });
+
+      expect(baseFetch).toHaveBeenCalledWith("/api/v1/code/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: "def is_valid(s: str) -> bool:\n    return True",
+          taskKey: "valid-palindrome:python",
+          taskId: "valid-palindrome",
+          language: "python",
+        }),
+      });
+
+      pyDoc.destroy();
+    });
   });
 });

@@ -77,4 +77,29 @@ describe("SandboxHeader", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Run Code/i })).toBeDisabled();
   });
+
+  it("should trigger onRunCode when button is clicked and not running", () => {
+    const handleRunCodeMock = vi.fn();
+    render(<SandboxHeader onRunCode={handleRunCodeMock} />);
+
+    const runBtn = screen.getByRole("button", { name: /Запуск кода/i });
+    expect(runBtn).not.toBeDisabled();
+
+    fireEvent.click(runBtn);
+    expect(handleRunCodeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("should disable run button and display spinner when isRunning is true", () => {
+    const handleRunCodeMock = vi.fn();
+    useSandboxStore.setState({ isRunning: true });
+
+    render(<SandboxHeader onRunCode={handleRunCodeMock} />);
+
+    const runBtn = screen.getByRole("button", { name: /Выполнение/i });
+    expect(runBtn).toBeDisabled();
+    expect(screen.getByTestId("run-code-spinner")).toBeInTheDocument();
+
+    fireEvent.click(runBtn);
+    expect(handleRunCodeMock).not.toHaveBeenCalled();
+  });
 });

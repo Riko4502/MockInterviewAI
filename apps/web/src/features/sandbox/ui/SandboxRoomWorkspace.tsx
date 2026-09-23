@@ -5,10 +5,12 @@ import { Resizable } from "@packages/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
+import { baseFetch } from "@/shared/api/base";
 import { getColorForUser } from "../lib/mapPeerToCollaborator";
 import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
 import { SandboxMediaProvider } from "../model/SandboxMediaContext";
+import type { RunResult } from "../model/types";
 import { useSandboxTimer } from "../model/useSandboxState";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxConsolePanel } from "./SandboxConsolePanel";
@@ -39,6 +41,8 @@ export function SandboxRoomWorkspace({
   const setTaskId = useSandboxStore((s) => s.setTaskId);
   const currentTaskId = useSandboxStore((s) => s.currentTaskId);
   const setIsVideoOpen = useSandboxStore((s) => s.setIsVideoOpen);
+  const setIsRunning = useSandboxStore((s) => s.setIsRunning);
+  const setRunResult = useSandboxStore((s) => s.setRunResult);
 
   useSandboxTimer();
 
@@ -62,6 +66,10 @@ export function SandboxRoomWorkspace({
       if (signal?.type === "call-started" || signal?.type === "offer") {
         setIsVideoOpen(true);
       }
+    },
+    onRemoteRunResult: (result) => {
+      setRunResult(result);
+      setIsRunning(false);
     },
   });
 
@@ -159,6 +167,58 @@ export function SandboxRoomWorkspace({
     realtime.broadcastCodeUpdate(starter, language);
   }, [resetCode, realtime, language]);
 
+  // Неизменяемый срез yText.toString() для запуска тестов в Code Runner (T033)
+  const handleRunCode = useCallback(async () => {
+    // Архитектурный принцип Phase 7:
+    // Источником актуального текста является yText.toString() для активного taskKey,
+    // формирующий моментальный неизменяемый строковый срез перед отправкой в Code Runner.
+    const codeSnapshot = yText ? yText.toString() : code;
+
+    setIsRunning(true);
+
+    try {
+      const result = await baseFetch<RunResult>("/api/v1/code/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: codeSnapshot,
+          taskKey,
+          taskId: currentTaskId,
+          language,
+        }),
+      });
+
+      setRunResult(result);
+      realtime.broadcastRunResult(result);
+    } catch (error) {
+      const fallbackResult: RunResult = {
+        success: false,
+        totalTests: 0,
+        passedTests: 0,
+        results: [],
+        logs: [
+          error instanceof Error ? error.message : "Code execution failed",
+        ],
+        totalTimeMs: 0,
+      };
+      setRunResult(fallbackResult);
+      realtime.broadcastRunResult(fallbackResult);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [
+    yText,
+    code,
+    taskKey,
+    currentTaskId,
+    language,
+    setIsRunning,
+    setRunResult,
+    realtime,
+  ]);
+
   return (
     <SandboxMediaProvider
       roomId={roomId}
@@ -177,6 +237,7 @@ export function SandboxRoomWorkspace({
           onLanguageChange={handleLanguageChange}
           onResetCode={handleResetCode}
           onTaskChange={handleTaskChange}
+          onRunCode={handleRunCode}
         />
 
         {/* Основная рабочая область со сплиттерами */}

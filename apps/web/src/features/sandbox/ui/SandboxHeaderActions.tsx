@@ -20,14 +20,17 @@ const LANGUAGES: { id: LanguageId; label: string }[] = [
 interface SandboxHeaderActionsProps {
   onLanguageChange?: (lang: LanguageId) => void;
   onResetCode?: () => void;
+  onRunCode?: () => void;
 }
 
 export function SandboxHeaderActions({
   onLanguageChange,
   onResetCode,
+  onRunCode,
 }: SandboxHeaderActionsProps) {
   const { t } = useTranslation("interview");
   const { isCallConnected: isInCall } = useSandboxMedia();
+  const isRunning = useSandboxStore((s) => s.isRunning);
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
   const theme = useSandboxStore((s) => s.theme);
@@ -117,16 +120,28 @@ export function SandboxHeaderActions({
         {t("sandbox.header.resetCode")}
       </Button>
 
-      {/* Запуск кода (временно отключено) */}
+      {/* Запуск кода */}
       <Button
         variant="primary"
         size="sm"
-        disabled={true}
-        className="h-9 gap-1.5 bg-emerald-600/50 px-4 text-xs text-white/70 cursor-not-allowed shadow-xs"
+        disabled={isRunning || !onRunCode}
+        onClick={onRunCode}
+        className={`h-9 gap-1.5 px-4 text-xs shadow-xs ${
+          isRunning || !onRunCode
+            ? "bg-emerald-600/50 text-white/70 cursor-not-allowed"
+            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+        }`}
         title={t("sandbox.header.runCodeTooltip")}
       >
-        <PlayIcon className="size-3.5 fill-current" />
-        {t("sandbox.header.runCode")}
+        {isRunning ? (
+          <div
+            data-testid="run-code-spinner"
+            className="size-3.5 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
+          />
+        ) : (
+          <PlayIcon className="size-3.5 fill-current" />
+        )}
+        {isRunning ? t("sandbox.console.running") : t("sandbox.header.runCode")}
       </Button>
     </div>
   );
