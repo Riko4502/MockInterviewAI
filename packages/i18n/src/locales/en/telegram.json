@@ -2,6 +2,7 @@
   "start": {
     "welcome": "Hi! This is Mock Interview AI.\n\nThe bot helps you prepare for interviews and track practice sessions.\n\nOpen your profile on the website to get a link to connect your account.",
     "linked": "Account connected. Happy practicing!\n\nTry these commands:\n/me — your profile\n/interviews — your interviews\n/lang — language selection",
+    "linkedHint": "Tip: /interviews shows upcoming interviews, /me — your profile.",
     "alreadyLinked": "The account is already connected to this chat.\n\nCommands: /me, /interviews, /unlink",
     "tokenExpired": "The link is invalid or has expired. Get a new link in your profile on the website and try again.",
     "linkError": "Could not connect the account. Please try again later."
@@ -40,6 +41,8 @@
   },
   "lang": {
     "select": "Select language:",
+    "ruLabel": "Russian",
+    "enLabel": "English",
     "current": "Current: {{language}}",
     "changedRu": "Язык изменён на Русский.",
     "changedEn": "Language changed to English.",

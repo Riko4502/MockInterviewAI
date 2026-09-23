@@ -330,6 +330,7 @@ model User {
   "start": {
     "welcome": "...",          // приветствие без токена
     "linked": "...",           // успешная привязка
+    "linkedHint": "...",       // подсказка после успешной привязки
     "alreadyLinked": "...",    // 409
     "tokenExpired": "...",     // 410
     "linkError": "..."         // 400/401/5xx
@@ -356,7 +357,9 @@ model User {
     "unexpected": "..."
   },
   "lang": {
-    "select": "...",
+    "select": "...",           // заголовок клавиатуры
+    "ruLabel": "...",          // кнопка lang:ru
+    "enLabel": "...",          // кнопка lang:en
     "changedRu": "...",
     "changedEn": "...",
     "current": "...",
