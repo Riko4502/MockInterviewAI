@@ -371,7 +371,7 @@ model User {
 
 ### 10.2. Определение языка пользователя (приоритет)
 
-1. **Явный выбор `/lang`** — значение из `ctx.session.locale` (сессия grammY) и/или `TelegramUserProfileDto.telegramLocale` (персистентно в API). Самый высокий приоритет.
+1. **Явный выбор `/lang`** — значение из `ctx.session.locale` (сессия grammY). Самый высокий приоритет.
 2. **Локаль профиля** — `telegramLocale` из `GET /telegram/profile` (если аккаунт привязан и локаль задана).
 3. **Автоопределение** — `ctx.from.language_code` из Telegram API: префикс `"ru"` → `ru`, иначе → `en`. Языки, отличные от `ru` (например `uk`, `kk`), обрабатываются как `en`; при отсутствии `language_code` — fallback `ru` (default locale пакета).
 

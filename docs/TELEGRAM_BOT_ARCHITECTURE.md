@@ -127,7 +127,7 @@ export interface TelegramNotificationMessage {
 
 Согласно `apps/telegram-bot/SPEC.md` §10.2 (актуальный порядок):
 
-1. **Явный выбор `/lang`**: значение из сессии бота `ctx.session.locale` и/или `telegramLocale` профиля (персистентно в API). Самый высокий приоритет.
+1. **Явный выбор `/lang`**: значение из сессии бота `ctx.session.locale`. Самый высокий приоритет.
 2. **Язык профиля**: если аккаунт привязан и локаль задана, используется сохранённая локаль пользователя.
 3. **Автоопределение**: `ctx.from.language_code` из Telegram API (префикс `ru` → `ru`, иначе → `en`; при отсутствии — fallback, default locale пакета).
 
