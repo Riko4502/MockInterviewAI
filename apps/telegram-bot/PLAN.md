@@ -26,7 +26,7 @@ Scaffolding `apps/telegram-bot`, подключение к Telegram Bot API (gra
 
 ## Phase 1 — Scaffolding `apps/telegram-bot`
 
-- [x] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch --env-file=.env src/bot.ts`), `start` (`tsx --env-file=.env src/bot.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`). Флаг `--env-file=.env` (Node ≥ 20.6) грузит переменные без отдельной зависимости `dotenv`. Entry-файл — `src/bot.ts` (не `src/index.ts`): скрипты и `turbo`-задача `build` указывают на него.
+- [x] Создать `apps/telegram-bot/package.json` (name `@apps/telegram-bot`, `"type": "module"`): scripts `dev` (`tsx watch --env-file=.env src/index.ts`), `start` (`tsx --env-file=.env src/index.ts`), `build` (`tsc --noEmit`), `typecheck` (`tsc --noEmit`), `lint` (`biome check --no-errors-on-unmatched`), `test` (`vitest run`). Флаг `--env-file=.env` (Node ≥ 20.6) грузит переменные без отдельной зависимости `dotenv`. Entry-файл — `src/index.ts` (не `src/bot.ts`): он выполняет bootstrap (webhook/Long Polling), а `src/bot.ts` только создаёт экземпляр бота.
 - [x] Создать `tsconfig.json` — extends `../../tsconfig.base.json` (ES2022, `moduleResolution: Bundler`, strict); include `src`.
 - [x] Создать `.env.example` (см. SPEC §12.1).
 - [x] Создать `vitest.config.ts`.

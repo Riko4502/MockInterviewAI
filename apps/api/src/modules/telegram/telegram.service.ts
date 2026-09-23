@@ -86,7 +86,12 @@ export class TelegramService {
    * Атомарное чтение+удаление ключа (`GETDEL`) делает токен single-use:
    * повторное использование и истечение TTL → `410 Gone`. Уникальный индекс
    * `telegramChatId @unique` защищает от повторной привязки на уровне БД
-   * (race-safe, `P2002` → `409 Conflict`).
+   * (`P2002` → `409 Conflict`).
+   *
+   * Условный апдейт `where: { id, telegramChatId: null }` закрывает гонку
+   * двух одновременных привязок одному пользователю из разных чатов:
+   * второй апдейт обновит 0 строк и получит `409 Conflict`, а чат
+   * с неуспешной привязкой не получит ложный успех (race-safe).
    *
    * @param token - Raw-токен из `/start <token>`.
    * @param chatId - Идентификатор Telegram-чата.
@@ -128,19 +133,33 @@ export class TelegramService {
       throw new ConflictException("Telegram account is already linked");
     }
 
+    let result: { count: number };
     try {
-      const updated = await this.prisma.user.update({
-        where: { id: user.id },
+      result = await this.prisma.user.updateMany({
+        where: { id: user.id, telegramChatId: null },
         data: { telegramChatId: chatId, telegramLocale: null },
-        include: { role: true },
       });
-      return this.toProfileDto(updated);
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
         throw new ConflictException("Telegram chat is already linked");
       }
       throw error;
     }
+
+    if (result.count === 0) {
+      throw new ConflictException("Telegram account is already linked");
+    }
+
+    const updated = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: { role: true },
+    });
+
+    if (!updated || updated.deletedAt) {
+      throw new GoneException("Account has been deleted");
+    }
+
+    return this.toProfileDto(updated);
   }
 
   /**

@@ -104,18 +104,17 @@ describe("TelegramService", () => {
 
     it("успех: GETDEL токена, привязка chatId и очистка локали", async () => {
       redisMock.getdel.mockResolvedValue(JSON.stringify({ userId: USER_ID }));
-      prismaMock.user.findUnique.mockResolvedValue(mockUser());
-      prismaMock.user.update.mockResolvedValue(
-        mockUser({ telegramChatId: CHAT_ID }),
-      );
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce(mockUser())
+        .mockResolvedValueOnce(mockUser({ telegramChatId: CHAT_ID }));
+      prismaMock.user.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.link(TOKEN, CHAT_ID);
 
       expect(redisMock.getdel).toHaveBeenCalledWith(`tg:link:${sha256(TOKEN)}`);
-      expect(prismaMock.user.update).toHaveBeenCalledWith({
-        where: { id: USER_ID },
+      expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
+        where: { id: USER_ID, telegramChatId: null },
         data: { telegramChatId: CHAT_ID, telegramLocale: null },
-        include: { role: true },
       });
       expect(result.telegramChatId).toBe(CHAT_ID);
       expect(result.role).toBe("USER");
@@ -134,7 +133,7 @@ describe("TelegramService", () => {
     it("chatId уже занят другим пользователем (P2002) → 409", async () => {
       redisMock.getdel.mockResolvedValue(JSON.stringify({ userId: USER_ID }));
       prismaMock.user.findUnique.mockResolvedValue(mockUser());
-      prismaMock.user.update.mockRejectedValue(
+      prismaMock.user.updateMany.mockRejectedValue(
         Object.assign(new Error("unique constraint"), { code: "P2002" }),
       );
 
@@ -157,6 +156,16 @@ describe("TelegramService", () => {
       prismaMock.user.findUnique.mockResolvedValue(
         mockUser({ telegramChatId: "987654321" }),
       );
+
+      await expect(service.link(TOKEN, CHAT_ID)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("гонка: параллельная привязка из другого чата (0 строк) → 409", async () => {
+      redisMock.getdel.mockResolvedValue(JSON.stringify({ userId: USER_ID }));
+      prismaMock.user.findUnique.mockResolvedValue(mockUser());
+      prismaMock.user.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.link(TOKEN, CHAT_ID)).rejects.toThrow(
         ConflictException,
