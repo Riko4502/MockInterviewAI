@@ -25,6 +25,7 @@ import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
 interface PendingTaskState {
   id: string;
   taskId: string;
+  language?: LanguageId;
 }
 
 interface UseSandboxRealtimeOptions {
@@ -227,7 +228,7 @@ export function useSandboxRealtime({
   const broadcastTaskChange = useCallback(
     (taskId: string, lang?: LanguageId) => {
       const id = uuidv4();
-      pendingTaskRef.current = { id, taskId };
+      pendingTaskRef.current = { id, taskId, language: lang };
       const taskKey = lang ? `${taskId}:${lang}` : taskId;
       if (lang) {
         try {
@@ -247,7 +248,7 @@ export function useSandboxRealtime({
           // Игнорируем сетевые сбои
         }
       }
-      sendMessage("task-change", { taskId }, id);
+      sendMessage("task-change", { taskId, language: lang }, id);
     },
     [roomId, sendMessage],
   );
@@ -430,7 +431,10 @@ export function useSandboxRealtime({
           if (pendingTaskRef.current) {
             sendMessage(
               "task-change",
-              { taskId: pendingTaskRef.current.taskId },
+              {
+                taskId: pendingTaskRef.current.taskId,
+                language: pendingTaskRef.current.language,
+              },
               pendingTaskRef.current.id,
             );
           }

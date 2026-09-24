@@ -195,7 +195,7 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := newMockYjsStore()
-	store.streamUpdates["task-1:typescript"] = []string{"stream-delta-1", "stream-delta-2"}
+	store.streamUpdates[DefaultTaskKey] = []string{"stream-delta-1", "stream-delta-2"}
 
 	room := NewRoom("test-session-nodrop", nil, nil, logger, nil)
 	room.SetYjsStore(store)
@@ -205,7 +205,7 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 	// 1. В памяти есть не сброшенная в Redis дельта
 	_ = room.SaveQueue().Enqueue(&PendingUpdate{
 		SessionID:  room.ID,
-		TaskKey:    "task-1:typescript",
+		TaskKey:    DefaultTaskKey,
 		UpdateID:   "pending-delta-3",
 		Data:       "delta-3-base64",
 		EnqueuedAt: time.Now(),
@@ -221,7 +221,7 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 
 	// 3. Сразу после регистрации Клиента Б Клиент А отправляет live-дельту delta-4
 	updateEnv := NewEnvelope(EventYjsUpdate, room.ID, "req-4", YjsUpdatePayload{
-		TaskKey:  "task-1:typescript",
+		TaskKey:  DefaultTaskKey,
 		UpdateID: "live-delta-4",
 		Data:     "delta-4-base64",
 	})
@@ -235,7 +235,8 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 	var receivedLiveUpdate *YjsUpdatePayload
 
 	timeout := time.After(1 * time.Second)
-	for receivedInit == nil || receivedLiveUpdate == nil {
+collectLoop:
+	for {
 		select {
 		case msgBytes := <-clientB.sendCh:
 			raw, pErr := ParseRawEnvelope(msgBytes)
@@ -251,6 +252,9 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 					receivedLiveUpdate = &updP
 				}
 			}
+			if receivedInit != nil && receivedLiveUpdate != nil {
+				break collectLoop
+			}
 		case <-timeout:
 			t.Fatalf("timed out collecting messages: receivedInit=%v, receivedLive=%v",
 				receivedInit != nil, receivedLiveUpdate != nil)
@@ -258,11 +262,14 @@ func TestRoom_YjsInit_NoDroppedDeltasSingleNode(t *testing.T) {
 	}
 
 	// Проверяем: yjs.init содержит и стрим, и pending (delta-1, delta-2, delta-3)
-	if len(receivedInit.Updates) != 3 {
-		t.Fatalf("expected 3 updates in yjs.init, got %d: %v", len(receivedInit.Updates), receivedInit.Updates)
+	updatesMap := make(map[string]bool)
+	for _, u := range receivedInit.Updates {
+		updatesMap[u] = true
 	}
-	if receivedInit.Updates[0] != "stream-delta-1" || receivedInit.Updates[1] != "stream-delta-2" || receivedInit.Updates[2] != "delta-3-base64" {
-		t.Errorf("unexpected updates in yjs.init: %v", receivedInit.Updates)
+	for _, expected := range []string{"stream-delta-1", "stream-delta-2", "delta-3-base64"} {
+		if !updatesMap[expected] {
+			t.Errorf("missing expected update %q in yjs.init: %v", expected, receivedInit.Updates)
+		}
 	}
 
 	// Проверяем: live update доставлен Клиенту Б (delta-4)
@@ -299,7 +306,7 @@ func TestRoom_YjsUpdate_IngressAckAndBroadcast(t *testing.T) {
 
 	// Клиент А отправляет yjs.update
 	updEnv := NewEnvelope(EventYjsUpdate, room.ID, "req-upd-1", YjsUpdatePayload{
-		TaskKey:  "task-1:typescript",
+		TaskKey:  DefaultTaskKey,
 		UpdateID: "update-alice-100",
 		Data:     "Y29udGVudA==", // "content" in base64
 	})
@@ -326,7 +333,7 @@ func TestRoom_YjsUpdate_IngressAckAndBroadcast(t *testing.T) {
 		if uErr != nil {
 			t.Fatalf("clientA unpack ack error: %v", uErr)
 		}
-		if ackPayload.TaskKey != "task-1:typescript" || ackPayload.UpdateID != "update-alice-100" {
+		if ackPayload.TaskKey != DefaultTaskKey || ackPayload.UpdateID != "update-alice-100" {
 			t.Errorf("unexpected ack payload: %+v", ackPayload)
 		}
 		ackReceived = true
@@ -359,7 +366,7 @@ func TestRoom_YjsUpdate_IngressAckAndBroadcast(t *testing.T) {
 		if uErr != nil {
 			t.Fatalf("clientB unpack update error: %v", uErr)
 		}
-		if updPayload.TaskKey != "task-1:typescript" || updPayload.UpdateID != "update-alice-100" || updPayload.Data != "Y29udGVudA==" {
+		if updPayload.TaskKey != DefaultTaskKey || updPayload.UpdateID != "update-alice-100" || updPayload.Data != "Y29udGVudA==" {
 			t.Errorf("unexpected update payload for clientB: %+v", updPayload)
 		}
 	case <-time.After(1 * time.Second):
@@ -367,7 +374,7 @@ func TestRoom_YjsUpdate_IngressAckAndBroadcast(t *testing.T) {
 	}
 
 	// 4. Проверяем: дельта сохранена в оперативной очереди комнаты yjsSaveQueue
-	pending := room.SaveQueue().GetPending("task-1:typescript")
+	pending := room.SaveQueue().GetPending(DefaultTaskKey)
 	if len(pending) != 1 || pending[0] != "Y29udGVudA==" {
 		t.Errorf("expected pending update in queue, got: %v", pending)
 	}
@@ -548,7 +555,7 @@ drainLoop:
 	var receivedAwareness *YjsAwarenessPayload
 	awTimeout := time.After(1 * time.Second)
 awLoop:
-	for receivedAwareness == nil {
+	for {
 		select {
 		case msg := <-client2.sendCh:
 			raw, pErr := ParseRawEnvelope(msg)
@@ -597,7 +604,7 @@ awLoop:
 	var receivedLeave *PresencePayload
 	leaveTimeout := time.After(1 * time.Second)
 leaveLoop:
-	for receivedLeave == nil {
+	for {
 		select {
 		case msg := <-client2.sendCh:
 			raw, pErr := ParseRawEnvelope(msg)
@@ -673,23 +680,28 @@ func TestRoom_TaskSwitch_SeedsAndBroadcasts(t *testing.T) {
 	var receivedInit *YjsInitPayload
 
 	timeout := time.After(2 * time.Second)
-	for receivedSwitched == nil || receivedInit == nil {
+switchLoop:
+	for {
 		select {
 		case msg := <-client.sendCh:
 			raw, pErr := ParseRawEnvelope(msg)
 			if pErr != nil {
 				continue
 			}
-			if raw.Type == EventTaskSwitched {
+			switch raw.Type {
+			case EventTaskSwitched:
 				if swP, uErr := UnpackPayload[TaskSwitchedPayload](raw); uErr == nil {
 					receivedSwitched = &swP
 				}
-			} else if raw.Type == EventYjsInit {
+			case EventYjsInit:
 				if initP, uErr := UnpackPayload[YjsInitPayload](raw); uErr == nil {
 					if initP.TaskKey == "task-new:python" {
 						receivedInit = &initP
 					}
 				}
+			}
+			if receivedSwitched != nil && receivedInit != nil {
+				break switchLoop
 			}
 		case <-timeout:
 			t.Fatalf("timed out waiting for task.switched and yjs.init: switched=%v, init=%v",

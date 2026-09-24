@@ -50,6 +50,7 @@ func BenchmarkRoomBroadcast(b *testing.B) {
 	ctx := context.Background()
 	for b.Loop() {
 		room.handleBroadcast(ctx, msg)
+		room.SaveQueue().CommitBatch(updatePayload.TaskKey, 1)
 
 		// Очищаем sendCh для предотвращения переполнения буфера
 		select {
@@ -101,6 +102,7 @@ func TestNFR1_RoomBroadcast_P99(t *testing.T) {
 		start := time.Now()
 		room.handleBroadcast(ctx, msg)
 		latencies[i] = time.Since(start)
+		room.SaveQueue().CommitBatch("two-sum:typescript", 1)
 
 		// Сбрасываем буферы
 		select {

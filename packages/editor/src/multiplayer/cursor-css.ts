@@ -47,8 +47,18 @@ export function updateYjsAwarenessStyles(awareness: Awareness) {
       return;
     }
     const user = (state as { user?: { name?: string; color?: string } })?.user;
-    const name = user?.name || `User ${clientID}`;
-    const color = user?.color || "#e91e63";
+    const rawName =
+      typeof user?.name === "string" && user.name.trim()
+        ? user.name.trim()
+        : `User ${clientID}`;
+    const name = rawName
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\r\n|[\r\n\f]/g, "\\A ");
+    const color =
+      typeof user?.color === "string" && /^#[0-9a-fA-F]{6}$/.test(user.color)
+        ? user.color
+        : "#e91e63";
 
     rules.push(`
       /* Выделение текста клиентом ${clientID} */

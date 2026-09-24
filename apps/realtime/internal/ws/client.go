@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -46,6 +47,9 @@ const (
 
 	// maxYjsBase64Length - максимальная длина Base64 дельты Yjs (64KB бинарных данных = 87384 символа).
 	maxYjsBase64Length = 87384
+
+	// maxYjsAwarenessBase64Length - максимальная длина Base64 состояния Awareness (16KB бинарных данных = 21848 символов).
+	maxYjsAwarenessBase64Length = 21848
 )
 
 // Client представляет единичное WebSocket-подключение пользователя к сессии.
@@ -351,6 +355,9 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if len(payload.Data) > maxYjsBase64Length {
 			return nil, errors.New("yjs update data exceeds maximum allowed size (64KB)")
 		}
+		if _, decErr := base64.StdEncoding.DecodeString(payload.Data); decErr != nil {
+			return nil, errors.New("yjs update data is not valid base64")
+		}
 
 		payload.TaskKey = taskKey
 		payload.UpdateID = strings.TrimSpace(payload.UpdateID)
@@ -372,8 +379,11 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if len(payload.Data) == 0 {
 			return nil, errors.New("data is required")
 		}
-		if len(payload.Data) > maxYjsBase64Length {
-			return nil, errors.New("yjs awareness data exceeds maximum allowed size (64KB)")
+		if len(payload.Data) > maxYjsAwarenessBase64Length {
+			return nil, errors.New("yjs awareness data exceeds maximum allowed size (16KB)")
+		}
+		if _, decErr := base64.StdEncoding.DecodeString(payload.Data); decErr != nil {
+			return nil, errors.New("yjs awareness data is not valid base64")
 		}
 
 		payload.TaskKey = taskKey

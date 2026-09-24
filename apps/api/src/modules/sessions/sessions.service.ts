@@ -27,7 +27,7 @@ const ACTIVE_VALUE = "true";
 const CLOSED_VALUE = "closed";
 const MAX_SESSION_PARTICIPANTS = 10;
 
-export const DEFAULT_TASK_KEY = "task-1:typescript";
+export const DEFAULT_TASK_KEY = "two-sum:typescript";
 export const TASK_DOC_TTL_SECONDS = 86400; // 24 часа
 
 /**

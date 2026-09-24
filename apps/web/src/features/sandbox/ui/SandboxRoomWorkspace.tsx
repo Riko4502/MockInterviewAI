@@ -71,7 +71,10 @@ export function SandboxRoomWorkspace({
 
   // Идентификатор активного документа задачи
   const taskKey = `${currentTaskId || "default"}:${language}`;
-  const initialTaskKeyRef = useRef(taskKey);
+  const latestTaskKeyRef = useRef(taskKey);
+  latestTaskKeyRef.current = taskKey;
+  const wsConnectedRef = useRef(realtime.wsConnected);
+  wsConnectedRef.current = realtime.wsConnected;
 
   const sendEnvelopeRef = useRef(realtime.sendEnvelope);
   sendEnvelopeRef.current = realtime.sendEnvelope;
@@ -83,10 +86,10 @@ export function SandboxRoomWorkspace({
 
   // Инициализация единого провайдера сессии с поддержкой изолированных задач (T029, T031)
   useEffect(() => {
-    const initialKey = initialTaskKeyRef.current;
+    const currentKey = latestTaskKeyRef.current;
     const userColor = getColorForUser(realtime.userId);
     const provider = new RealtimeYjsProvider({
-      taskKey: initialKey,
+      taskKey: currentKey,
       sessionId: roomId,
       user: {
         userId: realtime.userId || "anonymous",
@@ -97,13 +100,19 @@ export function SandboxRoomWorkspace({
     });
     providerRef.current = provider;
 
-    const taskContext = provider.getOrCreateTask(initialKey);
+    const taskContext = provider.getOrCreateTask(currentKey);
     setYText(taskContext.doc.getText("monaco"));
     setYAwareness(taskContext.awareness);
 
     const unsubscribe = subscribeEnvelopeRef.current?.((envelope) => {
       provider.handleMessage(envelope);
     });
+
+    if (wsConnectedRef.current) {
+      provider.connect();
+    } else {
+      provider.disconnect();
+    }
 
     return () => {
       unsubscribe?.();

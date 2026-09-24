@@ -46,9 +46,27 @@ export const yjsInitPayloadSchema = z.object({
 });
 export type YjsInitPayload = z.infer<typeof yjsInitPayloadSchema>;
 
+/**
+ * Максимальная длина Base64-строки для 16 КБ бинарных данных Awareness:
+ * Math.ceil(16384 / 3) * 4 = 21848 символов.
+ */
+export const YJS_AWARENESS_MAX_BASE64_LENGTH = 21848;
+
+/**
+ * Zod-схема бинарных данных Yjs Awareness (Base64 с лимитом 16 КБ).
+ */
+export const yjsAwarenessDataSchema = z
+  .string()
+  .min(1, "Данные Awareness не могут быть пустыми")
+  .max(
+    YJS_AWARENESS_MAX_BASE64_LENGTH,
+    "Превышен максимальный размер awareness (16 КБ)",
+  )
+  .regex(BASE64_REGEX, "Некорректный формат Base64");
+
 export const yjsAwarenessPayloadSchema = z.object({
   taskKey: yjsTaskKeySchema,
-  data: yjsDataSchema,
+  data: yjsAwarenessDataSchema,
 });
 export type YjsAwarenessPayload = z.infer<typeof yjsAwarenessPayloadSchema>;
 

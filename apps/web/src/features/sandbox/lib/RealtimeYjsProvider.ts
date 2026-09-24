@@ -262,7 +262,12 @@ export class RealtimeYjsProvider {
         return;
       }
 
-      if (unsentQueue.length >= MAX_UNSENT_QUEUE_SIZE) {
+      const currentTask = this.tasks.get(taskKey);
+      if (!currentTask) {
+        return;
+      }
+
+      if (currentTask.unsentQueue.length >= MAX_UNSENT_QUEUE_SIZE) {
         const err = new Error(
           `SyncError: unsent queue limit exceeded (${MAX_UNSENT_QUEUE_SIZE}) for task ${taskKey}`,
         );
@@ -273,11 +278,10 @@ export class RealtimeYjsProvider {
 
       const updateId = `${this.providerId}:${++this.seq}`;
       const queuedItem: QueuedUpdate = { updateId, data: update };
-      unsentQueue.push(queuedItem);
+      currentTask.unsentQueue.push(queuedItem);
 
       // При статусе SYNCED отправляем немедленно в сокет (T024, T029)
-      const currentTask = this.tasks.get(taskKey);
-      if (currentTask && currentTask.status === "SYNCED") {
+      if (currentTask.status === "SYNCED") {
         this.sendUpdate(taskKey, updateId, update);
       }
     };
@@ -304,10 +308,6 @@ export class RealtimeYjsProvider {
     };
     awareness.on("update", awarenessUpdateListener);
 
-    if (this.user) {
-      awareness.setLocalStateField("user", this.user);
-    }
-
     context = {
       taskKey,
       doc,
@@ -323,6 +323,11 @@ export class RealtimeYjsProvider {
     };
 
     this.tasks.set(taskKey, context);
+
+    if (this.user) {
+      awareness.setLocalStateField("user", this.user);
+    }
+
     return context;
   }
 
@@ -330,6 +335,12 @@ export class RealtimeYjsProvider {
    * Переключает активную задачу и возвращает ее изолированный контекст (T029, T031).
    */
   public switchTask(newTaskKey: string): TaskContext {
+    if (this.activeTaskKey && this.activeTaskKey !== newTaskKey) {
+      const prevContext = this.tasks.get(this.activeTaskKey);
+      if (prevContext) {
+        prevContext.awareness.setLocalState(null);
+      }
+    }
     this.activeTaskKey = newTaskKey;
     const context = this.getOrCreateTask(newTaskKey);
 
@@ -507,6 +518,14 @@ export class RealtimeYjsProvider {
     updateId: string,
     update: Uint8Array,
   ): void {
+    if (update.byteLength > 65536) {
+      const err = new Error(
+        `UpdateSizeError: Yjs update (${update.byteLength} bytes) exceeds maximum allowed size (64KB) for task ${taskKey}`,
+      );
+      this.onError?.(err);
+      return;
+    }
+
     const base64Data = uint8ArrayToBase64(update);
 
     const envelope: BaseWebSocketEnvelope<"yjs.update", YjsUpdatePayload> = {
@@ -596,9 +615,11 @@ export class RealtimeYjsProvider {
     const batchedIds = task.batchMap.get(updateId);
     if (batchedIds) {
       task.batchMap.delete(updateId);
-      task.unsentQueue = task.unsentQueue.filter(
-        (item) => !batchedIds.has(item.updateId),
-      );
+      for (let i = task.unsentQueue.length - 1; i >= 0; i--) {
+        if (batchedIds.has(task.unsentQueue[i].updateId)) {
+          task.unsentQueue.splice(i, 1);
+        }
+      }
       return;
     }
 
@@ -624,6 +645,11 @@ export class RealtimeYjsProvider {
    * Отправляет локальные изменения Awareness в сокет с taskKey (T019, T029).
    */
   private sendAwareness(taskKey: string, update: Uint8Array): void {
+    const task = this.tasks.get(taskKey);
+    if (!task || task.status === "DISCONNECTED") {
+      return;
+    }
+
     const base64Data = uint8ArrayToBase64(update);
 
     const envelope: BaseWebSocketEnvelope<
@@ -881,7 +907,7 @@ export class RealtimeYjsProvider {
       if (context.ownsDoc) {
         context.doc.destroy();
       }
-      context.unsentQueue = [];
+      context.unsentQueue.length = 0;
       context.liveQueue = [];
       context.batchMap.clear();
     }

@@ -18,7 +18,7 @@ const (
 	roomIdleReapTimeout = 60 * time.Second
 
 	// DefaultTaskKey - ключ задачи по умолчанию при инициализации комнаты.
-	DefaultTaskKey = "task-1:typescript"
+	DefaultTaskKey = "two-sum:typescript"
 )
 
 type broadcastMessage struct {
@@ -303,20 +303,22 @@ func (r *Room) handleRegister(ctx context.Context, client *Client) {
 		client.Send(syncBytes)
 	}
 
-	// 3. Синхронное продление TTL активной задачи в Redis и сборка yjs.init
-	if r.yjsStore != nil {
-		touchCtx, touchCancel := context.WithTimeout(ctx, 2*time.Second)
-		_ = r.yjsStore.TouchTaskStream(touchCtx, r.ID, taskKey, StreamTTL)
-		touchCancel()
-	}
+	// 3. Асинхронная сборка yjs.init: сокет уже зарегистрирован в r.clients (Subscription-First)
+	go func() {
+		if r.yjsStore != nil {
+			touchCtx, touchCancel := context.WithTimeout(ctx, 2*time.Second)
+			_ = r.yjsStore.TouchTaskStream(touchCtx, r.ID, taskKey, StreamTTL)
+			touchCancel()
+		}
 
-	if err := r.sendYjsInit(ctx, client, taskKey); err != nil {
-		r.logger.Warn("failed to send yjs.init on client register",
-			slog.String("clientId", client.ID),
-			slog.String("taskKey", taskKey),
-			slog.String("error", err.Error()),
-		)
-	}
+		if err := r.sendYjsInit(ctx, client, taskKey); err != nil {
+			r.logger.Warn("failed to send yjs.init on client register",
+				slog.String("clientId", client.ID),
+				slog.String("taskKey", taskKey),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
 
 	// 4. Отправляем уведомление presence.join остальным участникам комнаты
 	joinEnv := NewEnvelope(
@@ -459,7 +461,7 @@ func (r *Room) handleUnregister(client *Client) {
 }
 
 // handleBroadcast рассылает сообщение локальным клиентам, ставит в очередь на сохранение и на публикацию в Redis.
-func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
+func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 	raw, err := ParseRawEnvelope(msg.data)
 	if err != nil {
 		return
@@ -571,13 +573,6 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 						}
 					}
 				}
-
-				// 2c. Обновляем activeTaskKey комнаты, если не был установлен
-				r.mu.Lock()
-				if r.activeTaskKey == "" || r.activeTaskKey == DefaultTaskKey {
-					r.activeTaskKey = payload.TaskKey
-				}
-				r.mu.Unlock()
 			}
 		}
 	}
@@ -595,9 +590,14 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 				ys := r.yjsStore
 				r.mu.RUnlock()
 				if ys != nil {
-					sCtx, sCancel := context.WithTimeout(context.Background(), 3*time.Second)
+					sCtx, sCancel := context.WithTimeout(ctx, 3*time.Second)
 					_, _ = ys.SeedTaskDoc(sCtx, r.ID, taskKey, "AAA=", 86400)
 					sCancel()
+				}
+
+				// Пропускаем устаревшее переключение, если уже запрошена другая задача
+				if r.ActiveTaskKey() != taskKey {
+					return
 				}
 
 				// 2. Широковещательная рассылка task.switched всем участникам
@@ -617,10 +617,22 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 				r.mu.RUnlock()
 
 				for _, c := range clients {
-					_ = r.sendYjsInit(context.Background(), c, taskKey)
+					if r.ActiveTaskKey() != taskKey {
+						return
+					}
+					_ = r.sendYjsInit(ctx, c, taskKey)
 				}
 			}(payload.TaskKey, raw.RequestID)
 			return
+		}
+	}
+
+	// 3b. Обновление activeTaskKey при удаленном task.switched через Pub/Sub
+	if raw.Type == EventTaskSwitched && msg.isRemote {
+		if payload, unpackErr := UnpackPayload[TaskSwitchedPayload](raw); unpackErr == nil && payload.TaskKey != "" {
+			r.mu.Lock()
+			r.activeTaskKey = payload.TaskKey
+			r.mu.Unlock()
 		}
 	}
 

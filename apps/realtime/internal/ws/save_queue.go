@@ -224,13 +224,29 @@ func (q *YjsSaveQueue) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			q.finalFlush()
 			return
 		case <-q.doneC:
+			q.finalFlush()
 			return
 		case <-ticker.C:
 			q.FlushSync(ctx)
 		case <-q.notifyC:
 			q.FlushSync(ctx)
+		}
+	}
+}
+
+// finalFlush выполняет сброс оставшихся в памяти дельт при остановке процесса или контекста.
+func (q *YjsSaveQueue) finalFlush() {
+	flushCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	for q.TotalPending() > 0 && flushCtx.Err() == nil {
+		before := q.TotalPending()
+		q.FlushSync(flushCtx)
+		if q.TotalPending() >= before {
+			break // Redis недоступен или ошибка записи — прекращаем попытки
 		}
 	}
 }

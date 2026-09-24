@@ -1,6 +1,5 @@
 import Editor, { loader, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import * as monaco from "monaco-editor";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { MonacoBinding } from "y-monaco";
@@ -62,9 +61,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 }) => {
   const [isMonacoReady, setIsMonacoReady] = useState(false);
 
-  // Сохраняем инстанс в state для MonacoBinding и перехвата Undo/Redo (Phase 3)
   const [editorInstance, setEditorInstance] =
     useState<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
   const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -140,8 +139,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
-    _monaco: Monaco,
+    monacoInstance: Monaco,
   ) => {
+    monacoRef.current = monacoInstance;
     setEditorInstance(editor);
 
     editor.onDidChangeCursorPosition((e) => {
@@ -183,15 +183,35 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
+    // Перехватываем подписку на onDidChangeCursorSelection через Proxy, чтобы освободить её при destroy (leak fix в y-monaco)
+    const disposables: { dispose: () => void }[] = [];
+    const editorProxy = new Proxy(editorInstance, {
+      get(target, prop, receiver) {
+        if (prop === "onDidChangeCursorSelection") {
+          return (
+            listener: Parameters<typeof target.onDidChangeCursorSelection>[0],
+          ) => {
+            const disposable = target.onDidChangeCursorSelection(listener);
+            disposables.push(disposable);
+            return disposable;
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
     // Связываем Y.Text с Monaco ITextModel и awareness (T021)
     const binding = new MonacoBinding(
       yText,
       model,
-      new Set([editorInstance]),
+      new Set([editorProxy]),
       awareness ?? undefined,
     );
 
-    // UndoManager с trackedOrigins: только локальный binding
+    // UndoManager с trackedOrigins: добавляем binding
+    if (externalUndoManager) {
+      externalUndoManager.trackedOrigins.add(binding);
+    }
     const currentUndoManager =
       externalUndoManager ??
       new Y.UndoManager(yText, {
@@ -200,11 +220,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
     onUndoManagerInit?.(currentUndoManager);
 
+    const KeyMod = monacoRef.current?.KeyMod ?? { CtrlCmd: 2048, Shift: 1024 };
+    const KeyCode = monacoRef.current?.KeyCode ?? { KeyZ: 56, KeyY: 55 };
+
     // Перехватываем стандартный Undo Monaco и перенаправляем на Yjs UndoManager
     const undoAction = editorInstance.addAction({
       id: "yjs-undo",
       label: "Undo",
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ],
+      keybindings: [KeyMod.CtrlCmd | KeyCode.KeyZ],
       run: () => {
         currentUndoManager.undo();
       },
@@ -215,8 +238,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       id: "yjs-redo",
       label: "Redo",
       keybindings: [
-        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY,
+        KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ,
+        KeyMod.CtrlCmd | KeyCode.KeyY,
       ],
       run: () => {
         currentUndoManager.redo();
@@ -224,10 +247,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
 
     return () => {
+      disposables.forEach((d) => {
+        d.dispose();
+      });
       undoAction.dispose();
       redoAction.dispose();
       binding.destroy();
-      if (!externalUndoManager) {
+      if (externalUndoManager) {
+        externalUndoManager.trackedOrigins.delete(binding);
+      } else {
         currentUndoManager.destroy();
       }
       // Очистка старых курсоров и выделений из Monaco Editor при смене задачи (T031)

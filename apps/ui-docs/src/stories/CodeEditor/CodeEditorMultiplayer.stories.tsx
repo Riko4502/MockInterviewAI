@@ -1,6 +1,6 @@
 import { CodeEditorLazy, getTemplate } from "@packages/editor";
 import type { Meta, StoryObj } from "@storybook/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Awareness,
   applyAwarenessUpdate,
@@ -46,35 +46,25 @@ type Story = StoryObj<typeof meta>;
  */
 export const PairProgramming: Story = {
   render: () => {
-    const [candidateDoc] = useState(() => {
-      const doc = new Y.Doc();
-      const text = doc.getText("monaco");
-      text.insert(0, getTemplate("typescript", "algorithm"));
-      return doc;
-    });
-
-    const [interviewerDoc] = useState(() => {
-      const doc = new Y.Doc();
-      // Синхронизируем начальное состояние из candidateDoc, чтобы CRDT item ID совпадали
-      Y.applyUpdate(doc, Y.encodeStateAsUpdate(candidateDoc));
-      return doc;
-    });
-
-    const candidateYText = useMemo(
-      () => candidateDoc.getText("monaco"),
-      [candidateDoc],
-    );
-    const interviewerYText = useMemo(
-      () => interviewerDoc.getText("monaco"),
-      [interviewerDoc],
-    );
-
-    const [candidateAwareness] = useState(() => new Awareness(candidateDoc));
-    const [interviewerAwareness] = useState(
-      () => new Awareness(interviewerDoc),
-    );
+    const [session, setSession] = useState<{
+      candidateYText: Y.Text;
+      interviewerYText: Y.Text;
+      candidateAwareness: Awareness;
+      interviewerAwareness: Awareness;
+    } | null>(null);
 
     useEffect(() => {
+      const candidateDoc = new Y.Doc();
+      const candidateYText = candidateDoc.getText("monaco");
+      candidateYText.insert(0, getTemplate("typescript", "algorithm"));
+
+      const interviewerDoc = new Y.Doc();
+      Y.applyUpdate(interviewerDoc, Y.encodeStateAsUpdate(candidateDoc));
+      const interviewerYText = interviewerDoc.getText("monaco");
+
+      const candidateAwareness = new Awareness(candidateDoc);
+      const interviewerAwareness = new Awareness(interviewerDoc);
+
       const syncDocToInterviewer = (update: Uint8Array, origin: unknown) => {
         if (origin !== "interviewer-sync") {
           Y.applyUpdate(interviewerDoc, update, "candidate-sync");
@@ -157,20 +147,28 @@ export const PairProgramming: Story = {
       ]);
       applyAwarenessUpdate(candidateAwareness, initInterviewer, "remote");
 
+      setSession({
+        candidateYText,
+        interviewerYText,
+        candidateAwareness,
+        interviewerAwareness,
+      });
+
       return () => {
         candidateDoc.off("update", syncDocToInterviewer);
         interviewerDoc.off("update", syncDocToCandidate);
         candidateAwareness.off("update", syncCandidateToInterviewer);
         interviewerAwareness.off("update", syncInterviewerToCandidate);
+        candidateAwareness.destroy();
+        interviewerAwareness.destroy();
+        candidateDoc.destroy();
+        interviewerDoc.destroy();
       };
-    }, [
-      candidateDoc,
-      interviewerDoc,
-      candidateYText,
-      interviewerYText,
-      candidateAwareness,
-      interviewerAwareness,
-    ]);
+    }, []);
+
+    if (!session) {
+      return <div style={{ height: "100%" }} />;
+    }
 
     return (
       <div style={{ display: "flex", gap: "16px", height: "100%" }}>
@@ -198,8 +196,8 @@ export const PairProgramming: Story = {
           <div style={{ flex: 1 }}>
             <CodeEditorLazy
               language="typescript"
-              yText={candidateYText}
-              awareness={candidateAwareness}
+              yText={session.candidateYText}
+              awareness={session.candidateAwareness}
             />
           </div>
         </div>
@@ -228,8 +226,8 @@ export const PairProgramming: Story = {
           <div style={{ flex: 1 }}>
             <CodeEditorLazy
               language="typescript"
-              yText={interviewerYText}
-              awareness={interviewerAwareness}
+              yText={session.interviewerYText}
+              awareness={session.interviewerAwareness}
             />
           </div>
         </div>
@@ -244,27 +242,23 @@ export const PairProgramming: Story = {
  */
 export const AnimatedRemoteCollaborator: Story = {
   render: () => {
-    const [userDoc] = useState(() => {
-      const doc = new Y.Doc();
-      const text = doc.getText("monaco");
-      text.insert(0, getTemplate("python", "algorithm"));
-      return doc;
-    });
-
-    const [remoteDoc] = useState(() => {
-      const doc = new Y.Doc();
-      // Синхронизируем начальное состояние из userDoc, чтобы CRDT item ID совпадали
-      Y.applyUpdate(doc, Y.encodeStateAsUpdate(userDoc));
-      return doc;
-    });
-
-    const userYText = useMemo(() => userDoc.getText("monaco"), [userDoc]);
-    const remoteYText = useMemo(() => remoteDoc.getText("monaco"), [remoteDoc]);
-
-    const [userAwareness] = useState(() => new Awareness(userDoc));
-    const [remoteAwareness] = useState(() => new Awareness(remoteDoc));
+    const [session, setSession] = useState<{
+      userYText: Y.Text;
+      userAwareness: Awareness;
+    } | null>(null);
 
     useEffect(() => {
+      const userDoc = new Y.Doc();
+      const userYText = userDoc.getText("monaco");
+      userYText.insert(0, getTemplate("python", "algorithm"));
+
+      const remoteDoc = new Y.Doc();
+      Y.applyUpdate(remoteDoc, Y.encodeStateAsUpdate(userDoc));
+      const remoteYText = remoteDoc.getText("monaco");
+
+      const userAwareness = new Awareness(userDoc);
+      const remoteAwareness = new Awareness(remoteDoc);
+
       const syncRemoteDoc = (update: Uint8Array, origin: unknown) => {
         if (origin !== "user-sync") {
           Y.applyUpdate(userDoc, update, "remote-sync");
@@ -322,6 +316,7 @@ export const AnimatedRemoteCollaborator: Story = {
       // Имитация активности удаленного интервьюера: набор комментария и перемещение курсора
       let step = 0;
       let isPaused = false;
+      let loopTimer: ReturnType<typeof setTimeout> | null = null;
       const commentText = "    # Review: time complexity is O(n)\n";
 
       const interval = setInterval(() => {
@@ -362,7 +357,7 @@ export const AnimatedRemoteCollaborator: Story = {
             ),
           });
 
-          setTimeout(() => {
+          loopTimer = setTimeout(() => {
             // Очищаем комментарий и зацикливаем демонстрацию
             remoteDoc.transact(() => {
               remoteYText.delete(baseOffset, commentText.length);
@@ -383,13 +378,27 @@ export const AnimatedRemoteCollaborator: Story = {
         }
       }, 200);
 
+      setSession({
+        userYText,
+        userAwareness,
+      });
+
       return () => {
         clearInterval(interval);
+        if (loopTimer) clearTimeout(loopTimer);
         remoteDoc.off("update", syncRemoteDoc);
         userDoc.off("update", syncUserDoc);
         remoteAwareness.off("update", handleRemoteUpdate);
+        userAwareness.destroy();
+        remoteAwareness.destroy();
+        userDoc.destroy();
+        remoteDoc.destroy();
       };
-    }, [userDoc, remoteDoc, remoteYText, userAwareness, remoteAwareness]);
+    }, []);
+
+    if (!session) {
+      return <div style={{ height: "100%" }} />;
+    }
 
     return (
       <div
@@ -417,8 +426,8 @@ export const AnimatedRemoteCollaborator: Story = {
         <div style={{ flex: 1 }}>
           <CodeEditorLazy
             language="python"
-            yText={userYText}
-            awareness={userAwareness}
+            yText={session.userYText}
+            awareness={session.userAwareness}
           />
         </div>
       </div>

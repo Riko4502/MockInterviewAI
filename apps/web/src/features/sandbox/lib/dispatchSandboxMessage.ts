@@ -22,7 +22,14 @@ export function dispatchSandboxMessage(
   switch (msg.type) {
     case "task-change":
       if (msg.payload.taskId) {
-        callbacks.onRemoteTaskChange?.(msg.payload.taskId);
+        if (msg.payload.language) {
+          callbacks.onRemoteTaskChange?.(
+            msg.payload.taskId,
+            msg.payload.language,
+          );
+        } else {
+          callbacks.onRemoteTaskChange?.(msg.payload.taskId);
+        }
       }
       break;
 

@@ -119,8 +119,8 @@ describe("SessionsService", () => {
         expect.any(String),
         2,
         `{session:${sessionId}}:seeded_tasks`,
-        `{session:${sessionId}}:task:task-1:typescript:updates`,
-        "task-1:typescript",
+        `{session:${sessionId}}:task:two-sum:typescript:updates`,
+        "two-sum:typescript",
         expect.any(String),
         86400,
       );
