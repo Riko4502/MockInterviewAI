@@ -83,10 +83,10 @@ jobs:
         id: tb_coverage
         if: steps.check_tb.outputs.exists == 'true'
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          INTERNAL_SERVICE_KEY: ${{ secrets.INTERNAL_SERVICE_KEY }}
-          API_INTERNAL_URL: ${{ secrets.API_INTERNAL_URL }}
-          WEB_APP_URL: ${{ secrets.WEB_APP_URL }}
+          TELEGRAM_BOT_TOKEN: mock-telegram-bot-token
+          INTERNAL_SERVICE_KEY: mock-internal-service-key-0123456789abcdef
+          API_INTERNAL_URL: http://localhost:3001/api/v1
+          WEB_APP_URL: http://localhost:3000
         run: |
           pnpm --filter @apps/telegram-bot test
           TB_COV=$(node -e "try { const c = require('./apps/telegram-bot/coverage/coverage-summary.json'); console.log(c.total.lines.pct + '%'); } catch(e) { console.log('—'); }")
