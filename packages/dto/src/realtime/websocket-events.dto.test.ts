@@ -7,12 +7,14 @@ import {
   taskSwitchedPayloadSchema,
   taskSwitchPayloadSchema,
   YJS_MAX_BASE64_LENGTH,
+  YJS_SNAPSHOT_MAX_BASE64_LENGTH,
   yjsAckEnvelopeSchema,
   yjsAckPayloadSchema,
   yjsAwarenessEnvelopeSchema,
   yjsAwarenessPayloadSchema,
   yjsInitEnvelopeSchema,
   yjsInitPayloadSchema,
+  yjsSnapshotDataSchema,
   yjsSnapshotEnvelopeSchema,
   yjsSnapshotPayloadSchema,
   yjsUpdateEnvelopeSchema,
@@ -321,6 +323,66 @@ describe("Yjs WebSocket DTO Validation", () => {
         },
       });
       expect(envelopeResult.success).toBe(true);
+    });
+
+    it("принимает снимок размером больше дельты 64 КБ, но в пределах 256 КБ", () => {
+      const largeSnapshot = "A".repeat(YJS_SNAPSHOT_MAX_BASE64_LENGTH);
+      const payloadResult = yjsSnapshotPayloadSchema.safeParse({
+        taskKey: validTaskKey,
+        snapshot: largeSnapshot,
+      });
+      expect(payloadResult.success).toBe(true);
+    });
+
+    it("отклоняет снимок, превышающий лимит 256 КБ (349529 символов)", () => {
+      const oversizedSnapshot = "A".repeat(YJS_SNAPSHOT_MAX_BASE64_LENGTH + 1);
+      const payloadResult = yjsSnapshotPayloadSchema.safeParse({
+        taskKey: validTaskKey,
+        snapshot: oversizedSnapshot,
+      });
+      expect(payloadResult.success).toBe(false);
+      if (!payloadResult.success) {
+        expect(payloadResult.error.issues[0]?.message).toContain("256 КБ");
+      }
+    });
+
+    it("отклоняет пустой снимок", () => {
+      const payloadResult = yjsSnapshotPayloadSchema.safeParse({
+        taskKey: validTaskKey,
+        snapshot: "",
+      });
+      expect(payloadResult.success).toBe(false);
+      if (!payloadResult.success) {
+        expect(payloadResult.error.issues[0]?.message).toContain(
+          "не может быть пустым",
+        );
+      }
+    });
+
+    it("отклоняет снимок с невалидным Base64", () => {
+      const payloadResult = yjsSnapshotPayloadSchema.safeParse({
+        taskKey: validTaskKey,
+        snapshot: "invalid!base64#chars@here",
+      });
+      expect(payloadResult.success).toBe(false);
+      if (!payloadResult.success) {
+        expect(payloadResult.error.issues[0]?.message).toContain("Base64");
+      }
+    });
+
+    it("валидирует схему yjsSnapshotDataSchema напрямую", () => {
+      expect(yjsSnapshotDataSchema.safeParse(validBase64).success).toBe(true);
+      expect(yjsSnapshotDataSchema.safeParse("").success).toBe(false);
+      expect(
+        yjsSnapshotDataSchema.safeParse(
+          "A".repeat(YJS_SNAPSHOT_MAX_BASE64_LENGTH),
+        ).success,
+      ).toBe(true);
+      expect(
+        yjsSnapshotDataSchema.safeParse(
+          "A".repeat(YJS_SNAPSHOT_MAX_BASE64_LENGTH + 1),
+        ).success,
+      ).toBe(false);
     });
   });
 });

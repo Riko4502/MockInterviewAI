@@ -53,6 +53,8 @@ type Room struct {
 	codeSaveSignal   chan struct{}
 	done             chan struct{}
 	closeOnce        sync.Once
+	ctx              context.Context
+	cancel           context.CancelFunc
 	mu               sync.RWMutex
 	logger           *slog.Logger
 	onEmpty          func(roomID string)
@@ -80,6 +82,7 @@ func NewRoom(
 		yjsStore = ys
 	}
 	roomLogger := logger.With(slog.String("roomId", id))
+	roomCtx, roomCancel := context.WithCancel(context.Background())
 	return &Room{
 		ID:              id,
 		clients:         make(map[string]*Client),
@@ -91,6 +94,8 @@ func NewRoom(
 		codeSaveQueue:   make(chan CodeUpdatePayload, 128),
 		codeSaveSignal:  make(chan struct{}, 1),
 		done:            make(chan struct{}),
+		ctx:             roomCtx,
+		cancel:          roomCancel,
 		logger:          roomLogger,
 		onEmpty:         onEmpty,
 		broadcaster:     broadcaster,
@@ -598,11 +603,19 @@ func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 		if payload, unpackErr := UnpackPayload[YjsSnapshotPayload](raw); unpackErr == nil {
 			if !msg.isRemote {
 				r.mu.RLock()
+				sender := r.clients[msg.senderID]
 				ys := r.yjsStore
 				r.mu.RUnlock()
+				if sender == nil || sender.Role != "interviewer" {
+					r.logger.Warn("rejecting unauthorized yjs.snapshot: sender is not a trusted role",
+						slog.String("sessionId", r.ID),
+						slog.String("senderId", msg.senderID),
+					)
+					return
+				}
 				if ys != nil {
 					go func(taskKey, snapshot string) {
-						compactCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						compactCtx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
 						defer cancel()
 						if err := ys.CompactTaskStream(compactCtx, r.ID, taskKey, snapshot); err != nil {
 							r.logger.Warn("failed to compact task stream",
@@ -1031,9 +1044,17 @@ func (r *Room) ParticipantCount() int {
 	return len(r.clients)
 }
 
+// Context возвращает контекст, связанный с жизненным циклом комнаты.
+func (r *Room) Context() context.Context {
+	return r.ctx
+}
+
 // Close корректно закрывает комнату и всех ее клиентов.
 func (r *Room) Close() {
 	r.closeOnce.Do(func() {
+		if r.cancel != nil {
+			r.cancel()
+		}
 		close(r.done)
 
 		if r.saveQueue != nil {

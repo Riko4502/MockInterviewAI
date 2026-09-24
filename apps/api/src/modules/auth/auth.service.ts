@@ -427,11 +427,9 @@ export class AuthService implements OnModuleInit {
       throw new NotFoundException("Пользователь не найден");
     }
 
-    const passwordValid = await argon2.verify(
-      user.passwordHash,
-      currentPassword,
-    );
-    if (!passwordValid) {
+    const passwordHash = user.passwordHash ?? this.dummyPasswordHash;
+    const passwordValid = await argon2.verify(passwordHash, currentPassword);
+    if (!user.passwordHash || !passwordValid) {
       throw new UnauthorizedException("Неверные учётные данные");
     }
 

@@ -393,7 +393,9 @@ func TestClientYjsPayloadValidation(t *testing.T) {
 
 func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	client := NewClient("client-snap", "user-1", "Alice", "candidate", "session-1", nil, nil, logger)
+	interviewer := NewClient("client-interviewer", "user-1", "Alice", "interviewer", "session-1", nil, nil, logger)
+	candidate := NewClient("client-candidate", "user-2", "Bob", "candidate", "session-1", nil, nil, logger)
+	observer := NewClient("client-observer", "user-3", "Charlie", "observer", "session-1", nil, nil, logger)
 
 	// Валидный snapshot
 	validEnv, _ := NewEnvelope(
@@ -409,11 +411,23 @@ func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse envelope: %v", err)
 	}
-	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
-		t.Errorf("unexpected error for valid yjs.snapshot: %v", err)
+
+	// 1. Интервьюер может успешно отправлять валидный снимок
+	if _, err := interviewer.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid yjs.snapshot from interviewer: %v", err)
 	}
 
-	// Snapshot с CR/LF
+	// 2. Кандидат не имеет права отправлять снимок (CWE-862)
+	if _, err := candidate.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected authorization error for candidate sending yjs.snapshot, got nil")
+	}
+
+	// 3. Наблюдатель не имеет права отправлять снимок
+	if _, err := observer.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected authorization error for observer sending yjs.snapshot, got nil")
+	}
+
+	// 4. Snapshot с CR/LF
 	crlfEnv, _ := NewEnvelope(
 		EventYjsSnapshot,
 		"session-1",
@@ -423,12 +437,12 @@ func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
 			Snapshot: "dGVz\r\ndA==",
 		},
 	).ToBytes()
-	raw, _ = ParseRawEnvelope(crlfEnv)
-	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+	rawCRLF, _ := ParseRawEnvelope(crlfEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawCRLF); err == nil {
 		t.Errorf("expected error for yjs.snapshot with CR/LF, got nil")
 	}
 
-	// Пустой snapshot
+	// 5. Пустой snapshot
 	emptyEnv, _ := NewEnvelope(
 		EventYjsSnapshot,
 		"session-1",
@@ -438,9 +452,24 @@ func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
 			Snapshot: "",
 		},
 	).ToBytes()
-	raw, _ = ParseRawEnvelope(emptyEnv)
-	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+	rawEmpty, _ := ParseRawEnvelope(emptyEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawEmpty); err == nil {
 		t.Errorf("expected error for empty snapshot, got nil")
+	}
+
+	// 6. Слишком короткий snapshot (< 2 байт после декодирования)
+	tooShortEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-4",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "AQ==", // 1 байт (0x01)
+		},
+	).ToBytes()
+	rawTooShort, _ := ParseRawEnvelope(tooShortEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawTooShort); err == nil {
+		t.Errorf("expected error for too short snapshot data, got nil")
 	}
 }
 

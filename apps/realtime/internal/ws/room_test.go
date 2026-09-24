@@ -851,14 +851,13 @@ func TestRoom_HandleYjsSnapshot_Compaction(t *testing.T) {
 
 	room := NewRoom("room-compact", nil, nil, logger, nil)
 	room.SetYjsStore(store)
-	client := NewClient("client-c", "user-c", "Charlie", "candidate", room.ID, nil, room, logger)
+	interviewer := NewClient("client-int", "user-int", "Charlie", "interviewer", room.ID, nil, room, logger)
 
 	room.mu.Lock()
-	room.clients[client.ID] = client
+	room.clients[interviewer.ID] = interviewer
 	room.mu.Unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go room.Run(ctx)
 
 	snapshotPayload := YjsSnapshotPayload{
@@ -871,7 +870,7 @@ func TestRoom_HandleYjsSnapshot_Compaction(t *testing.T) {
 		t.Fatalf("failed to marshal snapshot envelope: %v", err)
 	}
 
-	room.Broadcast(envBytes, client.ID)
+	room.Broadcast(envBytes, interviewer.ID)
 
 	// Ждем асинхронного вызова CompactTaskStream
 	deadline := time.Now().Add(2 * time.Second)
@@ -886,6 +885,67 @@ func TestRoom_HandleYjsSnapshot_Compaction(t *testing.T) {
 	}
 
 	t.Fatalf("timed out waiting for CompactTaskStream to update stream")
+}
+
+func TestRoom_HandleYjsSnapshot_UnauthorizedCandidateRejected(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := newMockYjsStore()
+	store.streamUpdates["task-compact:ts"] = []string{"delta1", "delta2", "delta3"}
+
+	room := NewRoom("room-compact-reject", nil, nil, logger, nil)
+	room.SetYjsStore(store)
+	candidate := NewClient("client-cand", "user-cand", "Bob", "candidate", room.ID, nil, room, logger)
+
+	room.mu.Lock()
+	room.clients[candidate.ID] = candidate
+	room.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go room.Run(ctx)
+
+	snapshotPayload := YjsSnapshotPayload{
+		TaskKey:  "task-compact:ts",
+		Snapshot: "maliciousSnapshotBase64==",
+	}
+	env := NewEnvelope(EventYjsSnapshot, room.ID, "req-snap-unauth", snapshotPayload)
+	envBytes, err := env.ToBytes()
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot envelope: %v", err)
+	}
+
+	room.Broadcast(envBytes, candidate.ID)
+
+	// Даем время на потенциальную обработку и убеждаемся, что CompactTaskStream НЕ был вызван
+	time.Sleep(100 * time.Millisecond)
+
+	store.mu.Lock()
+	updates := store.streamUpdates["task-compact:ts"]
+	store.mu.Unlock()
+	if len(updates) != 3 {
+		t.Fatalf("expected stream updates to remain untouched (3 deltas), got %d updates", len(updates))
+	}
+}
+
+func TestRoom_Close_CancelsRoomContext(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	room := NewRoom("room-ctx-cancel", nil, nil, logger, nil)
+
+	roomCtx := room.Context()
+	select {
+	case <-roomCtx.Done():
+		t.Fatal("expected room context to not be done initially")
+	default:
+	}
+
+	room.Close()
+
+	select {
+	case <-roomCtx.Done():
+		// Context is cancelled as expected on room.Close()
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected room context to be cancelled after room.Close()")
+	}
 }
 
 

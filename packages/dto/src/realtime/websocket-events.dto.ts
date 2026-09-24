@@ -235,9 +235,27 @@ export const yjsAwarenessEnvelopeSchema = baseWebSocketEnvelopeSchema(
 );
 export type YjsAwarenessEnvelope = z.infer<typeof yjsAwarenessEnvelopeSchema>;
 
+/**
+ * Максимальная длина Base64-строки для 256 КБ бинарных данных снимка:
+ * Math.ceil(262144 / 3) * 4 = 349528 символов.
+ */
+export const YJS_SNAPSHOT_MAX_BASE64_LENGTH = 349528;
+
+/**
+ * Zod-схема бинарных данных снимка Yjs (Base64 с лимитом 256 КБ).
+ */
+export const yjsSnapshotDataSchema = z
+  .string()
+  .min(1, "Снимок Yjs не может быть пустым")
+  .max(
+    YJS_SNAPSHOT_MAX_BASE64_LENGTH,
+    "Превышен максимальный размер снимка (256 КБ)",
+  )
+  .regex(BASE64_REGEX, "Некорректный формат Base64");
+
 export const yjsSnapshotPayloadSchema = z.object({
   taskKey: yjsTaskKeySchema,
-  snapshot: yjsDataSchema,
+  snapshot: yjsSnapshotDataSchema,
 });
 export type YjsSnapshotPayload = z.infer<typeof yjsSnapshotPayloadSchema>;
 

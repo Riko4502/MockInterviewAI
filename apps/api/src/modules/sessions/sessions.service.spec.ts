@@ -5,6 +5,7 @@ import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import {
+  FALLBACK_SEED_TASK_DOC_LUA,
   REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
   SEED_TASK_DOC_LUA,
   SessionsService,
@@ -706,7 +707,10 @@ describe("SessionsService", () => {
           .filter(Boolean)
           .join("\n");
 
-      // Проверяем, что загруженный SEED_TASK_DOC_LUA и исходный файл из realtime логически идентичны
+      // Резервная копия должна совпадать с источником истины
+      expect(normalize(FALLBACK_SEED_TASK_DOC_LUA)).toBe(
+        normalize(realtimeContent),
+      );
       expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
     });
   });

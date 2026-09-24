@@ -400,6 +400,11 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		return env.ToBytes()
 
 	case EventYjsSnapshot:
+		// CWE-862: запрет неавторизованным участникам вызывать компактизацию истории документа
+		if c.Role != "interviewer" {
+			return nil, errors.New("forbidden: yjs.snapshot is allowed only for trusted roles (interviewer)")
+		}
+
 		payload, err := UnpackPayload[YjsSnapshotPayload](raw)
 		if err != nil {
 			return nil, err
@@ -420,8 +425,12 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if strings.ContainsAny(payload.Snapshot, "\r\n") {
 			return nil, errors.New("yjs snapshot data contains CR/LF")
 		}
-		if _, decErr := base64.StdEncoding.DecodeString(payload.Snapshot); decErr != nil {
+		decoded, decErr := base64.StdEncoding.DecodeString(payload.Snapshot)
+		if decErr != nil {
 			return nil, errors.New("yjs snapshot data is not valid base64")
+		}
+		if len(decoded) < 2 {
+			return nil, errors.New("yjs snapshot data is too short to be a valid Yjs document")
 		}
 
 		payload.TaskKey = taskKey

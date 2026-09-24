@@ -1051,6 +1051,23 @@ describe("AuthService", () => {
       expect(revokeAllUserSessions).not.toHaveBeenCalled();
     });
 
+    it("пользователь без пароля (OAuth / passwordHash: null) → generic 401, пароль не обновляется", async () => {
+      findById.mockResolvedValue({
+        ...USER,
+        passwordHash: null,
+      });
+
+      const error = await service.changePassword(USER.id, DTO).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toMatchObject({
+        message: "Неверные учётные данные",
+      });
+      expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
+      expect(revokeAllUserSessions).not.toHaveBeenCalled();
+    });
+
     it("пользователь не найден → 404, verify/update/revoke не вызываются", async () => {
       findById.mockResolvedValue(null);
 
