@@ -40,6 +40,8 @@ services:
         value: "3001"
       - key: API_PORT
         value: "3001"
+      - key: INTERNAL_SERVICE_KEY
+        sync: false # Секрет для X-Internal-Service-Key; должен совпадать с devsync-telegram-bot
       - key: API_DATABASE_URL
         fromDatabase:
           name: devsync-db
@@ -146,6 +148,39 @@ services:
         sync: false
       - key: LIVEKIT_WEBHOOK_API_SECRET
         sync: false
+
+  # -------------------------------------------------------------
+  # Telegram Bot
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-telegram-bot
+    runtime: docker
+    dockerfilePath: ./apps/telegram-bot/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_BOT_USERNAME
+        value: MockInterviewBot
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false # От @BotFather (get-token), никогда не коммитить
+      - key: API_INTERNAL_URL
+        sync: false # https://devsync-api.onrender.com/api/v1
+      - key: INTERNAL_SERVICE_KEY
+        fromService:
+          type: web
+          name: devsync-api
+          envVarKey: INTERNAL_SERVICE_KEY
+      - key: WEB_APP_URL
+        sync: false # https://devsync-web.onrender.com (ссылки join на сессии)
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false # https://devsync-telegram-bot.onrender.com/telegram/webhook
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false # Произвольная строка, проверяется в X-Telegram-Bot-Api-Secret-Token
+      # TELEGRAM_WEBHOOK_PORT не задаём: в проде подхватывается $PORT (config.ts)
 
   # -------------------------------------------------------------
   # Web Frontend (Next.js)

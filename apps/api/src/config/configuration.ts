@@ -30,6 +30,8 @@ export const configuration = () => ({
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
     botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "",
+    internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? "",
+    linkTtlSeconds: Number(process.env.TELEGRAM_LINK_TTL_SECONDS ?? 900),
   },
   argon2: {
     memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? 65536),

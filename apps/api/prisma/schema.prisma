@@ -50,6 +50,8 @@ model User {
   avatarUrl        String?
   telegramId           BigInt?   @unique
   telegramUsername     String?
+  telegramChatId       String?   @unique
+  telegramLocale       String?
   telegramLinkVerified Boolean   @default(false)
   gitUrl           String?
   deletedAt        DateTime?
