@@ -11,6 +11,8 @@ import { paths } from "@/shared/config";
 import { getErrorMessage } from "../lib/getErrorMessage";
 import type { RegisterFormValues } from "../lib/schemas";
 
+import { GithubLoginButton } from "./GithubLoginButton";
+
 export function RegisterForm() {
   const router = useRouter();
 
@@ -93,6 +95,8 @@ export function RegisterForm() {
       >
         {registerMutation.isPending ? "Регистрация..." : "Зарегистрироваться"}
       </Button>
+
+      <GithubLoginButton />
 
       {registerMutation.isError && (
         <Typography.P className="text-sm text-destructive">

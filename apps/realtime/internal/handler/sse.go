@@ -110,7 +110,30 @@ func (h *SSEHandler) HandleNotifications(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// 3b. Проверка живой auth-сессии (fail-closed, симметрично WebSocket-хендлеру).
+	// 3b. Проверка поколения токена (generation fence в Redis, §CWE-613).
+	if claims.Generation == nil {
+		metrics.IncConnections(sse.ConnStatusRejected)
+		h.logger.Warn("sse connection rejected: missing generation claim",
+			slog.String("userId", claims.UserID),
+		)
+		http.Error(w, "Unauthorized: missing generation claim", http.StatusUnauthorized)
+		return
+	}
+
+	if h.sessionStore != nil {
+		validGen, genErr := h.sessionStore.CheckMinGeneration(r.Context(), claims.UserID, *claims.Generation)
+		if genErr != nil || !validGen {
+			metrics.IncConnections(sse.ConnStatusRejected)
+			h.logger.Warn("sse connection rejected: token generation is outdated",
+				slog.String("userId", claims.UserID),
+				slog.Int("generation", *claims.Generation),
+			)
+			http.Error(w, "Unauthorized: token generation is outdated", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// 3c. Проверка живой auth-сессии (fail-closed, симметрично WebSocket-хендлеру).
 	// Access-токен остается валидным до истечения exp, поэтому logout, выход со
 	// всех устройств и смена пароля видны сервису только по отсутствию ключа
 	// auth:session:{sid}: без этой проверки отозванный клиент переоткрыл бы

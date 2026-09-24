@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -14,6 +16,7 @@ import type { SchemaObject } from "@nestjs/swagger";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -36,14 +39,20 @@ import {
   telegramLinkSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { OAuthNavigation } from "../../common/decorators/oauth-navigation.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import {
   registerSchema as registerOpenApiSchema,
   ZodBody,
 } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { AuthService } from "./auth.service";
+import { AuthService, type LoginResult } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import {
+  GITHUB_STATE_COOKIE,
+  GITHUB_STATE_TTL_SECONDS,
+  GithubOAuthService,
+} from "./services/github-oauth.service";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
 import type { TokenPayload } from "./services/token.service";
 
@@ -157,6 +166,15 @@ const telegramAuthResponseRef = registerOpenApiSchema(
   TELEGRAM_AUTH_RESPONSE_SCHEMA,
 );
 
+const oauthProvidersResponseRef = registerOpenApiSchema(
+  "OAuthProvidersResponseDto",
+  {
+    type: "object",
+    properties: { github: { type: "boolean" } },
+    required: ["github"],
+  },
+);
+
 const REFRESH_COOKIE_DESCRIPTION =
   "Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; " +
   "Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). " +
@@ -179,6 +197,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly githubOAuth: GithubOAuthService,
   ) {}
 
   /**
@@ -334,7 +353,7 @@ export class AuthController {
    * доступен только с валидным access token в `Authorization`. `userId`
    * берётся из `request.user.sub`. При успехе отзываются все Redis-сессии
    * пользователя и сбрасывается refresh cookie; ответ `204 No Content`
-   * (SPEC §66). Access token остаётся валидным до истечения (stateless).
+   * (SPEC §66). Access token становится недействительным сразу после отзыва (live-проверка сессии в AccessTokenGuard).
    *
    * @param request - HTTP-запрос с `request.user` (payload access token).
    * @param response - HTTP-ответ Express для очистки refresh cookie.
@@ -398,6 +417,12 @@ export class AuthController {
   @ApiResponse({
     status: 404,
     description: "Пользователь не найден (§67).",
+    schema: errorResponseRef,
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      "Состояние пользователя изменилось параллельно — повторите запрос (§67).",
     schema: errorResponseRef,
   })
   @ApiResponse({
@@ -552,6 +577,84 @@ export class AuthController {
     }
   }
 
+  @Get("oauth/providers")
+  @Public()
+  @ApiOperation({ summary: "Get configured OAuth providers" })
+  @ApiResponse({ status: 200, schema: oauthProvidersResponseRef })
+  oauthProviders(@Res({ passthrough: true }) response: Response): {
+    github: boolean;
+  } {
+    response.setHeader("Cache-Control", "no-store");
+    return { github: this.githubOAuth.isAvailable() };
+  }
+
+  @Get("github")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Start GitHub OAuth login" })
+  @ApiResponse({ status: 302, description: "Redirect to GitHub" })
+  async github(@Res() response: Response): Promise<void> {
+    const { url, browserSecret } = await this.githubOAuth.authorize();
+    response.cookie(GITHUB_STATE_COOKIE, browserSecret, {
+      ...this.getRefreshCookieAttributes(),
+      maxAge: GITHUB_STATE_TTL_SECONDS * 1000,
+    });
+    response.setHeader("Cache-Control", "no-store");
+    response.redirect(302, url);
+  }
+
+  @Get("github/callback")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Complete GitHub OAuth login" })
+  @ApiQuery({ name: "code", type: String, required: false })
+  @ApiQuery({ name: "state", type: String, required: false })
+  @ApiResponse({
+    status: 302,
+    description: "Refresh cookie and redirect to dashboard",
+  })
+  async githubCallback(
+    @Query("code") code: unknown,
+    @Query("state") state: unknown,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
+    response.clearCookie(
+      GITHUB_STATE_COOKIE,
+      this.getRefreshCookieAttributes(),
+    );
+    let result: LoginResult;
+    try {
+      const user = await this.githubOAuth.callback(
+        code,
+        state,
+        request.cookies?.[GITHUB_STATE_COOKIE],
+      );
+      result = await this.authService.loginUser(user);
+    } catch {
+      response.redirect(
+        302,
+        new URL(
+          "/login?error=github",
+          this.configService.getOrThrow<string>("FRONTEND_URL"),
+        ).toString(),
+      );
+      return;
+    }
+    this.setRefreshTokenCookie(response, result.refreshToken);
+    response.redirect(
+      302,
+      new URL(
+        "/dashboard",
+        this.configService.getOrThrow<string>("FRONTEND_URL"),
+      ).toString(),
+    );
+  }
+
   /**
    * Аутентификация через Telegram Login Widget.
    */
@@ -672,6 +775,7 @@ export class AuthController {
    *
    * @returns Имя cookie (по умолчанию `refresh_token`).
    */
+
   private getRefreshTokenCookieName(): string {
     return (
       this.configService.get<string>("cookie.refreshTokenName") ??

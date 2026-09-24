@@ -40,6 +40,25 @@ API и Realtime аутентифицируют WebSocket через тикеты
 
 ---
 
+## 1.2. GitHub OAuth
+
+Для включения OAuth задайте в `.env` рядом с `docker-compose.prod.yml`
+(при SSH-деплое — `/opt/mock-interview-ai/.env`) или в окружении Compose:
+
+- `GITHUB_CLIENT_ID` — Client ID GitHub OAuth App.
+- `GITHUB_CLIENT_SECRET` — Client Secret, хранится только в окружении деплоя.
+- `GITHUB_CALLBACK_URL` — публичный HTTPS URL API с путём
+  `/api/v1/auth/github/callback`, совпадающий с настройкой GitHub OAuth App.
+- `FRONTEND_URL` — публичный HTTPS URL веб-приложения для возврата после входа.
+
+Compose передаёт их только API-контейнеру через существующий `environment`.
+Compose явно передаёт API-контейнеру `COOKIE_SECURE=true`; в production это значение должно оставаться `true`.
+Переменные OAuth необязательны для входа по паролю: без OAuth оставьте все четыре
+неопределёнными, а не пустыми. Частичная конфигурация отклоняется API.
+Примеры в корневом `.env.example` используют локальные адреса; для production
+замените их публичными HTTPS URL. После изменения env пересоздайте API через
+`docker compose -f docker-compose.prod.yml up -d api`.
+
 ## 2. Dockerfile паттерны (Multi-Stage Builds)
 
 Каждое приложение в `apps/` использует многоэтапную сборку (Multi-stage build) для минимизации размера и изоляции исходников:

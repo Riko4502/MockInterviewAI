@@ -14,6 +14,8 @@ import "@/shared/lib/i18n";
 import { getErrorMessage } from "../lib/getErrorMessage";
 import type { LoginFormValues } from "../lib/schemas";
 
+import { GithubLoginButton } from "./GithubLoginButton";
+
 export function LoginForm() {
   const router = useRouter();
   const { t } = useTranslation("auth");
@@ -78,6 +80,8 @@ export function LoginForm() {
       >
         {loginMutation.isPending ? t("login.submitting") : t("login.submit")}
       </Button>
+
+      <GithubLoginButton />
 
       {loginMutation.isError && (
         <Typography.P className="text-sm text-destructive">

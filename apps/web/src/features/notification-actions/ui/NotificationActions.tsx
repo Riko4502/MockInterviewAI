@@ -10,6 +10,8 @@ import {
 import { Button, Typography } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import { NotificationItem } from "@/entities/notification";
 
 export const NotificationActions = ({
@@ -17,6 +19,7 @@ export const NotificationActions = ({
 }: {
   notification: NotificationsListDtoItemsItem;
 }) => {
+  const { t } = useTranslation("common");
   const queryClient = useQueryClient();
   const router = useRouter();
   const invalidateNotifications = async () => {
@@ -75,16 +78,18 @@ export const NotificationActions = ({
           variant="ghost"
           size="sm"
           className="mr-4 shrink-0"
-          aria-label={`Удалить уведомление: ${notification.title}`}
+          aria-label={t("notifications.deleteAria", {
+            title: notification.title,
+          })}
           disabled={isPending}
           onClick={() => deleteMutation.mutate({ id: notification.id })}
         >
-          Удалить
+          {t("actions.delete")}
         </Button>
       </div>
       {(readMutation.isError || deleteMutation.isError) && (
         <Typography.Muted role="alert" className="px-4 pb-3 text-destructive">
-          Не удалось обновить уведомление. Попробуйте ещё раз.
+          {t("notifications.updateError")}
         </Typography.Muted>
       )}
     </div>

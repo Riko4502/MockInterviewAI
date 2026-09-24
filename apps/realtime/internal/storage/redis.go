@@ -3,8 +3,10 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +30,7 @@ type SessionStore interface {
 	IsSessionActive(ctx context.Context, sessionID string) (bool, error)
 	GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error)
 	IsAuthSessionActive(ctx context.Context, sid string) (bool, error)
+	CheckMinGeneration(ctx context.Context, userID string, generation int) (bool, error)
 	ConsumeTicket(ctx context.Context, tokenID string) (bool, error)
 	TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error
 	NextCodeVersion(ctx context.Context, sessionID string) (int64, error)
@@ -399,7 +402,7 @@ func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (boo
 	key := fmt.Sprintf("session:%s:active", sessionID)
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 		r.logger.Warn("failed to check session active in redis", slog.String("error", err.Error()))
@@ -421,7 +424,7 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 	key := fmt.Sprintf("session:%s:members", sessionID)
 	role, err := r.client.HGet(ctx, key, userID).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return "", nil
 		}
 		r.logger.Warn("failed to fetch user role from redis session members",
@@ -452,6 +455,57 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 	}
 
 	return exists > 0, nil
+}
+
+// ErrRedisUnavailable возвращается security-критичными методами при недоступном Redis
+// или отключённом клиенте (fail-closed режим, §CWE-613).
+var ErrRedisUnavailable = errors.New("redis unavailable")
+
+// CheckMinGeneration проверяет, удовлетворяет ли generation токена минимальному активному поколению
+// пользователя в Redis (ключ "auth:user:<userId>:min_generation", §CWE-613).
+//
+// Fail-closed: при недоступном Redis или nil-клиенте возвращает (false, ErrRedisUnavailable),
+// чтобы SSE и WebSocket хендлеры завершили запрос с 401 вместо пропуска проверки.
+//
+// Если min_generation не установлен (redis.Nil), ключ ещё не записан — токен считается
+// действительным (true, nil): ключ появляется только при отзыве сессий.
+// Если generation < min_generation, возвращает (false, nil).
+// При ошибке Redis (не Nil) логирует и возвращает (false, err).
+func (r *RedisStore) CheckMinGeneration(ctx context.Context, userID string, generation int) (bool, error) {
+	if !r.enabled || r.client == nil {
+		r.logger.Warn("CheckMinGeneration: redis unavailable, rejecting (fail-closed)",
+			slog.String("userId", userID),
+		)
+		return false, ErrRedisUnavailable
+	}
+	if userID == "" {
+		return false, errors.New("CheckMinGeneration: empty userID")
+	}
+
+	key := fmt.Sprintf("auth:user:%s:min_generation", userID)
+	val, err := r.client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return true, nil
+		}
+		r.logger.Warn("failed to check min generation in redis",
+			slog.String("userId", userID),
+			slog.String("error", err.Error()),
+		)
+		return false, err
+	}
+
+	minGen, err := strconv.Atoi(strings.TrimSpace(val))
+	if err != nil {
+		r.logger.Warn("invalid min generation value in redis",
+			slog.String("userId", userID),
+			slog.String("val", val),
+			slog.String("error", err.Error()),
+		)
+		return false, nil
+	}
+
+	return generation >= minGen, nil
 }
 
 // ConsumeTicket атомарно помечает одноразовый тикет использованным:
@@ -584,7 +638,7 @@ func (r *RedisStore) GetCodeState(ctx context.Context, sessionID string) ([]byte
 	key := fmt.Sprintf("session:%s:code", sessionID)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err

@@ -14,12 +14,15 @@ import { MetricsMiddleware } from "./common/metrics/metrics.middleware";
 import { MetricsModule } from "./common/metrics/metrics.module";
 import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
+import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
+import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
+import { ShowcaseModule } from "./modules/showcase/showcase.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -61,11 +64,14 @@ import { RedisModule } from "./redis/redis.module";
     HealthModule,
     UsersModule,
     AuthModule,
+    AdminModule,
     MailModule,
     StorageModule,
     SessionsModule,
     RealtimeModule,
     NotificationsModule,
+    ShowcaseModule,
+    MatchmakingModule,
   ],
   providers: [
     {

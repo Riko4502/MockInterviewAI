@@ -5,6 +5,7 @@
  * схема регистрации, схема входа, password policy, нормализация email.
  */
 
+export * from "./admin";
 export {
   type ChangePasswordDto,
   changePasswordSchema,
@@ -35,6 +36,19 @@ export {
   telegramCompleteSchema,
   telegramLinkSchema,
 } from "./auth/telegram.dto";
+export type {
+  MatchRequestResponseDto,
+  UnreadMatchRequestsCountDto,
+} from "./matchmaking/match-request-response.dto";
+// Matchmaking
+export {
+  type CreateMatchRequestDto,
+  createMatchRequestSchema,
+  type MatchRequestQueryDto,
+  matchRequestQuerySchema,
+  type RejectMatchRequestDto,
+  rejectMatchRequestSchema,
+} from "./matchmaking/matchmaking.dto";
 export {
   type NotificationActionResponseDto,
   type NotificationDto,
@@ -101,3 +115,43 @@ export {
   type InterviewParticipantRole,
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
+export {
+  type CreateShowcaseCardDto,
+  createShowcaseCardSchema,
+  type UpdateShowcaseCardDto,
+  type UpdateShowcaseCardStatusDto,
+  updateShowcaseCardSchema,
+  updateShowcaseCardStatusSchema,
+} from "./showcase/manage-showcase-card.dto";
+export {
+  normalizeSkill,
+  type ParsedSearchQuery,
+  parseSearchQuery,
+  sanitizeSearchTerm,
+  stripHtmlTags,
+} from "./showcase/search-parser";
+// Showcase
+export {
+  type ExperienceLevel,
+  experienceLevelEnum,
+  type InterviewLanguage,
+  interviewLanguageEnum,
+  type MatchRequestStatus,
+  matchRequestStatusEnum,
+  type ShowcaseCardStatus,
+  type ShowcaseSortBy,
+  type Specialization,
+  showcaseCardStatusEnum,
+  showcaseSortByEnum,
+  specializationEnum,
+} from "./showcase/showcase.enums";
+export {
+  type ShowcaseQueryDto,
+  showcaseQuerySchema,
+} from "./showcase/showcase-query.dto";
+export type {
+  PaginatedResponseDto,
+  PublicUserCardDto,
+  ShowcaseCardResponseDto,
+  ShowcaseCardStatsDto,
+} from "./showcase/showcase-response.dto";

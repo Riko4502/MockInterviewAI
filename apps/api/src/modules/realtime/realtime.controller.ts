@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Post,
+  UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -88,7 +89,12 @@ export class RealtimeController {
     @Body(new ZodValidationPipe(ticketSchema)) body: TicketDto,
     @CurrentUser("sub") userId: string,
     @CurrentUser("sid") sid: string,
+    @CurrentUser("generation") generation?: number,
   ): Promise<{ ticket: string }> {
+    if (generation === undefined) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
     const activeKey = sessionActiveKey(body.sessionId);
     const membersKey = sessionMembersKey(body.sessionId);
 
@@ -106,11 +112,11 @@ export class RealtimeController {
         "User is not a participant of this interview session",
       );
     }
-
     const ticket = this.tokenService.generateRealtimeTicket(
       userId,
       sid,
       body.sessionId,
+      generation,
     );
     return { ticket };
   }
