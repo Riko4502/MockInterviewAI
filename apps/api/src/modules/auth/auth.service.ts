@@ -39,7 +39,10 @@ import {
   TELEGRAM_ONBOARDING_TTL_SECONDS,
 } from "./auth.constants";
 import { AuthSessionService } from "./services/auth-session.service";
-import { TelegramOAuthService } from "./services/telegram-oauth.service";
+import {
+  REDIS_TELEGRAM_REPLAY_PREFIX,
+  TelegramOAuthService,
+} from "./services/telegram-oauth.service";
 import { TokenService } from "./services/token.service";
 
 /** Результат входа через Telegram. */
@@ -735,7 +738,7 @@ export class AuthService implements OnModuleInit {
       if (user.deletedAt) {
         const elapsedMs = Date.now() - user.deletedAt.getTime();
         if (elapsedMs > THIRTY_DAYS_MS) {
-          throw new UnauthorizedException("Invalid credentials");
+          throw new UnauthorizedException("Account has been deleted");
         }
         await this.usersService.restoreAccount(user.id);
       }
@@ -794,6 +797,12 @@ export class AuthService implements OnModuleInit {
         "Redis unavailable storing telegram onboarding data",
         error instanceof Error ? error.message : String(error),
       );
+      const rawHash = (rawPayload?.hash ?? dto.hash) as string;
+      if (rawHash) {
+        await this.redisService
+          .delete(`${REDIS_TELEGRAM_REPLAY_PREFIX}${rawHash}`)
+          .catch(() => {});
+      }
       throw new InternalServerErrorException();
     }
 
@@ -845,7 +854,13 @@ export class AuthService implements OnModuleInit {
     const displayName =
       [data.firstName, data.lastName].filter(Boolean).join(" ") || null;
 
-    let user: Awaited<ReturnType<typeof this.usersService.createTelegramUser>>;
+    let user:
+      | Awaited<ReturnType<typeof this.usersService.createTelegramUser>>
+      | NonNullable<
+          Awaited<
+            ReturnType<typeof this.usersService.findUserWithRoleByTelegramId>
+          >
+        >;
     try {
       user = await this.usersService.createTelegramUser({
         email: dto.email,
@@ -857,18 +872,29 @@ export class AuthService implements OnModuleInit {
       });
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
-        throw new ConflictException("User or email already registered");
+        const existingTgUser =
+          await this.usersService.findUserWithRoleByTelegramId(
+            BigInt(data.telegramId),
+          );
+        if (existingTgUser) {
+          user = existingTgUser;
+        } else {
+          throw new ConflictException("User or email already registered");
+        }
+      } else {
+        throw error;
       }
-      throw error;
     }
 
-    if (data.photoUrl) {
+    let uploadedAvatarUrl: string | null = null;
+    if (data.photoUrl && !user.avatarUrl) {
       try {
         const avatarUrl = await this.storageService.uploadAvatarFromUrl(
           user.id,
           data.photoUrl,
         );
         if (avatarUrl) {
+          uploadedAvatarUrl = avatarUrl;
           await this.prisma.user.update({
             where: { id: user.id },
             data: { avatarUrl },
@@ -917,6 +943,9 @@ export class AuthService implements OnModuleInit {
         "Redis unavailable during telegramComplete — compensating user cleanup",
         error instanceof Error ? error.message : String(error),
       );
+      if (uploadedAvatarUrl) {
+        await this.storageService.deleteFile(uploadedAvatarUrl).catch(() => {});
+      }
       await this.compensateUserCleanup(user.id);
       throw new InternalServerErrorException();
     }

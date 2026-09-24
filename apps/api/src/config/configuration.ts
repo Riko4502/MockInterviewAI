@@ -29,6 +29,7 @@ export const configuration = () => ({
   refreshTokenHashSecret: process.env.REFRESH_TOKEN_HASH_SECRET ?? "",
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+    botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "",
   },
   argon2: {
     memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? 65536),

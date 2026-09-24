@@ -690,6 +690,7 @@ describe("AuthController", () => {
         "raw.refresh.token",
         expect.any(Object),
       );
+      expect(statusMock).toHaveBeenCalledWith(201);
       expect(result).toEqual({ accessToken: "raw.access.token" });
     });
   });

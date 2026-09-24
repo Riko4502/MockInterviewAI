@@ -106,7 +106,11 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
 const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
   type: "object",
   properties: {
-    status: { type: "string", example: "AUTHENTICATED" },
+    status: {
+      type: "string",
+      enum: ["AUTHENTICATED"],
+      example: "AUTHENTICATED",
+    },
     accessToken: { type: "string", description: "JWT access token" },
   },
   required: ["status", "accessToken"],
@@ -115,7 +119,11 @@ const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
 const TELEGRAM_AUTH_NEED_EMAIL_SCHEMA: SchemaObject = {
   type: "object",
   properties: {
-    status: { type: "string", example: "NEED_EMAIL" },
+    status: {
+      type: "string",
+      enum: ["NEED_EMAIL"],
+      example: "NEED_EMAIL",
+    },
     onboardingToken: {
       type: "string",
       description: "Одноразовый токен онбординга для завершения регистрации",
@@ -590,12 +598,12 @@ export class AuthController {
    */
   @Post("telegram/complete")
   @Public()
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   @UseGuards(AuthThrottlerGuard)
   @ZodBody(telegramCompleteSchema, "TelegramCompleteDto")
   @ApiOperation({ summary: "Завершение онбординга Telegram с указанием email" })
   @ApiResponse({
-    status: 200,
+    status: 201,
     description: `Успешное завершение онбординга и создание аккаунта. ${REFRESH_COOKIE_DESCRIPTION}`,
     schema: accessTokenResponseRef,
   })
@@ -617,6 +625,7 @@ export class AuthController {
   ): Promise<{ accessToken: string }> {
     const result = await this.authService.telegramComplete(dto);
     this.setRefreshTokenCookie(response, result.refreshToken);
+    response.status(HttpStatus.CREATED);
     return { accessToken: result.accessToken };
   }
 
@@ -625,6 +634,7 @@ export class AuthController {
    */
   @Post("telegram/link")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
   @ZodBody(telegramLinkSchema, "TelegramLinkDto")
   @ApiBearerAuth()
   @ApiOperation({ summary: "Привязка Telegram аккаунта" })

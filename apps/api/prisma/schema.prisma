@@ -60,6 +60,7 @@ model User {
   @@index([username])
   @@index([roleId])
   @@index([deletedAt])
+  @@index([telegramId])
 }
 
 model AuthRevocationTask {

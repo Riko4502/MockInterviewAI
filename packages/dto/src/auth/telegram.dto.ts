@@ -7,10 +7,10 @@ import { normalizeEmail } from "./email";
  */
 export const telegramAuthSchema = z.object({
   id: z.coerce.number().int().positive(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  username: z.string().optional(),
-  photo_url: z.string().url().optional(),
+  first_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
+  username: z.string().nullable().optional(),
+  photo_url: z.string().url().nullable().optional(),
   auth_date: z.coerce.number().int().positive(),
   hash: z.string().min(1),
 });

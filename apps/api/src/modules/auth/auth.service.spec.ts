@@ -103,6 +103,7 @@ describe("AuthService", () => {
   let linkTelegram: jest.Mock;
   let validateTelegramPayload: jest.Mock;
   let uploadAvatarFromUrl: jest.Mock;
+  let deleteFile: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
   let loggerDebugSpy: jest.SpyInstance;
@@ -138,6 +139,7 @@ describe("AuthService", () => {
     uploadAvatarFromUrl = jest
       .fn()
       .mockResolvedValue("https://s3.local/avatar.webp");
+    deleteFile = jest.fn().mockResolvedValue(undefined);
     findUserWithRoleById = jest.fn().mockImplementation(async (id: string) => {
       const user = await findById(id);
       if (!user) return null;
@@ -247,6 +249,7 @@ describe("AuthService", () => {
       } as unknown as TelegramOAuthService,
       {
         uploadAvatarFromUrl,
+        deleteFile,
       } as unknown as StorageService,
     );
 
@@ -1307,6 +1310,32 @@ describe("AuthService", () => {
           900,
         );
       });
+
+      it("отклоняет soft-deleted аккаунт старше 30 дней с ошибкой Account has been deleted", async () => {
+        findUserWithRoleByTelegramId.mockResolvedValue({
+          ...USER,
+          telegramId: BigInt(123456789),
+          deletedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+          role: { slug: "USER", permissions: SystemPermission.USERS_READ },
+        });
+
+        await expect(service.telegramAuth(tgDto)).rejects.toThrow(
+          new UnauthorizedException("Account has been deleted"),
+        );
+      });
+
+      it("при ошибке Redis во время сохранения онбординга откатывает replay-ключ", async () => {
+        findUserWithRoleByTelegramId.mockResolvedValue(null);
+        redisSet.mockRejectedValue(new Error("Redis error"));
+
+        await expect(service.telegramAuth(tgDto)).rejects.toThrow(
+          InternalServerErrorException,
+        );
+
+        expect(redisDelete).toHaveBeenCalledWith(
+          `auth:telegram:replay:${tgDto.hash}`,
+        );
+      });
     });
 
     describe("telegramComplete", () => {
@@ -1438,6 +1467,60 @@ describe("AuthService", () => {
         expect(redisDelete).not.toHaveBeenCalledWith(
           "tg_onboarding:valid_token",
         );
+      });
+
+      it("при параллельном запросе (P2002) успешно возвращает сессию, если пользователь с telegramId уже был создан", async () => {
+        redisGet.mockResolvedValue(
+          JSON.stringify({
+            telegramId: "123456789",
+            telegramUsername: "ivan_tg",
+          }),
+        );
+        findByEmail.mockResolvedValue(null);
+
+        const p2002Error = Object.assign(
+          new Error("Unique constraint failed"),
+          {
+            code: "P2002",
+          },
+        );
+        createTelegramUser.mockRejectedValue(p2002Error);
+        findUserWithRoleByTelegramId.mockResolvedValue({
+          ...USER,
+          telegramId: BigInt(123456789),
+          role: { slug: "USER", permissions: SystemPermission.USERS_READ },
+        });
+
+        const result = await service.telegramComplete({
+          onboardingToken: "valid_token",
+          email: "concurrent@example.com",
+        });
+
+        expect(result.accessToken).toBe("raw.access.token");
+        expect(result.refreshToken).toBe("raw.refresh.token");
+      });
+
+      it("при падении Redis во время telegramComplete удаляет загруженный аватар из S3", async () => {
+        redisGet.mockResolvedValue(
+          JSON.stringify({
+            telegramId: "123456789",
+            photoUrl: "https://t.me/photo.jpg",
+          }),
+        );
+        findByEmail.mockResolvedValue(null);
+        createSession.mockRejectedValue(new Error("Redis connection dropped"));
+
+        await expect(
+          service.telegramComplete({
+            onboardingToken: "valid_token",
+            email: "user@example.com",
+          }),
+        ).rejects.toThrow(InternalServerErrorException);
+
+        expect(deleteFile).toHaveBeenCalledWith("https://s3.local/avatar.webp");
+        expect(prismaMock.user.delete).toHaveBeenCalledWith({
+          where: { id: USER.id },
+        });
       });
     });
 
