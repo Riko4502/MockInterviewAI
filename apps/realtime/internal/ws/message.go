@@ -76,6 +76,9 @@ const (
 	// EventTaskSwitched уведомляет о завершении переключения активной задачи.
 	EventTaskSwitched EventType = "task.switched"
 
+	// EventYjsSnapshot содержит сжатый снимок документа Yjs для компактизации стрима в Redis.
+	EventYjsSnapshot EventType = "yjs.snapshot"
+
 	// EventRoomError уведомляет об ошибке на уровне комнаты (например, SYNC_FAILED).
 	EventRoomError EventType = "room.error"
 )
@@ -214,6 +217,12 @@ type YjsInitPayload struct {
 type YjsAwarenessPayload struct {
 	TaskKey string `json:"taskKey"`
 	Data    string `json:"data"`
+}
+
+// YjsSnapshotPayload содержит сжатый снимок состояния документа задачи для компактизации стрима в Redis через XTRIM MINID.
+type YjsSnapshotPayload struct {
+	TaskKey  string `json:"taskKey"`
+	Snapshot string `json:"snapshot"`
 }
 
 // TaskSwitchPayload запрашивает переключение задачи в комнате.

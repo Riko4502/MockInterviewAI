@@ -315,6 +315,22 @@ func TestClientYjsPayloadValidation(t *testing.T) {
 		t.Error("expected error for oversized yjs update data (> 64KB), got nil")
 	}
 
+	// 6a. Отклонение данных yjs.update, содержащих CR/LF
+	crlfDataEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-6a",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     "AAA\r\nAAA=",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(crlfDataEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for yjs update data containing CR/LF, got nil")
+	}
+
 	// 7. Валидный yjs.awareness
 	awarenessEnv, _ := NewEnvelope(
 		EventYjsAwareness,
@@ -330,7 +346,7 @@ func TestClientYjsPayloadValidation(t *testing.T) {
 		t.Errorf("unexpected error for valid awareness: %v", err)
 	}
 
-	// 8. Отклонение yjs.awareness с данными > 64 КБ
+	// 8. Отклонение yjs.awareness с данными > 16 КБ
 	oversizedAwarenessEnv, _ := NewEnvelope(
 		EventYjsAwareness,
 		"session-1",
@@ -343,6 +359,21 @@ func TestClientYjsPayloadValidation(t *testing.T) {
 	raw, _ = ParseRawEnvelope(oversizedAwarenessEnv)
 	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
 		t.Error("expected error for oversized awareness data, got nil")
+	}
+
+	// 8a. Отклонение данных yjs.awareness, содержащих CR/LF
+	crlfAwarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-8a",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    "AAA\nAAA=",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(crlfAwarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for awareness data containing CR/LF, got nil")
 	}
 
 	// 9. Валидный task.switch
@@ -359,3 +390,57 @@ func TestClientYjsPayloadValidation(t *testing.T) {
 		t.Errorf("unexpected error for valid task.switch: %v", err)
 	}
 }
+
+func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	client := NewClient("client-snap", "user-1", "Alice", "candidate", "session-1", nil, nil, logger)
+
+	// Валидный snapshot
+	validEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-1",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "dGVzdA==",
+		},
+	).ToBytes()
+	raw, err := ParseRawEnvelope(validEnv)
+	if err != nil {
+		t.Fatalf("failed to parse envelope: %v", err)
+	}
+	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid yjs.snapshot: %v", err)
+	}
+
+	// Snapshot с CR/LF
+	crlfEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-2",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "dGVz\r\ndA==",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(crlfEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected error for yjs.snapshot with CR/LF, got nil")
+	}
+
+	// Пустой snapshot
+	emptyEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-3",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(emptyEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected error for empty snapshot, got nil")
+	}
+}
+

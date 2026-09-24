@@ -1,4 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   ForbiddenException,
   Injectable,
@@ -44,9 +46,16 @@ export function createStarterYjsUpdate(initialContent = ""): string {
 }
 
 /**
- * Единый атомарный Lua-скрипт сидинга и восстановления служебных структур документа задачи (5 состояний).
+ * Резервная копия Lua-скрипта сидинга для автономных окружений (контейнеров).
+ * Источник истины: apps/realtime/internal/storage/scripts/seed_task_doc.lua
  */
-export const SEED_TASK_DOC_LUA = `
+export const FALLBACK_SEED_TASK_DOC_LUA = `
+-- KEYS[1]: {session:<sessionId>}:seeded_tasks (Redis Hash маркеров задач)
+-- KEYS[2]: {session:<sessionId>}:task:<taskKey>:updates (Redis Stream конкретной задачи)
+-- ARGV[1]: task_key (строка вида "<taskId>:<lang>")
+-- ARGV[2]: base64_starter_update (Yjs update со стартовым кодом)
+-- ARGV[3]: ttl_seconds (например, 86400)
+
 local has_marker = (redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1)
 local stream_exists = (redis.call('EXISTS', KEYS[2]) == 1)
 local stream_len = 0
@@ -94,6 +103,47 @@ end
 
 return 0
 `;
+
+/**
+ * Относительный путь от текущего модуля к единому источнику истины скрипта сидинга в apps/realtime.
+ */
+export const REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH =
+  "../../../../realtime/internal/storage/scripts/seed_task_doc.lua";
+
+/**
+ * TODO временное решение
+ * Загружает скрипт seed_task_doc.lua из единого источника истины (apps/realtime).
+ */
+export function loadSeedTaskDocLua(): string {
+  const candidatePaths = [
+    path.resolve(__dirname, REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH),
+    path.resolve(
+      process.cwd(),
+      "../realtime/internal/storage/scripts/seed_task_doc.lua",
+    ),
+    path.resolve(
+      process.cwd(),
+      "apps/realtime/internal/storage/scripts/seed_task_doc.lua",
+    ),
+  ];
+
+  for (const candidate of candidatePaths) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return fs.readFileSync(candidate, "utf-8");
+      }
+    } catch {
+      // Игнорируем ошибки доступа и пробуем следующий путь
+    }
+  }
+
+  return FALLBACK_SEED_TASK_DOC_LUA;
+}
+
+/**
+ * Единый атомарный Lua-скрипт сидинга и восстановления служебных структур документа задачи (5 состояний).
+ */
+export const SEED_TASK_DOC_LUA = loadSeedTaskDocLua();
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

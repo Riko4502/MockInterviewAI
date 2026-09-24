@@ -424,4 +424,70 @@ describe("useSandboxRealtime deduplication", () => {
 
     unmountTab1();
   });
+
+  it("resends task.switch and task-change after WebSocket connection when task change was broadcast while disconnected", async () => {
+    let resolveConn!: (val: unknown) => void;
+    const connectPromise = new Promise((resolve) => {
+      resolveConn = resolve;
+    });
+
+    const { connectWebSocket } = await import("@/features/realtime/lib/ticket");
+    vi.mocked(connectWebSocket).mockImplementationOnce((_roomId, options) => {
+      wsMessageHandler =
+        (options?.onMessage as
+          | ((event: { data: string }) => void)
+          | undefined) ?? null;
+      return connectPromise as ReturnType<typeof connectWebSocket>;
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useSandboxRealtime({
+        roomId: "room-pending-switch",
+      }),
+    );
+
+    // Call broadcastTaskChange before WebSocket connects
+    act(() => {
+      result.current.broadcastTaskChange("two-sum", "python");
+    });
+
+    // Since WS was not connected yet, mockWsSend should not have been called with task.switch or task-change
+    expect(mockWsSend).not.toHaveBeenCalled();
+
+    // Now WebSocket connects
+    await act(async () => {
+      resolveConn({
+        socket: {
+          readyState: 1, // OPEN
+          send: mockWsSend,
+        },
+        close: mockWsClose,
+      });
+      await connectPromise;
+    });
+
+    // Both task.switch and task-change should be sent over WebSocket
+    expect(mockWsSend).toHaveBeenCalledTimes(2);
+
+    const firstSent = JSON.parse(
+      mockWsSend.mock.calls[0][0],
+    ) as AnyWebSocketEnvelope;
+    expect(firstSent.type).toBe("task.switch");
+    expect(firstSent.payload).toEqual({ taskKey: "two-sum:python" });
+
+    const secondSent = JSON.parse(
+      mockWsSend.mock.calls[1][0],
+    ) as AnyWebSocketEnvelope;
+    expect(secondSent.type).toBe("chat.message");
+    const parsedText = JSON.parse(
+      (secondSent.payload as { text: string }).text,
+    );
+    expect(parsedText.type).toBe("task-change");
+    expect(parsedText.payload).toEqual({
+      taskId: "two-sum",
+      language: "python",
+    });
+
+    unmount();
+  });
 });

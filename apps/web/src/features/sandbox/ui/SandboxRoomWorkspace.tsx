@@ -70,7 +70,7 @@ export function SandboxRoomWorkspace({
   });
 
   // Идентификатор активного документа задачи
-  const taskKey = `${currentTaskId || "default"}:${language}`;
+  const taskKey = `${currentTaskId || "two-sum"}:${language}`;
   const latestTaskKeyRef = useRef(taskKey);
   latestTaskKeyRef.current = taskKey;
   const wsConnectedRef = useRef(realtime.wsConnected);

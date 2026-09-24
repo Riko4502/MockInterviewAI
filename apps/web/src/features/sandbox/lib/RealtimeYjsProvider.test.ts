@@ -1,4 +1,8 @@
-import type { AnyWebSocketEnvelope, YjsUpdatePayload } from "@packages/dto";
+import type {
+  AnyWebSocketEnvelope,
+  YjsSnapshotPayload,
+  YjsUpdatePayload,
+} from "@packages/dto";
 import { describe, expect, it, vi } from "vitest";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
@@ -56,6 +60,20 @@ describe("RealtimeYjsProvider (T017)", () => {
 
     provider.destroy();
     doc.destroy();
+  });
+
+  it("accepts yDoc as an alias for doc in options", () => {
+    const yDoc = new Y.Doc();
+    const provider = new RealtimeYjsProvider({
+      yDoc,
+      taskKey: "task-1:typescript",
+      sessionId: "session-123",
+      sendEnvelope: () => {},
+    });
+
+    expect(provider.doc).toBe(yDoc);
+    provider.destroy();
+    yDoc.destroy();
   });
 
   it("applies incoming yjs.update and avoids cyclic retransmission", () => {
@@ -1218,6 +1236,41 @@ describe("RealtimeYjsProvider (T017)", () => {
       provider.destroy();
     });
 
+    it("Scenario B2: restores awareness local state across switch Task A -> Task B -> Task A", () => {
+      const provider = new RealtimeYjsProvider({
+        taskKey: "task-1:typescript",
+        sessionId: "session-switch-awareness",
+        user: { userId: "user-1", name: "Alice", color: "#ff0000" },
+        sendEnvelope: () => {},
+      });
+
+      const awareness1 = provider.getAwareness("task-1:typescript");
+      expect(awareness1.getLocalState()).toEqual({
+        user: { userId: "user-1", name: "Alice", color: "#ff0000" },
+      });
+
+      // Переключаемся на Task 2
+      provider.switchTask("task-2:python");
+      // Awareness для неактивной задачи сброшен в null
+      expect(awareness1.getLocalState()).toBeNull();
+
+      // Переключаемся обратно на Task 1
+      provider.switchTask("task-1:typescript");
+      // Awareness для вернувшейся задачи восстановлен
+      expect(awareness1.getLocalState()).toEqual({
+        user: { userId: "user-1", name: "Alice", color: "#ff0000" },
+      });
+
+      // Проверяем, что MonacoBinding setLocalStateField('selection', ...) корректно обновляет состояние
+      awareness1.setLocalStateField("selection", { anchor: 5, head: 10 });
+      expect(awareness1.getLocalState()).toEqual({
+        user: { userId: "user-1", name: "Alice", color: "#ff0000" },
+        selection: { anchor: 5, head: 10 },
+      });
+
+      provider.destroy();
+    });
+
     it("Scenario C: applies incoming remote update strictly to matching taskKey without leaking to active task", () => {
       const provider = new RealtimeYjsProvider({
         taskKey: "active-task:python",
@@ -1373,6 +1426,69 @@ describe("RealtimeYjsProvider (T017)", () => {
       expect((sentEnvelopes[1].payload as YjsUpdatePayload).taskKey).toBe(
         "task-b:python",
       );
+
+      provider.destroy();
+    });
+
+    it("T033: sends yjs.snapshot for Redis Stream compaction when sendSnapshot is called or threshold is exceeded", () => {
+      const sentEnvelopes: AnyWebSocketEnvelope[] = [];
+      const yDoc = new Y.Doc();
+      const provider = new RealtimeYjsProvider({
+        sessionId: "session-compact-test",
+        taskKey: "task-c:typescript",
+        doc: yDoc,
+        initialStatus: "SYNCED",
+        compactionThreshold: 2,
+        sendEnvelope: (env) => sentEnvelopes.push(env),
+      });
+
+      // 1. Ручной вызов sendSnapshot
+      provider.sendSnapshot("task-c:typescript");
+      expect(sentEnvelopes.length).toBe(1);
+      expect(sentEnvelopes[0].type).toBe("yjs.snapshot");
+      const snapshotPayload1 = sentEnvelopes[0].payload as YjsSnapshotPayload;
+      expect(snapshotPayload1.taskKey).toBe("task-c:typescript");
+      expect(snapshotPayload1.snapshot).toBeDefined();
+
+      // 2. Автоматическая отправка снимка при превышении compactionThreshold
+      const deltaDoc = new Y.Doc();
+      deltaDoc.getText("monaco").insert(0, "a");
+      const delta1 = uint8ArrayToBase64(Y.encodeStateAsUpdate(deltaDoc));
+      deltaDoc.getText("monaco").insert(1, "b");
+      const delta2 = uint8ArrayToBase64(Y.encodeStateAsUpdate(deltaDoc));
+
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-compact-test",
+        requestId: "upd-1",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-c:typescript",
+          updateId: "remote-1",
+          data: delta1,
+        },
+      });
+      // 1 обновление - порог 2 еще не достигнут
+      expect(sentEnvelopes.length).toBe(1);
+
+      provider.handleMessage({
+        type: "yjs.update",
+        version: 1,
+        sessionId: "session-compact-test",
+        requestId: "upd-2",
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey: "task-c:typescript",
+          updateId: "remote-2",
+          data: delta2,
+        },
+      });
+      // 2 обновления - порог 2 достигнут, отправлен yjs.snapshot!
+      expect(sentEnvelopes.length).toBe(2);
+      expect(sentEnvelopes[1].type).toBe("yjs.snapshot");
+      const snapshotPayload2 = sentEnvelopes[1].payload as YjsSnapshotPayload;
+      expect(snapshotPayload2.taskKey).toBe("task-c:typescript");
 
       provider.destroy();
     });

@@ -43,7 +43,7 @@ const provider = new RealtimeYjsProvider({
   sessionId,
   taskKey: `${taskId}:${language}`,
   sendEnvelope: (env) => socket.send(JSON.stringify(env)),
-  yDoc,
+  doc: yDoc,
 });
 ```
 

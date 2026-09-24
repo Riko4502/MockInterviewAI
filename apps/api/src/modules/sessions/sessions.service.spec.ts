@@ -1,8 +1,14 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
-import type { RedisService } from "../../redis/redis.service";
-import { SessionsService } from "./sessions.service";
+import { RedisService } from "../../redis/redis.service";
+import {
+  REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
+  SEED_TASK_DOC_LUA,
+  SessionsService,
+} from "./sessions.service";
 
 describe("SessionsService", () => {
   let prismaMock: {
@@ -678,6 +684,30 @@ describe("SessionsService", () => {
       );
 
       await expect(service.reconcileMirrors()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("SEED_TASK_DOC_LUA contract with apps/realtime", () => {
+    it("соответствует seed_task_doc.lua из apps/realtime", () => {
+      const realtimeScriptPath = path.resolve(
+        __dirname,
+        REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
+      );
+      expect(fs.existsSync(realtimeScriptPath)).toBe(true);
+
+      const realtimeContent = fs.readFileSync(realtimeScriptPath, "utf-8");
+
+      const normalize = (script: string) =>
+        script
+          .replace(/\r\n/g, "\n")
+          .replace(/--[^\n]*/g, "") // Удаляем однострочные комментарии Lua
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join("\n");
+
+      // Проверяем, что загруженный SEED_TASK_DOC_LUA и исходный файл из realtime логически идентичны
+      expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
     });
   });
 });

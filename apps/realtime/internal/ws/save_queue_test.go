@@ -48,6 +48,13 @@ func (m *mockYjsDocStore) AppendTaskUpdate(ctx context.Context, sessionID, taskK
 	return fmt.Sprintf("1000-%d", len(m.appended)), nil
 }
 
+func (m *mockYjsDocStore) CompactTaskStream(ctx context.Context, sessionID, taskKey, snapshotBase64 string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.appended = []string{snapshotBase64}
+	return nil
+}
+
 func (m *mockYjsDocStore) TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

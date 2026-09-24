@@ -225,32 +225,38 @@ export function useSandboxRealtime({
     [roomId, userId, userName],
   );
 
+  const sendTaskSwitch = useCallback(
+    (taskId: string, lang?: LanguageId, id?: string) => {
+      if (!lang) return;
+      try {
+        const socket = wsConnRef.current?.socket;
+        if (socket?.readyState === WebSocket.OPEN) {
+          const taskKey = `${taskId}:${lang}`;
+          const envelope: AnyWebSocketEnvelope = {
+            type: "task.switch",
+            version: 1,
+            sessionId: roomId,
+            requestId: `req_switch_${id ?? uuidv4()}`,
+            timestamp: new Date().toISOString(),
+            payload: { taskKey },
+          };
+          socket.send(JSON.stringify(envelope));
+        }
+      } catch {
+        // Игнорируем сетевые сбои
+      }
+    },
+    [roomId],
+  );
+
   const broadcastTaskChange = useCallback(
     (taskId: string, lang?: LanguageId) => {
       const id = uuidv4();
       pendingTaskRef.current = { id, taskId, language: lang };
-      const taskKey = lang ? `${taskId}:${lang}` : taskId;
-      if (lang) {
-        try {
-          const socket = wsConnRef.current?.socket;
-          if (socket?.readyState === WebSocket.OPEN) {
-            const envelope: AnyWebSocketEnvelope = {
-              type: "task.switch",
-              version: 1,
-              sessionId: roomId,
-              requestId: `req_switch_${id}`,
-              timestamp: new Date().toISOString(),
-              payload: { taskKey },
-            };
-            socket.send(JSON.stringify(envelope));
-          }
-        } catch {
-          // Игнорируем сетевые сбои
-        }
-      }
+      sendTaskSwitch(taskId, lang, id);
       sendMessage("task-change", { taskId, language: lang }, id);
     },
-    [roomId, sendMessage],
+    [sendMessage, sendTaskSwitch],
   );
 
   const broadcastWebRTCSignal = useCallback(
@@ -298,6 +304,12 @@ export function useSandboxRealtime({
 
         switch (envelope.type) {
           case "task.switched": {
+            if (
+              envelope.requestId &&
+              envelope.requestId === `req_switch_${pendingTaskRef.current?.id}`
+            ) {
+              pendingTaskRef.current = null;
+            }
             const taskKey = (envelope.payload as { taskKey?: string })?.taskKey;
             if (taskKey) {
               const parts = taskKey.split(":");
@@ -313,7 +325,10 @@ export function useSandboxRealtime({
           case "system.ack": {
             const targetId = envelope.payload?.targetRequestId;
             if (targetId) {
-              if (pendingTaskRef.current?.id === targetId) {
+              if (
+                pendingTaskRef.current?.id === targetId ||
+                targetId === `req_switch_${pendingTaskRef.current?.id}`
+              ) {
                 pendingTaskRef.current = null;
               }
             }
@@ -429,6 +444,11 @@ export function useSandboxRealtime({
           // Повторная отправка локального буфера кода выполняется исключительно в обработчике room.sync
           // после проверки совпадения базовой ревизии (baseVersion === serverVersion).
           if (pendingTaskRef.current) {
+            sendTaskSwitch(
+              pendingTaskRef.current.taskId,
+              pendingTaskRef.current.language,
+              pendingTaskRef.current.id,
+            );
             sendMessage(
               "task-change",
               {
@@ -452,7 +472,7 @@ export function useSandboxRealtime({
       }
       setWsConnected(false);
     };
-  }, [roomId, isSelfServerPeer, markMessageSeen, sendMessage]);
+  }, [roomId, isSelfServerPeer, markMessageSeen, sendMessage, sendTaskSwitch]);
 
   // 2. Локальный BroadcastChannel и localStorage (для мгновенного обмена между вкладками одного браузера)
   useEffect(() => {

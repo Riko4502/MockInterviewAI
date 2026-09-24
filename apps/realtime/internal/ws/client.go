@@ -50,6 +50,9 @@ const (
 
 	// maxYjsAwarenessBase64Length - максимальная длина Base64 состояния Awareness (16KB бинарных данных = 21848 символов).
 	maxYjsAwarenessBase64Length = 21848
+
+	// maxYjsSnapshotBase64Length - максимальная длина Base64 снимка Yjs (256KB бинарных данных = 349528 символов).
+	maxYjsSnapshotBase64Length = 349528
 )
 
 // Client представляет единичное WebSocket-подключение пользователя к сессии.
@@ -355,6 +358,9 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if len(payload.Data) > maxYjsBase64Length {
 			return nil, errors.New("yjs update data exceeds maximum allowed size (64KB)")
 		}
+		if strings.ContainsAny(payload.Data, "\r\n") {
+			return nil, errors.New("yjs update data contains CR/LF")
+		}
 		if _, decErr := base64.StdEncoding.DecodeString(payload.Data); decErr != nil {
 			return nil, errors.New("yjs update data is not valid base64")
 		}
@@ -382,8 +388,40 @@ func (c *Client) sanitizeIncomingPayload(raw RawEnvelope) ([]byte, error) {
 		if len(payload.Data) > maxYjsAwarenessBase64Length {
 			return nil, errors.New("yjs awareness data exceeds maximum allowed size (16KB)")
 		}
+		if strings.ContainsAny(payload.Data, "\r\n") {
+			return nil, errors.New("yjs awareness data contains CR/LF")
+		}
 		if _, decErr := base64.StdEncoding.DecodeString(payload.Data); decErr != nil {
 			return nil, errors.New("yjs awareness data is not valid base64")
+		}
+
+		payload.TaskKey = taskKey
+		env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
+		return env.ToBytes()
+
+	case EventYjsSnapshot:
+		payload, err := UnpackPayload[YjsSnapshotPayload](raw)
+		if err != nil {
+			return nil, err
+		}
+		taskKey := strings.TrimSpace(payload.TaskKey)
+		if taskKey == "" {
+			return nil, errors.New("taskKey is required")
+		}
+		if len(taskKey) > 128 || strings.Contains(taskKey, "..") || strings.Contains(taskKey, " ") {
+			return nil, errors.New("invalid taskKey format")
+		}
+		if len(payload.Snapshot) == 0 {
+			return nil, errors.New("snapshot is required")
+		}
+		if len(payload.Snapshot) > maxYjsSnapshotBase64Length {
+			return nil, errors.New("yjs snapshot data exceeds maximum allowed size (256KB)")
+		}
+		if strings.ContainsAny(payload.Snapshot, "\r\n") {
+			return nil, errors.New("yjs snapshot data contains CR/LF")
+		}
+		if _, decErr := base64.StdEncoding.DecodeString(payload.Snapshot); decErr != nil {
+			return nil, errors.New("yjs snapshot data is not valid base64")
 		}
 
 		payload.TaskKey = taskKey

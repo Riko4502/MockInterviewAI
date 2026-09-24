@@ -50,7 +50,7 @@ func BenchmarkRoomBroadcast(b *testing.B) {
 	ctx := context.Background()
 	for b.Loop() {
 		room.handleBroadcast(ctx, msg)
-		room.SaveQueue().CommitBatch(updatePayload.TaskKey, 1)
+		room.SaveQueue().CommitBatch(updatePayload.TaskKey, MaxSaveQueueSize)
 
 		// Очищаем sendCh для предотвращения переполнения буфера
 		select {
@@ -67,6 +67,10 @@ func BenchmarkRoomBroadcast(b *testing.B) {
 // TestNFR1_RoomBroadcast_P99 экспериментально проверяет гипотезу NFR-1:
 // Задержка обработки и рассылки yjs.update локальным сокетам комнаты P99 < 10 мс.
 func TestNFR1_RoomBroadcast_P99(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping NFR-1 latency benchmark in short mode")
+	}
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	room := NewRoom("bench-p99-room", nil, nil, logger, nil)
 
@@ -102,7 +106,7 @@ func TestNFR1_RoomBroadcast_P99(t *testing.T) {
 		start := time.Now()
 		room.handleBroadcast(ctx, msg)
 		latencies[i] = time.Since(start)
-		room.SaveQueue().CommitBatch("two-sum:typescript", 1)
+		room.SaveQueue().CommitBatch("two-sum:typescript", MaxSaveQueueSize)
 
 		// Сбрасываем буферы
 		select {

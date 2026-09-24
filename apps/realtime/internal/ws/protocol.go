@@ -73,6 +73,7 @@ type EventPayload interface {
 		YjsAckPayload |
 		YjsInitPayload |
 		YjsAwarenessPayload |
+		YjsSnapshotPayload |
 		TaskSwitchPayload |
 		TaskSwitchedPayload |
 		RoomErrorPayload |

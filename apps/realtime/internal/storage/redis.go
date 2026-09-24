@@ -46,6 +46,7 @@ type YjsDocStore interface {
 	SeedTaskDoc(ctx context.Context, sessionID, taskKey, starterUpdateBase64 string, ttlSeconds int64) (int, error)
 	GetTaskUpdates(ctx context.Context, sessionID, taskKey string) ([]string, error)
 	AppendTaskUpdate(ctx context.Context, sessionID, taskKey, updateBase64 string) (string, error)
+	CompactTaskStream(ctx context.Context, sessionID, taskKey, snapshotBase64 string) error
 	TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error
 }
 
@@ -752,6 +753,42 @@ func (r *RedisStore) AppendTaskUpdate(ctx context.Context, sessionID, taskKey, u
 		ID:     "*",
 		Values: map[string]interface{}{"data": updateBase64},
 	}).Result()
+}
+
+// CompactTaskStream сохраняет новый snapshot документа в Redis Stream и удаляет устаревшие дельты через XTRIM MINID.
+func (r *RedisStore) CompactTaskStream(ctx context.Context, sessionID, taskKey, snapshotBase64 string) error {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" || snapshotBase64 == "" {
+		return nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	// 1. Записываем сжатый snapshot в стрим
+	snapshotID, err := r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		ID:     "*",
+		Values: map[string]interface{}{"data": snapshotBase64},
+	}).Result()
+	if err != nil {
+		r.logger.Warn("failed to append snapshot to stream during compaction",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to append snapshot to stream: %w", err)
+	}
+
+	// 2. Обрезаем стрим так, чтобы snapshotID стал первой записью (XTRIM MINID snapshotID)
+	if err := r.client.XTrimMinID(ctx, streamKey, snapshotID).Err(); err != nil {
+		r.logger.Warn("failed to trim stream after snapshot",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("snapshotId", snapshotID),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to trim stream: %w", err)
+	}
+
+	return nil
 }
 
 // TouchTaskStream синхронно продлевает TTL ключей активной задачи ({session:<id>}:seeded_tasks и стрима задачи) на заданный TTL.

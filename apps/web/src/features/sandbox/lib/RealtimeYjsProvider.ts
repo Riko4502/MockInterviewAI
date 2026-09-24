@@ -76,6 +76,7 @@ export interface TaskContext {
   unsentQueue: QueuedUpdate[];
   liveQueue: Uint8Array[];
   batchMap: Map<string, Set<string>>; // batchUpdateId -> Set<originalUpdateId>
+  updatesSinceCompaction: number;
   updateListener: (update: Uint8Array, origin: unknown) => void;
   awarenessUpdateListener: (
     changes: { added: number[]; updated: number[]; removed: number[] },
@@ -86,7 +87,9 @@ export interface TaskContext {
 export interface RealtimeYjsProviderOptions {
   /** Опциональный начальный документ (для обратной совместимости) */
   doc?: Y.Doc;
-  /** Опциональный начальный taskKey (по умолчанию "default:typescript") */
+  /** Опциональный алиас для doc */
+  yDoc?: Y.Doc;
+  /** Опциональный начальный taskKey (по умолчанию "two-sum:typescript") */
   taskKey?: string;
   sessionId: string;
   /** Опциональный инстанс Awareness для начальной задачи */
@@ -111,6 +114,8 @@ export interface RealtimeYjsProviderOptions {
   onStatusChange?: (status: ProviderStatus, taskKey?: string) => void;
   /** Колбэк при успешном переходе в статус SYNCED */
   onSynced?: (taskKey?: string) => void;
+  /** Порог количества дельт для автоматической отправки сжатого снимка (yjs.snapshot) */
+  compactionThreshold?: number;
 }
 
 /**
@@ -150,6 +155,7 @@ export class RealtimeYjsProvider {
     [key: string]: unknown;
   };
   private readonly initialStatus?: ProviderStatus;
+  private readonly compactionThreshold?: number;
 
   private seq = 0;
   private readonly providerId: string;
@@ -172,13 +178,15 @@ export class RealtimeYjsProvider {
     this.onSynced = options.onSynced;
     this.user = options.user;
     this.initialStatus = options.initialStatus;
+    this.compactionThreshold = options.compactionThreshold;
     this.providerId = `client_${Math.random().toString(36).substring(2, 9)}`;
 
-    const initialKey = options.taskKey ?? "default:typescript";
+    const initialKey = options.taskKey ?? "two-sum:typescript";
     this.activeTaskKey = initialKey;
 
+    const initialDoc = options.doc ?? options.yDoc;
     // Инициализируем начальную задачу (с поддержкой переданного doc/awareness)
-    this.getOrCreateTask(initialKey, options.doc, options.awareness);
+    this.getOrCreateTask(initialKey, initialDoc, options.awareness);
 
     // Слушатели событий WebSocket (если передан сырой WebSocket)
     if (this.socket) {
@@ -229,6 +237,12 @@ export class RealtimeYjsProvider {
   ): TaskContext {
     let context = this.tasks.get(taskKey);
     if (context) {
+      if (
+        taskKey === this.activeTaskKey &&
+        context.awareness.getLocalState() === null
+      ) {
+        context.awareness.setLocalState(this.user ? { user: this.user } : {});
+      }
       return context;
     }
 
@@ -283,6 +297,13 @@ export class RealtimeYjsProvider {
       // При статусе SYNCED отправляем немедленно в сокет (T024, T029)
       if (currentTask.status === "SYNCED") {
         this.sendUpdate(taskKey, updateId, update);
+        currentTask.updatesSinceCompaction++;
+        if (
+          this.compactionThreshold &&
+          currentTask.updatesSinceCompaction >= this.compactionThreshold
+        ) {
+          this.sendSnapshot(taskKey);
+        }
       }
     };
     doc.on("update", updateListener);
@@ -318,6 +339,7 @@ export class RealtimeYjsProvider {
       unsentQueue,
       liveQueue,
       batchMap,
+      updatesSinceCompaction: 0,
       updateListener,
       awarenessUpdateListener,
     };
@@ -343,6 +365,10 @@ export class RealtimeYjsProvider {
     }
     this.activeTaskKey = newTaskKey;
     const context = this.getOrCreateTask(newTaskKey);
+
+    if (context.awareness.getLocalState() === null) {
+      context.awareness.setLocalState(this.user ? { user: this.user } : {});
+    }
 
     // Если соединение уже открыто, переводим новую задачу в INITIALIZING при первом входе
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -671,6 +697,41 @@ export class RealtimeYjsProvider {
   }
 
   /**
+   * Отправляет сжатый снимок (snapshot) состояния документа Yjs на сервер для компактизации стрима в Redis (XTRIM MINID).
+   */
+  public sendSnapshot(taskKey: string = this.activeTaskKey): void {
+    const task = this.tasks.get(taskKey);
+    if (!task || task.status !== "SYNCED") {
+      return;
+    }
+
+    try {
+      const snapshot = Y.encodeStateAsUpdate(task.doc);
+      const snapshotBase64 = uint8ArrayToBase64(snapshot);
+
+      const envelope: AnyWebSocketEnvelope = {
+        type: "yjs.snapshot",
+        version: 1,
+        sessionId: this.sessionId,
+        requestId: `req_snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        payload: {
+          taskKey,
+          snapshot: snapshotBase64,
+        },
+      };
+
+      this.sendEnvelope(envelope);
+      task.updatesSinceCompaction = 0;
+    } catch (err) {
+      console.error(
+        `[RealtimeYjsProvider] Failed to generate snapshot for task ${taskKey}:`,
+        err,
+      );
+    }
+  }
+
+  /**
    * Обрабатывает входящий конверт WebSocket от сервера с динамической маршрутизацией по taskKey (T029).
    */
   public handleMessage(envelope: AnyWebSocketEnvelope): void {
@@ -714,6 +775,13 @@ export class RealtimeYjsProvider {
 
           // Применяем обновление строго к Y.Doc целевой задачи с origin = this (T017, T029)
           Y.applyUpdate(taskContext.doc, binary, this);
+          taskContext.updatesSinceCompaction++;
+          if (
+            this.compactionThreshold &&
+            taskContext.updatesSinceCompaction >= this.compactionThreshold
+          ) {
+            this.sendSnapshot(payload.taskKey);
+          }
         } catch (err) {
           console.error(
             `[RealtimeYjsProvider] Failed to apply yjs.update for task ${payload.taskKey}:`,

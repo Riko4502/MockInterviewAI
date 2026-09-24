@@ -235,6 +235,18 @@ export const yjsAwarenessEnvelopeSchema = baseWebSocketEnvelopeSchema(
 );
 export type YjsAwarenessEnvelope = z.infer<typeof yjsAwarenessEnvelopeSchema>;
 
+export const yjsSnapshotPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  snapshot: yjsDataSchema,
+});
+export type YjsSnapshotPayload = z.infer<typeof yjsSnapshotPayloadSchema>;
+
+export const yjsSnapshotEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.snapshot"),
+  yjsSnapshotPayloadSchema,
+);
+export type YjsSnapshotEnvelope = z.infer<typeof yjsSnapshotEnvelopeSchema>;
+
 export const taskSwitchEnvelopeSchema = baseWebSocketEnvelopeSchema(
   z.literal("task.switch"),
   taskSwitchPayloadSchema,
@@ -272,6 +284,7 @@ export type AnyWebSocketEnvelope =
   | BaseWebSocketEnvelope<"yjs.ack", YjsAckPayload>
   | BaseWebSocketEnvelope<"yjs.init", YjsInitPayload>
   | BaseWebSocketEnvelope<"yjs.awareness", YjsAwarenessPayload>
+  | BaseWebSocketEnvelope<"yjs.snapshot", YjsSnapshotPayload>
   | BaseWebSocketEnvelope<"task.switch", TaskSwitchPayload>
   | BaseWebSocketEnvelope<"task.switched", TaskSwitchedPayload>
   | BaseWebSocketEnvelope<"code.update", CodeUpdatePayload>

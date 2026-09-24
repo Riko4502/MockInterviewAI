@@ -15,6 +15,7 @@ func TestMetricsExposeWebSocketMetrics(t *testing.T) {
 	m.ObservePubSubLag(0.0)
 	m.ObservePubSubLag(0.005)
 	m.IncCodeVersionFallback()
+	m.ObserveYjsInitStreamLength(42)
 
 	var buf bytes.Buffer
 	m.WritePrometheus(&buf)
@@ -30,6 +31,10 @@ func TestMetricsExposeWebSocketMetrics(t *testing.T) {
 		"# HELP realtime_ws_code_version_fallback_total",
 		"# TYPE realtime_ws_code_version_fallback_total counter",
 		`realtime_ws_code_version_fallback_total{node_id="node-1"} 1`,
+		"# HELP realtime_ws_yjs_init_stream_length",
+		"# TYPE realtime_ws_yjs_init_stream_length histogram",
+		`realtime_ws_yjs_init_stream_length_count{node_id="node-1"} 1`,
+		`realtime_ws_yjs_init_stream_length_bucket{node_id="node-1",le="50"} 1`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected metric output to contain %q, got:\n%s", want, out)

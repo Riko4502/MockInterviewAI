@@ -27,6 +27,18 @@ type broadcastMessage struct {
 	isRemote bool
 }
 
+// SaveQueue определяет интерфейс очереди сохранения дельт Yjs в Redis.
+type SaveQueue interface {
+	Enqueue(update *PendingUpdate) error
+	GetPending(taskKey string) []string
+	CommitBatch(taskKey string, count int)
+	TotalPending() int
+	FlushSync(ctx context.Context)
+	Start(ctx context.Context)
+	Close()
+	SetStore(store storage.YjsDocStore)
+}
+
 // Room управляет списком участников конкретной сессии и рассылает сообщения между ними.
 type Room struct {
 	ID string
@@ -47,7 +59,7 @@ type Room struct {
 	broadcaster      storage.Broadcaster
 	sessionStore     storage.SessionStore
 	yjsStore         storage.YjsDocStore
-	saveQueue        *YjsSaveQueue
+	saveQueue        SaveQueue
 	activeTaskKey    string
 	metrics          *Metrics
 	codeVersion      int64
@@ -102,14 +114,14 @@ func (r *Room) SetYjsStore(ys storage.YjsDocStore) {
 }
 
 // SaveQueue возвращает очередь сохранения дельт Yjs комнаты.
-func (r *Room) SaveQueue() *YjsSaveQueue {
+func (r *Room) SaveQueue() SaveQueue {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.saveQueue
 }
 
 // SetSaveQueue устанавливает очередь сохранения (для тестирования).
-func (r *Room) SetSaveQueue(q *YjsSaveQueue) {
+func (r *Room) SetSaveQueue(q SaveQueue) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.saveQueue = q
@@ -404,6 +416,10 @@ func (r *Room) sendYjsInit(ctx context.Context, client *Client, taskKey string) 
 	allUpdates = append(allUpdates, streamUpdates...)
 	allUpdates = append(allUpdates, pendingUpdates...)
 
+	if r.metrics != nil {
+		r.metrics.ObserveYjsInitStreamLength(len(streamUpdates))
+	}
+
 	// Шаг 5: Формирование конверта yjs.init и отправка клиенту
 	initBytes, err := NewYjsInitEnvelope(r.ID, "", taskKey, allUpdates)
 	if err != nil {
@@ -577,6 +593,31 @@ func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 		}
 	}
 
+	// 2c. Обработка сжатого снимка yjs.snapshot: асинхронная компактизация стрима в Redis (XTRIM MINID)
+	if raw.Type == EventYjsSnapshot {
+		if payload, unpackErr := UnpackPayload[YjsSnapshotPayload](raw); unpackErr == nil {
+			if !msg.isRemote {
+				r.mu.RLock()
+				ys := r.yjsStore
+				r.mu.RUnlock()
+				if ys != nil {
+					go func(taskKey, snapshot string) {
+						compactCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						if err := ys.CompactTaskStream(compactCtx, r.ID, taskKey, snapshot); err != nil {
+							r.logger.Warn("failed to compact task stream",
+								slog.String("sessionId", r.ID),
+								slog.String("taskKey", taskKey),
+								slog.String("error", err.Error()),
+							)
+						}
+					}(payload.TaskKey, payload.Snapshot)
+				}
+			}
+			return
+		}
+	}
+
 	// 3. Обработка переключения задачи task.switch (T030)
 	if raw.Type == EventTaskSwitch {
 		if payload, unpackErr := UnpackPayload[TaskSwitchPayload](raw); unpackErr == nil && payload.TaskKey != "" {
@@ -627,12 +668,28 @@ func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
 		}
 	}
 
-	// 3b. Обновление activeTaskKey при удаленном task.switched через Pub/Sub
+	// 3b. Обновление activeTaskKey при удаленном task.switched через Pub/Sub и отгрузка yjs.init локальным клиентам
 	if raw.Type == EventTaskSwitched && msg.isRemote {
 		if payload, unpackErr := UnpackPayload[TaskSwitchedPayload](raw); unpackErr == nil && payload.TaskKey != "" {
 			r.mu.Lock()
 			r.activeTaskKey = payload.TaskKey
 			r.mu.Unlock()
+
+			go func(taskKey string) {
+				r.mu.RLock()
+				clients := make([]*Client, 0, len(r.clients))
+				for _, c := range r.clients {
+					clients = append(clients, c)
+				}
+				r.mu.RUnlock()
+
+				for _, c := range clients {
+					if r.ActiveTaskKey() != taskKey {
+						return
+					}
+					_ = r.sendYjsInit(ctx, c, taskKey)
+				}
+			}(payload.TaskKey)
 		}
 	}
 

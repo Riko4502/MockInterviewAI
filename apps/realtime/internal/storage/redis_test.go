@@ -451,4 +451,20 @@ func TestSeedTaskDoc_FiveStatesAndConcurrency(t *testing.T) {
 	if err := store.TouchTaskStream(ctx, concurrentSessionID, concurrentTaskKey, 12*time.Hour); err != nil {
 		t.Fatalf("TouchTaskStream failed: %v", err)
 	}
+
+	// -------------------------------------------------------------
+	// Проверка метода CompactTaskStream (сжатие истории через XTRIM MINID)
+	// -------------------------------------------------------------
+	snapshotDelta := "snapshotMergedBase64=="
+	if err := store.CompactTaskStream(ctx, concurrentSessionID, concurrentTaskKey, snapshotDelta); err != nil {
+		t.Fatalf("CompactTaskStream failed: %v", err)
+	}
+
+	compactedUpdates, err := store.GetTaskUpdates(ctx, concurrentSessionID, concurrentTaskKey)
+	if err != nil {
+		t.Fatalf("GetTaskUpdates after compaction failed: %v", err)
+	}
+	if len(compactedUpdates) != 1 || compactedUpdates[0] != snapshotDelta {
+		t.Errorf("Expected exactly 1 compacted snapshot update in stream, got %v", compactedUpdates)
+	}
 }

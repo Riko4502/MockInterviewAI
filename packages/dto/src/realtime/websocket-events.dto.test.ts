@@ -13,12 +13,14 @@ import {
   yjsAwarenessPayloadSchema,
   yjsInitEnvelopeSchema,
   yjsInitPayloadSchema,
+  yjsSnapshotEnvelopeSchema,
+  yjsSnapshotPayloadSchema,
   yjsUpdateEnvelopeSchema,
   yjsUpdatePayloadSchema,
 } from "./websocket-events.dto";
 
 describe("Yjs WebSocket DTO Validation", () => {
-  const validBase64 = Buffer.from("hello world binary data").toString("base64");
+  const validBase64 = "aGVsbG8gd29ybGQgYmluYXJ5IGRhdGE=";
   const validTaskKey = "task-123:typescript";
   const validUpdateId = "client-1:1";
 
@@ -139,7 +141,7 @@ describe("Yjs WebSocket DTO Validation", () => {
     it("успешно валидирует корректный пакет инициализации с массивом обновлений", () => {
       const result = yjsInitPayloadSchema.safeParse({
         taskKey: validTaskKey,
-        updates: [validBase64, Buffer.from("second delta").toString("base64")],
+        updates: [validBase64, "c2Vjb25kIGRlbHRh"],
       });
       expect(result.success).toBe(true);
       if (result.success) {
@@ -298,6 +300,24 @@ describe("Yjs WebSocket DTO Validation", () => {
           code: "SYNC_FAILED",
           message: "Failed to load document history",
           taskKey: validTaskKey,
+        },
+      });
+      expect(envelopeResult.success).toBe(true);
+    });
+
+    it("успешно валидирует yjsSnapshotEnvelopeSchema и yjsSnapshotPayloadSchema", () => {
+      const payloadResult = yjsSnapshotPayloadSchema.safeParse({
+        taskKey: validTaskKey,
+        snapshot: validBase64,
+      });
+      expect(payloadResult.success).toBe(true);
+
+      const envelopeResult = yjsSnapshotEnvelopeSchema.safeParse({
+        ...baseEnvelope,
+        type: "yjs.snapshot",
+        payload: {
+          taskKey: validTaskKey,
+          snapshot: validBase64,
         },
       });
       expect(envelopeResult.success).toBe(true);

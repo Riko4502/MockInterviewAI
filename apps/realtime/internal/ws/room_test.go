@@ -60,6 +60,14 @@ func (m *mockYjsStore) AppendTaskUpdate(_ context.Context, _, taskKey, updateBas
 	return "1-0", nil
 }
 
+func (m *mockYjsStore) CompactTaskStream(_ context.Context, _, taskKey, snapshotBase64 string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, "CompactTaskStream")
+	m.streamUpdates[taskKey] = []string{snapshotBase64}
+	return nil
+}
+
 func (m *mockYjsStore) TouchTaskStream(_ context.Context, _, _ string, _ time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -68,9 +76,9 @@ func (m *mockYjsStore) TouchTaskStream(_ context.Context, _, _ string, _ time.Du
 	return nil
 }
 
-// spySaveQueue оборачивает YjsSaveQueue для отслеживания вызовов GetPending в тестах порядка.
+// spySaveQueue оборачивает SaveQueue для отслеживания вызовов GetPending в тестах порядка.
 type spySaveQueue struct {
-	*YjsSaveQueue
+	SaveQueue
 	mu         sync.Mutex
 	calls      *[]string
 	parentLock *sync.Mutex
@@ -82,7 +90,7 @@ func (s *spySaveQueue) GetPending(taskKey string) []string {
 		*s.calls = append(*s.calls, "GetPending")
 		s.parentLock.Unlock()
 	}
-	return s.YjsSaveQueue.GetPending(taskKey)
+	return s.SaveQueue.GetPending(taskKey)
 }
 
 // drainSendCh очищает буфер сообщений клиента.
@@ -124,14 +132,12 @@ func TestRoom_YjsInit_OrderGetPendingThenXRANGE(t *testing.T) {
 	room := NewRoom("test-session-order", nil, nil, logger, nil)
 	room.SetYjsStore(store)
 
-	var callMutex sync.Mutex
-	spyCalls := make([]string, 0)
 	spyQueue := &spySaveQueue{
-		YjsSaveQueue: room.SaveQueue(),
-		calls:        &spyCalls,
-		parentLock:   &callMutex,
+		SaveQueue:  room.SaveQueue(),
+		calls:      &store.calls,
+		parentLock: &store.mu,
 	}
-	room.SetSaveQueue(spyQueue.YjsSaveQueue)
+	room.SetSaveQueue(spyQueue)
 
 	// Помещаем дельту в оперативную очередь
 	_ = room.SaveQueue().Enqueue(&PendingUpdate{
@@ -175,7 +181,22 @@ func TestRoom_YjsInit_OrderGetPendingThenXRANGE(t *testing.T) {
 		t.Errorf("expected taskKey 'task-1:typescript', got %s", payload.TaskKey)
 	}
 
-	// Проверяем конкатенацию: сначала стрим, затем pending
+	// 1. Проверяем строгий порядок вызовов: GetPending -> XRANGE
+	store.mu.Lock()
+	calls := append([]string(nil), store.calls...)
+	store.mu.Unlock()
+
+	expectedCalls := []string{"GetPending", "XRANGE"}
+	if len(calls) != len(expectedCalls) {
+		t.Fatalf("expected call sequence %v, got %v", expectedCalls, calls)
+	}
+	for i, exp := range expectedCalls {
+		if calls[i] != exp {
+			t.Errorf("call [%d]: expected %s, got %s (actual calls: %v)", i, exp, calls[i], calls)
+		}
+	}
+
+	// 2. Проверяем конкатенацию: сначала стрим, затем pending
 	if len(payload.Updates) != 2 {
 		t.Fatalf("expected 2 updates (1 stream + 1 pending), got %d: %v", len(payload.Updates), payload.Updates)
 	}
@@ -730,4 +751,141 @@ switchLoop:
 		t.Errorf("expected SeedTaskDoc to be called on task.switch, got %d calls", seedCalls)
 	}
 }
+
+// TestRoom_RemoteTaskSwitched_UpdatesActiveTaskKeyAndSendsYjsInit проверяет:
+// 1. Обновление activeTaskKey комнаты при получении удаленного task.switched (Pub/Sub, isRemote = true)
+// 2. Рассылку клиентам удаленной реплики события task.switched
+// 3. Отгрузку локальным клиентам yjs.init для новой задачи
+func TestRoom_RemoteTaskSwitched_UpdatesActiveTaskKeyAndSendsYjsInit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := newMockYjsStore()
+	store.streamUpdates["task-remote:go"] = []string{"remote-delta-1"}
+
+	room := NewRoom("test-session-remote-switch", nil, nil, logger, nil)
+	room.SetYjsStore(store)
+	go room.Run(ctx)
+	defer room.Close()
+
+	client := NewClient("client-remote-sub", "user-sub", "bob", "candidate", room.ID, nil, room, logger)
+	room.Register(client)
+
+	if !waitForRegistration(room, 1, 1*time.Second) {
+		t.Fatal("client registration timed out")
+	}
+
+	// Очищаем стартовые сообщения
+	drainMessages := func() {
+		timeout := time.After(100 * time.Millisecond)
+		for {
+			select {
+			case <-client.sendCh:
+			case <-timeout:
+				return
+			}
+		}
+	}
+	drainMessages()
+
+	// Приходит удаленное событие task.switched через Pub/Sub (isRemote = true)
+	switchedEnv := NewEnvelope(EventTaskSwitched, room.ID, "req-remote-1", TaskSwitchedPayload{
+		TaskKey: "task-remote:go",
+	})
+	switchedBytes, err := switchedEnv.ToBytes()
+	if err != nil {
+		t.Fatalf("failed to marshal task.switched envelope: %v", err)
+	}
+
+	room.BroadcastFromRemote(switchedBytes)
+
+	var receivedSwitched *TaskSwitchedPayload
+	var receivedInit *YjsInitPayload
+
+	timeout := time.After(2 * time.Second)
+switchLoop:
+	for {
+		select {
+		case msg := <-client.sendCh:
+			raw, pErr := ParseRawEnvelope(msg)
+			if pErr != nil {
+				continue
+			}
+			switch raw.Type {
+			case EventTaskSwitched:
+				if swP, uErr := UnpackPayload[TaskSwitchedPayload](raw); uErr == nil {
+					receivedSwitched = &swP
+				}
+			case EventYjsInit:
+				if initP, uErr := UnpackPayload[YjsInitPayload](raw); uErr == nil {
+					if initP.TaskKey == "task-remote:go" {
+						receivedInit = &initP
+					}
+				}
+			}
+			if receivedSwitched != nil && receivedInit != nil {
+				break switchLoop
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for task.switched and yjs.init on remote replica: switched=%v, init=%v",
+				receivedSwitched != nil, receivedInit != nil)
+		}
+	}
+
+	if receivedSwitched == nil || receivedSwitched.TaskKey != "task-remote:go" {
+		t.Errorf("expected task.switched with taskKey 'task-remote:go'")
+	}
+	if receivedInit == nil || receivedInit.TaskKey != "task-remote:go" {
+		t.Errorf("expected yjs.init with taskKey 'task-remote:go'")
+	}
+	if room.ActiveTaskKey() != "task-remote:go" {
+		t.Errorf("expected room.ActiveTaskKey() == 'task-remote:go', got '%s'", room.ActiveTaskKey())
+	}
+}
+
+func TestRoom_HandleYjsSnapshot_Compaction(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := newMockYjsStore()
+	store.streamUpdates["task-compact:ts"] = []string{"delta1", "delta2", "delta3"}
+
+	room := NewRoom("room-compact", nil, nil, logger, nil)
+	room.SetYjsStore(store)
+	client := NewClient("client-c", "user-c", "Charlie", "candidate", room.ID, nil, room, logger)
+
+	room.mu.Lock()
+	room.clients[client.ID] = client
+	room.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go room.Run(ctx)
+
+	snapshotPayload := YjsSnapshotPayload{
+		TaskKey:  "task-compact:ts",
+		Snapshot: "compactSnapshotBase64==",
+	}
+	env := NewEnvelope(EventYjsSnapshot, room.ID, "req-snap-1", snapshotPayload)
+	envBytes, err := env.ToBytes()
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot envelope: %v", err)
+	}
+
+	room.Broadcast(envBytes, client.ID)
+
+	// Ждем асинхронного вызова CompactTaskStream
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		updates := store.streamUpdates["task-compact:ts"]
+		store.mu.Unlock()
+		if len(updates) == 1 && updates[0] == "compactSnapshotBase64==" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for CompactTaskStream to update stream")
+}
+
 
