@@ -763,7 +763,7 @@ export class AuthService implements OnModuleInit {
    * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
    * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
    * 5. Хеширование нового пароля через Argon2id.
-   * 6. В единой транзакции PostgreSQL: обновление `passwordHash` и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
+   * 6. В единой транзакции PostgreSQL: обновление `passwordHash`, отвязка неподтверждённых внешних идентичностей (`telegramId: null`, `telegramUsername: null`) и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
    * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
    *    - При успехе: удаление durable-задачи из PostgreSQL.
    *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
@@ -817,6 +817,8 @@ export class AuthService implements OnModuleInit {
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
+          telegramId: null,
+          telegramUsername: null,
         },
         select: {
           generation: true,
@@ -918,48 +920,7 @@ export class AuthService implements OnModuleInit {
       await this.usersService.findUserWithRoleByTelegramId(telegramId);
 
     if (user) {
-      if (user.deletedAt) {
-        const elapsedMs = Date.now() - user.deletedAt.getTime();
-        if (elapsedMs > THIRTY_DAYS_MS) {
-          throw new UnauthorizedException("Account has been deleted");
-        }
-        await this.usersService.restoreAccount(user.id);
-      }
-
-      const sessionId = randomUUID();
-      const tokenFamilyId = randomUUID();
-      const permissions = user.role?.permissions ?? SystemPermission.NONE;
-      const generation = user.generation ?? 1;
-
-      const accessToken = this.tokenService.generateAccessToken(
-        user.id,
-        sessionId,
-        permissions,
-        generation,
-      );
-      const refreshToken = this.tokenService.generateRefreshToken(
-        user.id,
-        sessionId,
-        generation,
-      );
-      const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
-
-      try {
-        await this.sessionService.createSession(
-          sessionId,
-          user.id,
-          refreshTokenHash,
-          tokenFamilyId,
-          generation,
-        );
-      } catch (error) {
-        this.logger.error(
-          "Redis unavailable during telegramAuth",
-          error instanceof Error ? error.message : String(error),
-        );
-        throw new InternalServerErrorException();
-      }
-
+      const { accessToken, refreshToken } = await this.loginUser(user);
       return { status: "AUTHENTICATED", accessToken, refreshToken };
     }
 
@@ -1048,6 +1009,7 @@ export class AuthService implements OnModuleInit {
             ReturnType<typeof this.usersService.findUserWithRoleByTelegramId>
           >
         >;
+    let createdInThisRequest = false;
     try {
       user = await this.usersService.createTelegramUser({
         email: dto.email,
@@ -1057,6 +1019,7 @@ export class AuthService implements OnModuleInit {
         displayName,
         avatarUrl: null,
       });
+      createdInThisRequest = true;
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
         const existingTgUser =
@@ -1134,10 +1097,14 @@ export class AuthService implements OnModuleInit {
         "Redis unavailable during telegramComplete — compensating user cleanup",
         error instanceof Error ? error.message : String(error),
       );
-      if (uploadedAvatarUrl) {
-        await this.storageService.deleteFile(uploadedAvatarUrl).catch(() => {});
+      if (createdInThisRequest) {
+        if (uploadedAvatarUrl) {
+          await this.storageService
+            .deleteFile(uploadedAvatarUrl)
+            .catch(() => {});
+        }
+        await this.compensateUserCleanup(user.id);
       }
-      await this.compensateUserCleanup(user.id);
       throw new InternalServerErrorException();
     }
 

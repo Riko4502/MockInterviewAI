@@ -43,6 +43,7 @@ describe("TelegramOAuthService", () => {
   }
 
   beforeEach(() => {
+    jest.useFakeTimers({ now: new Date("2026-09-24T10:00:00.500Z") });
     configService = {
       get: jest.fn((key: string) => {
         if (key === "telegram.botToken") return botToken;
@@ -55,6 +56,10 @@ describe("TelegramOAuthService", () => {
     } as unknown as RedisService;
 
     service = new TelegramOAuthService(configService, redisService);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("успешно валидирует подлинный payload со стандартным auth_date (TTL >= 300)", async () => {

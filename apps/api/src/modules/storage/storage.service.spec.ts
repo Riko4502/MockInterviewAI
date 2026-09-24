@@ -128,24 +128,30 @@ describe("StorageService", () => {
   });
 
   describe("uploadAvatarFromUrl", () => {
-    it("блокирует SSRF обращения к приватным IP и localhost", async () => {
+    it("блокирует SSRF обращения к недоверенным хостам, приватным IP и localhost", async () => {
       const urlLocalhost = await service.uploadAvatarFromUrl(
         "user-123",
-        "http://localhost:8080/image.jpg",
+        "https://localhost:8080/image.jpg",
       );
       expect(urlLocalhost).toBeNull();
 
       const urlPrivateIp = await service.uploadAvatarFromUrl(
         "user-123",
-        "http://192.168.1.1/image.jpg",
+        "https://192.168.1.1/image.jpg",
       );
       expect(urlPrivateIp).toBeNull();
 
       const urlMetadata = await service.uploadAvatarFromUrl(
         "user-123",
-        "http://169.254.169.254/latest/meta-data/",
+        "https://169.254.169.254/latest/meta-data/",
       );
       expect(urlMetadata).toBeNull();
+
+      const urlUntrusted = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://example.com/avatar.jpg",
+      );
+      expect(urlUntrusted).toBeNull();
     });
 
     it("отклоняет HTTP редиректы (redirect: manual) во избежание SSRF обхода", async () => {
@@ -158,7 +164,7 @@ describe("StorageService", () => {
       global.fetch = fetchMock;
 
       try {
-        const expectedUrl = "https://example.com/redirect-to-internal.jpg";
+        const expectedUrl = "https://cdn.telegram.org/redirect-to-internal.jpg";
         const result = await service.uploadAvatarFromUrl(
           "user-123",
           expectedUrl,
@@ -175,12 +181,18 @@ describe("StorageService", () => {
       }
     });
 
-    it("отклоняет протоколы отличные от http/https", async () => {
+    it("отклоняет протоколы отличные от https (включая http)", async () => {
       const urlFtp = await service.uploadAvatarFromUrl(
         "user-123",
         "file:///etc/passwd",
       );
       expect(urlFtp).toBeNull();
+
+      const urlHttp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://cdn.telegram.org/avatar.jpg",
+      );
+      expect(urlHttp).toBeNull();
     });
 
     it("возвращает null при ошибке сети fetch", async () => {
@@ -190,7 +202,7 @@ describe("StorageService", () => {
       try {
         const result = await service.uploadAvatarFromUrl(
           "user-123",
-          "https://example.com/avatar.jpg",
+          "https://cdn.telegram.org/avatar.jpg",
         );
         expect(result).toBeNull();
       } finally {

@@ -169,7 +169,7 @@ export class StorageService {
 
     try {
       const parsedUrl = new URL(imageUrl);
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      if (parsedUrl.protocol !== "https:") {
         this.logger.warn(
           `SSRF protection: Invalid protocol ${parsedUrl.protocol}`,
         );
@@ -177,20 +177,13 @@ export class StorageService {
       }
 
       const hostname = parsedUrl.hostname.toLowerCase();
+      const allowedHosts = ["t.me", "telegram.org", "telesco.pe"];
       if (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "::1" ||
-        hostname === "169.254.169.254" ||
-        hostname.startsWith("10.") ||
-        hostname.startsWith("192.168.") ||
-        (hostname.startsWith("172.") &&
-          Number.parseInt(hostname.split(".")[1] ?? "0", 10) >= 16 &&
-          Number.parseInt(hostname.split(".")[1] ?? "0", 10) <= 31)
+        !allowedHosts.some(
+          (host) => hostname === host || hostname.endsWith(`.${host}`),
+        )
       ) {
-        this.logger.warn(
-          `SSRF protection: Blocked request to private IP/host ${hostname}`,
-        );
+        this.logger.warn(`SSRF protection: Host ${hostname} is not allowed`);
         return null;
       }
 

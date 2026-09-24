@@ -714,7 +714,9 @@ export class AuthController {
     status: 400,
     description:
       "Недействительный или истекший onboardingToken / ошибка валидации.",
-    schema: validationErrorResponseRef,
+    schema: {
+      oneOf: [validationErrorResponseRef, errorResponseRef],
+    },
   })
   @ApiResponse({
     status: 409,
