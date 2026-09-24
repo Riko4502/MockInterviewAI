@@ -1,4 +1,3 @@
-import type { Collaborator } from "@packages/editor";
 import type { PeerInfo } from "../model/types";
 
 export const COLLABORATOR_COLORS = [
@@ -28,7 +27,7 @@ export function getColorForUser(id?: string | null): string {
 /**
  * Mapper: преобразует информацию об участнике комнаты (PeerInfo) в модель соавтора для Monaco Editor.
  */
-export function mapPeerToCollaborator(peer: PeerInfo): Collaborator {
+export function mapPeerToCollaborator(peer: PeerInfo) {
   return {
     id: peer.id,
     name: peer.name,

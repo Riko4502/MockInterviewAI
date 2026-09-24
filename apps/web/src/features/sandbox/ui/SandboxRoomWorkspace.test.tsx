@@ -4,15 +4,19 @@ import type { LanguageId } from "@packages/editor";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
-import { baseFetch } from "@/shared/api/base";
+import { baseFetch } from "@/shared/api";
 import { uint8ArrayToBase64 } from "../lib/RealtimeYjsProvider";
 import type { RunResult } from "../model/types";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxRoomWorkspace } from "./SandboxRoomWorkspace";
 
-vi.mock("@/shared/api/base", () => ({
-  baseFetch: vi.fn(),
-}));
+vi.mock("@/shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/api")>();
+  return {
+    ...actual,
+    baseFetch: vi.fn(),
+  };
+});
 
 // Заглушка для дочерних панелей тулбара и медиа
 vi.mock("./SandboxHeader", () => ({

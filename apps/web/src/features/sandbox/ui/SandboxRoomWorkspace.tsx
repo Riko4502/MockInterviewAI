@@ -5,7 +5,7 @@ import { Resizable } from "@packages/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
-import { baseFetch } from "@/shared/api/base";
+import { baseFetch } from "@/shared/api";
 import { getColorForUser } from "../lib/mapPeerToCollaborator";
 import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
