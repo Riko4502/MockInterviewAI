@@ -2,6 +2,7 @@ export const paths = {
   login: "/login",
   register: "/register",
   dashboard: "/dashboard",
+  completeTelegram: "/register/complete-telegram",
   sandbox: "/dashboard/sandbox",
   notifications: "/dashboard/notifications",
   interviews: "/dashboard/interviews",
