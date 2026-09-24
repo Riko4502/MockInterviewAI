@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileDto } from "@packages/api";
-import { Button, Card, Field, Input, Skeleton } from "@packages/ui";
+import { Button, Card, Field, Input, Skeleton, Spin } from "@packages/ui";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,8 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -36,7 +37,19 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
   });
 
   const onSubmit = (values: ProfileFormValues) => {
-    updateProfile.mutate({ data: toUpdateProfileDto(values) });
+    updateProfile.mutate(
+      { data: toUpdateProfileDto(values) },
+      {
+        onSuccess: () => {
+          reset({
+            displayName: values.displayName.trim(),
+            username: values.username.trim().toLowerCase(),
+            telegramUsername: values.telegramUsername.trim(),
+            gitUrl: values.gitUrl.trim(),
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -132,8 +145,12 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
             <Button
               type="submit"
               className="sm:w-auto"
-              disabled={updateProfile.isPending}
+              disabled={!isDirty || updateProfile.isPending}
+              aria-busy={updateProfile.isPending}
             >
+              {updateProfile.isPending ? (
+                <Spin size="sm" variant="current" />
+              ) : null}
               {updateProfile.isPending
                 ? t("profile.saving")
                 : t("actions.save")}

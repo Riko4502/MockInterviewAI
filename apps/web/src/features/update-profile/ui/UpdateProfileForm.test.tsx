@@ -5,7 +5,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
-const mutateMock = vi.fn();
+const { mutateMock, profileMutation } = vi.hoisted(() => ({
+  mutateMock: vi.fn(),
+  profileMutation: {
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+  },
+}));
 
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
@@ -29,12 +36,13 @@ vi.mock("@/entities/user", () => ({
 vi.mock("../model/use-profile-mutations", () => ({
   useUpdateProfile: () => ({
     mutate: mutateMock,
-    isPending: false,
-    isError: false,
-    isSuccess: false,
+    isPending: profileMutation.isPending,
+    isError: profileMutation.isError,
+    isSuccess: profileMutation.isSuccess,
   }),
   useUploadAvatar: () => ({
     mutate: vi.fn(),
+    reset: vi.fn(),
     isPending: false,
     isError: false,
   }),
@@ -58,6 +66,9 @@ function renderForm() {
 describe("UpdateProfileForm", () => {
   beforeEach(() => {
     mutateMock.mockClear();
+    profileMutation.isPending = false;
+    profileMutation.isError = false;
+    profileMutation.isSuccess = false;
   });
 
   it("заполняет форму текущим профилем и отправляет изменения", async () => {
@@ -76,14 +87,42 @@ describe("UpdateProfileForm", () => {
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     await waitFor(() => {
-      expect(mutateMock).toHaveBeenCalledWith({
-        data: {
-          displayName: "Иван Петров",
-          username: "ivan",
-          telegramUsername: null,
-          gitUrl: null,
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            displayName: "Иван Петров",
+            username: "ivan",
+            telegramUsername: null,
+            gitUrl: null,
+          },
         },
-      });
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
     });
+  });
+
+  it("блокирует сохранение, пока поля не изменились", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const saveButton = screen.getByRole("button", { name: "Сохранить" });
+    expect(saveButton).toBeDisabled();
+
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.type(nameInput, "а");
+    expect(saveButton).toBeEnabled();
+
+    await user.type(nameInput, "{backspace}");
+    expect(saveButton).toBeDisabled();
+  });
+
+  it("показывает лоадер на кнопке сохранения во время обновления", () => {
+    profileMutation.isPending = true;
+    renderForm();
+
+    const saveButton = screen.getByRole("button", { name: "Сохранение..." });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });
