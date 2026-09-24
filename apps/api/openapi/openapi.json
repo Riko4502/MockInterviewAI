@@ -789,7 +789,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponseDto"
+                    }
+                  ]
                 }
               }
             }

@@ -763,7 +763,7 @@ export class AuthService implements OnModuleInit {
    * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
    * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
    * 5. Хеширование нового пароля через Argon2id.
-   * 6. В единой транзакции PostgreSQL: обновление `passwordHash`, отвязка неподтверждённых внешних идентичностей (`telegramId: null`, `telegramUsername: null`) и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
+   * 6. В единой транзакции PostgreSQL: обновление `passwordHash`, отвязка неподтверждённых внешних идентичностей (`!user.telegramLinkVerified` -> `telegramId: null`, `telegramUsername: null`) и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
    * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
    *    - При успехе: удаление durable-задачи из PostgreSQL.
    *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
@@ -817,8 +817,9 @@ export class AuthService implements OnModuleInit {
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
-          telegramId: null,
-          telegramUsername: null,
+          ...(user.telegramLinkVerified
+            ? {}
+            : { telegramId: null, telegramUsername: null }),
         },
         select: {
           generation: true,
@@ -1002,14 +1003,7 @@ export class AuthService implements OnModuleInit {
     const displayName =
       [data.firstName, data.lastName].filter(Boolean).join(" ") || null;
 
-    let user:
-      | Awaited<ReturnType<typeof this.usersService.createTelegramUser>>
-      | NonNullable<
-          Awaited<
-            ReturnType<typeof this.usersService.findUserWithRoleByTelegramId>
-          >
-        >;
-    let createdInThisRequest = false;
+    let user: Awaited<ReturnType<typeof this.usersService.createTelegramUser>>;
     try {
       user = await this.usersService.createTelegramUser({
         email: dto.email,
@@ -1019,7 +1013,6 @@ export class AuthService implements OnModuleInit {
         displayName,
         avatarUrl: null,
       });
-      createdInThisRequest = true;
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
         const existingTgUser =
@@ -1027,13 +1020,16 @@ export class AuthService implements OnModuleInit {
             BigInt(data.telegramId),
           );
         if (existingTgUser) {
-          user = existingTgUser;
-        } else {
-          throw new ConflictException("User or email already registered");
+          await this.redisService.delete(key).catch((delError) => {
+            this.logger.warn(
+              `Failed to delete onboarding key ${key}: ${String(delError)}`,
+            );
+          });
+          return this.loginUser(existingTgUser);
         }
-      } else {
-        throw error;
+        throw new ConflictException("User or email already registered");
       }
+      throw error;
     }
 
     let uploadedAvatarUrl: string | null = null;
@@ -1097,14 +1093,10 @@ export class AuthService implements OnModuleInit {
         "Redis unavailable during telegramComplete — compensating user cleanup",
         error instanceof Error ? error.message : String(error),
       );
-      if (createdInThisRequest) {
-        if (uploadedAvatarUrl) {
-          await this.storageService
-            .deleteFile(uploadedAvatarUrl)
-            .catch(() => {});
-        }
-        await this.compensateUserCleanup(user.id);
+      if (uploadedAvatarUrl) {
+        await this.storageService.deleteFile(uploadedAvatarUrl).catch(() => {});
       }
+      await this.compensateUserCleanup(user.id);
       throw new InternalServerErrorException();
     }
 

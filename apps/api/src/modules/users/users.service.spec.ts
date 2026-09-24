@@ -43,6 +43,7 @@ describe("UsersService", () => {
     username: "ivan_dev",
     avatarUrl: "https://example.com/avatar.webp",
     telegramUsername: "ivan_tg",
+    telegramLinkVerified: false,
     gitUrl: "https://github.com/ivan_dev",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
@@ -143,6 +144,7 @@ describe("UsersService", () => {
         passwordHash: _,
         deletedAt: __,
         generation: ___,
+        telegramLinkVerified: ______,
         createdAt: ____,
         updatedAt: _____,
         ...safeProfile
@@ -157,6 +159,7 @@ describe("UsersService", () => {
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
       expect(result).not.toHaveProperty("generation");
+      expect(result).not.toHaveProperty("telegramLinkVerified");
     });
 
     it("выбрасывает NotFoundException если профиль не найден", async () => {
@@ -367,6 +370,7 @@ describe("UsersService", () => {
         data: {
           telegramId: BigInt(123456789),
           telegramUsername: "new_tg",
+          telegramLinkVerified: true,
         },
       });
       expect(result).toEqual({
@@ -470,6 +474,7 @@ describe("UsersService", () => {
           passwordHash: "argon2id$hash",
           telegramId: BigInt(123456789),
           telegramUsername: "tg_user",
+          telegramLinkVerified: false,
           displayName: "Telegram User",
           avatarUrl: "https://s3.local/avatar.webp",
           username: null,

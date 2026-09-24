@@ -515,7 +515,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponseDto"
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponseDto"
+                  - $ref: "#/components/schemas/ErrorResponseDto"
         "409":
           description: Email уже зарегистрирован.
           content:

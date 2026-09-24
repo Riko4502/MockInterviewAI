@@ -247,6 +247,7 @@ export class UsersService {
         data: {
           telegramId: data.telegramId,
           telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: true,
         },
       });
     } catch (error) {
@@ -280,6 +281,7 @@ export class UsersService {
     displayName?: string | null;
     avatarUrl?: string | null;
     roleSlug?: string;
+    telegramLinkVerified?: boolean;
   }): Promise<User> {
     const roleSlug = data.roleSlug ?? SystemRole.USER;
     const defaultRole = await this.prisma.role.findUnique({
@@ -298,6 +300,7 @@ export class UsersService {
         passwordHash: data.passwordHash,
         telegramId: data.telegramId,
         telegramUsername: data.telegramUsername ?? null,
+        telegramLinkVerified: data.telegramLinkVerified ?? false,
         displayName: data.displayName ?? null,
         avatarUrl: data.avatarUrl ?? null,
         username: null,

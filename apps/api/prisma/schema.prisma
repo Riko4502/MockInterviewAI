@@ -48,8 +48,9 @@ model User {
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
-  telegramId       BigInt?   @unique
-  telegramUsername String?
+  telegramId           BigInt?   @unique
+  telegramUsername     String?
+  telegramLinkVerified Boolean   @default(false)
   gitUrl           String?
   deletedAt        DateTime?
   generation       Int       @default(1)

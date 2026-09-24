@@ -1484,6 +1484,7 @@ describe("AuthService", () => {
         ...USER,
         telegramId: BigInt(987654321),
         telegramUsername: "attacker_tg",
+        telegramLinkVerified: false,
       };
       redisGetdel.mockResolvedValue(userWithTelegram.id);
       findById.mockResolvedValue(userWithTelegram);
@@ -1501,6 +1502,34 @@ describe("AuthService", () => {
           generation: { increment: 1 },
           telegramId: null,
           telegramUsername: null,
+        },
+        select: {
+          generation: true,
+        },
+      });
+    });
+
+    it("НЕ отвязывает подтвержденную Telegram-связь (telegramLinkVerified: true) при сбросе пароля", async () => {
+      const userWithVerifiedTelegram = {
+        ...USER,
+        telegramId: BigInt(987654321),
+        telegramUsername: "legit_tg",
+        telegramLinkVerified: true,
+      };
+      redisGetdel.mockResolvedValue(userWithVerifiedTelegram.id);
+      findById.mockResolvedValue(userWithVerifiedTelegram);
+
+      await service.resetPassword({
+        token: RAW_TOKEN,
+        newPassword: NEW_PASS,
+        newPasswordConfirmation: NEW_PASS,
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: userWithVerifiedTelegram.id },
+        data: {
+          passwordHash: "$argon2id$test-hash",
+          generation: { increment: 1 },
         },
         select: {
           generation: true,
@@ -1792,6 +1821,38 @@ describe("AuthService", () => {
 
         expect(result.accessToken).toBe("raw.access.token");
         expect(result.refreshToken).toBe("raw.refresh.token");
+        expect(redisDelete).toHaveBeenCalledWith("tg_onboarding:valid_token");
+      });
+
+      it("при fallback после P2002 отклоняет вход если аккаунт деактивирован (CWE-863)", async () => {
+        redisGet.mockResolvedValue(
+          JSON.stringify({
+            telegramId: "123456789",
+            telegramUsername: "ivan_tg",
+          }),
+        );
+        findByEmail.mockResolvedValue(null);
+
+        const p2002Error = Object.assign(
+          new Error("Unique constraint failed"),
+          {
+            code: "P2002",
+          },
+        );
+        createTelegramUser.mockRejectedValue(p2002Error);
+        findUserWithRoleByTelegramId.mockResolvedValue({
+          ...USER,
+          isActive: false,
+          telegramId: BigInt(123456789),
+          role: { slug: "USER", permissions: SystemPermission.USERS_READ },
+        });
+
+        await expect(
+          service.telegramComplete({
+            onboardingToken: "valid_token",
+            email: "concurrent@example.com",
+          }),
+        ).rejects.toThrow(UnauthorizedException);
       });
 
       it("при падении Redis во время telegramComplete удаляет загруженный аватар из S3", async () => {
