@@ -50,6 +50,9 @@ const envSchema = z.object({
   S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("true"),
   MAX_AVATAR_SIZE_BYTES: z.coerce.number().int().positive().default(2_097_152),
   SESSION_MIRROR_TTL_SECONDS: z.coerce.number().int().positive().default(7200),
+  INTERNAL_SERVICE_KEY: z.string().min(32),
+  TELEGRAM_BOT_USERNAME: z.string().min(1).default("MockInterviewBot"),
+  TELEGRAM_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   LIVEKIT_URL: z.string().min(1).default("ws://localhost:7880"),
   LIVEKIT_API_KEY: z.string().min(1).default("devkey"),
   LIVEKIT_API_SECRET: z

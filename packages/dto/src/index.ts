@@ -147,3 +147,33 @@ export type {
   ShowcaseCardResponseDto,
   ShowcaseCardStatsDto,
 } from "./showcase/showcase-response.dto";
+export {
+  type TelegramInterviewDto,
+  type TelegramInterviewsListDto,
+  type TelegramInterviewsQuery,
+  telegramInterviewSchema,
+  telegramInterviewsListSchema,
+  telegramInterviewsQuerySchema,
+} from "./telegram/interviews.dto";
+export {
+  type LinkRequest,
+  type LinkTokenResponse,
+  linkRequestSchema,
+  linkTokenResponseSchema,
+} from "./telegram/link.dto";
+export {
+  type TelegramPreferencesPatch,
+  telegramPreferencesPatchSchema,
+} from "./telegram/preferences.dto";
+export {
+  type TelegramProfileQuery,
+  type TelegramUserProfileDto,
+  telegramProfileQuerySchema,
+  telegramUserProfileSchema,
+} from "./telegram/profile.dto";
+export {
+  type UnlinkRequest,
+  type UnlinkResponse,
+  unlinkRequestSchema,
+  unlinkResponseSchema,
+} from "./telegram/unlink.dto";

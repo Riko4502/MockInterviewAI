@@ -5,6 +5,7 @@ const requiredEnv = {
   JWT_ACCESS_SECRET: "a".repeat(32),
   JWT_REFRESH_SECRET: "b".repeat(32),
   REFRESH_TOKEN_HASH_SECRET: "c".repeat(32),
+  INTERNAL_SERVICE_KEY: "d".repeat(32),
 };
 const github = {
   GITHUB_CLIENT_ID: "client",

@@ -49,6 +49,8 @@ model User {
   username         String?   @unique
   avatarUrl        String?
   telegramUsername String?
+  telegramChatId   String?   @unique
+  telegramLocale   String?
   gitUrl           String?
   deletedAt        DateTime?
   generation       Int       @default(1)

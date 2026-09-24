@@ -10,6 +10,7 @@ const DEFAULT_TEST_ENV: Record<string, string> = {
   JWT_ACCESS_SECRET: "mock-test-access-secret-at-least-32-characters-length",
   JWT_REFRESH_SECRET: "mock-test-refresh-secret-at-least-32-characters-length",
   REFRESH_TOKEN_HASH_SECRET: "mock-test-refresh-hash-secret-at-least-32-chars",
+  INTERNAL_SERVICE_KEY: "mock-test-internal-service-key-0123456789abcdef",
 };
 
 for (const [key, value] of Object.entries(DEFAULT_TEST_ENV)) {

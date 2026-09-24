@@ -59,6 +59,9 @@
   Если OAuth не используется, не задавайте эти переменные (пустые строки не подходят).
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_URL`.
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+- `INTERNAL_SERVICE_KEY`: сервисный ключ (≥ 32 символа) для заголовка
+  `X-Internal-Service-Key`. Задаётся вручную; `devsync-telegram-bot`
+  автоматически получает его значение через `fromService` в Blueprint.
 
 #### В `devsync-realtime`:
 - `ALLOWED_ORIGINS`: URL созданного фронтенда.
