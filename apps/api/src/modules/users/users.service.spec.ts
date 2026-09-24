@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   InternalServerErrorException,
@@ -399,6 +400,40 @@ describe("UsersService", () => {
           telegramId: BigInt(123456789),
         }),
       ).rejects.toThrow("Telegram account is already linked to this user");
+    });
+
+    it("выбрасывает BadRequestException при попытке подтвердить уже привязанный неподтвержденный telegramId (telegramLinkVerified: false)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: false,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        ),
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если тот же telegramId уже привязан и подтвержден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: true,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
 
     it("выбрасывает ConflictException если telegramId уже привязан к другому пользователю", async () => {

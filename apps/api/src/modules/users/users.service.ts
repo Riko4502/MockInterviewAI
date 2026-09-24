@@ -1,5 +1,6 @@
 import "multer";
 import {
+  BadRequestException,
   ConflictException,
   forwardRef,
   GoneException,
@@ -228,7 +229,12 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    if (user.telegramId !== null && user.telegramId !== data.telegramId) {
+    if (user.telegramId !== null) {
+      if (user.telegramId === data.telegramId && !user.telegramLinkVerified) {
+        throw new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        );
+      }
       throw new ConflictException(
         "Telegram account is already linked to this user",
       );
