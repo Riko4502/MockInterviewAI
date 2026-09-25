@@ -28,6 +28,14 @@ export {
   type ResetPasswordErrorPayload,
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
+export {
+  type TelegramAuthDto,
+  type TelegramCompleteDto,
+  type TelegramLinkDto,
+  telegramAuthSchema,
+  telegramCompleteSchema,
+  telegramLinkSchema,
+} from "./auth/telegram.dto";
 export type {
   MatchRequestResponseDto,
   UnreadMatchRequestsCountDto,

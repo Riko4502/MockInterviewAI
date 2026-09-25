@@ -10,6 +10,11 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type {
+  TelegramAuthDto,
+  TelegramCompleteDto,
+  TelegramLinkDto,
+} from "@packages/dto";
 import {
   type ChangePasswordDto,
   type ForgotPasswordDto,
@@ -27,6 +32,7 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { MailService } from "../mail/mail.service";
+import { StorageService } from "../storage/storage.service";
 import {
   UsersService,
   type UserWithRoleAndPermissions,
@@ -35,9 +41,20 @@ import {
   PASSWORD_RESET_TOKEN_TTL_SECONDS,
   REDIS_DUMMY_PASSWORD_RESET_PREFIX,
   REDIS_PASSWORD_RESET_PREFIX,
+  REDIS_TELEGRAM_ONBOARDING_PREFIX,
+  TELEGRAM_ONBOARDING_TTL_SECONDS,
 } from "./auth.constants";
 import { AuthSessionService } from "./services/auth-session.service";
+import {
+  REDIS_TELEGRAM_REPLAY_PREFIX,
+  TelegramOAuthService,
+} from "./services/telegram-oauth.service";
 import { TokenService } from "./services/token.service";
+
+/** Результат входа через Telegram. */
+export type TelegramAuthResult =
+  | { status: "AUTHENTICATED"; accessToken: string; refreshToken: string }
+  | { status: "NEED_EMAIL"; onboardingToken: string };
 
 /** Результат успешной регистрации. */
 export interface RegisterResult {
@@ -99,6 +116,8 @@ export class AuthService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly mailService: MailService,
+    private readonly telegramOAuthService: TelegramOAuthService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -744,7 +763,7 @@ export class AuthService implements OnModuleInit {
    * 3. Если ключ не найден / истек — `BadRequestException` ("Недействительный или истекший токен сброса пароля").
    * 4. Поиск пользователя по `userId`. Если не найден — `BadRequestException`.
    * 5. Хеширование нового пароля через Argon2id.
-   * 6. В единой транзакции PostgreSQL: обновление `passwordHash` и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
+   * 6. В единой транзакции PostgreSQL: обновление `passwordHash`, отвязка неподтверждённых внешних идентичностей (`!user.telegramLinkVerified` -> `telegramId: null`, `telegramUsername: null`) и создание durable-задачи ревокации сессий (`AuthRevocationTask`).
    * 7. Немедленная попытка отзыва всех активных refresh-сессий пользователя в Redis и Pub/Sub уведомление.
    *    - При успехе: удаление durable-задачи из PostgreSQL.
    *    - При сбое Redis: логирование ошибки, задача сохраняется в БД для фонового воркера (`SessionRevocationCron`).
@@ -798,6 +817,9 @@ export class AuthService implements OnModuleInit {
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
+          ...(user.telegramLinkVerified
+            ? {}
+            : { telegramId: null, telegramUsername: null }),
         },
         select: {
           generation: true,
@@ -879,6 +901,224 @@ export class AuthService implements OnModuleInit {
       memoryCost: this.configService.get<number>("argon2.memoryCost"),
       timeCost: this.configService.get<number>("argon2.timeCost"),
       parallelism: this.configService.get<number>("argon2.parallelism"),
+    });
+  }
+
+  /**
+   * Выполняет аутентификацию или старт онбординга через Telegram Widget.
+   *
+   * @param dto - Валидированный payload от Telegram Widget.
+   * @returns Ибо токены при входе, либо onboardingToken при необходимости указания email.
+   */
+  async telegramAuth(
+    dto: TelegramAuthDto,
+    rawPayload?: Record<string, unknown>,
+  ): Promise<TelegramAuthResult> {
+    await this.telegramOAuthService.validateTelegramPayload(dto, rawPayload);
+
+    const telegramId = BigInt(dto.id);
+    const user =
+      await this.usersService.findUserWithRoleByTelegramId(telegramId);
+
+    if (user) {
+      const { accessToken, refreshToken } = await this.loginUser(user);
+      return { status: "AUTHENTICATED", accessToken, refreshToken };
+    }
+
+    const onboardingToken = randomBytes(32).toString("hex");
+    const onboardingData = {
+      telegramId: telegramId.toString(),
+      telegramUsername: dto.username ?? null,
+      firstName: dto.first_name ?? null,
+      lastName: dto.last_name ?? null,
+      photoUrl: dto.photo_url ?? null,
+    };
+
+    try {
+      const key = `${REDIS_TELEGRAM_ONBOARDING_PREFIX}${onboardingToken}`;
+      await this.redisService.set(
+        key,
+        JSON.stringify(onboardingData),
+        TELEGRAM_ONBOARDING_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable storing telegram onboarding data",
+        error instanceof Error ? error.message : String(error),
+      );
+      const rawHash = (rawPayload?.hash ?? dto.hash) as string;
+      if (rawHash) {
+        await this.redisService
+          .delete(`${REDIS_TELEGRAM_REPLAY_PREFIX}${rawHash}`)
+          .catch(() => {});
+      }
+      throw new InternalServerErrorException();
+    }
+
+    return { status: "NEED_EMAIL", onboardingToken };
+  }
+
+  /**
+   * Завершает онбординг пользователя по Telegram, привязывая email.
+   *
+   * @param dto - Валидированный DTO (onboardingToken и email).
+   * @returns Токены доступа и сессии.
+   */
+  async telegramComplete(
+    dto: TelegramCompleteDto,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const key = `${REDIS_TELEGRAM_ONBOARDING_PREFIX}${dto.onboardingToken}`;
+    let rawData: string | null;
+
+    try {
+      rawData = await this.redisService.get(key);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during telegramComplete",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    if (!rawData) {
+      throw new BadRequestException("Invalid or expired onboarding token");
+    }
+
+    const data = JSON.parse(rawData) as {
+      telegramId: string;
+      telegramUsername: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      photoUrl: string | null;
+    };
+
+    const existingEmailUser = await this.usersService.findByEmail(dto.email);
+    if (existingEmailUser) {
+      throw new ConflictException("Email already registered");
+    }
+
+    const passwordHash = await this.hashPassword(
+      randomBytes(32).toString("hex"),
+    );
+    const displayName =
+      [data.firstName, data.lastName].filter(Boolean).join(" ") || null;
+
+    let user: Awaited<ReturnType<typeof this.usersService.createTelegramUser>>;
+    try {
+      user = await this.usersService.createTelegramUser({
+        email: dto.email,
+        passwordHash,
+        telegramId: BigInt(data.telegramId),
+        telegramUsername: data.telegramUsername,
+        displayName,
+        avatarUrl: null,
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "P2002") {
+        const existingTgUser =
+          await this.usersService.findUserWithRoleByTelegramId(
+            BigInt(data.telegramId),
+          );
+        if (existingTgUser) {
+          await this.redisService.delete(key).catch((delError) => {
+            this.logger.warn(
+              `Failed to delete onboarding key ${key}: ${String(delError)}`,
+            );
+          });
+          return this.loginUser(existingTgUser);
+        }
+        throw new ConflictException("User or email already registered");
+      }
+      throw error;
+    }
+
+    let uploadedAvatarUrl: string | null = null;
+    if (data.photoUrl && !user.avatarUrl) {
+      try {
+        const avatarUrl = await this.storageService.uploadAvatarFromUrl(
+          user.id,
+          data.photoUrl,
+        );
+        if (avatarUrl) {
+          uploadedAvatarUrl = avatarUrl;
+          await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarUrl },
+          });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to upload/update avatar for user ${user.id}: ${String(error)}`,
+        );
+      }
+    }
+
+    await this.redisService.delete(key).catch((error) => {
+      this.logger.warn(
+        `Failed to delete onboarding key ${key}: ${String(error)}`,
+      );
+    });
+
+    const userWithRole = await this.usersService.findUserWithRoleById(user.id);
+    const permissions =
+      userWithRole?.role?.permissions ?? SystemPermission.NONE;
+    const generation = userWithRole?.generation ?? user.generation ?? 1;
+
+    const sessionId = randomUUID();
+    const tokenFamilyId = randomUUID();
+
+    const accessToken = this.tokenService.generateAccessToken(
+      user.id,
+      sessionId,
+      permissions,
+      generation,
+    );
+    const refreshToken = this.tokenService.generateRefreshToken(
+      user.id,
+      sessionId,
+      generation,
+    );
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+
+    try {
+      await this.sessionService.createSession(
+        sessionId,
+        user.id,
+        refreshTokenHash,
+        tokenFamilyId,
+        generation,
+      );
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during telegramComplete — compensating user cleanup",
+        error instanceof Error ? error.message : String(error),
+      );
+      if (uploadedAvatarUrl) {
+        await this.storageService.deleteFile(uploadedAvatarUrl).catch(() => {});
+      }
+      await this.compensateUserCleanup(user.id);
+      throw new InternalServerErrorException();
+    }
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Привязывает Telegram аккаунт к авторизованному пользователю.
+   *
+   * @param userId - UUID авторизованного пользователя.
+   * @param dto - Валидированный payload Telegram Widget.
+   */
+  async telegramLink(
+    userId: string,
+    dto: TelegramLinkDto,
+    rawPayload?: Record<string, unknown>,
+  ): Promise<{ message: string }> {
+    await this.telegramOAuthService.validateTelegramPayload(dto, rawPayload);
+
+    return this.usersService.linkTelegram(userId, {
+      telegramId: BigInt(dto.id),
+      telegramUsername: dto.username ?? null,
     });
   }
 

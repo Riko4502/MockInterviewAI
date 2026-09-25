@@ -48,9 +48,11 @@ model User {
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
-  telegramUsername String?
-  telegramChatId   String?   @unique
-  telegramLocale   String?
+  telegramId           BigInt?   @unique
+  telegramUsername     String?
+  telegramChatId       String?   @unique
+  telegramLocale       String?
+  telegramLinkVerified Boolean   @default(false)
   gitUrl           String?
   deletedAt        DateTime?
   generation       Int       @default(1)
@@ -70,6 +72,7 @@ model User {
   @@index([roleId])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([telegramId])
   @@index([createdAt])
   @@map("users")
 }
