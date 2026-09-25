@@ -3,17 +3,17 @@ import { defineConfig } from "@rslib/core";
 export default defineConfig({
   source: {
     entry: {
-      index: ["./src/**", "!./src/**/*.test.ts"],
+      index: "./src/index.ts",
     },
   },
   lib: [
     {
-      bundle: false,
+      bundle: true,
       format: "esm",
       dts: true,
     },
     {
-      bundle: false,
+      bundle: true,
       format: "cjs",
     },
   ],

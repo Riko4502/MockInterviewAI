@@ -52,10 +52,40 @@ vi.mock("../model/SandboxMediaContext", () => ({
   ),
 }));
 
+const { ThemeTestContext } = vi.hoisted(() => {
+  const React = require("react");
+  const ThemeTestContext = React.createContext({
+    resolvedTheme: "dark",
+    setTheme: () => {},
+  });
+  return { ThemeTestContext };
+});
+
+function TestThemeProvider({
+  theme = "dark",
+  children,
+}: {
+  theme?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <ThemeTestContext.Provider
+      value={{
+        resolvedTheme: theme,
+        setTheme: vi.fn(),
+      }}
+    >
+      {children}
+    </ThemeTestContext.Provider>
+  );
+}
+
 vi.mock("@packages/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@packages/ui")>();
+  const React = require("react");
   return {
     ...actual,
+    useTheme: () => React.useContext(ThemeTestContext),
     Resizable: {
       Group: ({ children }: { children: React.ReactNode }) => (
         <div>{children}</div>
@@ -790,14 +820,20 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
         pathname: "/sandbox/test-room-theme",
       };
 
-      render(<SandboxRoomWorkspace {...workspaceProps} />);
+      const { rerender } = render(
+        <TestThemeProvider theme="dark">
+          <SandboxRoomWorkspace {...workspaceProps} />
+        </TestThemeProvider>,
+      );
 
       const editor = screen.getByTestId("code-editor-lazy");
       expect(editor.getAttribute("data-theme")).toBe("dark");
 
-      await act(async () => {
-        useSandboxStore.getState().setTheme("light");
-      });
+      rerender(
+        <TestThemeProvider theme="light">
+          <SandboxRoomWorkspace {...workspaceProps} />
+        </TestThemeProvider>,
+      );
 
       expect(editor.getAttribute("data-theme")).toBe("light");
     });

@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
@@ -18,19 +18,21 @@ vi.mock("@packages/ui", async (importOriginal) => {
   };
 });
 
+let mockUserData = {
+  id: "11111111-1111-1111-1111-111111111111",
+  email: "dev@example.com",
+  displayName: "Иван",
+  username: "ivan",
+  avatarUrl: null,
+  telegramUsername: null,
+  gitUrl: null,
+  theme: "dark",
+  locale: "ru",
+};
+
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
-    data: {
-      id: "11111111-1111-1111-1111-111111111111",
-      email: "dev@example.com",
-      displayName: "Иван",
-      username: "ivan",
-      avatarUrl: null,
-      telegramUsername: null,
-      gitUrl: null,
-      theme: "dark",
-      locale: "ru",
-    },
+    data: mockUserData,
     isLoading: false,
     isError: false,
   }),
@@ -71,9 +73,21 @@ function renderForm() {
 describe("UpdateProfileForm", () => {
   beforeEach(() => {
     mutateMock.mockClear();
+    toastPushMock.mockClear();
+    mockUserData = {
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "dev@example.com",
+      displayName: "Иван",
+      username: "ivan",
+      avatarUrl: null,
+      telegramUsername: null,
+      gitUrl: null,
+      theme: "dark",
+      locale: "ru",
+    };
   });
 
-  it("заполняет форму текущим профилем и отправляет изменения", async () => {
+  it("заполняет форму текущим профилем и отправляет только измененные поля", async () => {
     const user = userEvent.setup();
     renderForm();
 
@@ -93,11 +107,6 @@ describe("UpdateProfileForm", () => {
         {
           data: {
             displayName: "Иван Петров",
-            username: "ivan",
-            telegramUsername: null,
-            gitUrl: null,
-            theme: "dark",
-            locale: "ru",
           },
         },
         expect.objectContaining({
@@ -110,7 +119,63 @@ describe("UpdateProfileForm", () => {
     // Проверяем вызов toast при onSuccess
     const lastCall = mutateMock.mock.calls[0];
     const options = lastCall[1];
-    options.onSuccess();
+    act(() => {
+      options.onSuccess({
+        ...mockUserData,
+        displayName: "Иван Петров",
+      });
+    });
+    expect(toastPushMock).toHaveBeenCalledWith({
+      status: "success",
+      title: "Профиль сохранён.",
+    });
+  });
+
+  it("синхронизирует значения формы при обновлении профиля и не отправляет устаревшие предпочтения", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderForm();
+
+    // Симулируем обновление темы в другой вкладке (в кэше профиля)
+    mockUserData = {
+      ...mockUserData,
+      theme: "light",
+      locale: "en",
+    };
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <UpdateProfileForm />
+      </QueryClientProvider>,
+    );
+
+    // Пользователь меняет только имя
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Иван Сидоров");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    // Отправляется только измененное поле displayName, устаревшие предпочтения не перезаписываются
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            displayName: "Иван Сидоров",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
+  });
+
+  it("не отправляет запрос, если ни одно поле не было изменено", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    expect(mutateMock).not.toHaveBeenCalled();
     expect(toastPushMock).toHaveBeenCalledWith({
       status: "success",
       title: "Профиль сохранён.",

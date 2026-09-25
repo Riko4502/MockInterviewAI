@@ -12,7 +12,7 @@ import {
   Skeleton,
   useToast,
 } from "@packages/ui";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/entities/user";
@@ -32,28 +32,56 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
   const toast = useToast();
   const schema = useMemo(() => createProfileFormSchema(t), [t]);
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
+  const defaultValues = useMemo<ProfileFormValues>(
+    () => ({
       displayName: user.displayName ?? "",
       username: user.username ?? "",
       telegramUsername: user.telegramUsername ?? "",
       gitUrl: user.gitUrl ?? "",
       theme: user.theme ?? "dark",
       locale: user.locale ?? "ru",
-    },
+    }),
+    [user],
+  );
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, dirtyFields },
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues,
   });
 
+  useEffect(() => {
+    reset(defaultValues, { keepDirtyValues: true });
+  }, [defaultValues, reset]);
+
   const onSubmit = (values: ProfileFormValues) => {
+    const data = toUpdateProfileDto(values, dirtyFields);
+
+    if (Object.keys(data).length === 0) {
+      toast.push({
+        status: "success",
+        title: t("profile.saveSuccess"),
+      });
+      return;
+    }
+
     updateProfile.mutate(
-      { data: toUpdateProfileDto(values) },
+      { data },
       {
-        onSuccess: () => {
+        onSuccess: (updatedUser) => {
+          reset({
+            displayName: updatedUser.displayName ?? "",
+            username: updatedUser.username ?? "",
+            telegramUsername: updatedUser.telegramUsername ?? "",
+            gitUrl: updatedUser.gitUrl ?? "",
+            theme: updatedUser.theme ?? "dark",
+            locale: updatedUser.locale ?? "ru",
+          });
           toast.push({
             status: "success",
             title: t("profile.saveSuccess"),

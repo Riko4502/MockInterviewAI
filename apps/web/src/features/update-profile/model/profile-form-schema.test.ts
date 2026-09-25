@@ -47,6 +47,27 @@ describe("createProfileFormSchema", () => {
     });
   });
 
+  it("отправляет только измененные поля, если переданы dirtyFields", () => {
+    const parsed = schema.parse({
+      displayName: "Иван",
+      username: "ivan",
+      telegramUsername: "",
+      gitUrl: "",
+      theme: "dark",
+      locale: "ru",
+    });
+
+    expect(toUpdateProfileDto(parsed, { displayName: true })).toEqual({
+      displayName: "Иван",
+    });
+
+    expect(toUpdateProfileDto(parsed, { theme: true })).toEqual({
+      theme: "dark",
+    });
+
+    expect(toUpdateProfileDto(parsed, {})).toEqual({});
+  });
+
   it("отклоняет слишком короткое отображаемое имя", () => {
     const result = schema.safeParse({
       displayName: "И",

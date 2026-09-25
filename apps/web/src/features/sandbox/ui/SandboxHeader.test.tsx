@@ -5,9 +5,22 @@ import i18n from "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxHeader } from "./SandboxHeader";
 
-const { onCopyInviteMock } = vi.hoisted(() => ({
+const { onCopyInviteMock, setAppThemeMock } = vi.hoisted(() => ({
   onCopyInviteMock: vi.fn(),
+  setAppThemeMock: vi.fn(),
 }));
+
+vi.mock("@packages/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/ui")>();
+  return {
+    ...actual,
+    useTheme: () => ({
+      theme: "dark",
+      resolvedTheme: "dark",
+      setTheme: setAppThemeMock,
+    }),
+  };
+});
 
 vi.mock("../model/SandboxMediaContext", () => ({
   useSandboxMedia: () => ({
@@ -114,5 +127,6 @@ describe("SandboxHeader", () => {
 
     fireEvent.click(themeBtn);
     expect(useSandboxStore.getState().theme).toBe("light");
+    expect(setAppThemeMock).toHaveBeenCalledWith("light");
   });
 });
