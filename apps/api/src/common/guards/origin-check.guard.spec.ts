@@ -81,6 +81,14 @@ describe("OriginCheckGuard", () => {
       expect(guard.canActivate(context)).toBe(true);
     });
 
+    it("пропускает если Referer содержит путь страницы (например /login)", () => {
+      const guard = createGuard();
+      const context = createExecutionContext({
+        referer: "http://localhost:3000/login",
+      });
+      expect(guard.canActivate(context)).toBe(true);
+    });
+
     it("бросает ForbiddenException если Referer не совпадает", () => {
       const guard = createGuard();
       const context = createExecutionContext({

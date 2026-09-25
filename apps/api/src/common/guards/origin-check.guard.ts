@@ -50,7 +50,14 @@ export class OriginCheckGuard implements CanActivate {
     const origin = request.headers.origin;
     const referer = request.headers.referer;
 
-    const value = origin ?? referer;
+    let value = origin;
+    if (!value && referer) {
+      try {
+        value = new URL(referer).origin;
+      } catch {
+        value = referer;
+      }
+    }
 
     if (!value) {
       return true;
@@ -65,7 +72,9 @@ export class OriginCheckGuard implements CanActivate {
       return true;
     }
 
-    const isAllowed = allowedOrigins.some((allowed) => value === allowed);
+    const isAllowed = allowedOrigins.some(
+      (allowed) => value === allowed.replace(/\/+$/, ""),
+    );
 
     if (!isAllowed) {
       throw new ForbiddenException("Origin not allowed");
