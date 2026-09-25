@@ -99,7 +99,7 @@ services:
       - key: S3_FORCE_PATH_STYLE
         value: "true"
       - key: LIVEKIT_URL
-        sync: false # e.g. wss://your-project.livekit.cloud
+        sync: false # e.g. wss://devsync-livekit.onrender.com или wss://your-project.livekit.cloud
       - key: LIVEKIT_API_KEY
         sync: false
       - key: LIVEKIT_API_SECRET
@@ -150,6 +150,30 @@ services:
         sync: false
 
   # -------------------------------------------------------------
+  # LiveKit SFU (WebRTC Audio/Video/Screenshare)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-livekit
+    runtime: image
+    image:
+      url: livekit/livekit-server:latest
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "7880"
+      - key: LIVEKIT_KEYS
+        sync: false # Формат: <API_KEY>: <API_SECRET>, например devkey: dev-secret-change-me
+      - key: LIVEKIT_CONFIG
+        value: |
+          port: 7880
+          bind_addresses:
+            - ""
+          rtc:
+            use_external_ip: true
+
+  # -------------------------------------------------------------
   # Telegram Bot
   # -------------------------------------------------------------
   - type: web
@@ -197,6 +221,10 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false # e.g. https://devsync-web.onrender.com
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false # e.g. https://devsync-landing.onrender.com
       - key: NEXT_PUBLIC_API_URL
         sync: false # e.g. https://devsync-api.onrender.com
       - key: NEXT_PUBLIC_REALTIME_URL
@@ -241,4 +269,48 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+
+  # -------------------------------------------------------------
+  # Grafana (Metrics & Monitoring Dashboards)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-grafana
+    runtime: image
+    image:
+      url: grafana/grafana:latest
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: GF_SERVER_HTTP_PORT
+        value: "3000"
+      - key: GF_SECURITY_ADMIN_USER
+        value: admin
+      - key: GF_SECURITY_ADMIN_PASSWORD
+        sync: false # Задайте надежный пароль администратора Grafana
+      - key: GF_USERS_ALLOW_SIGN_UP
+        value: "false"
+
+  # -------------------------------------------------------------
+  # Kibana (Log Analytics UI)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-kibana
+    runtime: image
+    image:
+      url: docker.elastic.co/kibana/kibana:8.15.0
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/status
+    envVars:
+      - key: PORT
+        value: "5601"
+      - key: SERVER_PORT
+        value: "5601"
+      - key: SERVER_HOST
+        value: "0.0.0.0"
+      - key: ELASTICSEARCH_HOSTS
+        sync: false # URL внешнего Elasticsearch кластера (например https://<user>:<pass>@es.my-domain.com:9243)
 
