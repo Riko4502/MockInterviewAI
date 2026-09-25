@@ -201,6 +201,8 @@ services:
         sync: false # e.g. https://devsync-api.onrender.com
       - key: NEXT_PUBLIC_REALTIME_URL
         sync: false # e.g. wss://devsync-realtime.onrender.com
+      - key: NEXT_PUBLIC_API_PROXY
+        value: "true"
 
   # -------------------------------------------------------------
   # Landing Page (Nginx Static Export)

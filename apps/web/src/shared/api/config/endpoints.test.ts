@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 describe("endpoints configuration (CRIT-07 lazy evaluation)", () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const originalApiProxy = process.env.NEXT_PUBLIC_API_PROXY;
 
   beforeEach(() => {
     vi.resetModules();
@@ -20,6 +21,12 @@ describe("endpoints configuration (CRIT-07 lazy evaluation)", () => {
       process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
     } else {
       delete process.env.NEXT_PUBLIC_API_URL;
+    }
+
+    if (originalApiProxy !== undefined) {
+      process.env.NEXT_PUBLIC_API_PROXY = originalApiProxy;
+    } else {
+      delete process.env.NEXT_PUBLIC_API_PROXY;
     }
     vi.unstubAllEnvs();
   });
@@ -56,6 +63,14 @@ describe("endpoints configuration (CRIT-07 lazy evaluation)", () => {
 
       const { getApiUrl } = await import("./endpoints");
       expect(getApiUrl()).toBe("https://api.mockinterview.com");
+    });
+
+    it("E. возвращает пустую строку в браузере при NEXT_PUBLIC_API_PROXY=true", async () => {
+      process.env.NEXT_PUBLIC_API_PROXY = "true";
+      process.env.NEXT_PUBLIC_API_URL = "https://api.mockinterview.com";
+
+      const { getApiUrl } = await import("./endpoints");
+      expect(getApiUrl()).toBe("");
     });
   });
 
