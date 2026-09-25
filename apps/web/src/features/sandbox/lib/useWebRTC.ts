@@ -588,6 +588,9 @@ export function useWebRTC({
       if (typeof localStreamRef.current.addTrack === "function") {
         localStreamRef.current.addTrack(newTrack);
       }
+      if (typeof MediaStream !== "undefined") {
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      }
 
       if (pcRef.current) {
         const sender = pcRef.current
@@ -639,6 +642,9 @@ export function useWebRTC({
           localStreamRef.current.addTrack(newTrack);
         }
         cameraTrackRef.current = newTrack;
+        if (typeof MediaStream !== "undefined") {
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+        }
 
         if (pcRef.current && !isScreenSharing) {
           const sender = pcRef.current
@@ -654,6 +660,27 @@ export function useWebRTC({
     },
     [isScreenSharing],
   );
+
+  // Реактивная смена устройств при изменении пропсов во время активного стрима
+  useEffect(() => {
+    if (
+      audioDeviceId &&
+      audioDeviceId !== audioDeviceIdRef.current &&
+      localStreamRef.current
+    ) {
+      void switchAudioDevice(audioDeviceId);
+    }
+  }, [audioDeviceId, switchAudioDevice]);
+
+  useEffect(() => {
+    if (
+      videoDeviceId &&
+      videoDeviceId !== videoDeviceIdRef.current &&
+      localStreamRef.current
+    ) {
+      void switchVideoDevice(videoDeviceId);
+    }
+  }, [videoDeviceId, switchVideoDevice]);
 
   const endCallRef = useRef(endCall);
   useEffect(() => {

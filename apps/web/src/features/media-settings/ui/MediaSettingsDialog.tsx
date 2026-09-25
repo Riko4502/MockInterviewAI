@@ -53,7 +53,15 @@ export function MediaSettingsDialog({
   const { level: micLevel, error: micError } = useMicLevelMeter(
     media.audioInputId,
     open && activeTab === "audio",
+    media.micGain,
   );
+
+  // Обновление списка устройств при открытии диалога
+  useEffect(() => {
+    if (open) {
+      void media.refreshDevices();
+    }
+  }, [open, media.refreshDevices]);
 
   // Управление предпросмотром камеры при открытии вкладки камеры
   useEffect(() => {
@@ -87,6 +95,7 @@ export function MediaSettingsDialog({
 
         previewStreamRef.current = stream;
         setIsVideoPreviewActive(true);
+        void media.refreshDevices();
         if (previewVideoRef.current) {
           previewVideoRef.current.srcObject = stream;
           void previewVideoRef.current.play().catch(() => {});
@@ -111,7 +120,7 @@ export function MediaSettingsDialog({
       }
       setIsVideoPreviewActive(false);
     };
-  }, [open, activeTab, media.videoInputId]);
+  }, [open, activeTab, media.videoInputId, media.refreshDevices]);
 
   const handleAudioInputChange = (val: string) => {
     media.setAudioInputId(val);

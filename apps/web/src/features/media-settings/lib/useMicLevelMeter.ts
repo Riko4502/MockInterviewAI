@@ -2,13 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function useMicLevelMeter(deviceId: string, enabled: boolean) {
+export function useMicLevelMeter(
+  deviceId: string,
+  enabled: boolean,
+  gain = 100,
+) {
   const [level, setLevel] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = Math.max(0, Math.min(100, gain)) / 100;
+    }
+  }, [gain]);
 
   useEffect(() => {
     if (
@@ -49,10 +60,15 @@ export function useMicLevelMeter(deviceId: string, enabled: boolean) {
         audioCtxRef.current = ctx;
 
         const source = ctx.createMediaStreamSource(stream);
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = Math.max(0, Math.min(100, gain)) / 100;
+        gainNodeRef.current = gainNode;
+
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.4;
-        source.connect(analyser);
+        source.connect(gainNode);
+        gainNode.connect(analyser);
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
@@ -102,7 +118,7 @@ export function useMicLevelMeter(deviceId: string, enabled: boolean) {
       }
       setLevel(0);
     };
-  }, [deviceId, enabled]);
+  }, [deviceId, enabled, gain]);
 
   return { level, error };
 }

@@ -107,9 +107,9 @@ export function useMediaSettings(): MediaSettingsContextValue {
 
     updateSettings((prev) => ({
       ...prev,
-      audioVolume: serverSettings.audioVolume,
-      speechVolume: serverSettings.speechVolume,
-      micGain: serverSettings.micGain,
+      audioVolume: serverSettings.audioVolume ?? prev.audioVolume,
+      speechVolume: serverSettings.speechVolume ?? prev.speechVolume,
+      micGain: serverSettings.micGain ?? prev.micGain,
       preferredAudioInputLabel:
         serverSettings.preferredAudioInputLabel ??
         prev.preferredAudioInputLabel ??

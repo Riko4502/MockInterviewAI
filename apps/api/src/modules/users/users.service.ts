@@ -506,6 +506,29 @@ export class UsersService {
       },
     });
 
+    // Ограничиваем количество сохраненных устройств пользователя до 10 (удаляем самые старые)
+    try {
+      const userDevices = await this.prisma.userDeviceSettings.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      });
+
+      if (userDevices.length > 10) {
+        const toDelete = userDevices.slice(10).map((d) => d.id);
+        await this.prisma.userDeviceSettings.deleteMany({
+          where: { id: { in: toDelete } },
+        });
+      }
+    } catch (cleanupError) {
+      this.logger.warn(
+        `Failed to clean up old device settings for user ${userId}:`,
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+      );
+    }
+
     return {
       clientId: record.clientId,
       deviceName: record.deviceName,

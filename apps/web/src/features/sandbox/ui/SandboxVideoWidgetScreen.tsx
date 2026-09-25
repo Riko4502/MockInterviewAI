@@ -43,12 +43,12 @@ export function SandboxVideoWidgetScreen() {
     const el = audioElementRef.current;
     if (
       el &&
-      selectedAudioOutputId &&
+      selectedAudioOutputId !== undefined &&
       typeof (el as unknown as { setSinkId?: (id: string) => Promise<void> })
         .setSinkId === "function"
     ) {
       void (el as unknown as { setSinkId: (id: string) => Promise<void> })
-        .setSinkId(selectedAudioOutputId)
+        .setSinkId(selectedAudioOutputId || "")
         .catch((err) => {
           console.warn(
             "[SandboxVideoWidgetScreen] Failed to set sinkId on remote audio element:",
