@@ -18,8 +18,10 @@ RUN pnpm install --frozen-lockfile
 FROM base AS runner
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate && \
-    addgroup --system --gid 1001 nodejs && \
+ENV NODE_ENV=production
+ENV PATH="/app/apps/telegram-bot/node_modules/.bin:$PATH"
+
+RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 bot
 
 COPY --from=deps --chown=bot:nodejs /app/node_modules ./node_modules
@@ -38,4 +40,4 @@ WORKDIR /app/apps/telegram-bot
 # (в проде — $PORT платформы, см. config.ts).
 EXPOSE 8443
 
-CMD ["pnpm", "exec", "tsx", "src/index.ts"]
+CMD ["./node_modules/.bin/tsx", "src/index.ts"]
