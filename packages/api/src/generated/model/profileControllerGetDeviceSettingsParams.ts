@@ -12,7 +12,7 @@
 
 export type ProfileControllerGetDeviceSettingsParams = {
 /**
- * Уникальный ID клиентского устройства
+ * Уникальный ID клиентского устройства (1-128 символов)
  */
 clientId: string;
 };

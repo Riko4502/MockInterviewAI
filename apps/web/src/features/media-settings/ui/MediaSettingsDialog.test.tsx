@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/shared/lib/i18n";
 import { MediaSettingsDialog } from "./MediaSettingsDialog";
@@ -66,15 +67,21 @@ describe("MediaSettingsDialog", () => {
     expect(screen.getByText(/Проверить звук|Test sound/i)).toBeInTheDocument();
   });
 
-  it("switches to camera tab and displays camera device selection", () => {
+  it("switches to camera tab and displays camera device selection", async () => {
+    const user = userEvent.setup();
     renderWithQueryClient(
       <MediaSettingsDialog open={true} onOpenChange={vi.fn()} />,
     );
 
     const cameraTab = screen.getByRole("tab", { name: /Камера|Camera/i });
-    fireEvent.click(cameraTab);
+    expect(cameraTab).toHaveAttribute("data-state", "inactive");
 
-    expect(screen.getByText(/Камера|Camera/i)).toBeInTheDocument();
+    await user.click(cameraTab);
+
+    expect(cameraTab).toHaveAttribute("data-state", "active");
+    expect(
+      screen.getByText(/Камера отключена|Camera disabled/i),
+    ).toBeInTheDocument();
   });
 
   it("calls onOpenChange(false) when done button is clicked", () => {
@@ -87,5 +94,24 @@ describe("MediaSettingsDialog", () => {
     fireEvent.click(doneButton);
 
     expect(handleOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("opens device select dropdown without throwing Radix empty value error", async () => {
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    renderWithQueryClient(
+      <MediaSettingsDialog open={true} onOpenChange={vi.fn()} />,
+    );
+
+    const triggers = screen.getAllByRole("combobox");
+    // triggers[0] is audio output (may be disabled if sinkId unsupported), triggers[1] is audio input
+    const micTrigger = triggers[1];
+    expect(micTrigger).toBeEnabled();
+
+    fireEvent.keyDown(micTrigger, { key: "ArrowDown" });
+
+    const options = await screen.findAllByRole("option");
+    expect(options.length).toBeGreaterThan(0);
+    expect(options[0]).toHaveTextContent(/По умолчанию|Default/i);
   });
 });

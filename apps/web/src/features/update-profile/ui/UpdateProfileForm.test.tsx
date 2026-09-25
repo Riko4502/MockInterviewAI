@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
@@ -198,19 +204,43 @@ describe("UpdateProfileForm", () => {
   });
 
   it("обновляет язык интерфейса, куки и вызывает router.refresh() при сохранении нового языка", async () => {
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
     const user = userEvent.setup();
     renderForm();
 
-    const nameInput = screen.getByDisplayValue("Иван");
-    await user.type(nameInput, "!");
+    const comboboxes = screen.getAllByRole("combobox");
+    // comboboxes[0] is theme, comboboxes[1] is locale
+    const localeTrigger = comboboxes[1];
+    expect(localeTrigger).toHaveTextContent("Русский");
+
+    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
+    const englishOption = await screen.findByRole("option", {
+      name: /English/i,
+    });
+    await user.click(englishOption);
+
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            locale: "en",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
 
     const lastCall = mutateMock.mock.calls[0];
     const options = lastCall[1];
     act(() => {
       options.onSuccess({
         ...mockUserData,
-        displayName: "Иван!",
         locale: "en",
       });
     });

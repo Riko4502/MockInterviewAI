@@ -38,4 +38,14 @@ describe("Slider", () => {
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("data-disabled");
   });
+
+  it("updates number of thumbs when value array length changes", () => {
+    const { rerender } = render(
+      <Slider aria-label="Dynamic thumbs" value={[50]} />,
+    );
+    expect(screen.getAllByRole("slider")).toHaveLength(1);
+
+    rerender(<Slider aria-label="Dynamic thumbs" value={[20, 80]} />);
+    expect(screen.getAllByRole("slider")).toHaveLength(2);
+  });
 });

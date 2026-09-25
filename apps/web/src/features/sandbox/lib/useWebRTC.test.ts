@@ -214,4 +214,69 @@ describe("useWebRTC screen sharing track lifecycle", () => {
       }),
     );
   });
+
+  it("реактивно переключает на микрофон по умолчанию при смене audioDeviceId на пустую строку", async () => {
+    const onSendSignal = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ audioDeviceId }: { audioDeviceId: string }) =>
+        useWebRTC({ userId: "user-1", onSendSignal, audioDeviceId }),
+      {
+        initialProps: { audioDeviceId: "custom-mic" },
+      },
+    );
+
+    await act(async () => {
+      await result.current.startCall();
+    });
+
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockClear();
+
+    rerender({ audioDeviceId: "" });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      }),
+    );
+  });
+
+  it("реактивно переключает на камеру по умолчанию при смене videoDeviceId на пустую строку", async () => {
+    const onSendSignal = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ videoDeviceId }: { videoDeviceId: string }) =>
+        useWebRTC({ userId: "user-1", onSendSignal, videoDeviceId }),
+      {
+        initialProps: { videoDeviceId: "custom-cam" },
+      },
+    );
+
+    await act(async () => {
+      await result.current.startCall();
+    });
+
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockClear();
+
+    rerender({ videoDeviceId: "" });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user",
+        },
+      }),
+    );
+  });
 });

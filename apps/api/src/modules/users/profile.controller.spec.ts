@@ -122,6 +122,7 @@ describe("ProfileController", () => {
       preferredAudioInputLabel: "Microphone",
       preferredAudioOutputLabel: "Headphones",
       preferredVideoInputLabel: null,
+      isPersisted: true,
     };
     usersServiceMock.getDeviceSettings = jest
       .fn()

@@ -42,4 +42,5 @@ export interface DeviceSettingsDto {
   preferredAudioOutputLabel?: string | null;
   /** @nullable */
   preferredVideoInputLabel?: string | null;
+  isPersisted?: boolean;
 }

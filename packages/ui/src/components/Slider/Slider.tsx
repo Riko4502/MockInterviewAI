@@ -29,9 +29,13 @@ function Slider({
     ];
   }, [value, defaultValue, min]);
 
+  const thumbsCount = currentValues.length;
   const thumbs = React.useMemo(
-    () => currentValues.map((_, i) => ({ key: `thumb-${i}` })),
-    [currentValues.map],
+    () =>
+      Array.from({ length: thumbsCount }, (_, i) => ({
+        key: `thumb-${i}`,
+      })),
+    [thumbsCount],
   );
 
   return (

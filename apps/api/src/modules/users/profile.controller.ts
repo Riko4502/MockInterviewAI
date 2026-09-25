@@ -24,6 +24,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import {
+  clientIdSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
   type UpdateDeviceSettingsDto,
@@ -111,17 +112,18 @@ export class ProfileController {
   @ApiQuery({
     name: "clientId",
     required: true,
-    description: "Уникальный ID клиентского устройства",
+    description: "Уникальный ID клиентского устройства (1-128 символов)",
   })
   @ApiResponse({
     status: 200,
     description: "Настройки аудио, речи и устройств",
     schema: registerSchema("DeviceSettingsDto", deviceSettingsSchema),
   })
+  @ApiResponse({ status: 400, description: "Некорректный clientId" })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   async getDeviceSettings(
     @CurrentUser("sub") userId: string,
-    @Query("clientId") clientId: string,
+    @Query("clientId", new ZodValidationPipe(clientIdSchema)) clientId: string,
   ): Promise<DeviceSettingsDto> {
     return this.usersService.getDeviceSettings(userId, clientId);
   }

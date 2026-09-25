@@ -105,6 +105,13 @@ export function useMediaSettings(): MediaSettingsContextValue {
   useEffect(() => {
     if (!serverSettings) return;
 
+    if (!serverSettings.isPersisted) {
+      // На сервере ещё нет сохранённых настроек для этого устройства.
+      // Не перезаписываем локальные настройки дефолтами, а отправляем текущие настройки на сервер.
+      syncToServer(currentSettings);
+      return;
+    }
+
     updateSettings((prev) => ({
       ...prev,
       audioVolume: serverSettings.audioVolume ?? prev.audioVolume,
@@ -123,7 +130,7 @@ export function useMediaSettings(): MediaSettingsContextValue {
         prev.preferredVideoInputLabel ??
         null,
     }));
-  }, [serverSettings]);
+  }, [serverSettings, syncToServer]);
 
   // Проверка поддержки HTMLMediaElement.prototype.setSinkId
   const isSinkIdSupported =

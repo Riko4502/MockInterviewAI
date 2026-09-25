@@ -1,18 +1,28 @@
 import { z } from "zod";
 
+export const clientIdSchema = z.string().trim().min(1).max(128);
+
+export const getDeviceSettingsQuerySchema = z.object({
+  clientId: clientIdSchema,
+});
+export type GetDeviceSettingsQueryDto = z.infer<
+  typeof getDeviceSettingsQuerySchema
+>;
+
 /**
  * Zod-схема настроек аудио, речи и устройств пользователя для конкретного клиентского устройства.
  * Хранится в отдельной таблице `user_device_settings`.
  */
 export const deviceSettingsSchema = z.object({
-  clientId: z.string().min(1).max(128),
+  clientId: clientIdSchema,
   deviceName: z.string().max(128).nullable().optional(),
-  audioVolume: z.number().min(0).max(100).default(80),
-  speechVolume: z.number().min(0).max(100).default(80),
-  micGain: z.number().min(0).max(100).default(100),
+  audioVolume: z.number().int().min(0).max(100).default(80),
+  speechVolume: z.number().int().min(0).max(100).default(80),
+  micGain: z.number().int().min(0).max(100).default(100),
   preferredAudioInputLabel: z.string().nullable().optional(),
   preferredAudioOutputLabel: z.string().nullable().optional(),
   preferredVideoInputLabel: z.string().nullable().optional(),
+  isPersisted: z.boolean().default(false),
 });
 
 export type DeviceSettingsDto = z.infer<typeof deviceSettingsSchema>;
@@ -21,11 +31,11 @@ export type DeviceSettingsDto = z.infer<typeof deviceSettingsSchema>;
  * Zod-схема частичного обновления настроек медиа/устройств для клиентского устройства.
  */
 export const updateDeviceSettingsSchema = z.object({
-  clientId: z.string().min(1).max(128),
+  clientId: clientIdSchema,
   deviceName: z.string().max(128).optional(),
-  audioVolume: z.number().min(0).max(100).optional(),
-  speechVolume: z.number().min(0).max(100).optional(),
-  micGain: z.number().min(0).max(100).optional(),
+  audioVolume: z.number().int().min(0).max(100).optional(),
+  speechVolume: z.number().int().min(0).max(100).optional(),
+  micGain: z.number().int().min(0).max(100).optional(),
   preferredAudioInputLabel: z.string().nullable().optional(),
   preferredAudioOutputLabel: z.string().nullable().optional(),
   preferredVideoInputLabel: z.string().nullable().optional(),

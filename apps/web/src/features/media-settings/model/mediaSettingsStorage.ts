@@ -8,7 +8,7 @@ export const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   preferredAudioOutputLabel: null,
   preferredVideoInputLabel: null,
   audioVolume: 80,
-  speechVolume: 90,
+  speechVolume: 80,
   micGain: 100,
 };
 

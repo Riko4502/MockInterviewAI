@@ -100,14 +100,6 @@ export function useWebRTC({
   const audioDeviceIdRef = useRef<string | undefined>(audioDeviceId);
   const videoDeviceIdRef = useRef<string | undefined>(videoDeviceId);
 
-  useEffect(() => {
-    audioDeviceIdRef.current = audioDeviceId;
-  }, [audioDeviceId]);
-
-  useEffect(() => {
-    videoDeviceIdRef.current = videoDeviceId;
-  }, [videoDeviceId]);
-
   const onSendSignalRef = useRef(onSendSignal);
   useEffect(() => {
     onSendSignalRef.current = onSendSignal;
@@ -663,22 +655,24 @@ export function useWebRTC({
 
   // Реактивная смена устройств при изменении пропсов во время активного стрима
   useEffect(() => {
-    if (
-      audioDeviceId &&
-      audioDeviceId !== audioDeviceIdRef.current &&
-      localStreamRef.current
-    ) {
-      void switchAudioDevice(audioDeviceId);
+    if (audioDeviceId === undefined) return;
+    if (audioDeviceId !== audioDeviceIdRef.current) {
+      if (localStreamRef.current) {
+        void switchAudioDevice(audioDeviceId);
+      } else {
+        audioDeviceIdRef.current = audioDeviceId;
+      }
     }
   }, [audioDeviceId, switchAudioDevice]);
 
   useEffect(() => {
-    if (
-      videoDeviceId &&
-      videoDeviceId !== videoDeviceIdRef.current &&
-      localStreamRef.current
-    ) {
-      void switchVideoDevice(videoDeviceId);
+    if (videoDeviceId === undefined) return;
+    if (videoDeviceId !== videoDeviceIdRef.current) {
+      if (localStreamRef.current) {
+        void switchVideoDevice(videoDeviceId);
+      } else {
+        videoDeviceIdRef.current = videoDeviceId;
+      }
     }
   }, [videoDeviceId, switchVideoDevice]);
 

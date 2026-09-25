@@ -89,6 +89,10 @@
       "cameraOff": "Камера отключена",
       "noDevices": "Устройства не найдены",
       "unsupportedSinkId": "Выбор динамика не поддерживается данным браузером",
+      "micAccessDenied": "Нет доступа к микрофону",
+      "deviceSpeakerFallback": "Динамик {{index}}",
+      "deviceMicFallback": "Микрофон {{index}}",
+      "deviceCameraFallback": "Камера {{index}}",
       "save": "Готово"
     },
     "videoWidget": {

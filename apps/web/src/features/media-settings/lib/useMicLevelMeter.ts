@@ -2,20 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 
+export type MicMeterErrorCode = "ACCESS_DENIED" | "UNSUPPORTED";
+
 export function useMicLevelMeter(
   deviceId: string,
   enabled: boolean,
   gain = 100,
 ) {
   const [level, setLevel] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<MicMeterErrorCode | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const gainRef = useRef<number>(gain);
 
   useEffect(() => {
+    gainRef.current = gain;
     if (gainNodeRef.current) {
       gainNodeRef.current.gain.value = Math.max(0, Math.min(100, gain)) / 100;
     }
@@ -35,7 +39,7 @@ export function useMicLevelMeter(
 
     const setupMicMeter = async () => {
       try {
-        setError(null);
+        setErrorCode(null);
         const constraints: MediaStreamConstraints = {
           audio: deviceId ? { deviceId: { exact: deviceId } } : true,
           video: false,
@@ -54,14 +58,17 @@ export function useMicLevelMeter(
           (window as unknown as { webkitAudioContext: typeof AudioContext })
             .webkitAudioContext;
 
-        if (!AudioCtx) return;
+        if (!AudioCtx) {
+          setErrorCode("UNSUPPORTED");
+          return;
+        }
 
         const ctx = new AudioCtx();
         audioCtxRef.current = ctx;
 
         const source = ctx.createMediaStreamSource(stream);
         const gainNode = ctx.createGain();
-        gainNode.gain.value = Math.max(0, Math.min(100, gain)) / 100;
+        gainNode.gain.value = Math.max(0, Math.min(100, gainRef.current)) / 100;
         gainNodeRef.current = gainNode;
 
         const analyser = ctx.createAnalyser();
@@ -92,7 +99,7 @@ export function useMicLevelMeter(
       } catch (err) {
         if (!isCancelled) {
           console.warn("[useMicLevelMeter] Failed to access mic stream:", err);
-          setError("Нет доступа к микрофону");
+          setErrorCode("ACCESS_DENIED");
           setLevel(0);
         }
       }
@@ -118,7 +125,7 @@ export function useMicLevelMeter(
       }
       setLevel(0);
     };
-  }, [deviceId, enabled, gain]);
+  }, [deviceId, enabled]);
 
-  return { level, error };
+  return { level, errorCode, error: errorCode };
 }

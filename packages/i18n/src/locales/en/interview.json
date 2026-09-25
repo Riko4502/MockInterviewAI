@@ -89,6 +89,10 @@
       "cameraOff": "Camera disabled",
       "noDevices": "No devices found",
       "unsupportedSinkId": "Output device selection is not supported by your browser",
+      "micAccessDenied": "No microphone access",
+      "deviceSpeakerFallback": "Speaker {{index}}",
+      "deviceMicFallback": "Microphone {{index}}",
+      "deviceCameraFallback": "Camera {{index}}",
       "save": "Done"
     },
     "videoWidget": {

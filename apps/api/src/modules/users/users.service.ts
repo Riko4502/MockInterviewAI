@@ -436,6 +436,7 @@ export class UsersService {
         preferredAudioInputLabel: existing.preferredAudioInputLabel,
         preferredAudioOutputLabel: existing.preferredAudioOutputLabel,
         preferredVideoInputLabel: existing.preferredVideoInputLabel,
+        isPersisted: true,
       };
     }
 
@@ -448,67 +449,91 @@ export class UsersService {
       preferredAudioInputLabel: null,
       preferredAudioOutputLabel: null,
       preferredVideoInputLabel: null,
+      isPersisted: false,
     };
   }
 
   /**
    * Сохраняет (upsert) настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Операция сериализуется в транзакции с блокировкой строки пользователя (FOR UPDATE),
+   * что исключает гонки при одновременных запросах и гарантирует жесткий лимит в 10 устройств.
    */
   async upsertDeviceSettings(
     userId: string,
     dto: UpdateDeviceSettingsDto,
   ): Promise<DeviceSettingsDto> {
-    const current = await this.getDeviceSettings(userId, dto.clientId);
+    if (!UUID_REGEX.test(userId)) {
+      throw new BadRequestException("Invalid user ID");
+    }
 
-    const record = await this.prisma.userDeviceSettings.upsert({
-      where: {
-        userId_clientId: {
+    return await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "users" WHERE id = ${userId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("User not found");
+      }
+
+      const existing = await tx.userDeviceSettings.findUnique({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+      });
+
+      const record = await tx.userDeviceSettings.upsert({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+        create: {
           userId,
           clientId: dto.clientId,
+          deviceName: dto.deviceName ?? null,
+          audioVolume: dto.audioVolume ?? existing?.audioVolume ?? 80,
+          speechVolume: dto.speechVolume ?? existing?.speechVolume ?? 80,
+          micGain: dto.micGain ?? existing?.micGain ?? 100,
+          preferredAudioInputLabel:
+            dto.preferredAudioInputLabel !== undefined
+              ? dto.preferredAudioInputLabel
+              : (existing?.preferredAudioInputLabel ?? null),
+          preferredAudioOutputLabel:
+            dto.preferredAudioOutputLabel !== undefined
+              ? dto.preferredAudioOutputLabel
+              : (existing?.preferredAudioOutputLabel ?? null),
+          preferredVideoInputLabel:
+            dto.preferredVideoInputLabel !== undefined
+              ? dto.preferredVideoInputLabel
+              : (existing?.preferredVideoInputLabel ?? null),
         },
-      },
-      create: {
-        userId,
-        clientId: dto.clientId,
-        deviceName: dto.deviceName ?? null,
-        audioVolume: dto.audioVolume ?? current.audioVolume,
-        speechVolume: dto.speechVolume ?? current.speechVolume,
-        micGain: dto.micGain ?? current.micGain,
-        preferredAudioInputLabel:
-          dto.preferredAudioInputLabel !== undefined
-            ? dto.preferredAudioInputLabel
-            : current.preferredAudioInputLabel,
-        preferredAudioOutputLabel:
-          dto.preferredAudioOutputLabel !== undefined
-            ? dto.preferredAudioOutputLabel
-            : current.preferredAudioOutputLabel,
-        preferredVideoInputLabel:
-          dto.preferredVideoInputLabel !== undefined
-            ? dto.preferredVideoInputLabel
-            : current.preferredVideoInputLabel,
-      },
-      update: {
-        ...(dto.deviceName !== undefined && { deviceName: dto.deviceName }),
-        ...(dto.audioVolume !== undefined && { audioVolume: dto.audioVolume }),
-        ...(dto.speechVolume !== undefined && {
-          speechVolume: dto.speechVolume,
-        }),
-        ...(dto.micGain !== undefined && { micGain: dto.micGain }),
-        ...(dto.preferredAudioInputLabel !== undefined && {
-          preferredAudioInputLabel: dto.preferredAudioInputLabel,
-        }),
-        ...(dto.preferredAudioOutputLabel !== undefined && {
-          preferredAudioOutputLabel: dto.preferredAudioOutputLabel,
-        }),
-        ...(dto.preferredVideoInputLabel !== undefined && {
-          preferredVideoInputLabel: dto.preferredVideoInputLabel,
-        }),
-      },
-    });
+        update: {
+          ...(dto.deviceName !== undefined && { deviceName: dto.deviceName }),
+          ...(dto.audioVolume !== undefined && {
+            audioVolume: dto.audioVolume,
+          }),
+          ...(dto.speechVolume !== undefined && {
+            speechVolume: dto.speechVolume,
+          }),
+          ...(dto.micGain !== undefined && { micGain: dto.micGain }),
+          ...(dto.preferredAudioInputLabel !== undefined && {
+            preferredAudioInputLabel: dto.preferredAudioInputLabel,
+          }),
+          ...(dto.preferredAudioOutputLabel !== undefined && {
+            preferredAudioOutputLabel: dto.preferredAudioOutputLabel,
+          }),
+          ...(dto.preferredVideoInputLabel !== undefined && {
+            preferredVideoInputLabel: dto.preferredVideoInputLabel,
+          }),
+        },
+      });
 
-    // Ограничиваем количество сохраненных устройств пользователя до 10 (удаляем самые старые)
-    try {
-      const userDevices = await this.prisma.userDeviceSettings.findMany({
+      // Ограничиваем количество сохраненных устройств пользователя до 10 (удаляем самые старые)
+      const userDevices = await tx.userDeviceSettings.findMany({
         where: { userId },
         orderBy: { updatedAt: "desc" },
         select: { id: true },
@@ -516,29 +541,23 @@ export class UsersService {
 
       if (userDevices.length > 10) {
         const toDelete = userDevices.slice(10).map((d) => d.id);
-        await this.prisma.userDeviceSettings.deleteMany({
+        await tx.userDeviceSettings.deleteMany({
           where: { id: { in: toDelete } },
         });
       }
-    } catch (cleanupError) {
-      this.logger.warn(
-        `Failed to clean up old device settings for user ${userId}:`,
-        cleanupError instanceof Error
-          ? cleanupError.message
-          : String(cleanupError),
-      );
-    }
 
-    return {
-      clientId: record.clientId,
-      deviceName: record.deviceName,
-      audioVolume: record.audioVolume,
-      speechVolume: record.speechVolume,
-      micGain: record.micGain,
-      preferredAudioInputLabel: record.preferredAudioInputLabel,
-      preferredAudioOutputLabel: record.preferredAudioOutputLabel,
-      preferredVideoInputLabel: record.preferredVideoInputLabel,
-    };
+      return {
+        clientId: record.clientId,
+        deviceName: record.deviceName,
+        audioVolume: record.audioVolume,
+        speechVolume: record.speechVolume,
+        micGain: record.micGain,
+        preferredAudioInputLabel: record.preferredAudioInputLabel,
+        preferredAudioOutputLabel: record.preferredAudioOutputLabel,
+        preferredVideoInputLabel: record.preferredVideoInputLabel,
+        isPersisted: true,
+      };
+    });
   }
 
   /**

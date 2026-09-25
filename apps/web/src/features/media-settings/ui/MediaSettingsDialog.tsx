@@ -123,18 +123,21 @@ export function MediaSettingsDialog({
   }, [open, activeTab, media.videoInputId, media.refreshDevices]);
 
   const handleAudioInputChange = (val: string) => {
-    media.setAudioInputId(val);
-    onAudioDeviceChange?.(val);
+    const nextVal = val === "default" ? "" : val;
+    media.setAudioInputId(nextVal);
+    onAudioDeviceChange?.(nextVal);
   };
 
   const handleAudioOutputChange = (val: string) => {
-    media.setAudioOutputId(val);
-    onAudioOutputChange?.(val);
+    const nextVal = val === "default" ? "" : val;
+    media.setAudioOutputId(nextVal);
+    onAudioOutputChange?.(nextVal);
   };
 
   const handleVideoInputChange = (val: string) => {
-    media.setVideoInputId(val);
-    onVideoDeviceChange?.(val);
+    const nextVal = val === "default" ? "" : val;
+    media.setVideoInputId(nextVal);
+    onVideoDeviceChange?.(nextVal);
   };
 
   return (
@@ -198,7 +201,7 @@ export function MediaSettingsDialog({
                 </div>
 
                 <Select
-                  value={media.audioOutputId}
+                  value={media.audioOutputId || "default"}
                   onValueChange={handleAudioOutputChange}
                   disabled={
                     !media.isSinkIdSupported && media.audioOutputs.length === 0
@@ -210,17 +213,25 @@ export function MediaSettingsDialog({
                     />
                   </Select.Trigger>
                   <Select.Content>
-                    <Select.Item value="">
+                    <Select.Item value="default">
                       {t("sandbox.mediaSettings.defaultDevice")}
                     </Select.Item>
-                    {media.audioOutputs.map((device, idx) => (
-                      <Select.Item
-                        key={device.deviceId || `out-${idx}`}
-                        value={device.deviceId}
-                      >
-                        {device.label || `Динамик ${idx + 1}`}
-                      </Select.Item>
-                    ))}
+                    {media.audioOutputs
+                      .filter(
+                        (device) =>
+                          device.deviceId && device.deviceId !== "default",
+                      )
+                      .map((device, idx) => (
+                        <Select.Item
+                          key={device.deviceId || `out-${idx}`}
+                          value={device.deviceId}
+                        >
+                          {device.label ||
+                            t("sandbox.mediaSettings.deviceSpeakerFallback", {
+                              index: idx + 1,
+                            })}
+                        </Select.Item>
+                      ))}
                   </Select.Content>
                 </Select>
                 {!media.isSinkIdSupported && (
@@ -309,7 +320,7 @@ export function MediaSettingsDialog({
                   {t("sandbox.mediaSettings.inputDevice")}
                 </Label>
                 <Select
-                  value={media.audioInputId}
+                  value={media.audioInputId || "default"}
                   onValueChange={handleAudioInputChange}
                 >
                   <Select.Trigger className="w-full h-9 text-xs">
@@ -318,17 +329,25 @@ export function MediaSettingsDialog({
                     />
                   </Select.Trigger>
                   <Select.Content>
-                    <Select.Item value="">
+                    <Select.Item value="default">
                       {t("sandbox.mediaSettings.defaultDevice")}
                     </Select.Item>
-                    {media.audioInputs.map((device, idx) => (
-                      <Select.Item
-                        key={device.deviceId || `in-${idx}`}
-                        value={device.deviceId}
-                      >
-                        {device.label || `Микрофон ${idx + 1}`}
-                      </Select.Item>
-                    ))}
+                    {media.audioInputs
+                      .filter(
+                        (device) =>
+                          device.deviceId && device.deviceId !== "default",
+                      )
+                      .map((device, idx) => (
+                        <Select.Item
+                          key={device.deviceId || `in-${idx}`}
+                          value={device.deviceId}
+                        >
+                          {device.label ||
+                            t("sandbox.mediaSettings.deviceMicFallback", {
+                              index: idx + 1,
+                            })}
+                        </Select.Item>
+                      ))}
                   </Select.Content>
                 </Select>
               </div>
@@ -369,7 +388,7 @@ export function MediaSettingsDialog({
                   <Progress value={micLevel} className="h-1.5" />
                   {micError && (
                     <span className="text-[11px] text-rose-400 mt-1 block">
-                      {micError}
+                      {t("sandbox.mediaSettings.micAccessDenied")}
                     </span>
                   )}
                 </div>
@@ -387,7 +406,7 @@ export function MediaSettingsDialog({
                   {t("sandbox.mediaSettings.videoDevice")}
                 </Label>
                 <Select
-                  value={media.videoInputId}
+                  value={media.videoInputId || "default"}
                   onValueChange={handleVideoInputChange}
                 >
                   <Select.Trigger className="w-full h-9 text-xs">
@@ -396,17 +415,25 @@ export function MediaSettingsDialog({
                     />
                   </Select.Trigger>
                   <Select.Content>
-                    <Select.Item value="">
+                    <Select.Item value="default">
                       {t("sandbox.mediaSettings.defaultDevice")}
                     </Select.Item>
-                    {media.videoInputs.map((device, idx) => (
-                      <Select.Item
-                        key={device.deviceId || `cam-${idx}`}
-                        value={device.deviceId}
-                      >
-                        {device.label || `Камера ${idx + 1}`}
-                      </Select.Item>
-                    ))}
+                    {media.videoInputs
+                      .filter(
+                        (device) =>
+                          device.deviceId && device.deviceId !== "default",
+                      )
+                      .map((device, idx) => (
+                        <Select.Item
+                          key={device.deviceId || `cam-${idx}`}
+                          value={device.deviceId}
+                        >
+                          {device.label ||
+                            t("sandbox.mediaSettings.deviceCameraFallback", {
+                              index: idx + 1,
+                            })}
+                        </Select.Item>
+                      ))}
                   </Select.Content>
                 </Select>
               </div>

@@ -61,8 +61,11 @@ export {
   unreadNotificationsCountSchema,
 } from "./notifications/notification.dto";
 export {
+  clientIdSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
+  type GetDeviceSettingsQueryDto,
+  getDeviceSettingsQuerySchema,
   type MediaSettingsDto,
   mediaSettingsSchema,
   type UpdateDeviceSettingsDto,

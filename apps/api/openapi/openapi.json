@@ -133,7 +133,7 @@
             "name": "clientId",
             "required": true,
             "in": "query",
-            "description": "Уникальный ID клиентского устройства",
+            "description": "Уникальный ID клиентского устройства (1-128 символов)",
             "schema": {
               "type": "string"
             }
@@ -149,6 +149,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Некорректный clientId"
           },
           "401": {
             "description": "Не авторизован"
@@ -2815,19 +2818,19 @@
           },
           "audioVolume": {
             "default": 80,
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
           "speechVolume": {
             "default": 80,
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
           "micGain": {
             "default": 100,
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
@@ -2842,6 +2845,10 @@
           "preferredVideoInputLabel": {
             "nullable": true,
             "type": "string"
+          },
+          "isPersisted": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": ["clientId"]
@@ -2859,17 +2866,17 @@
             "maxLength": 128
           },
           "audioVolume": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
           "speechVolume": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
           "micGain": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
             "maximum": 100
           },
