@@ -6,6 +6,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
 const mutateMock = vi.fn();
+const toastPushMock = vi.fn();
+
+vi.mock("@packages/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/ui")>();
+  return {
+    ...actual,
+    useToast: () => ({
+      push: toastPushMock,
+    }),
+  };
+});
 
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
@@ -17,6 +28,8 @@ vi.mock("@/entities/user", () => ({
       avatarUrl: null,
       telegramUsername: null,
       gitUrl: null,
+      theme: "dark",
+      locale: "ru",
     },
     isLoading: false,
     isError: false,
@@ -76,14 +89,31 @@ describe("UpdateProfileForm", () => {
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     await waitFor(() => {
-      expect(mutateMock).toHaveBeenCalledWith({
-        data: {
-          displayName: "Иван Петров",
-          username: "ivan",
-          telegramUsername: null,
-          gitUrl: null,
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            displayName: "Иван Петров",
+            username: "ivan",
+            telegramUsername: null,
+            gitUrl: null,
+            theme: "dark",
+            locale: "ru",
+          },
         },
-      });
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
+
+    // Проверяем вызов toast при onSuccess
+    const lastCall = mutateMock.mock.calls[0];
+    const options = lastCall[1];
+    options.onSuccess();
+    expect(toastPushMock).toHaveBeenCalledWith({
+      status: "success",
+      title: "Профиль сохранён.",
     });
   });
 });

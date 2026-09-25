@@ -72,7 +72,15 @@ vi.mock("@packages/ui", async (importOriginal) => {
 vi.mock("@packages/editor", () => {
   const { useState, useEffect } = require("react");
   return {
-    CodeEditorLazy: ({ yText, value }: { yText?: Y.Text; value?: string }) => {
+    CodeEditorLazy: ({
+      yText,
+      value,
+      theme,
+    }: {
+      yText?: Y.Text;
+      value?: string;
+      theme?: string;
+    }) => {
       const [text, setText] = useState(() =>
         yText ? yText.toString() : value || "",
       );
@@ -90,7 +98,11 @@ vi.mock("@packages/editor", () => {
       }, [yText]);
 
       return (
-        <div data-testid="code-editor-lazy" data-ytext={text}>
+        <div
+          data-testid="code-editor-lazy"
+          data-ytext={text}
+          data-theme={theme}
+        >
           <pre data-testid="editor-content">{text}</pre>
         </div>
       );
@@ -767,6 +779,27 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
       });
 
       pyDoc.destroy();
+    });
+
+    it("should render CodeEditorLazy with current theme from store and update reactively", async () => {
+      useSandboxStore.setState({ theme: "dark" });
+
+      const workspaceProps = {
+        roomId: "test-room-theme",
+        role: "interviewer" as const,
+        pathname: "/sandbox/test-room-theme",
+      };
+
+      render(<SandboxRoomWorkspace {...workspaceProps} />);
+
+      const editor = screen.getByTestId("code-editor-lazy");
+      expect(editor.getAttribute("data-theme")).toBe("dark");
+
+      await act(async () => {
+        useSandboxStore.getState().setTheme("light");
+      });
+
+      expect(editor.getAttribute("data-theme")).toBe("light");
     });
   });
 });

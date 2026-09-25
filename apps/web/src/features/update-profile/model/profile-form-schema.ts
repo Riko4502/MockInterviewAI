@@ -1,7 +1,9 @@
 import {
   GIT_URL_REGEX,
+  locales,
   normalizeTelegramUsername,
   TELEGRAM_USERNAME_REGEX,
+  THEME_MODES,
   type UpdateProfileDto,
   USERNAME_REGEX,
 } from "@packages/dto";
@@ -40,6 +42,8 @@ export function createProfileFormSchema(t: (key: ProfileErrorKey) => string) {
         (value) => value === "" || GIT_URL_REGEX.test(value),
         t("profile.errors.gitUrl"),
       ),
+    theme: z.enum(THEME_MODES),
+    locale: z.enum(locales),
   });
 }
 
@@ -61,5 +65,7 @@ export function toUpdateProfileDto(
         ? null
         : normalizeTelegramUsername(telegramUsername),
     gitUrl: gitUrl === "" ? null : gitUrl,
+    theme: values.theme,
+    locale: values.locale,
   };
 }

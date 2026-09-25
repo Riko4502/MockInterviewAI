@@ -13,6 +13,8 @@ describe("createProfileFormSchema", () => {
       username: "Ivan_Dev",
       telegramUsername: " @ivan_dev ",
       gitUrl: "https://github.com/ivan",
+      theme: "dark",
+      locale: "ru",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -20,6 +22,8 @@ describe("createProfileFormSchema", () => {
       username: "ivan_dev",
       telegramUsername: "ivan_dev",
       gitUrl: "https://github.com/ivan",
+      theme: "dark",
+      locale: "ru",
     });
   });
 
@@ -29,6 +33,8 @@ describe("createProfileFormSchema", () => {
       username: "ivan",
       telegramUsername: "  ",
       gitUrl: "",
+      theme: "light",
+      locale: "en",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -36,6 +42,8 @@ describe("createProfileFormSchema", () => {
       username: "ivan",
       telegramUsername: null,
       gitUrl: null,
+      theme: "light",
+      locale: "en",
     });
   });
 

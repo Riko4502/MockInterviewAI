@@ -102,4 +102,17 @@ describe("SandboxHeader", () => {
     fireEvent.click(runBtn);
     expect(handleRunCodeMock).not.toHaveBeenCalled();
   });
+
+  it("should toggle editor theme when theme switch button is clicked", () => {
+    useSandboxStore.setState({ theme: "dark" });
+    render(<SandboxHeader />);
+
+    const themeBtn = screen.getByRole("button", {
+      name: /Текущая тема редактора: dark/i,
+    });
+    expect(themeBtn).toBeInTheDocument();
+
+    fireEvent.click(themeBtn);
+    expect(useSandboxStore.getState().theme).toBe("light");
+  });
 });

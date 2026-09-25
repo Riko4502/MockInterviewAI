@@ -1699,6 +1699,17 @@ components:
           type: string
         permissions:
           type: string
+        theme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        locale:
+          type: string
+          enum:
+            - ru
+            - en
         updatedAt:
           type: string
           format: date-time
@@ -1714,6 +1725,8 @@ components:
         - email
         - role
         - permissions
+        - theme
+        - locale
         - updatedAt
     UpdateProfileDto:
       type: object
@@ -1737,6 +1750,17 @@ components:
           nullable: true
           type: string
           pattern: ^https?:\/\/(www\.)?(github|gitlab)\.com\/[a-zA-Z0-9_.-]+\/?$
+        theme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        locale:
+          type: string
+          enum:
+            - ru
+            - en
     AvatarUploadResponseDto:
       type: object
       properties:

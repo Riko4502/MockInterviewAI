@@ -2,12 +2,22 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileDto } from "@packages/api";
-import { Button, Card, Field, Input, Skeleton } from "@packages/ui";
+import { GlobeIcon, MoonIcon, SlidersIcon, SunIcon } from "@packages/icons";
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  useToast,
+} from "@packages/ui";
 import { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
+import { localeLabels, locales } from "@packages/dto";
 import {
   createProfileFormSchema,
   type ProfileFormValues,
@@ -19,10 +29,12 @@ import { AvatarUploadField } from "./AvatarUploadField";
 function ProfileFields({ user }: { user: UserProfileDto }) {
   const { t } = useTranslation("common");
   const updateProfile = useUpdateProfile();
+  const toast = useToast();
   const schema = useMemo(() => createProfileFormSchema(t), [t]);
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<ProfileFormValues>({
@@ -32,11 +44,29 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
       username: user.username ?? "",
       telegramUsername: user.telegramUsername ?? "",
       gitUrl: user.gitUrl ?? "",
+      theme: user.theme ?? "dark",
+      locale: user.locale ?? "ru",
     },
   });
 
   const onSubmit = (values: ProfileFormValues) => {
-    updateProfile.mutate({ data: toUpdateProfileDto(values) });
+    updateProfile.mutate(
+      { data: toUpdateProfileDto(values) },
+      {
+        onSuccess: () => {
+          toast.push({
+            status: "success",
+            title: t("profile.saveSuccess"),
+          });
+        },
+        onError: () => {
+          toast.push({
+            status: "error",
+            title: t("profile.saveError"),
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -114,6 +144,81 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   {...register("gitUrl")}
                 />
                 <Field.Error>{errors.gitUrl?.message}</Field.Error>
+              </Field.Content>
+            </Field>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h2 className="text-base font-semibold text-foreground">
+              {t("profile.preferencesTitle")}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t("profile.preferencesSubtitle")}
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <Field.Label>{t("profile.theme")}</Field.Label>
+              <Field.Content>
+                <Controller
+                  control={control}
+                  name="theme"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <Select.Trigger className="w-full">
+                        <Select.Value />
+                      </Select.Trigger>
+                      <Select.Content>
+                        <Select.Item value="light">
+                          <span className="flex items-center gap-2">
+                            <SunIcon size={16} />
+                            {t("profile.themeLight")}
+                          </span>
+                        </Select.Item>
+                        <Select.Item value="dark">
+                          <span className="flex items-center gap-2">
+                            <MoonIcon size={16} />
+                            {t("profile.themeDark")}
+                          </span>
+                        </Select.Item>
+                        <Select.Item value="system">
+                          <span className="flex items-center gap-2">
+                            <SlidersIcon size={16} />
+                            {t("profile.themeSystem")}
+                          </span>
+                        </Select.Item>
+                      </Select.Content>
+                    </Select>
+                  )}
+                />
+              </Field.Content>
+            </Field>
+
+            <Field>
+              <Field.Label>{t("profile.language")}</Field.Label>
+              <Field.Content>
+                <Controller
+                  control={control}
+                  name="locale"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <Select.Trigger className="w-full">
+                        <Select.Value />
+                      </Select.Trigger>
+                      <Select.Content>
+                        {locales.map((loc) => (
+                          <Select.Item key={loc} value={loc}>
+                            <span className="flex items-center gap-2">
+                              <GlobeIcon size={16} />
+                              {localeLabels[loc]}
+                            </span>
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select>
+                  )}
+                />
               </Field.Content>
             </Field>
           </div>
