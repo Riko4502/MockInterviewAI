@@ -22,6 +22,7 @@ const mockRedisInstance = {
   ping: jest.fn().mockResolvedValue("PONG"),
   eval: jest.fn().mockResolvedValue(1),
   scanStream: jest.fn(),
+  xadd: jest.fn().mockResolvedValue("1724500000000-0"),
 };
 
 jest.mock("ioredis", () => {
@@ -204,6 +205,31 @@ describe("RedisService", () => {
     });
   });
 
+  describe("xadd", () => {
+    it("writes the payload field consumed by realtime", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+
+      await expect(
+        service.xadd(stream, "notification.new", payload, 100, 604800),
+      ).resolves.toBe("1724500000000-0");
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+      );
+      expect(mockRedisInstance.expire).toHaveBeenCalledWith(stream, 604800);
+    });
+  });
+
   describe("get", () => {
     it("возвращает значение", async () => {
       mockRedisInstance.get.mockResolvedValue("hello");
@@ -277,6 +303,30 @@ describe("RedisService", () => {
         "a1",
         10,
       );
+    });
+  });
+
+  describe("compareAndDelete", () => {
+    it("возвращает true, если Lua-скрипт вернул 1 (ключ совпал и удален)", async () => {
+      mockRedisInstance.eval.mockResolvedValue(1);
+      await service.onModuleInit();
+      const result = await service.compareAndDelete("lock:key", "token-123");
+      expect(result).toBe(true);
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'if redis.call("get", KEYS[1]) == ARGV[1] then',
+        ),
+        1,
+        "lock:key",
+        "token-123",
+      );
+    });
+
+    it("возвращает false, если Lua-скрипт вернул 0 (токен не совпал или ключ истек)", async () => {
+      mockRedisInstance.eval.mockResolvedValue(0);
+      await service.onModuleInit();
+      const result = await service.compareAndDelete("lock:key", "token-123");
+      expect(result).toBe(false);
     });
   });
 

@@ -5,9 +5,9 @@ import {
 } from "@packages/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
-import { baseFetch } from "@/shared/api/base";
+import { baseFetch } from "@/shared/api/http/base";
 
-vi.mock("@/shared/api/base", () => ({
+vi.mock("@/shared/api/http/base", () => ({
   baseFetch: vi.fn(),
   AuthError: class AuthError extends Error {
     constructor(

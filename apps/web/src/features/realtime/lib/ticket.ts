@@ -1,6 +1,6 @@
 import { realtimeControllerGetTicket } from "@packages/api";
 import { HttpError, RefreshSessionError } from "@/shared/api";
-import { realtimeWsUrl } from "@/shared/api/endpoints";
+import { realtimeWsUrl } from "@/shared/api/config/endpoints";
 
 /** Максимум последовательных failed handshake (403 при апгрейде) до остановки reconnect. */
 export const MAX_HANDSHAKE_FAILURES = 5;

@@ -29,6 +29,27 @@ export {
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
 export {
+  type TelegramAuthDto,
+  type TelegramCompleteDto,
+  type TelegramLinkDto,
+  telegramAuthSchema,
+  telegramCompleteSchema,
+  telegramLinkSchema,
+} from "./auth/telegram.dto";
+export type {
+  MatchRequestResponseDto,
+  UnreadMatchRequestsCountDto,
+} from "./matchmaking/match-request-response.dto";
+// Matchmaking
+export {
+  type CreateMatchRequestDto,
+  createMatchRequestSchema,
+  type MatchRequestQueryDto,
+  matchRequestQuerySchema,
+  type RejectMatchRequestDto,
+  rejectMatchRequestSchema,
+} from "./matchmaking/matchmaking.dto";
+export {
   type NotificationActionResponseDto,
   type NotificationDto,
   type NotificationsListDto,
@@ -135,3 +156,73 @@ export {
   type InterviewParticipantRole,
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
+export {
+  type CreateShowcaseCardDto,
+  createShowcaseCardSchema,
+  type UpdateShowcaseCardDto,
+  type UpdateShowcaseCardStatusDto,
+  updateShowcaseCardSchema,
+  updateShowcaseCardStatusSchema,
+} from "./showcase/manage-showcase-card.dto";
+export {
+  normalizeSkill,
+  type ParsedSearchQuery,
+  parseSearchQuery,
+  sanitizeSearchTerm,
+  stripHtmlTags,
+} from "./showcase/search-parser";
+// Showcase
+export {
+  type ExperienceLevel,
+  experienceLevelEnum,
+  type InterviewLanguage,
+  interviewLanguageEnum,
+  type MatchRequestStatus,
+  matchRequestStatusEnum,
+  type ShowcaseCardStatus,
+  type ShowcaseSortBy,
+  type Specialization,
+  showcaseCardStatusEnum,
+  showcaseSortByEnum,
+  specializationEnum,
+} from "./showcase/showcase.enums";
+export {
+  type ShowcaseQueryDto,
+  showcaseQuerySchema,
+} from "./showcase/showcase-query.dto";
+export type {
+  PaginatedResponseDto,
+  PublicUserCardDto,
+  ShowcaseCardResponseDto,
+  ShowcaseCardStatsDto,
+} from "./showcase/showcase-response.dto";
+export {
+  type TelegramInterviewDto,
+  type TelegramInterviewsListDto,
+  type TelegramInterviewsQuery,
+  telegramInterviewSchema,
+  telegramInterviewsListSchema,
+  telegramInterviewsQuerySchema,
+} from "./telegram/interviews.dto";
+export {
+  type LinkRequest,
+  type LinkTokenResponse,
+  linkRequestSchema,
+  linkTokenResponseSchema,
+} from "./telegram/link.dto";
+export {
+  type TelegramPreferencesPatch,
+  telegramPreferencesPatchSchema,
+} from "./telegram/preferences.dto";
+export {
+  type TelegramProfileQuery,
+  type TelegramUserProfileDto,
+  telegramProfileQuerySchema,
+  telegramUserProfileSchema,
+} from "./telegram/profile.dto";
+export {
+  type UnlinkRequest,
+  type UnlinkResponse,
+  unlinkRequestSchema,
+  unlinkResponseSchema,
+} from "./telegram/unlink.dto";

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -14,6 +16,7 @@ import type { SchemaObject } from "@nestjs/swagger";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -28,16 +31,28 @@ import {
   type ResetPasswordDto,
   registerSchema,
   resetPasswordSchema,
+  type TelegramAuthDto,
+  type TelegramCompleteDto,
+  type TelegramLinkDto,
+  telegramAuthSchema,
+  telegramCompleteSchema,
+  telegramLinkSchema,
 } from "@packages/dto";
 import type { Request, Response } from "express";
+import { OAuthNavigation } from "../../common/decorators/oauth-navigation.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import {
   registerSchema as registerOpenApiSchema,
   ZodBody,
 } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { AuthService } from "./auth.service";
+import { AuthService, type LoginResult } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import {
+  GITHUB_STATE_COOKIE,
+  GITHUB_STATE_TTL_SECONDS,
+  GithubOAuthService,
+} from "./services/github-oauth.service";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
 import type { TokenPayload } from "./services/token.service";
 
@@ -97,6 +112,39 @@ const ERROR_RESPONSE_SCHEMA: SchemaObject = {
   required: ["statusCode", "message"],
 };
 
+const TELEGRAM_AUTH_SUCCESS_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["AUTHENTICATED"],
+      example: "AUTHENTICATED",
+    },
+    accessToken: { type: "string", description: "JWT access token" },
+  },
+  required: ["status", "accessToken"],
+};
+
+const TELEGRAM_AUTH_NEED_EMAIL_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    status: {
+      type: "string",
+      enum: ["NEED_EMAIL"],
+      example: "NEED_EMAIL",
+    },
+    onboardingToken: {
+      type: "string",
+      description: "Одноразовый токен онбординга для завершения регистрации",
+    },
+  },
+  required: ["status", "onboardingToken"],
+};
+
+const TELEGRAM_AUTH_RESPONSE_SCHEMA: SchemaObject = {
+  oneOf: [TELEGRAM_AUTH_SUCCESS_SCHEMA, TELEGRAM_AUTH_NEED_EMAIL_SCHEMA],
+};
+
 const accessTokenResponseRef = registerOpenApiSchema(
   "AccessTokenResponseDto",
   ACCESS_TOKEN_RESPONSE_SCHEMA,
@@ -112,6 +160,19 @@ const validationErrorResponseRef = registerOpenApiSchema(
 const errorResponseRef = registerOpenApiSchema(
   "ErrorResponseDto",
   ERROR_RESPONSE_SCHEMA,
+);
+const telegramAuthResponseRef = registerOpenApiSchema(
+  "TelegramAuthResponseDto",
+  TELEGRAM_AUTH_RESPONSE_SCHEMA,
+);
+
+const oauthProvidersResponseRef = registerOpenApiSchema(
+  "OAuthProvidersResponseDto",
+  {
+    type: "object",
+    properties: { github: { type: "boolean" } },
+    required: ["github"],
+  },
 );
 
 const REFRESH_COOKIE_DESCRIPTION =
@@ -136,6 +197,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly githubOAuth: GithubOAuthService,
   ) {}
 
   /**
@@ -515,11 +577,207 @@ export class AuthController {
     }
   }
 
+  @Get("oauth/providers")
+  @Public()
+  @ApiOperation({ summary: "Get configured OAuth providers" })
+  @ApiResponse({ status: 200, schema: oauthProvidersResponseRef })
+  oauthProviders(@Res({ passthrough: true }) response: Response): {
+    github: boolean;
+  } {
+    response.setHeader("Cache-Control", "no-store");
+    return { github: this.githubOAuth.isAvailable() };
+  }
+
+  @Get("github")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Start GitHub OAuth login" })
+  @ApiResponse({ status: 302, description: "Redirect to GitHub" })
+  async github(@Res() response: Response): Promise<void> {
+    const { url, browserSecret } = await this.githubOAuth.authorize();
+    response.cookie(GITHUB_STATE_COOKIE, browserSecret, {
+      ...this.getRefreshCookieAttributes(),
+      maxAge: GITHUB_STATE_TTL_SECONDS * 1000,
+    });
+    response.setHeader("Cache-Control", "no-store");
+    response.redirect(302, url);
+  }
+
+  @Get("github/callback")
+  @OAuthNavigation()
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @ApiOperation({ summary: "Complete GitHub OAuth login" })
+  @ApiQuery({ name: "code", type: String, required: false })
+  @ApiQuery({ name: "state", type: String, required: false })
+  @ApiResponse({
+    status: 302,
+    description: "Refresh cookie and redirect to dashboard",
+  })
+  async githubCallback(
+    @Query("code") code: unknown,
+    @Query("state") state: unknown,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
+    response.clearCookie(
+      GITHUB_STATE_COOKIE,
+      this.getRefreshCookieAttributes(),
+    );
+    let result: LoginResult;
+    try {
+      const user = await this.githubOAuth.callback(
+        code,
+        state,
+        request.cookies?.[GITHUB_STATE_COOKIE],
+      );
+      result = await this.authService.loginUser(user);
+    } catch {
+      response.redirect(
+        302,
+        new URL(
+          "/login?error=github",
+          this.configService.getOrThrow<string>("FRONTEND_URL"),
+        ).toString(),
+      );
+      return;
+    }
+    this.setRefreshTokenCookie(response, result.refreshToken);
+    response.redirect(
+      302,
+      new URL(
+        "/dashboard",
+        this.configService.getOrThrow<string>("FRONTEND_URL"),
+      ).toString(),
+    );
+  }
+
+  /**
+   * Аутентификация через Telegram Login Widget.
+   */
+  @Post("telegram")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(telegramAuthSchema, "TelegramAuthDto")
+  @ApiOperation({ summary: "Вход через Telegram Widget" })
+  @ApiResponse({
+    status: 200,
+    description: `Успешный вход (AUTHENTICATED) или необходимость ввода email (NEED_EMAIL). ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: telegramAuthResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: validationErrorResponseRef,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Недействительная подпись Telegram, истекший auth_date или повторный запрос.",
+    schema: errorResponseRef,
+  })
+  async telegramAuth(
+    @Req() request: Request,
+    @Body(new ZodValidationPipe(telegramAuthSchema)) dto: TelegramAuthDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const rawPayload = request.body as Record<string, unknown> | undefined;
+    const result = await this.authService.telegramAuth(dto, rawPayload);
+
+    if (result.status === "AUTHENTICATED") {
+      this.setRefreshTokenCookie(response, result.refreshToken);
+      return { status: "AUTHENTICATED", accessToken: result.accessToken };
+    }
+
+    return { status: "NEED_EMAIL", onboardingToken: result.onboardingToken };
+  }
+
+  /**
+   * Завершение онбординга через Telegram Widget с указанием email.
+   */
+  @Post("telegram/complete")
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(telegramCompleteSchema, "TelegramCompleteDto")
+  @ApiOperation({ summary: "Завершение онбординга Telegram с указанием email" })
+  @ApiResponse({
+    status: 201,
+    description: `Успешное завершение онбординга и создание аккаунта. ${REFRESH_COOKIE_DESCRIPTION}`,
+    schema: accessTokenResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      "Недействительный или истекший onboardingToken / ошибка валидации.",
+    schema: {
+      oneOf: [validationErrorResponseRef, errorResponseRef],
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Email уже зарегистрирован.",
+    schema: errorResponseRef,
+  })
+  async telegramComplete(
+    @Body(new ZodValidationPipe(telegramCompleteSchema))
+    dto: TelegramCompleteDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ accessToken: string }> {
+    const result = await this.authService.telegramComplete(dto);
+    this.setRefreshTokenCookie(response, result.refreshToken);
+    response.status(HttpStatus.CREATED);
+    return { accessToken: result.accessToken };
+  }
+
+  /**
+   * Привязка Telegram аккаунта к авторизованному пользователю.
+   */
+  @Post("telegram/link")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @ZodBody(telegramLinkSchema, "TelegramLinkDto")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Привязка Telegram аккаунта" })
+  @ApiResponse({
+    status: 200,
+    description: "Telegram аккаунт успешно привязан.",
+    schema: messageResponseRef,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации DTO.",
+    schema: validationErrorResponseRef,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      "Недействительная подпись Telegram или неавторизованный запрос.",
+    schema: errorResponseRef,
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Telegram аккаунт уже привязан к другому пользователю.",
+    schema: errorResponseRef,
+  })
+  async telegramLink(
+    @Req() request: AuthRequest,
+    @Body(new ZodValidationPipe(telegramLinkSchema)) dto: TelegramLinkDto,
+  ): Promise<{ message: string }> {
+    const rawPayload = request.body as Record<string, unknown> | undefined;
+    return this.authService.telegramLink(request.user.sub, dto, rawPayload);
+  }
+
   /**
    * Возвращает имя refresh cookie из конфигурации (`§25`).
    *
    * @returns Имя cookie (по умолчанию `refresh_token`).
    */
+
   private getRefreshTokenCookieName(): string {
     return (
       this.configService.get<string>("cookie.refreshTokenName") ??

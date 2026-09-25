@@ -51,12 +51,20 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - COOKIE_SECURE=true
       - API_PORT=4000
       - PORT=4000
       - API_DATABASE_URL=${API_DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mock_interview_prod}}
       - REFRESH_TOKEN_HASH_SECRET=${REFRESH_TOKEN_HASH_SECRET}
+      # Optional as a group: unset values stay absent instead of becoming empty strings.
+      # Read from the deployment .env or shell, only at container runtime.
+      - GITHUB_CLIENT_ID
+      - GITHUB_CLIENT_SECRET
+      - GITHUB_CALLBACK_URL
+      - FRONTEND_URL
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY is required}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://mockinterviewai.com}
       - REDIS_HOST=redis
       - REDIS_PORT=6379

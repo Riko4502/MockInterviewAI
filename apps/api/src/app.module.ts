@@ -18,10 +18,13 @@ import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
+import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
+import { ShowcaseModule } from "./modules/showcase/showcase.module";
 import { StorageModule } from "./modules/storage/storage.module";
+import { TelegramModule } from "./modules/telegram/telegram.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
@@ -68,6 +71,9 @@ import { RedisModule } from "./redis/redis.module";
     SessionsModule,
     RealtimeModule,
     NotificationsModule,
+    TelegramModule,
+    ShowcaseModule,
+    MatchmakingModule,
   ],
   providers: [
     {
