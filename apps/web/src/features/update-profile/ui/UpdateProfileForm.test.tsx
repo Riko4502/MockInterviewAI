@@ -30,6 +30,18 @@ let mockUserData = {
   locale: "ru",
 };
 
+const setPreferenceCookiesMock = vi.fn();
+const refreshMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: refreshMock,
+  }),
+  usePathname: () => "/dashboard/profile",
+}));
+
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
     data: mockUserData,
@@ -39,6 +51,7 @@ vi.mock("@/entities/user", () => ({
   UserAvatar: ({ name }: { name?: string | null }) => (
     <div>{name ?? "avatar"}</div>
   ),
+  setPreferenceCookies: (args: unknown) => setPreferenceCookiesMock(args),
 }));
 
 vi.mock("../model/use-profile-mutations", () => ({
@@ -74,6 +87,8 @@ describe("UpdateProfileForm", () => {
   beforeEach(() => {
     mutateMock.mockClear();
     toastPushMock.mockClear();
+    setPreferenceCookiesMock.mockClear();
+    refreshMock.mockClear();
     mockUserData = {
       id: "11111111-1111-1111-1111-111111111111",
       email: "dev@example.com",
@@ -179,6 +194,33 @@ describe("UpdateProfileForm", () => {
     expect(toastPushMock).toHaveBeenCalledWith({
       status: "success",
       title: "Профиль сохранён.",
+    });
+  });
+
+  it("обновляет язык интерфейса, куки и вызывает router.refresh() при сохранении нового языка", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.type(nameInput, "!");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    const lastCall = mutateMock.mock.calls[0];
+    const options = lastCall[1];
+    act(() => {
+      options.onSuccess({
+        ...mockUserData,
+        displayName: "Иван!",
+        locale: "en",
+      });
+    });
+
+    expect(setPreferenceCookiesMock).toHaveBeenCalledWith({ locale: "en" });
+    expect(document.documentElement.lang).toBe("en");
+    expect(refreshMock).toHaveBeenCalled();
+    expect(toastPushMock).toHaveBeenCalledWith({
+      status: "success",
+      title: "Profile saved.",
     });
   });
 });

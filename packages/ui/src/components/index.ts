@@ -40,6 +40,7 @@ export * from "./Separator";
 export * from "./Sheet";
 export * from "./Sidebar";
 export * from "./Skeleton";
+export * from "./Slider";
 export * from "./Spin";
 export * from "./Switch";
 export * from "./Table";

@@ -23,10 +23,40 @@ export function SandboxVideoWidgetScreen() {
     hasPeerOnline,
     onCopyInvite,
     isInviteCopied,
+    audioVolume,
+    selectedAudioOutputId,
   } = useSandboxMedia();
 
   const [isAutoplayBlocked, setIsAutoplayBlocked] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Синхронизация громкости с аудиоэлементом собеседника
+  useEffect(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.volume =
+        Math.max(0, Math.min(100, audioVolume ?? 80)) / 100;
+    }
+  }, [audioVolume]);
+
+  // Применение выбранного устройства вывода (динамики / наушники)
+  useEffect(() => {
+    const el = audioElementRef.current;
+    if (
+      el &&
+      selectedAudioOutputId &&
+      typeof (el as unknown as { setSinkId?: (id: string) => Promise<void> })
+        .setSinkId === "function"
+    ) {
+      void (el as unknown as { setSinkId: (id: string) => Promise<void> })
+        .setSinkId(selectedAudioOutputId)
+        .catch((err) => {
+          console.warn(
+            "[SandboxVideoWidgetScreen] Failed to set sinkId on remote audio element:",
+            err,
+          );
+        });
+    }
+  }, [selectedAudioOutputId]);
 
   const localAudioLevel = useAudioVolumeMeter(localStream, isAudioMuted);
   const remoteAudioLevel = useAudioVolumeMeter(

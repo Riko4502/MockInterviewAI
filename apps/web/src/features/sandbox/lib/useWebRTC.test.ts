@@ -46,6 +46,8 @@ describe("useWebRTC screen sharing track lifecycle", () => {
       getTracks: () => [mockCameraTrack, mockAudioTrack],
       getVideoTracks: () => [mockCameraTrack],
       getAudioTracks: () => [mockAudioTrack],
+      removeTrack: vi.fn(),
+      addTrack: vi.fn(),
     } as unknown as MediaStream;
 
     // Mock getDisplayMedia
@@ -161,5 +163,55 @@ describe("useWebRTC screen sharing track lifecycle", () => {
     unmount();
 
     expect(mockScreenTrack.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("динамически переключает аудиоустройство через switchAudioDevice", async () => {
+    const onSendSignal = vi.fn();
+    const { result } = renderHook(() =>
+      useWebRTC({ userId: "user-1", onSendSignal }),
+    );
+
+    await act(async () => {
+      await result.current.startCall();
+    });
+
+    await act(async () => {
+      await result.current.switchAudioDevice("new-mic-id");
+    });
+
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: {
+          deviceId: { exact: "new-mic-id" },
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      }),
+    );
+  });
+
+  it("динамически переключает видеоустройство через switchVideoDevice", async () => {
+    const onSendSignal = vi.fn();
+    const { result } = renderHook(() =>
+      useWebRTC({ userId: "user-1", onSendSignal }),
+    );
+
+    await act(async () => {
+      await result.current.startCall();
+    });
+
+    await act(async () => {
+      await result.current.switchVideoDevice("new-cam-id");
+    });
+
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        video: {
+          deviceId: { exact: "new-cam-id" },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+      }),
+    );
   });
 });

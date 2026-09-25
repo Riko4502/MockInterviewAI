@@ -11,9 +11,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  DeviceSettingsDto,
   Locale,
   PublicUserProfileDto,
   ThemeMode,
+  UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
@@ -405,6 +407,115 @@ export class UsersService {
     });
 
     return this.mapToUserProfile(updated);
+  }
+
+  /**
+   * Получает настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Если для данного clientId настроек еще нет в таблице user_device_settings, возвращает значения по умолчанию.
+   */
+  async getDeviceSettings(
+    userId: string,
+    clientId: string,
+  ): Promise<DeviceSettingsDto> {
+    const existing = await this.prisma.userDeviceSettings.findUnique({
+      where: {
+        userId_clientId: {
+          userId,
+          clientId,
+        },
+      },
+    });
+
+    if (existing) {
+      return {
+        clientId: existing.clientId,
+        deviceName: existing.deviceName,
+        audioVolume: existing.audioVolume,
+        speechVolume: existing.speechVolume,
+        micGain: existing.micGain,
+        preferredAudioInputLabel: existing.preferredAudioInputLabel,
+        preferredAudioOutputLabel: existing.preferredAudioOutputLabel,
+        preferredVideoInputLabel: existing.preferredVideoInputLabel,
+      };
+    }
+
+    return {
+      clientId,
+      deviceName: null,
+      audioVolume: 80,
+      speechVolume: 80,
+      micGain: 100,
+      preferredAudioInputLabel: null,
+      preferredAudioOutputLabel: null,
+      preferredVideoInputLabel: null,
+    };
+  }
+
+  /**
+   * Сохраняет (upsert) настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   */
+  async upsertDeviceSettings(
+    userId: string,
+    dto: UpdateDeviceSettingsDto,
+  ): Promise<DeviceSettingsDto> {
+    const current = await this.getDeviceSettings(userId, dto.clientId);
+
+    const record = await this.prisma.userDeviceSettings.upsert({
+      where: {
+        userId_clientId: {
+          userId,
+          clientId: dto.clientId,
+        },
+      },
+      create: {
+        userId,
+        clientId: dto.clientId,
+        deviceName: dto.deviceName ?? null,
+        audioVolume: dto.audioVolume ?? current.audioVolume,
+        speechVolume: dto.speechVolume ?? current.speechVolume,
+        micGain: dto.micGain ?? current.micGain,
+        preferredAudioInputLabel:
+          dto.preferredAudioInputLabel !== undefined
+            ? dto.preferredAudioInputLabel
+            : current.preferredAudioInputLabel,
+        preferredAudioOutputLabel:
+          dto.preferredAudioOutputLabel !== undefined
+            ? dto.preferredAudioOutputLabel
+            : current.preferredAudioOutputLabel,
+        preferredVideoInputLabel:
+          dto.preferredVideoInputLabel !== undefined
+            ? dto.preferredVideoInputLabel
+            : current.preferredVideoInputLabel,
+      },
+      update: {
+        ...(dto.deviceName !== undefined && { deviceName: dto.deviceName }),
+        ...(dto.audioVolume !== undefined && { audioVolume: dto.audioVolume }),
+        ...(dto.speechVolume !== undefined && {
+          speechVolume: dto.speechVolume,
+        }),
+        ...(dto.micGain !== undefined && { micGain: dto.micGain }),
+        ...(dto.preferredAudioInputLabel !== undefined && {
+          preferredAudioInputLabel: dto.preferredAudioInputLabel,
+        }),
+        ...(dto.preferredAudioOutputLabel !== undefined && {
+          preferredAudioOutputLabel: dto.preferredAudioOutputLabel,
+        }),
+        ...(dto.preferredVideoInputLabel !== undefined && {
+          preferredVideoInputLabel: dto.preferredVideoInputLabel,
+        }),
+      },
+    });
+
+    return {
+      clientId: record.clientId,
+      deviceName: record.deviceName,
+      audioVolume: record.audioVolume,
+      speechVolume: record.speechVolume,
+      micGain: record.micGain,
+      preferredAudioInputLabel: record.preferredAudioInputLabel,
+      preferredAudioOutputLabel: record.preferredAudioOutputLabel,
+      preferredVideoInputLabel: record.preferredVideoInputLabel,
+    };
   }
 
   /**

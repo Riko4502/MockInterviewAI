@@ -125,6 +125,84 @@
         "tags": ["Profile"]
       }
     },
+    "/api/v1/profile/device-settings": {
+      "get": {
+        "operationId": "ProfileController_getDeviceSettings",
+        "parameters": [
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "query",
+            "description": "Уникальный ID клиентского устройства",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Настройки аудио, речи и устройств",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить настройки медиа и устройств для клиентского устройства",
+        "tags": ["Profile"]
+      },
+      "put": {
+        "operationId": "ProfileController_updateDeviceSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Обновленные настройки аудио, речи и устройств",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Сохранить настройки медиа и устройств для клиентского устройства",
+        "tags": ["Profile"]
+      }
+    },
     "/api/v1/profile/avatar": {
       "post": {
         "operationId": "ProfileController_uploadAvatar",
@@ -2721,6 +2799,94 @@
             "enum": ["ru", "en"]
           }
         }
+      },
+      "DeviceSettingsDto": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deviceName": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 128
+          },
+          "audioVolume": {
+            "default": 80,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "speechVolume": {
+            "default": 80,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "micGain": {
+            "default": 100,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "preferredAudioInputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredAudioOutputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredVideoInputLabel": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["clientId"]
+      },
+      "UpdateDeviceSettingsDto": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deviceName": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "audioVolume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "speechVolume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "micGain": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "preferredAudioInputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredAudioOutputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredVideoInputLabel": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["clientId"]
       },
       "AvatarUploadResponseDto": {
         "type": "object",

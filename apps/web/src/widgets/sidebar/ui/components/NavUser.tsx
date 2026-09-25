@@ -1,17 +1,25 @@
 "use client";
 
-import { ChevronRightIcon, LogOutIcon, UserIcon } from "@packages/icons";
+import {
+  ChevronRightIcon,
+  LogOutIcon,
+  SlidersIcon,
+  UserIcon,
+} from "@packages/icons";
 import { DropdownMenu, Skeleton, Sidebar as UiSidebar } from "@packages/ui";
 import Link from "next/link";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar, useCurrentUser } from "@/entities/user";
 import { useLogout } from "@/features/auth";
+import { MediaSettingsDialog } from "@/features/media-settings";
 import { paths } from "@/shared/config";
 
 export function NavUser() {
   const { t } = useTranslation("common");
   const { data: user, isLoading } = useCurrentUser();
   const { logout, isPending } = useLogout();
+  const [isMediaSettingsOpen, setIsMediaSettingsOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -68,6 +76,10 @@ export function NavUser() {
                 {t("navigation.profile")}
               </Link>
             </DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={() => setIsMediaSettingsOpen(true)}>
+              <SlidersIcon />
+              {t("navigation.mediaSettings")}
+            </DropdownMenu.Item>
             <DropdownMenu.Separator />
             <DropdownMenu.Item
               variant="destructive"
@@ -80,6 +92,10 @@ export function NavUser() {
           </DropdownMenu.Content>
         </DropdownMenu>
       </UiSidebar.MenuItem>
+      <MediaSettingsDialog
+        open={isMediaSettingsOpen}
+        onOpenChange={setIsMediaSettingsOpen}
+      />
     </UiSidebar.Menu>
   );
 }

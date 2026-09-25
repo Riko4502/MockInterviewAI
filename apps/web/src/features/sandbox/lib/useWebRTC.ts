@@ -70,9 +70,16 @@ function createSyntheticMediaStream(label: string): {
 interface UseWebRTCOptions {
   userId: string;
   onSendSignal: (signal: WebRTCSignal) => void;
+  audioDeviceId?: string;
+  videoDeviceId?: string;
 }
 
-export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
+export function useWebRTC({
+  userId,
+  onSendSignal,
+  audioDeviceId,
+  videoDeviceId,
+}: UseWebRTCOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] =
@@ -90,6 +97,16 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
+  const audioDeviceIdRef = useRef<string | undefined>(audioDeviceId);
+  const videoDeviceIdRef = useRef<string | undefined>(videoDeviceId);
+
+  useEffect(() => {
+    audioDeviceIdRef.current = audioDeviceId;
+  }, [audioDeviceId]);
+
+  useEffect(() => {
+    videoDeviceIdRef.current = videoDeviceId;
+  }, [videoDeviceId]);
 
   const onSendSignalRef = useRef(onSendSignal);
   useEffect(() => {
@@ -103,16 +120,32 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     }
 
     try {
+      const audioConstraints = audioDeviceIdRef.current
+        ? {
+            deviceId: { exact: audioDeviceIdRef.current },
+            echoCancellation: true,
+            noiseSuppression: true,
+          }
+        : {
+            echoCancellation: true,
+            noiseSuppression: true,
+          };
+
+      const videoConstraints = videoDeviceIdRef.current
+        ? {
+            deviceId: { exact: videoDeviceIdRef.current },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          }
+        : {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: "user",
+          };
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: "user",
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        video: videoConstraints,
+        audio: audioConstraints,
       });
       // По умолчанию микрофон и камера выключены
       for (const track of stream.getAudioTracks()) {
@@ -521,6 +554,107 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     }
   }, [isScreenSharing]);
 
+  // Динамическое переключение микрофона
+  const switchAudioDevice = useCallback(async (deviceId: string) => {
+    audioDeviceIdRef.current = deviceId;
+    if (!localStreamRef.current) return;
+
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId
+          ? {
+              deviceId: { exact: deviceId },
+              echoCancellation: true,
+              noiseSuppression: true,
+            }
+          : {
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+        video: false,
+      });
+
+      const newTrack = newStream.getAudioTracks()[0];
+      if (!newTrack) return;
+
+      const oldTrack = localStreamRef.current.getAudioTracks()[0];
+      if (oldTrack) {
+        newTrack.enabled = oldTrack.enabled;
+        if (typeof localStreamRef.current.removeTrack === "function") {
+          localStreamRef.current.removeTrack(oldTrack);
+        }
+        oldTrack.stop();
+      }
+      if (typeof localStreamRef.current.addTrack === "function") {
+        localStreamRef.current.addTrack(newTrack);
+      }
+
+      if (pcRef.current) {
+        const sender = pcRef.current
+          .getSenders()
+          .find((s) => s.track?.kind === "audio");
+        if (sender) {
+          await sender.replaceTrack(newTrack);
+        }
+      }
+    } catch (err) {
+      console.warn("[useWebRTC] Failed to switch audio device:", err);
+    }
+  }, []);
+
+  // Динамическое переключение камеры
+  const switchVideoDevice = useCallback(
+    async (deviceId: string) => {
+      videoDeviceIdRef.current = deviceId;
+      if (!localStreamRef.current) return;
+
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId
+            ? {
+                deviceId: { exact: deviceId },
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+              }
+            : {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: "user",
+              },
+          audio: false,
+        });
+
+        const newTrack = newStream.getVideoTracks()[0];
+        if (!newTrack) return;
+
+        const oldTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldTrack) {
+          newTrack.enabled = oldTrack.enabled;
+          if (typeof localStreamRef.current.removeTrack === "function") {
+            localStreamRef.current.removeTrack(oldTrack);
+          }
+          oldTrack.stop();
+        }
+        if (typeof localStreamRef.current.addTrack === "function") {
+          localStreamRef.current.addTrack(newTrack);
+        }
+        cameraTrackRef.current = newTrack;
+
+        if (pcRef.current && !isScreenSharing) {
+          const sender = pcRef.current
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (sender) {
+            await sender.replaceTrack(newTrack);
+          }
+        }
+      } catch (err) {
+        console.warn("[useWebRTC] Failed to switch video device:", err);
+      }
+    },
+    [isScreenSharing],
+  );
+
   const endCallRef = useRef(endCall);
   useEffect(() => {
     endCallRef.current = endCall;
@@ -548,6 +682,8 @@ export function useWebRTC({ userId, onSendSignal }: UseWebRTCOptions) {
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
+    switchAudioDevice,
+    switchVideoDevice,
     handleSignal,
   };
 }
