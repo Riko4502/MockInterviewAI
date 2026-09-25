@@ -1,4 +1,8 @@
+import { type Locale, localeLabels, locales } from "@packages/i18n";
+import { THEME_MODES, type ThemeMode } from "@packages/types";
 import { z } from "zod";
+
+export { THEME_MODES, type ThemeMode, localeLabels, locales, type Locale };
 
 /**
  * Регулярное выражение для валидации юзернейма.
@@ -65,6 +69,8 @@ export const updateProfileSchema = z.object({
     )
     .optional()
     .nullable(),
+  theme: z.enum(THEME_MODES).optional(),
+  locale: z.enum(locales).optional(),
 });
 
 /** Типизированный DTO обновления профиля. */

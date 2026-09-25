@@ -25,6 +25,7 @@
     "@packages/icons": "workspace:*",
     "@packages/observability": "workspace:^",
     "@packages/tailwind-config": "workspace:*",
+    "@packages/types": "workspace:*",
     "@packages/ui": "workspace:*",
     "@packages/utils": "workspace:*",
     "@sentry/nextjs": "^10.73.0",

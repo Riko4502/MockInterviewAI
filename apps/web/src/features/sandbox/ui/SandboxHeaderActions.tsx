@@ -1,8 +1,14 @@
 "use client";
 
-import type { LanguageId } from "@packages/editor";
-import { CameraIcon, PlayIcon, SettingsIcon, UndoIcon } from "@packages/icons";
-import { Button, Select } from "@packages/ui";
+import type { LanguageId, Theme } from "@packages/editor";
+import {
+  CameraIcon,
+  MoonIcon,
+  PlayIcon,
+  SunIcon,
+  UndoIcon,
+} from "@packages/icons";
+import { Button, Select, useTheme } from "@packages/ui";
 import { useTranslation } from "react-i18next";
 import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
@@ -38,6 +44,7 @@ export function SandboxHeaderActions({
   const resetCode = useSandboxStore((s) => s.resetCode);
   const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
   const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
+  const { setTheme: setAppTheme } = useTheme();
 
   const handleSelectLanguage = (val: string) => {
     const nextLang = val as LanguageId;
@@ -54,6 +61,12 @@ export function SandboxHeaderActions({
     } else {
       resetCode();
     }
+  };
+
+  const handleToggleTheme = () => {
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    toggleTheme();
+    setAppTheme?.(nextTheme);
   };
 
   return (
@@ -101,11 +114,16 @@ export function SandboxHeaderActions({
       <Button
         variant="ghost"
         size="icon"
-        onClick={toggleTheme}
+        onClick={handleToggleTheme}
         className="size-9"
         title={t("sandbox.header.themeTooltip", { theme })}
+        aria-label={t("sandbox.header.themeTooltip", { theme })}
       >
-        <SettingsIcon className="size-4" />
+        {theme === "dark" ? (
+          <SunIcon className="size-4" />
+        ) : (
+          <MoonIcon className="size-4" />
+        )}
       </Button>
 
       {/* Сброс кода */}

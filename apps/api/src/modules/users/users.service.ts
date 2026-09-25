@@ -11,13 +11,20 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  Locale,
   PublicUserProfileDto,
+  ThemeMode,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
-import type { Prisma, Role, User } from "../../generated/prisma/client";
+import {
+  type Prisma,
+  type Role,
+  ThemePreference,
+  type User,
+} from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
@@ -45,6 +52,8 @@ const USER_PROFILE_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
+  theme: true,
+  locale: true,
   role: {
     select: {
       slug: true,
@@ -387,6 +396,10 @@ export class UsersService {
           telegramUsername: dto.telegramUsername,
         }),
         ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+        ...(dto.theme !== undefined && {
+          theme: dto.theme.toUpperCase() as ThemePreference,
+        }),
+        ...(dto.locale !== undefined && { locale: dto.locale }),
       },
       select: USER_PROFILE_SELECT,
     });
@@ -607,6 +620,8 @@ export class UsersService {
       avatarUrl: profile.avatarUrl,
       telegramUsername: profile.telegramUsername,
       gitUrl: profile.gitUrl,
+      theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
+      locale: (profile.locale === "en" ? "en" : "ru") as Locale,
       createdAt:
         typeof profile.createdAt === "string"
           ? profile.createdAt

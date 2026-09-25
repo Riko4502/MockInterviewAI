@@ -2655,6 +2655,14 @@
           "permissions": {
             "type": "string"
           },
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"]
+          },
+          "locale": {
+            "type": "string",
+            "enum": ["ru", "en"]
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -2672,6 +2680,8 @@
           "email",
           "role",
           "permissions",
+          "theme",
+          "locale",
           "updatedAt"
         ]
       },
@@ -2701,6 +2711,14 @@
             "nullable": true,
             "type": "string",
             "pattern": "^https?:\\/\\/(www\\.)?(github|gitlab)\\.com\\/[a-zA-Z0-9_.-]+\\/?$"
+          },
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"]
+          },
+          "locale": {
+            "type": "string",
+            "enum": ["ru", "en"]
           }
         }
       },

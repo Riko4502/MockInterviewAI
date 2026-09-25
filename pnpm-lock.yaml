@@ -418,6 +418,9 @@ importers:
       '@packages/tailwind-config':
         specifier: workspace:*
         version: link:../../packages/tailwind-config
+      '@packages/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -537,6 +540,9 @@ importers:
 
   packages/dto:
     dependencies:
+      '@packages/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@packages/types':
         specifier: workspace:*
         version: link:../types
@@ -547,6 +553,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.4.2
         version: 2.4.2
+      '@rslib/core':
+        specifier: ^0.23.2
+        version: 0.23.2(core-js@3.47.0)(typescript@5.9.3)
       '@types/node':
         specifier: ^20.19.43
         version: 20.19.43

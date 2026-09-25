@@ -46,6 +46,8 @@ describe("UsersService", () => {
     telegramUsername: "ivan_tg",
     telegramLinkVerified: false,
     gitUrl: "https://github.com/ivan_dev",
+    theme: "DARK",
+    locale: "ru",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
@@ -148,10 +150,12 @@ describe("UsersService", () => {
         telegramLinkVerified: ______,
         createdAt: ____,
         updatedAt: _____,
+        theme: _______,
         ...safeProfile
       } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
+        theme: "dark",
         createdAt: mockUser.createdAt.toISOString(),
         updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
@@ -188,6 +192,32 @@ describe("UsersService", () => {
 
       expect(result.displayName).toBe("New Name");
       expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("успешно обновляет тему и язык пользователя", async () => {
+      const updatedProfile = {
+        ...mockUser,
+        theme: "LIGHT",
+        locale: "en",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        theme: "light",
+        locale: "en",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            theme: "LIGHT",
+            locale: "en",
+          }),
+        }),
+      );
+      expect(result.theme).toBe("light");
+      expect(result.locale).toBe("en");
     });
 
     it("выбрасывает ConflictException при попытке занять чужой username", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { CodeEditorLazy, type LanguageId } from "@packages/editor";
-import { Resizable } from "@packages/ui";
+import { Resizable, useTheme } from "@packages/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
@@ -37,11 +37,20 @@ export function SandboxRoomWorkspace({
   const setLanguage = useSandboxStore((s) => s.setLanguage);
   const resetCode = useSandboxStore((s) => s.resetCode);
   const theme = useSandboxStore((s) => s.theme);
+  const setTheme = useSandboxStore((s) => s.setTheme);
   const setTaskId = useSandboxStore((s) => s.setTaskId);
   const currentTaskId = useSandboxStore((s) => s.currentTaskId);
   const setIsVideoOpen = useSandboxStore((s) => s.setIsVideoOpen);
   const setIsRunning = useSandboxStore((s) => s.setIsRunning);
   const setRunResult = useSandboxStore((s) => s.setRunResult);
+  const { resolvedTheme } = useTheme();
+
+  // Синхронизация темы редактора с глобальной темой приложения
+  useEffect(() => {
+    if (resolvedTheme === "light" || resolvedTheme === "dark") {
+      setTheme(resolvedTheme);
+    }
+  }, [resolvedTheme, setTheme]);
 
   useSandboxTimer();
 
