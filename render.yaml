@@ -166,11 +166,9 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: devsync-livekit
-    runtime: image
-    image:
-      url: livekit/livekit-server:latest
-    dockerCommand: |-
-      sh -c 'export LIVEKIT_KEYS="$LIVEKIT_API_KEY: $LIVEKIT_API_SECRET"; exec /livekit-server'
+    runtime: docker
+    dockerfilePath: ./apps/livekit/Dockerfile
+    dockerContext: .
     plan: free
     region: frankfurt
     healthCheckPath: /
