@@ -418,6 +418,9 @@ importers:
       '@packages/tailwind-config':
         specifier: workspace:*
         version: link:../../packages/tailwind-config
+      '@packages/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@packages/ui':
         specifier: workspace:*
         version: link:../../packages/ui
