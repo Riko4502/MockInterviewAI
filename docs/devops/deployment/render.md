@@ -44,7 +44,6 @@
    - `devsync-landing` (Web Service Static)
    - `devsync-ui-docs` (Web Service Static)
    - `devsync-grafana` (Web Service Docker Image: grafana/grafana)
-   - `devsync-kibana` (Web Service Docker Image: kibana)
 5. Нажмите **Apply**.
 
 
@@ -65,18 +64,17 @@
   Если OAuth не используется, не задавайте эти переменные (пустые строки не подходят).
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_URL`.
 - `LIVEKIT_URL`: URL LiveKit сервера (внутренний `wss://devsync-livekit.onrender.com` или внешний `wss://<project>.livekit.cloud`).
-- `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: ключи доступа (должны совпадать с `LIVEKIT_KEYS` в `devsync-livekit`).
+- `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: заполняются автоматически из `devsync-livekit` через `fromService`.
 - `INTERNAL_SERVICE_KEY`: сервисный ключ (≥ 32 символа) для заголовка
   `X-Internal-Service-Key`. Задаётся вручную; `devsync-telegram-bot`
   автоматически получает его значение через `fromService` в Blueprint.
 
 #### В `devsync-livekit`:
-- `LIVEKIT_KEYS`: строка с парой ключ:секрет, например `myapikey: myverysecuresecret12345`.
-  Эти же значения затем прописываются в `LIVEKIT_API_KEY` и `LIVEKIT_API_SECRET` сервиса `devsync-api`.
+- `LIVEKIT_API_KEY` (`devsync_key`) и `LIVEKIT_API_SECRET` (`generateValue: true`): Render автоматически генерирует криптографически надёжный случайный секрет и безопасно пробрасывает его в `devsync-api` и `devsync-realtime`. Ручной ввод не требуется.
 
 #### В `devsync-realtime`:
 - `ALLOWED_ORIGINS`: URL созданного фронтенда.
-- `LIVEKIT_WEBHOOK_API_KEY`, `LIVEKIT_WEBHOOK_API_SECRET`: совпадают с ключами LiveKit для верификации вебхуков.
+- `LIVEKIT_WEBHOOK_API_KEY`, `LIVEKIT_WEBHOOK_API_SECRET`: заполняются автоматически из `devsync-livekit` через `fromService`.
 
 #### В `devsync-web`:
 - `NEXT_PUBLIC_APP_URL`: URL веб-приложения (например `https://devsync-web.onrender.com`).
@@ -86,10 +84,6 @@
 
 #### В `devsync-grafana`:
 - `GF_SECURITY_ADMIN_PASSWORD`: задайте надежный пароль администратора Grafana (логин по умолчанию: `admin`).
-
-#### В `devsync-kibana`:
-- `ELASTICSEARCH_HOSTS`: URL внешнего кластера Elasticsearch (например `https://elastic:secret@my-es-cluster.es.io:9243`).
-  *Обратите внимание: для работы Kibana требуется кластер Elasticsearch.*
 
 ---
 

@@ -101,9 +101,15 @@ services:
       - key: LIVEKIT_URL
         sync: false # e.g. wss://devsync-livekit.onrender.com или wss://your-project.livekit.cloud
       - key: LIVEKIT_API_KEY
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_KEY
       - key: LIVEKIT_API_SECRET
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_SECRET
 
   # -------------------------------------------------------------
   # Realtime WebSocket & SSE Server (Go)
@@ -145,9 +151,15 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: LIVEKIT_WEBHOOK_API_KEY
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_KEY
       - key: LIVEKIT_WEBHOOK_API_SECRET
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_SECRET
 
   # -------------------------------------------------------------
   # LiveKit SFU (WebRTC Audio/Video/Screenshare)
@@ -157,21 +169,17 @@ services:
     runtime: image
     image:
       url: livekit/livekit-server:latest
+    dockerCommand: /bin/sh -c 'exec /livekit-server --keys "$LIVEKIT_API_KEY:$LIVEKIT_API_SECRET" --config-body "port: 7880\nbind_addresses:\n  - \"\"\nrtc:\n  use_external_ip: true\n"'
     plan: free
     region: frankfurt
     healthCheckPath: /
     envVars:
       - key: PORT
         value: "7880"
-      - key: LIVEKIT_KEYS
-        sync: false # Формат: <API_KEY>: <API_SECRET>, например devkey: dev-secret-change-me
-      - key: LIVEKIT_CONFIG
-        value: |
-          port: 7880
-          bind_addresses:
-            - ""
-          rtc:
-            use_external_ip: true
+      - key: LIVEKIT_API_KEY
+        value: devsync_key
+      - key: LIVEKIT_API_SECRET
+        generateValue: true
 
   # -------------------------------------------------------------
   # Telegram Bot
@@ -292,25 +300,4 @@ services:
         sync: false # Задайте надежный пароль администратора Grafana
       - key: GF_USERS_ALLOW_SIGN_UP
         value: "false"
-
-  # -------------------------------------------------------------
-  # Kibana (Log Analytics UI)
-  # -------------------------------------------------------------
-  - type: web
-    name: devsync-kibana
-    runtime: image
-    image:
-      url: docker.elastic.co/kibana/kibana:8.15.0
-    plan: free
-    region: frankfurt
-    healthCheckPath: /api/status
-    envVars:
-      - key: PORT
-        value: "5601"
-      - key: SERVER_PORT
-        value: "5601"
-      - key: SERVER_HOST
-        value: "0.0.0.0"
-      - key: ELASTICSEARCH_HOSTS
-        sync: false # URL внешнего Elasticsearch кластера (например https://<user>:<pass>@es.my-domain.com:9243)
 
