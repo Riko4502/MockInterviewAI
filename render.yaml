@@ -169,13 +169,21 @@ services:
     runtime: image
     image:
       url: livekit/livekit-server:latest
-    dockerCommand: /bin/sh -c 'exec /livekit-server --keys "$LIVEKIT_API_KEY:$LIVEKIT_API_SECRET" --config-body "port: 7880\nbind_addresses:\n  - \"\"\nrtc:\n  use_external_ip: true\n"'
+    dockerCommand: |-
+      sh -c 'export LIVEKIT_KEYS="$LIVEKIT_API_KEY: $LIVEKIT_API_SECRET"; exec /livekit-server'
     plan: free
     region: frankfurt
     healthCheckPath: /
     envVars:
       - key: PORT
         value: "7880"
+      - key: LIVEKIT_CONFIG
+        value: |
+          port: 7880
+          bind_addresses:
+            - ""
+          rtc:
+            use_external_ip: true
       - key: LIVEKIT_API_KEY
         value: devsync_key
       - key: LIVEKIT_API_SECRET
@@ -300,4 +308,3 @@ services:
         sync: false # Задайте надежный пароль администратора Grafana
       - key: GF_USERS_ALLOW_SIGN_UP
         value: "false"
-
