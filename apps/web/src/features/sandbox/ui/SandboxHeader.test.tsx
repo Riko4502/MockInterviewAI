@@ -1,6 +1,8 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionContext } from "@/entities/session/model/context";
 import i18n from "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxHeader } from "./SandboxHeader";
@@ -32,6 +34,26 @@ vi.mock("../model/SandboxMediaContext", () => ({
   }),
 }));
 
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <SessionContext.Provider
+        value={{
+          isAuthenticated: false,
+          status: "unauthenticated",
+          startSession: vi.fn(),
+          clearSession: vi.fn(),
+        }}
+      >
+        {ui}
+      </SessionContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("SandboxHeader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,7 +62,7 @@ describe("SandboxHeader", () => {
   });
 
   it("should render task selector, difficulty badge, invite button and timer in Russian", () => {
-    render(<SandboxHeader />);
+    renderWithProviders(<SandboxHeader />);
 
     const firstTask = useSandboxStore.getState().tasks[0];
     expect(screen.getByText("Задача:")).toBeInTheDocument();
@@ -72,7 +94,7 @@ describe("SandboxHeader", () => {
 
   it("should render localized elements in English when locale is en", () => {
     i18n.changeLanguage("en");
-    render(<SandboxHeader />);
+    renderWithProviders(<SandboxHeader />);
 
     expect(screen.getByText("Task:")).toBeInTheDocument();
     expect(screen.getByText("Online: 2")).toBeInTheDocument();
@@ -93,7 +115,7 @@ describe("SandboxHeader", () => {
 
   it("should trigger onRunCode when button is clicked and not running", () => {
     const handleRunCodeMock = vi.fn();
-    render(<SandboxHeader onRunCode={handleRunCodeMock} />);
+    renderWithProviders(<SandboxHeader onRunCode={handleRunCodeMock} />);
 
     const runBtn = screen.getByRole("button", { name: /Запуск кода/i });
     expect(runBtn).not.toBeDisabled();
@@ -106,7 +128,7 @@ describe("SandboxHeader", () => {
     const handleRunCodeMock = vi.fn();
     useSandboxStore.setState({ isRunning: true });
 
-    render(<SandboxHeader onRunCode={handleRunCodeMock} />);
+    renderWithProviders(<SandboxHeader onRunCode={handleRunCodeMock} />);
 
     const runBtn = screen.getByRole("button", { name: /Выполнение/i });
     expect(runBtn).toBeDisabled();
@@ -118,7 +140,7 @@ describe("SandboxHeader", () => {
 
   it("should toggle editor theme when theme switch button is clicked", () => {
     useSandboxStore.setState({ theme: "dark" });
-    render(<SandboxHeader />);
+    renderWithProviders(<SandboxHeader />);
 
     const themeBtn = screen.getByRole("button", {
       name: /Текущая тема редактора: dark/i,

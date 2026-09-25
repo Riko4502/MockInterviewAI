@@ -4,7 +4,7 @@ import { useTheme } from "@packages/ui";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/entities/session";
-import { useCurrentUser } from "@/entities/user";
+import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
 
 /**
@@ -16,7 +16,7 @@ import "@/shared/lib/i18n";
  */
 export function UserPreferencesSync() {
   const { isAuthenticated } = useSession();
-  const { data: user } = useCurrentUser();
+  const { data: user } = useCurrentUser({ enabled: isAuthenticated });
   const { setTheme } = useTheme();
   const { i18n } = useTranslation();
 
@@ -36,18 +36,15 @@ export function UserPreferencesSync() {
     if (userTheme && userTheme !== lastSyncedThemeRef.current) {
       lastSyncedThemeRef.current = userTheme;
       setTheme(userTheme);
-      if (typeof document !== "undefined") {
-        // biome-ignore lint/suspicious/noDocumentCookie: persist theme cookie for SSR
-        document.cookie = `theme=${encodeURIComponent(userTheme)}; path=/; max-age=31536000; SameSite=Lax`;
-      }
+      setPreferenceCookies({ theme: userTheme });
     }
 
     if (userLocale && userLocale !== lastSyncedLocaleRef.current) {
       lastSyncedLocaleRef.current = userLocale;
       void i18n.changeLanguage(userLocale);
+      setPreferenceCookies({ locale: userLocale });
       if (typeof document !== "undefined") {
-        // biome-ignore lint/suspicious/noDocumentCookie: persist locale cookie for SSR
-        document.cookie = `locale=${encodeURIComponent(userLocale)}; path=/; max-age=31536000; SameSite=Lax`;
+        document.documentElement.lang = userLocale;
       }
     }
   }, [isAuthenticated, userTheme, userLocale, setTheme, i18n]);

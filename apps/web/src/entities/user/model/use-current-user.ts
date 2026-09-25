@@ -2,6 +2,14 @@
 
 import { useProfileControllerGetMyProfile } from "@packages/api";
 
-export function useCurrentUser() {
-  return useProfileControllerGetMyProfile();
+export interface UseCurrentUserOptions {
+  enabled?: boolean;
+}
+
+export function useCurrentUser(options?: UseCurrentUserOptions) {
+  return useProfileControllerGetMyProfile({
+    query: {
+      enabled: options?.enabled ?? true,
+    },
+  });
 }

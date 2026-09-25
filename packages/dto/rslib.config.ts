@@ -11,10 +11,19 @@ export default defineConfig({
       bundle: true,
       format: "esm",
       dts: true,
+      autoExternal: {
+        dependencies: false,
+      },
     },
     {
       bundle: true,
       format: "cjs",
+      autoExternal: {
+        dependencies: false,
+      },
     },
   ],
+  output: {
+    externals: ["zod"],
+  },
 });

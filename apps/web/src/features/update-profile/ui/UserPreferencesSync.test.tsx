@@ -18,11 +18,15 @@ vi.mock("@/entities/session", () => ({
   }),
 }));
 
-vi.mock("@/entities/user", () => ({
-  useCurrentUser: () => ({
-    data: mockUserData,
-  }),
-}));
+vi.mock("@/entities/user", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/entities/user")>();
+  return {
+    ...actual,
+    useCurrentUser: () => ({
+      data: mockUserData,
+    }),
+  };
+});
 
 vi.mock("@packages/ui", () => ({
   useTheme: () => ({

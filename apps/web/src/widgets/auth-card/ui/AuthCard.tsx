@@ -1,5 +1,6 @@
 import { DynamicBackground, Logo, ThemeToggle, Typography } from "@packages/ui";
 import type * as React from "react";
+import { LanguageSwitcher } from "@/features/update-profile";
 
 export interface AuthCardProps {
   title: string;
@@ -18,8 +19,9 @@ export function AuthCard({ title, children, footer }: AuthCardProps) {
       {/* 1. Атмосферный динамический фон */}
       <DynamicBackground />
 
-      {/* 2. Переключатель тем в верхнем правом углу */}
-      <div className="fixed top-4 right-4 z-50">
+      {/* 2. Контролы темы и языка в верхнем правом углу */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <LanguageSwitcher />
         <ThemeToggle />
       </div>
 

@@ -10,6 +10,7 @@ import {
 } from "@packages/icons";
 import { Button, Select, useTheme } from "@packages/ui";
 import { useTranslation } from "react-i18next";
+import { usePreferences } from "@/entities/user";
 import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
@@ -45,6 +46,7 @@ export function SandboxHeaderActions({
   const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
   const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
   const { setTheme: setAppTheme } = useTheme();
+  const { changeTheme } = usePreferences();
 
   const handleSelectLanguage = (val: string) => {
     const nextLang = val as LanguageId;
@@ -67,6 +69,7 @@ export function SandboxHeaderActions({
     const nextTheme: Theme = theme === "dark" ? "light" : "dark";
     toggleTheme();
     setAppTheme?.(nextTheme);
+    changeTheme(nextTheme);
   };
 
   return (

@@ -8,7 +8,8 @@
     "continue": "Продолжить",
     "back": "Назад",
     "submit": "Отправить",
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "switchLanguage": "Сменить язык"
   },
   "navigation": {
     "home": "Главная",

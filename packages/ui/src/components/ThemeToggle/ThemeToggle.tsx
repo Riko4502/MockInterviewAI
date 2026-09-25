@@ -3,7 +3,7 @@
 import { Button } from "@components/Button";
 import { Tooltip } from "@components/Tooltip";
 import { useTheme } from "@model/ThemeProvider";
-import { MoonIcon, SunIcon } from "@packages/icons";
+import { MoonIcon, SlidersIcon, SunIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -15,6 +15,8 @@ export interface ThemeToggleProps {
   tooltipLight?: React.ReactNode;
   /** Текст тултипа для темной темы */
   tooltipDark?: React.ReactNode;
+  /** Текст тултипа для системной темы */
+  tooltipSystem?: React.ReactNode;
   /** Доступность: aria-label для кнопки */
   ariaLabel?: string;
   /** Дополнительные CSS классы */
@@ -23,17 +25,24 @@ export interface ThemeToggleProps {
   variant?: ButtonVariant;
   /** Размер кнопки */
   size?: ButtonSize;
+  /** Разрешить системную тему в цикле переключения */
+  allowSystem?: boolean;
+  /** Callback при изменении темы */
+  onThemeChange?: (nextTheme: string) => void;
 }
 
 export function ThemeToggle({
   tooltipLight = "Светлая тема",
   tooltipDark = "Темная тема",
+  tooltipSystem = "Системная тема",
   ariaLabel = "Переключить тему",
   className,
   variant = "outline",
   size = "icon",
+  allowSystem = true,
+  onThemeChange,
 }: ThemeToggleProps) {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { setTheme, theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -52,7 +61,33 @@ export function ThemeToggle({
   }
 
   const isDark = resolvedTheme === "dark";
-  const tooltipContent = isDark ? tooltipLight : tooltipDark;
+  const isSystem = theme === "system";
+
+  let tooltipContent = isDark ? tooltipLight : tooltipDark;
+  if (isSystem && allowSystem) {
+    tooltipContent = tooltipSystem;
+  }
+
+  const getNextTheme = (): string => {
+    if (allowSystem) {
+      if (theme === "dark") {
+        return "light";
+      }
+      if (theme === "light") {
+        return "system";
+      }
+      return "dark";
+    }
+    return isDark ? "light" : "dark";
+  };
+
+  const persistCookieAndNotify = (next: string) => {
+    if (typeof document !== "undefined") {
+      // biome-ignore lint/suspicious/noDocumentCookie: persist theme cookie for SSR
+      document.cookie = `theme=${encodeURIComponent(next)}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+    onThemeChange?.(next);
+  };
 
   const toggleTheme = (event: React.MouseEvent<HTMLButtonElement>) => {
     const isAppearanceTransition =
@@ -60,10 +95,11 @@ export function ThemeToggle({
       "startViewTransition" in document &&
       !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const nextTheme = isDark ? "light" : "dark";
+    const nextTheme = getNextTheme();
 
     if (!isAppearanceTransition) {
       setTheme(nextTheme);
+      persistCookieAndNotify(nextTheme);
       return;
     }
 
@@ -82,8 +118,13 @@ export function ThemeToggle({
 
     const transition = document.startViewTransition(() => {
       flushSync(() => {
-        document.documentElement.classList.toggle("dark", nextTheme === "dark");
+        const effectiveDark =
+          nextTheme === "system"
+            ? window.matchMedia("(prefers-color-scheme: dark)").matches
+            : nextTheme === "dark";
+        document.documentElement.classList.toggle("dark", effectiveDark);
         setTheme(nextTheme);
+        persistCookieAndNotify(nextTheme);
       });
     });
 
@@ -112,6 +153,22 @@ export function ThemeToggle({
     });
   };
 
+  const renderIcon = () => {
+    if (isSystem && allowSystem) {
+      return (
+        <SlidersIcon className="w-4 h-4 text-violet-400 hover:rotate-12 transition-transform" />
+      );
+    }
+    if (isDark) {
+      return (
+        <SunIcon className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
+      );
+    }
+    return (
+      <MoonIcon className="w-4 h-4 text-violet-600 hover:-rotate-12 transition-transform" />
+    );
+  };
+
   return (
     <Tooltip content={tooltipContent} withArrow>
       <Button
@@ -124,11 +181,7 @@ export function ThemeToggle({
           className,
         )}
       >
-        {isDark ? (
-          <SunIcon className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
-        ) : (
-          <MoonIcon className="w-4 h-4 text-violet-600 hover:-rotate-12 transition-transform" />
-        )}
+        {renderIcon()}
       </Button>
     </Tooltip>
   );
