@@ -1,1 +1,1 @@
-export * from "./use-remote-cursors";
+export * from "./cursor-css";

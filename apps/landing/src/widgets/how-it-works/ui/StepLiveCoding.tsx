@@ -1,6 +1,5 @@
 "use client";
 
-import { CodeEditorLazy } from "@packages/editor";
 import {
   CheckIcon,
   CodeIcon,
@@ -12,12 +11,21 @@ import {
 } from "@packages/icons";
 import { Button, Card, WindowHeader } from "@packages/ui";
 import { cn } from "@packages/utils";
+import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SIMULATION_TEST_STEPS } from "../constants";
 import { AiHintBanner } from "./AiHintBanner";
 import { StepHeader } from "./StepHeader";
+
+const CodeEditor = dynamic(
+  () => import("@packages/editor").then((mod) => mod.CodeEditorLazy),
+  {
+    ssr: false,
+    loading: () => <div className="h-[210px] w-full" />,
+  },
+);
 
 const LRU_CACHE_CODE = `class LRUCache<K, V> {
   private capacity: number;
@@ -161,7 +169,7 @@ export function StepLiveCoding() {
 
           {/* Monaco Editor Container */}
           <div className="h-[210px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.08] bg-background dark:bg-[#06070d]/95 relative z-10 shadow-inner">
-            <CodeEditorLazy
+            <CodeEditor
               value={LRU_CACHE_CODE}
               language="typescript"
               theme={editorTheme}

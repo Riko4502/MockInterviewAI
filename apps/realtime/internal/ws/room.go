@@ -3,6 +3,8 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -14,12 +16,27 @@ import (
 const (
 	// roomIdleReapTimeout - время простоя пустой комнаты до автоматической выгрузки из памяти.
 	roomIdleReapTimeout = 60 * time.Second
+
+	// DefaultTaskKey - ключ задачи по умолчанию при инициализации комнаты.
+	DefaultTaskKey = "two-sum:typescript"
 )
 
 type broadcastMessage struct {
 	data     []byte
 	senderID string
 	isRemote bool
+}
+
+// SaveQueue определяет интерфейс очереди сохранения дельт Yjs в Redis.
+type SaveQueue interface {
+	Enqueue(update *PendingUpdate) error
+	GetPending(taskKey string) []string
+	CommitBatch(taskKey string, count int)
+	TotalPending() int
+	FlushSync(ctx context.Context)
+	Start(ctx context.Context)
+	Close()
+	SetStore(store storage.YjsDocStore)
 }
 
 // Room управляет списком участников конкретной сессии и рассылает сообщения между ними.
@@ -36,11 +53,16 @@ type Room struct {
 	codeSaveSignal   chan struct{}
 	done             chan struct{}
 	closeOnce        sync.Once
+	ctx              context.Context
+	cancel           context.CancelFunc
 	mu               sync.RWMutex
 	logger           *slog.Logger
 	onEmpty          func(roomID string)
 	broadcaster      storage.Broadcaster
 	sessionStore     storage.SessionStore
+	yjsStore         storage.YjsDocStore
+	saveQueue        SaveQueue
+	activeTaskKey    string
 	metrics          *Metrics
 	codeVersion      int64
 	lastCodeState    *CodeUpdatePayload
@@ -55,6 +77,12 @@ func NewRoom(
 	logger *slog.Logger,
 	onEmpty func(roomID string),
 ) *Room {
+	var yjsStore storage.YjsDocStore
+	if ys, ok := sessionStore.(storage.YjsDocStore); ok {
+		yjsStore = ys
+	}
+	roomLogger := logger.With(slog.String("roomId", id))
+	roomCtx, roomCancel := context.WithCancel(context.Background())
 	return &Room{
 		ID:              id,
 		clients:         make(map[string]*Client),
@@ -66,11 +94,56 @@ func NewRoom(
 		codeSaveQueue:   make(chan CodeUpdatePayload, 128),
 		codeSaveSignal:  make(chan struct{}, 1),
 		done:            make(chan struct{}),
-		logger:          logger.With(slog.String("roomId", id)),
+		ctx:             roomCtx,
+		cancel:          roomCancel,
+		logger:          roomLogger,
 		onEmpty:         onEmpty,
 		broadcaster:     broadcaster,
 		sessionStore:    sessionStore,
+		yjsStore:        yjsStore,
+		saveQueue:       NewYjsSaveQueue(yjsStore, roomLogger),
+		activeTaskKey:   DefaultTaskKey,
 	}
+}
+
+// SetYjsStore привязывает хранилище документов Yjs к комнате.
+func (r *Room) SetYjsStore(ys storage.YjsDocStore) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.yjsStore = ys
+	if r.saveQueue != nil {
+		r.saveQueue.SetStore(ys)
+	} else {
+		r.saveQueue = NewYjsSaveQueue(ys, r.logger)
+	}
+}
+
+// SaveQueue возвращает очередь сохранения дельт Yjs комнаты.
+func (r *Room) SaveQueue() SaveQueue {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.saveQueue
+}
+
+// SetSaveQueue устанавливает очередь сохранения (для тестирования).
+func (r *Room) SetSaveQueue(q SaveQueue) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.saveQueue = q
+}
+
+// ActiveTaskKey возвращает текущий ключ активной задачи комнаты.
+func (r *Room) ActiveTaskKey() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.activeTaskKey
+}
+
+// SetActiveTaskKey устанавливает текущий ключ активной задачи комнаты.
+func (r *Room) SetActiveTaskKey(taskKey string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.activeTaskKey = taskKey
 }
 
 // SetMetrics привязывает провайдер SRE-метрик к комнате.
@@ -128,6 +201,11 @@ func (r *Room) Run(ctx context.Context) {
 		go r.codeSaveWorker(ctx, initialSavedVersion)
 	}
 
+	// Запуск воркера асинхронного сохранения Yjs дельт в Redis Stream
+	if r.saveQueue != nil {
+		go r.saveQueue.Start(ctx)
+	}
+
 	idleTimer := time.NewTimer(roomIdleReapTimeout)
 	defer idleTimer.Stop()
 
@@ -152,7 +230,7 @@ func (r *Room) Run(ctx context.Context) {
 				return
 			}
 		case client := <-r.register:
-			r.handleRegister(client)
+			r.handleRegister(ctx, client)
 			// Сбрасываем таймер простоя, так как в комнату зашел участник
 			if !idleTimer.Stop() {
 				select {
@@ -176,8 +254,9 @@ func (r *Room) Run(ctx context.Context) {
 	}
 }
 
-// handleRegister регистрирует клиента, вытесняет предыдущие соединения того же пользователя (1 User = 1 Connection) и шлет room.sync.
-func (r *Room) handleRegister(client *Client) {
+// handleRegister регистрирует клиента, вытесняет предыдущие соединения того же пользователя (1 User = 1 Connection),
+// шлет room.sync, выполняет сборку и отправку yjs.init в строгом порядке Subscription-First и шлет presence.join.
+func (r *Room) handleRegister(ctx context.Context, client *Client) {
 	r.mu.Lock()
 
 	// 1. Политика одного активного соединения на пользователя в сессии:
@@ -200,6 +279,7 @@ func (r *Room) handleRegister(client *Client) {
 		go oldClient.Close(websocket.StatusGoingAway, "displaced by new connection")
 	}
 
+	// Шаг 1 (Subscription-First): регистрация сокета в r.clients строго до чтения истории
 	r.clients[client.ID] = client
 	count := len(r.clients)
 
@@ -213,6 +293,10 @@ func (r *Room) handleRegister(client *Client) {
 		})
 	}
 	codeSnapshot := r.lastCodeState
+	taskKey := r.activeTaskKey
+	if taskKey == "" {
+		taskKey = DefaultTaskKey
+	}
 	r.mu.Unlock()
 
 	r.logger.Info("client joined room",
@@ -236,7 +320,24 @@ func (r *Room) handleRegister(client *Client) {
 		client.Send(syncBytes)
 	}
 
-	// 3. Отправляем уведомление presence.join остальным участникам комнаты
+	// 3. Асинхронная сборка yjs.init: сокет уже зарегистрирован в r.clients (Subscription-First)
+	go func() {
+		if r.yjsStore != nil {
+			touchCtx, touchCancel := context.WithTimeout(ctx, 2*time.Second)
+			_ = r.yjsStore.TouchTaskStream(touchCtx, r.ID, taskKey, StreamTTL)
+			touchCancel()
+		}
+
+		if err := r.sendYjsInit(ctx, client, taskKey); err != nil {
+			r.logger.Warn("failed to send yjs.init on client register",
+				slog.String("clientId", client.ID),
+				slog.String("taskKey", taskKey),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
+
+	// 4. Отправляем уведомление presence.join остальным участникам комнаты
 	joinEnv := NewEnvelope(
 		EventPresenceJoin,
 		r.ID,
@@ -252,6 +353,97 @@ func (r *Room) handleRegister(client *Client) {
 	if joinBytes, err := joinEnv.ToBytes(); err == nil {
 		r.Broadcast(joinBytes, client.ID)
 	}
+}
+
+// sendYjsInit собирает историю правок документа для указанного taskKey в доказанном строгом порядке:
+// Subscription-First -> GetPending(taskKey) -> XRANGE -> конкатенация -> yjs.init.
+func (r *Room) sendYjsInit(ctx context.Context, client *Client, taskKey string) error {
+	if taskKey == "" {
+		r.mu.RLock()
+		taskKey = r.activeTaskKey
+		r.mu.RUnlock()
+		if taskKey == "" {
+			taskKey = DefaultTaskKey
+		}
+	}
+
+	// Шаг 2 (после Шага 1 Subscription-First, где сокет уже зарегистрирован в r.clients):
+	// Снимок локального in-memory буфера ДО чтения Redis Stream.
+	// Метод GetPending самостоятельно инкапсулирует mu.RLock() и возвращает изолированную shallow copy.
+	var pendingUpdates []string
+	r.mu.RLock()
+	sq := r.saveQueue
+	r.mu.RUnlock()
+	if sq != nil {
+		pendingUpdates = sq.GetPending(taskKey)
+	}
+
+	// Шаг 3: Чтение сохраненной истории из Redis Stream (XRANGE) ПОСЛЕ фиксации среза буфера
+	var streamUpdates []string
+	r.mu.RLock()
+	ys := r.yjsStore
+	r.mu.RUnlock()
+	if ys != nil {
+		fetchCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		updates, err := ys.GetTaskUpdates(fetchCtx, r.ID, taskKey)
+		cancel()
+		if err != nil {
+			r.logger.Warn("failed to fetch task updates from stream for yjs.init",
+				slog.String("sessionId", r.ID),
+				slog.String("taskKey", taskKey),
+				slog.String("error", err.Error()),
+			)
+			// При ошибке чтения XRANGE отправляем клиенту room.error (SYNC_FAILED) и закрываем сокет с 1013 (StatusTryAgainLater)
+			if errBytes, mErr := NewRoomErrorEnvelope(r.ID, "", ErrCodeSyncFailed, "failed to load document history from redis", taskKey); mErr == nil {
+				client.Send(errBytes)
+			}
+			go client.Close(websocket.StatusTryAgainLater, "failed to load document history")
+			return err
+		}
+		streamUpdates = updates
+
+		// Если стрим и буфер пусты, проверяем / выполняем ленивый сидинг
+		if len(streamUpdates) == 0 && len(pendingUpdates) == 0 {
+			seedCtx, seedCancel := context.WithTimeout(ctx, 2*time.Second)
+			_, _ = ys.SeedTaskDoc(seedCtx, r.ID, taskKey, "AAA=", 86400)
+			seedCancel()
+			fetchCtx2, fetchCancel2 := context.WithTimeout(ctx, 2*time.Second)
+			if refreshed, refErr := ys.GetTaskUpdates(fetchCtx2, r.ID, taskKey); refErr == nil && len(refreshed) > 0 {
+				streamUpdates = refreshed
+			}
+			fetchCancel2()
+		}
+	}
+
+	// Шаг 4: Конкатенация дельт (streamUpdates + pendingUpdates)
+	totalLen := len(streamUpdates) + len(pendingUpdates)
+	allUpdates := make([]string, 0, totalLen)
+	allUpdates = append(allUpdates, streamUpdates...)
+	allUpdates = append(allUpdates, pendingUpdates...)
+
+	if r.metrics != nil {
+		r.metrics.ObserveYjsInitStreamLength(len(streamUpdates))
+	}
+
+	// Шаг 5: Формирование конверта yjs.init и отправка клиенту
+	initBytes, err := NewYjsInitEnvelope(r.ID, "", taskKey, allUpdates)
+	if err != nil {
+		return fmt.Errorf("failed to marshal yjs.init envelope: %w", err)
+	}
+
+	if !client.Send(initBytes) {
+		r.logger.Warn("client send buffer full when sending yjs.init, evicting slow consumer",
+			slog.String("clientId", client.ID),
+			slog.String("taskKey", taskKey),
+		)
+		r.mu.Lock()
+		delete(r.clients, client.ID)
+		r.mu.Unlock()
+		go client.Close(websocket.StatusPolicyViolation, "send buffer overflow (slow consumer)")
+		return errors.New("client send buffer full")
+	}
+
+	return nil
 }
 
 // handleUnregister удаляет клиента и уведомляет оставшихся участников.
@@ -290,9 +482,14 @@ func (r *Room) handleUnregister(client *Client) {
 }
 
 // handleBroadcast рассылает сообщение локальным клиентам, ставит в очередь на сохранение и на публикацию в Redis.
-func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
-	// 1. Если это обновление кода, обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
-	if raw, err := ParseRawEnvelope(msg.data); err == nil && raw.Type == EventCodeUpdate {
+func (r *Room) handleBroadcast(ctx context.Context, msg broadcastMessage) {
+	raw, err := ParseRawEnvelope(msg.data)
+	if err != nil {
+		return
+	}
+
+	// 1. Если это обновление кода (legacy), обновляем снимок в памяти и ставим в очередь упорядоченного сохранения.
+	if raw.Type == EventCodeUpdate {
 		if codePayload, unpackErr := UnpackPayload[CodeUpdatePayload](raw); unpackErr == nil {
 			r.mu.Lock()
 			if !msg.isRemote {
@@ -348,17 +545,195 @@ func (r *Room) handleBroadcast(_ context.Context, msg broadcastMessage) {
 		}
 	}
 
-	// 2. Немедленная рассылка подключенным клиентам на текущем сервере (минимальная задержка)
+	// 2. Обработка Yjs дельт: помещение в yjsSaveQueue и немедленный Ingress ACK автору
+	if raw.Type == EventYjsUpdate {
+		if payload, unpackErr := UnpackPayload[YjsUpdatePayload](raw); unpackErr == nil {
+			if !msg.isRemote {
+				// 2a. Помещение дельты в оперативную очередь yjsSaveQueue
+				r.mu.RLock()
+				sq := r.saveQueue
+				r.mu.RUnlock()
+				if sq != nil {
+					update := &PendingUpdate{
+						SessionID:  r.ID,
+						TaskKey:    payload.TaskKey,
+						UpdateID:   payload.UpdateID,
+						Data:       payload.Data,
+						EnqueuedAt: time.Now(),
+					}
+					if qErr := sq.Enqueue(update); qErr != nil {
+						r.logger.Warn("yjs save queue full, rejecting update",
+							slog.String("taskKey", payload.TaskKey),
+							slog.String("updateId", payload.UpdateID),
+							slog.String("error", qErr.Error()),
+						)
+						// Отправляем room.error (SYNC_FAILED) автору
+						r.mu.RLock()
+						sender := r.clients[msg.senderID]
+						r.mu.RUnlock()
+						if sender != nil {
+							if errBytes, mErr := NewRoomErrorEnvelope(r.ID, raw.RequestID, ErrCodeSyncFailed, "server queue is full", payload.TaskKey); mErr == nil {
+								sender.Send(errBytes)
+							}
+						}
+						return
+					}
+				}
+
+				// 2b. Немедленная отправка Ingress ACK (yjs.ack) автору
+				r.mu.RLock()
+				sender := r.clients[msg.senderID]
+				r.mu.RUnlock()
+				if sender != nil {
+					if ackBytes, mErr := NewYjsAckEnvelope(r.ID, raw.RequestID, payload.TaskKey, payload.UpdateID); mErr == nil {
+						if !sender.Send(ackBytes) {
+							r.mu.Lock()
+							delete(r.clients, sender.ID)
+							r.mu.Unlock()
+							go sender.Close(websocket.StatusPolicyViolation, "send buffer overflow (slow consumer)")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2c. Обработка сжатого снимка yjs.snapshot: асинхронная компактизация стрима в Redis (XTRIM MINID)
+	if raw.Type == EventYjsSnapshot {
+		if payload, unpackErr := UnpackPayload[YjsSnapshotPayload](raw); unpackErr == nil {
+			if !msg.isRemote {
+				r.mu.RLock()
+				sender := r.clients[msg.senderID]
+				ys := r.yjsStore
+				r.mu.RUnlock()
+				if sender == nil || sender.Role != "interviewer" {
+					r.logger.Warn("rejecting unauthorized yjs.snapshot: sender is not a trusted role",
+						slog.String("sessionId", r.ID),
+						slog.String("senderId", msg.senderID),
+					)
+					return
+				}
+				if ys != nil {
+					go func(taskKey, snapshot string) {
+						compactCtx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
+						defer cancel()
+						if err := ys.CompactTaskStream(compactCtx, r.ID, taskKey, snapshot); err != nil {
+							r.logger.Warn("failed to compact task stream",
+								slog.String("sessionId", r.ID),
+								slog.String("taskKey", taskKey),
+								slog.String("error", err.Error()),
+							)
+						}
+					}(payload.TaskKey, payload.Snapshot)
+				}
+			}
+			return
+		}
+	}
+
+	// 3. Обработка переключения задачи task.switch (T030)
+	if raw.Type == EventTaskSwitch {
+		if payload, unpackErr := UnpackPayload[TaskSwitchPayload](raw); unpackErr == nil && payload.TaskKey != "" {
+			r.mu.Lock()
+			r.activeTaskKey = payload.TaskKey
+			r.mu.Unlock()
+
+			go func(taskKey, requestID string) {
+				// 1. Атомарный сидинг / проверка целевой задачи в Redis через seed_task_doc.lua
+				r.mu.RLock()
+				ys := r.yjsStore
+				r.mu.RUnlock()
+				if ys != nil {
+					sCtx, sCancel := context.WithTimeout(ctx, 3*time.Second)
+					_, _ = ys.SeedTaskDoc(sCtx, r.ID, taskKey, "AAA=", 86400)
+					sCancel()
+				}
+
+				// Пропускаем устаревшее переключение, если уже запрошена другая задача
+				if r.ActiveTaskKey() != taskKey {
+					return
+				}
+
+				// 2. Широковещательная рассылка task.switched всем участникам
+				switchedEnv := NewEnvelope(EventTaskSwitched, r.ID, requestID, TaskSwitchedPayload{
+					TaskKey: taskKey,
+				})
+				if switchedBytes, mErr := switchedEnv.ToBytes(); mErr == nil {
+					r.Broadcast(switchedBytes, "")
+				}
+
+				// 3. Отгрузка yjs.init для новой задачи всем участникам
+				r.mu.RLock()
+				clients := make([]*Client, 0, len(r.clients))
+				for _, c := range r.clients {
+					clients = append(clients, c)
+				}
+				r.mu.RUnlock()
+
+				for _, c := range clients {
+					if r.ActiveTaskKey() != taskKey {
+						return
+					}
+					_ = r.sendYjsInit(ctx, c, taskKey)
+				}
+			}(payload.TaskKey, raw.RequestID)
+			return
+		}
+	}
+
+	// 3b. Обновление activeTaskKey при удаленном task.switched через Pub/Sub и отгрузка yjs.init локальным клиентам
+	if raw.Type == EventTaskSwitched && msg.isRemote {
+		if payload, unpackErr := UnpackPayload[TaskSwitchedPayload](raw); unpackErr == nil && payload.TaskKey != "" {
+			r.mu.Lock()
+			r.activeTaskKey = payload.TaskKey
+			r.mu.Unlock()
+
+			go func(taskKey string) {
+				r.mu.RLock()
+				clients := make([]*Client, 0, len(r.clients))
+				for _, c := range r.clients {
+					clients = append(clients, c)
+				}
+				r.mu.RUnlock()
+
+				for _, c := range clients {
+					if r.ActiveTaskKey() != taskKey {
+						return
+					}
+					_ = r.sendYjsInit(ctx, c, taskKey)
+				}
+			}(payload.TaskKey)
+		}
+	}
+
+	// 4. Немедленная рассылка подключенным клиентам на текущем сервере с защитой от slow consumer
 	r.mu.RLock()
+	var slowClients []*Client
 	for clientID, client := range r.clients {
 		if msg.senderID != "" && clientID == msg.senderID {
 			continue
 		}
-		client.Send(msg.data)
+		if !client.Send(msg.data) {
+			slowClients = append(slowClients, client)
+		}
 	}
 	r.mu.RUnlock()
 
-	// 3. Если сообщение локальное — ставим в последовательную очередь упорядоченной публикации в Redis Pub/Sub
+	// Принудительное закрытие сокета медленного клиента при переполнении sendCh
+	if len(slowClients) > 0 {
+		r.mu.Lock()
+		for _, sc := range slowClients {
+			delete(r.clients, sc.ID)
+			r.logger.Warn("closing slow consumer due to sendCh overflow",
+				slog.String("clientId", sc.ID),
+				slog.String("userId", sc.UserID),
+			)
+			go sc.Close(websocket.StatusPolicyViolation, "send buffer overflow (slow consumer)")
+		}
+		r.mu.Unlock()
+	}
+
+	// 5. Если сообщение локальное — ставим в последовательную очередь упорядоченной публикации в Redis Pub/Sub
 	if !msg.isRemote && r.broadcaster != nil {
 		select {
 		case r.pubQueue <- msg.data:
@@ -669,10 +1044,22 @@ func (r *Room) ParticipantCount() int {
 	return len(r.clients)
 }
 
+// Context возвращает контекст, связанный с жизненным циклом комнаты.
+func (r *Room) Context() context.Context {
+	return r.ctx
+}
+
 // Close корректно закрывает комнату и всех ее клиентов.
 func (r *Room) Close() {
 	r.closeOnce.Do(func() {
+		if r.cancel != nil {
+			r.cancel()
+		}
 		close(r.done)
+
+		if r.saveQueue != nil {
+			r.saveQueue.Close()
+		}
 
 		r.mu.Lock()
 		defer r.mu.Unlock()
