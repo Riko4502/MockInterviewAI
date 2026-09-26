@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16.8-alpine3.21
+    image: postgres:16.8-alpine3.21@sha256:3b057e1c2c6dfee60a30950096f3fab33be141dbb0fdd7af3d477083de94166c
     container_name: mock-interview-postgres
     restart: unless-stopped
     environment:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7.4-alpine3.21
+    image: redis:7.4-alpine3.21@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     container_name: mock-interview-redis
     restart: unless-stopped
     environment:
@@ -35,8 +35,9 @@ services:
       retries: 5
 
   minio:
-    image: cgr.dev/chainguard/minio:latest-dev
+    image: cgr.dev/chainguard/minio:latest-dev@sha256:d7c906993247627c19f37fc1fa302c34cf2d209ae0e7dc7d52fb0be6ac2849ba
     container_name: mock-interview-minio
+    user: "65532:65532"
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -54,7 +55,7 @@ services:
       retries: 5
 
   livekit:
-    image: livekit/livekit-server:v1.13.7
+    image: livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
     container_name: mock-interview-livekit
     restart: unless-stopped
     command:
@@ -82,8 +83,9 @@ services:
       - "${LIVEKIT_UDP_PORT_START:-60000}-${LIVEKIT_UDP_PORT_END:-60018}:${LIVEKIT_UDP_PORT_START:-60000}-${LIVEKIT_UDP_PORT_END:-60018}/udp"
 
   minio-init:
-    image: cgr.dev/chainguard/minio-client:latest-dev
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:f0dd93b48af1f8a641edcd3c64661c8dbe05189bd2ef2f8cea216eb18af10bf8
     container_name: mock-interview-minio-init
+    user: "65532:65532"
     depends_on:
       minio:
         condition: service_healthy
@@ -101,7 +103,7 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-mock-interview-storage}
 
   rabbitmq:
-    image: rabbitmq:3.13.7-management-alpine
+    image: rabbitmq:3.13.7-management-alpine@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
     container_name: mock-interview-rabbitmq
     restart: unless-stopped
     environment:
