@@ -12,10 +12,11 @@ import {
   Skeleton,
   useToast,
 } from "@packages/ui";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useCurrentUser } from "@/entities/user";
+import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
 import { localeLabels, locales } from "@packages/dto";
 import {
@@ -27,7 +28,8 @@ import { useUpdateProfile } from "../model/use-profile-mutations";
 import { AvatarUploadField } from "./AvatarUploadField";
 
 function ProfileFields({ user }: { user: UserProfileDto }) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const router = useRouter();
   const updateProfile = useUpdateProfile();
   const toast = useToast();
   const schema = useMemo(() => createProfileFormSchema(t), [t]);
@@ -74,6 +76,14 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
       { data },
       {
         onSuccess: (updatedUser) => {
+          if (updatedUser.locale) {
+            void i18n.changeLanguage(updatedUser.locale);
+            setPreferenceCookies({ locale: updatedUser.locale });
+            if (typeof document !== "undefined") {
+              document.documentElement.lang = updatedUser.locale;
+            }
+            router.refresh();
+          }
           reset({
             displayName: updatedUser.displayName ?? "",
             username: updatedUser.username ?? "",
@@ -84,7 +94,9 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
           });
           toast.push({
             status: "success",
-            title: t("profile.saveSuccess"),
+            title: i18n.t("profile.saveSuccess", {
+              lng: updatedUser.locale ?? undefined,
+            }),
           });
         },
         onError: () => {

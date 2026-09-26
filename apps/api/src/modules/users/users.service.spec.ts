@@ -20,6 +20,12 @@ describe("UsersService", () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    userDeviceSettings: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      upsert: jest.Mock;
+      deleteMany: jest.Mock;
+    };
     role: {
       findUnique: jest.Mock;
     };
@@ -27,6 +33,7 @@ describe("UsersService", () => {
       create: jest.Mock;
       delete: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let storageServiceMock: jest.Mocked<Partial<StorageService>>;
@@ -77,6 +84,13 @@ describe("UsersService", () => {
         }),
         delete: jest.fn().mockResolvedValue({}),
       },
+      userDeviceSettings: {
+        findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn(),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: mockUser.id }]),
       $transaction: jest.fn().mockImplementation((arg) => {
         if (typeof arg === "function") {
           return arg(prismaMock);
@@ -573,6 +587,94 @@ describe("UsersService", () => {
         ...publicData,
         createdAt: mockUser.createdAt.toISOString(),
       });
+    });
+  });
+
+  describe("deviceSettings", () => {
+    const validUserId = "11111111-1111-4111-a111-111111111111";
+    const clientId = "client-device-1";
+
+    it("getDeviceSettings возвращает настройки по умолчанию, если записи нет в базе", async () => {
+      prismaMock.userDeviceSettings.findUnique.mockResolvedValue(null);
+
+      const result = await service.getDeviceSettings(validUserId, clientId);
+
+      expect(result).toEqual({
+        clientId,
+        deviceName: null,
+        audioVolume: 80,
+        speechVolume: 80,
+        micGain: 100,
+        preferredAudioInputLabel: null,
+        preferredAudioOutputLabel: null,
+        preferredVideoInputLabel: null,
+        isPersisted: false,
+      });
+    });
+
+    it("upsertDeviceSettings сериализует обновление через FOR UPDATE и удаляет лишние устройства при превышении лимита 10", async () => {
+      const mockRecord = {
+        id: "dev-new",
+        userId: validUserId,
+        clientId,
+        deviceName: "Chrome MacBook",
+        audioVolume: 75,
+        speechVolume: 85,
+        micGain: 90,
+        preferredAudioInputLabel: "Built-in Mic",
+        preferredAudioOutputLabel: "Built-in Speaker",
+        preferredVideoInputLabel: "FaceTime HD",
+        isPersisted: true,
+      };
+
+      prismaMock.userDeviceSettings.findUnique.mockResolvedValue(null);
+      prismaMock.userDeviceSettings.upsert.mockResolvedValue(mockRecord);
+      // Возвращаем 12 устройств для проверки очистки до 10
+      const mockDevicesList = Array.from({ length: 12 }, (_, i) => ({
+        id: `dev-${i}`,
+      }));
+      prismaMock.userDeviceSettings.findMany.mockResolvedValue(mockDevicesList);
+
+      const result = await service.upsertDeviceSettings(validUserId, {
+        clientId,
+        deviceName: "Chrome MacBook",
+        audioVolume: 75,
+        speechVolume: 85,
+        micGain: 90,
+      });
+
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
+      expect(prismaMock.userDeviceSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_clientId: {
+              userId: validUserId,
+              clientId,
+            },
+          },
+        }),
+      );
+      // Проверяем удаление самых старых устройств (dev-10, dev-11)
+      expect(prismaMock.userDeviceSettings.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["dev-10", "dev-11"] } },
+      });
+      expect(result.isPersisted).toBe(true);
+      expect(result.audioVolume).toBe(75);
+    });
+
+    it("upsertDeviceSettings выбрасывает NotFoundException, если пользователь не найден при FOR UPDATE блокировке", async () => {
+      prismaMock.$queryRaw.mockResolvedValue([]);
+
+      await expect(
+        service.upsertDeviceSettings(validUserId, { clientId }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("upsertDeviceSettings выбрасывает BadRequestException при невалидном userId", async () => {
+      await expect(
+        service.upsertDeviceSettings("not-a-uuid", { clientId }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
