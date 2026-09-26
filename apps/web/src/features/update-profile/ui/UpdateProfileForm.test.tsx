@@ -1,13 +1,27 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
-const { mutateMock, profileMutation, toastPushMock } = vi.hoisted(() => ({
+const {
+  mutateMock,
+  profileMutation,
+  toastPushMock,
+  setPreferenceCookiesMock,
+  refreshMock,
+} = vi.hoisted(() => ({
   mutateMock: vi.fn(),
   toastPushMock: vi.fn(),
+  setPreferenceCookiesMock: vi.fn(),
+  refreshMock: vi.fn(),
   profileMutation: {
     isPending: false,
     isError: false,
@@ -39,6 +53,15 @@ const initialUser = {
 
 let mockUserData = { ...initialUser };
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: refreshMock,
+  }),
+  usePathname: () => "/dashboard/profile",
+}));
+
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
     data: mockUserData,
@@ -48,6 +71,7 @@ vi.mock("@/entities/user", () => ({
   UserAvatar: ({ name }: { name?: string | null }) => (
     <div>{name ?? "avatar"}</div>
   ),
+  setPreferenceCookies: (args: unknown) => setPreferenceCookiesMock(args),
 }));
 
 vi.mock("../model/use-profile-mutations", () => ({
@@ -87,6 +111,8 @@ describe("UpdateProfileForm", () => {
     profileMutation.isPending = false;
     profileMutation.isError = false;
     profileMutation.isSuccess = false;
+    setPreferenceCookiesMock.mockClear();
+    refreshMock.mockClear();
     mockUserData = { ...initialUser };
   });
 
@@ -250,5 +276,56 @@ describe("UpdateProfileForm", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Иван")).toBeDisabled();
     expect(screen.getByDisplayValue("ivan")).toBeDisabled();
+  });
+
+  it("обновляет язык интерфейса, куки и вызывает router.refresh() при сохранении нового языка", async () => {
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const user = userEvent.setup();
+    renderForm();
+
+    const comboboxes = screen.getAllByRole("combobox");
+    // comboboxes[0] is theme, comboboxes[1] is locale
+    const localeTrigger = comboboxes[1];
+    expect(localeTrigger).toHaveTextContent("Русский");
+
+    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
+    const englishOption = await screen.findByRole("option", {
+      name: /English/i,
+    });
+    await user.click(englishOption);
+
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            locale: "en",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
+
+    const lastCall = mutateMock.mock.calls[0];
+    const options = lastCall[1];
+    act(() => {
+      options.onSuccess({
+        ...mockUserData,
+        locale: "en",
+      });
+    });
+
+    expect(setPreferenceCookiesMock).toHaveBeenCalledWith({ locale: "en" });
+    expect(document.documentElement.lang).toBe("en");
+    expect(refreshMock).toHaveBeenCalled();
+    expect(toastPushMock).toHaveBeenCalledWith({
+      status: "success",
+      title: "Profile saved.",
+    });
   });
 });

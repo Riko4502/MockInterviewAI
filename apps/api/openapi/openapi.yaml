@@ -77,6 +77,54 @@ paths:
       security: *a1
       summary: Деактивировать аккаунт текущего пользователя
       tags: *a2
+  /api/v1/profile/device-settings:
+    get:
+      operationId: ProfileController_getDeviceSettings
+      parameters:
+        - name: clientId
+          required: true
+          in: query
+          description: Уникальный ID клиентского устройства (1-128 символов)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Настройки аудио, речи и устройств
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettingsDto"
+        "400":
+          description: Некорректный clientId
+        "401":
+          description: Не авторизован
+      security: *a1
+      summary: Получить настройки медиа и устройств для клиентского устройства
+      tags: *a2
+    put:
+      operationId: ProfileController_updateDeviceSettings
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceSettingsDto"
+      responses:
+        "200":
+          description: Обновленные настройки аудио, речи и устройств
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettingsDto"
+        "400":
+          description: Ошибка валидации входных данных
+        "401":
+          description: Не авторизован
+      security: *a1
+      summary: Сохранить настройки медиа и устройств для клиентского устройства
+      tags: *a2
   /api/v1/profile/avatar:
     post:
       operationId: ProfileController_uploadAvatar
@@ -1761,6 +1809,79 @@ components:
           enum:
             - ru
             - en
+    DeviceSettingsDto:
+      type: object
+      properties:
+        clientId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        deviceName:
+          nullable: true
+          type: string
+          maxLength: 128
+        audioVolume:
+          default: 80
+          type: integer
+          minimum: 0
+          maximum: 100
+        speechVolume:
+          default: 80
+          type: integer
+          minimum: 0
+          maximum: 100
+        micGain:
+          default: 100
+          type: integer
+          minimum: 0
+          maximum: 100
+        preferredAudioInputLabel:
+          nullable: true
+          type: string
+        preferredAudioOutputLabel:
+          nullable: true
+          type: string
+        preferredVideoInputLabel:
+          nullable: true
+          type: string
+        isPersisted:
+          default: false
+          type: boolean
+      required:
+        - clientId
+    UpdateDeviceSettingsDto:
+      type: object
+      properties:
+        clientId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        deviceName:
+          type: string
+          maxLength: 128
+        audioVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+        speechVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+        micGain:
+          type: integer
+          minimum: 0
+          maximum: 100
+        preferredAudioInputLabel:
+          nullable: true
+          type: string
+        preferredAudioOutputLabel:
+          nullable: true
+          type: string
+        preferredVideoInputLabel:
+          nullable: true
+          type: string
+      required:
+        - clientId
     AvatarUploadResponseDto:
       type: object
       properties:

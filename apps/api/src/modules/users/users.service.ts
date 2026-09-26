@@ -11,9 +11,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  DeviceSettingsDto,
   Locale,
   PublicUserProfileDto,
   ThemeMode,
+  UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
@@ -405,6 +407,157 @@ export class UsersService {
     });
 
     return this.mapToUserProfile(updated);
+  }
+
+  /**
+   * Получает настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Если для данного clientId настроек еще нет в таблице user_device_settings, возвращает значения по умолчанию.
+   */
+  async getDeviceSettings(
+    userId: string,
+    clientId: string,
+  ): Promise<DeviceSettingsDto> {
+    const existing = await this.prisma.userDeviceSettings.findUnique({
+      where: {
+        userId_clientId: {
+          userId,
+          clientId,
+        },
+      },
+    });
+
+    if (existing) {
+      return {
+        clientId: existing.clientId,
+        deviceName: existing.deviceName,
+        audioVolume: existing.audioVolume,
+        speechVolume: existing.speechVolume,
+        micGain: existing.micGain,
+        preferredAudioInputLabel: existing.preferredAudioInputLabel,
+        preferredAudioOutputLabel: existing.preferredAudioOutputLabel,
+        preferredVideoInputLabel: existing.preferredVideoInputLabel,
+        isPersisted: true,
+      };
+    }
+
+    return {
+      clientId,
+      deviceName: null,
+      audioVolume: 80,
+      speechVolume: 80,
+      micGain: 100,
+      preferredAudioInputLabel: null,
+      preferredAudioOutputLabel: null,
+      preferredVideoInputLabel: null,
+      isPersisted: false,
+    };
+  }
+
+  /**
+   * Сохраняет (upsert) настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Операция сериализуется в транзакции с блокировкой строки пользователя (FOR UPDATE),
+   * что исключает гонки при одновременных запросах и гарантирует жесткий лимит в 10 устройств.
+   */
+  async upsertDeviceSettings(
+    userId: string,
+    dto: UpdateDeviceSettingsDto,
+  ): Promise<DeviceSettingsDto> {
+    if (!UUID_REGEX.test(userId)) {
+      throw new BadRequestException("Invalid user ID");
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "users" WHERE id = ${userId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("User not found");
+      }
+
+      const existing = await tx.userDeviceSettings.findUnique({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+      });
+
+      const record = await tx.userDeviceSettings.upsert({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+        create: {
+          userId,
+          clientId: dto.clientId,
+          deviceName: dto.deviceName ?? null,
+          audioVolume: dto.audioVolume ?? existing?.audioVolume ?? 80,
+          speechVolume: dto.speechVolume ?? existing?.speechVolume ?? 80,
+          micGain: dto.micGain ?? existing?.micGain ?? 100,
+          preferredAudioInputLabel:
+            dto.preferredAudioInputLabel !== undefined
+              ? dto.preferredAudioInputLabel
+              : (existing?.preferredAudioInputLabel ?? null),
+          preferredAudioOutputLabel:
+            dto.preferredAudioOutputLabel !== undefined
+              ? dto.preferredAudioOutputLabel
+              : (existing?.preferredAudioOutputLabel ?? null),
+          preferredVideoInputLabel:
+            dto.preferredVideoInputLabel !== undefined
+              ? dto.preferredVideoInputLabel
+              : (existing?.preferredVideoInputLabel ?? null),
+        },
+        update: {
+          ...(dto.deviceName !== undefined && { deviceName: dto.deviceName }),
+          ...(dto.audioVolume !== undefined && {
+            audioVolume: dto.audioVolume,
+          }),
+          ...(dto.speechVolume !== undefined && {
+            speechVolume: dto.speechVolume,
+          }),
+          ...(dto.micGain !== undefined && { micGain: dto.micGain }),
+          ...(dto.preferredAudioInputLabel !== undefined && {
+            preferredAudioInputLabel: dto.preferredAudioInputLabel,
+          }),
+          ...(dto.preferredAudioOutputLabel !== undefined && {
+            preferredAudioOutputLabel: dto.preferredAudioOutputLabel,
+          }),
+          ...(dto.preferredVideoInputLabel !== undefined && {
+            preferredVideoInputLabel: dto.preferredVideoInputLabel,
+          }),
+        },
+      });
+
+      // Ограничиваем количество сохраненных устройств пользователя до 10 (удаляем самые старые)
+      const userDevices = await tx.userDeviceSettings.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      });
+
+      if (userDevices.length > 10) {
+        const toDelete = userDevices.slice(10).map((d) => d.id);
+        await tx.userDeviceSettings.deleteMany({
+          where: { id: { in: toDelete } },
+        });
+      }
+
+      return {
+        clientId: record.clientId,
+        deviceName: record.deviceName,
+        audioVolume: record.audioVolume,
+        speechVolume: record.speechVolume,
+        micGain: record.micGain,
+        preferredAudioInputLabel: record.preferredAudioInputLabel,
+        preferredAudioOutputLabel: record.preferredAudioOutputLabel,
+        preferredVideoInputLabel: record.preferredVideoInputLabel,
+        isPersisted: true,
+      };
+    });
   }
 
   /**

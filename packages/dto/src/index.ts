@@ -61,6 +61,19 @@ export {
   unreadNotificationsCountSchema,
 } from "./notifications/notification.dto";
 export {
+  clientIdSchema,
+  type DeviceSettingsDto,
+  deviceSettingsSchema,
+  type GetDeviceSettingsQueryDto,
+  getDeviceSettingsQuerySchema,
+  type MediaSettingsDto,
+  mediaSettingsSchema,
+  type UpdateDeviceSettingsDto,
+  type UpdateMediaSettingsDto,
+  updateDeviceSettingsSchema,
+  updateMediaSettingsSchema,
+} from "./profile/media-settings.dto";
+export {
   GIT_URL_REGEX,
   type Locale,
   localeLabels,
