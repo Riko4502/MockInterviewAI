@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  getProfileControllerGetDeviceSettingsQueryKey,
   useProfileControllerGetDeviceSettings,
   useProfileControllerUpdateDeviceSettings,
 } from "@packages/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/entities/session";
 import { useCurrentUser } from "@/entities/user";
@@ -78,18 +80,35 @@ export function useMediaSettings(): MediaSettingsContextValue {
       },
     );
 
+  const queryClient = useQueryClient();
   const updateMutation = useProfileControllerUpdateDeviceSettings();
   const { mutate } = updateMutation;
   const initialSyncDoneRef = useRef(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localRevisionRef = useRef(0);
+  const committedRevisionRef = useRef(0);
   const hydrationRevisionRef = useRef(0);
   const wasFetchingServerSettingsRef = useRef(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: сброс флага при смене устройства (clientId), статуса авторизации (isAuthenticated) или пользователя (userId)
   useEffect(() => {
     initialSyncDoneRef.current = false;
+    localRevisionRef.current = 0;
+    committedRevisionRef.current = 0;
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
   }, [clientId, isAuthenticated, userId]);
+
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Синхронизация локальных настроек с бэкендом (с дебаунсом)
   const syncToServer = useCallback(
@@ -101,22 +120,50 @@ export function useMediaSettings(): MediaSettingsContextValue {
         clearTimeout(syncTimeoutRef.current);
       }
 
+      const revisionToSave = localRevisionRef.current;
+
       syncTimeoutRef.current = setTimeout(() => {
-        mutate({
-          data: {
-            clientId: getClientDeviceId(),
-            deviceName: getDeviceName(),
-            audioVolume: toSave.audioVolume,
-            speechVolume: toSave.speechVolume,
-            micGain: toSave.micGain,
-            preferredAudioInputLabel: toSave.preferredAudioInputLabel ?? null,
-            preferredAudioOutputLabel: toSave.preferredAudioOutputLabel ?? null,
-            preferredVideoInputLabel: toSave.preferredVideoInputLabel ?? null,
+        syncTimeoutRef.current = null;
+
+        queryClient
+          .cancelQueries({
+            queryKey: getProfileControllerGetDeviceSettingsQueryKey({
+              clientId,
+            }),
+          })
+          .catch(() => {});
+
+        mutate(
+          {
+            data: {
+              clientId: getClientDeviceId(),
+              deviceName: getDeviceName(),
+              audioVolume: toSave.audioVolume,
+              speechVolume: toSave.speechVolume,
+              micGain: toSave.micGain,
+              preferredAudioInputLabel: toSave.preferredAudioInputLabel ?? null,
+              preferredAudioOutputLabel:
+                toSave.preferredAudioOutputLabel ?? null,
+              preferredVideoInputLabel: toSave.preferredVideoInputLabel ?? null,
+            },
           },
-        });
+          {
+            onSuccess: (savedData) => {
+              committedRevisionRef.current = Math.max(
+                committedRevisionRef.current,
+                revisionToSave,
+              );
+              // Согласовать кэш GET-запроса после успешного сохранения настроек на сервере (PUT)
+              queryClient.setQueryData(
+                getProfileControllerGetDeviceSettingsQueryKey({ clientId }),
+                savedData,
+              );
+            },
+          },
+        );
       }, 400);
     },
-    [isAuthenticated, mutate],
+    [clientId, isAuthenticated, mutate, queryClient],
   );
 
   // При получении настроек с сервера для текущего устройства обновляем локальный стейт
@@ -126,9 +173,16 @@ export function useMediaSettings(): MediaSettingsContextValue {
     }
     wasFetchingServerSettingsRef.current = isFetchingServerSettings;
 
+    // Учитываем незавершённые локальные записи (отложенный дебаунс, выполняющийся PUT или не подтверждённая ревизия)
+    const hasPendingLocalWrites =
+      syncTimeoutRef.current !== null ||
+      updateMutation.isPending ||
+      localRevisionRef.current > committedRevisionRef.current;
+
     if (
       !serverSettings ||
       isFetchingServerSettings ||
+      hasPendingLocalWrites ||
       localRevisionRef.current !== hydrationRevisionRef.current
     ) {
       return;
@@ -162,7 +216,12 @@ export function useMediaSettings(): MediaSettingsContextValue {
         prev.preferredVideoInputLabel ??
         null,
     }));
-  }, [isFetchingServerSettings, serverSettings, syncToServer]);
+  }, [
+    isFetchingServerSettings,
+    serverSettings,
+    syncToServer,
+    updateMutation.isPending,
+  ]);
 
   // Проверка поддержки HTMLMediaElement.prototype.setSinkId
   const isSinkIdSupported =

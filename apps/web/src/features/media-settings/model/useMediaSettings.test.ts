@@ -2,8 +2,40 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionContext } from "@/entities/session/model/context";
 import { DEFAULT_MEDIA_SETTINGS } from "./mediaSettingsStorage";
 import { useMediaSettings } from "./useMediaSettings";
+
+let mockServerSettings: {
+  isPersisted?: boolean;
+  audioVolume?: number;
+  speechVolume?: number;
+  micGain?: number;
+  preferredAudioInputLabel?: string | null;
+  preferredAudioOutputLabel?: string | null;
+  preferredVideoInputLabel?: string | null;
+} | null = null;
+
+let mockIsFetchingServerSettings = false;
+const mockUpdateMutationState = { isPending: false };
+const mutateMock = vi.fn();
+
+vi.mock("@packages/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/api")>();
+  return {
+    ...actual,
+    useProfileControllerGetDeviceSettings: () => ({
+      data: mockServerSettings,
+      isFetching: mockIsFetchingServerSettings,
+    }),
+    useProfileControllerUpdateDeviceSettings: () => ({
+      mutate: mutateMock,
+      get isPending() {
+        return mockUpdateMutationState.isPending;
+      },
+    }),
+  };
+});
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -14,6 +46,32 @@ function createWrapper() {
   });
   return ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+function createAuthenticatedWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      React.createElement(
+        SessionContext.Provider,
+        {
+          value: {
+            isAuthenticated: true,
+            status: "authenticated",
+            startSession: vi.fn(),
+            clearSession: vi.fn(),
+          },
+        },
+        children,
+      ),
+    );
 }
 
 describe("useMediaSettings", () => {
@@ -101,5 +159,61 @@ describe("useMediaSettings", () => {
         result.current.playTestSound();
       });
     }).not.toThrow();
+  });
+
+  it("does not apply stale GET over pending local changes (debounced PUT)", () => {
+    mockServerSettings = {
+      isPersisted: true,
+      audioVolume: 40,
+      speechVolume: 40,
+      micGain: 40,
+    };
+    mockIsFetchingServerSettings = false;
+    mockUpdateMutationState.isPending = false;
+
+    const { result, rerender } = renderHook(() => useMediaSettings(), {
+      wrapper: createAuthenticatedWrapper(),
+    });
+
+    // Пользователь меняет громкость на 80
+    act(() => {
+      result.current.setAudioVolume(80);
+    });
+    expect(result.current.audioVolume).toBe(80);
+
+    // Приходит фоновый GET со старыми настройками (40), пока локальный PUT ещё в дебаунсе
+    mockServerSettings = {
+      isPersisted: true,
+      audioVolume: 40,
+      speechVolume: 40,
+      micGain: 40,
+    };
+    rerender();
+
+    // Значение НЕ должно сброситься обратно на 40
+    expect(result.current.audioVolume).toBe(80);
+  });
+
+  it("does not apply stale GET while PUT is in flight (mutation is pending)", () => {
+    mockServerSettings = {
+      isPersisted: true,
+      audioVolume: 35,
+      speechVolume: 35,
+      micGain: 35,
+    };
+    mockIsFetchingServerSettings = false;
+    mockUpdateMutationState.isPending = true;
+
+    const { result, rerender } = renderHook(() => useMediaSettings(), {
+      wrapper: createAuthenticatedWrapper(),
+    });
+
+    act(() => {
+      result.current.setAudioVolume(90);
+    });
+    expect(result.current.audioVolume).toBe(90);
+
+    rerender();
+    expect(result.current.audioVolume).toBe(90);
   });
 });
