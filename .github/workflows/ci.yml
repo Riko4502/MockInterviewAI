@@ -59,10 +59,12 @@ jobs:
       storybook: ${{ steps.filter.outputs.storybook }}
       editor: ${{steps.filter.outputs.editor}}
       telegram_bot: ${{ steps.filter.outputs.telegram_bot }}
+      code_runner: ${{ steps.filter.outputs.code_runner }}
       docker_realtime: ${{ steps.filter.outputs.docker_realtime }}
       docker_web: ${{ steps.filter.outputs.docker_web }}
       docker_landing: ${{ steps.filter.outputs.docker_landing }}
       docker_api: ${{ steps.filter.outputs.docker_api }}
+      docker_code_runner: ${{ steps.filter.outputs.docker_code_runner }}
     steps:
       - name: "Фиксация времени старта"
         id: timer
@@ -82,6 +84,10 @@ jobs:
               - 'go.sum'
               - '.github/workflows/ci.yml'
               - '.github/workflows/ci-realtime.yml'
+            code_runner:
+              - 'apps/code-runner/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-code-runner.yml'
             web:
               - 'packages/editor/**'
               - 'apps/web/**'
@@ -141,6 +147,11 @@ jobs:
               - 'apps/realtime/Dockerfile*'
               - 'apps/realtime/go.mod'
               - 'apps/realtime/go.sum'
+              - '.dockerignore'
+            docker_code_runner:
+              - 'apps/code-runner/Dockerfile*'
+              - 'apps/code-runner/go.mod'
+              - 'apps/code-runner/go.sum'
               - '.dockerignore'
             docker_web:
               - 'apps/web/Dockerfile*'
@@ -221,6 +232,14 @@ jobs:
     with:
       should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_landing == 'true' }}
 
+  code-runner:
+    name: "Code Runner"
+    needs: changes
+    if: needs.changes.outputs.code_runner == 'true'
+    uses: ./.github/workflows/ci-code-runner.yml
+    with:
+      should_build_docker: ${{ github.ref_name == 'dev' || github.ref_name == 'main' || needs.changes.outputs.docker_code_runner == 'true' }}
+
   storybook:
     name: "Storybook"
     needs: changes
@@ -247,7 +266,7 @@ jobs:
 
   notify:
     name: "Telegram"
-    needs: [changes, realtime, web, api, security, landing, storybook, editor, telegram-bot]
+    needs: [changes, realtime, web, api, security, landing, storybook, editor, telegram-bot, code-runner]
     if: always()
     uses: ./.github/workflows/notify-ci-telegram.yml
     secrets: inherit
@@ -267,11 +286,13 @@ jobs:
       editor_coverage: ${{ needs.editor.outputs.coverage || '' }}
       telegram_bot_result: ${{ needs.telegram-bot.result }}
       telegram_bot_coverage: ${{ needs.telegram-bot.outputs.coverage || '' }}
+      code_runner_result: ${{ needs.code-runner.result }}
+      code_runner_coverage: ${{ needs.code-runner.outputs.coverage || '' }}
       security_result: ${{ needs.security.result }}
 
   pr-status-comment:
     name: "Обновление статуса PR"
-    needs: [realtime, web, api, landing, storybook, security, editor, telegram-bot]
+    needs: [realtime, web, api, landing, storybook, security, editor, telegram-bot, code-runner]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -298,6 +319,8 @@ jobs:
               -e "s|{{EDITOR_STATUS}}|${{ needs.editor.result == 'success' && '✅ Успешно' || (needs.editor.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{TELEGRAM_BOT_COV}}|${{ needs.telegram-bot.outputs.coverage || '—' }}|g" \
               -e "s|{{TELEGRAM_BOT_STATUS}}|${{ needs.telegram-bot.result == 'success' && '✅ Успешно' || (needs.telegram-bot.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
+              -e "s|{{CODE_RUNNER_COV}}|${{ needs.code-runner.outputs.coverage || '—' }}|g" \
+              -e "s|{{CODE_RUNNER_STATUS}}|${{ needs.code-runner.result == 'success' && '✅ Успешно' || (needs.code-runner.result == 'skipped' && '⚪ Пропущен' || '❌ Ошибка') }}|g" \
               -e "s|{{SECURITY_STATUS}}|${{ needs.security.result == 'success' && '✅ Безопасно' || '❌ Нарушение' }}|g" \
               .github/templates/pr-status-summary.md > pr-comment.md
 

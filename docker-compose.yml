@@ -146,9 +146,140 @@ services:
       redis:
         condition: service_healthy
 
+  # --- Code Runner: выполнение пользовательского кода через Judge0 CE ---
+  # Профиль поднимает всё разом — code-runner и четыре контейнера Judge0
+  # (API-сервер, пул воркеров, своя Postgres под submissions, свой Redis под
+  # очередь resque):
+  #
+  #   docker compose --env-file .env --profile code-runner up -d --build
+  #
+  # Отдельным профилем, а не вместе с базовой инфраструктурой, потому что
+  # judge0-server и judge0-workers требуют privileged: true — isolate внутри
+  # контейнера создаёт namespaces и cgroups.
+  #
+  # Хост должен быть на cgroup v1 (проверка: stat -fc %T /sys/fs/cgroup → tmpfs).
+  # На cgroup v2 контейнеры поднимутся, но запуски кода будут падать с
+  # "Failed to create control group".
+  code-runner:
+    build:
+      context: ./apps/code-runner
+      dockerfile: Dockerfile
+    container_name: mock-interview-code-runner
+    profiles: ["code-runner", "all"]
+    restart: unless-stopped
+    environment:
+      CODE_RUNNER_PORT: 8090
+      CODE_RUNNER_HOST: 0.0.0.0
+      ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      # Общий секрет для вызовов из apps/api и apps/realtime (X-Internal-Token).
+      # Пустое значение отключает проверку и допустимо только в dev.
+      CODE_RUNNER_AUTH_TOKEN: ${CODE_RUNNER_AUTH_TOKEN:-}
+      # Переопределяется, если нужно ходить во внешний Judge0 вместо локального.
+      JUDGE0_URL: ${JUDGE0_URL:-http://judge0-server:2358}
+      JUDGE0_AUTH_HEADER: X-Auth-Token
+      JUDGE0_AUTH_TOKEN: ${JUDGE0_AUTH_TOKEN:-}
+    # Только на loopback: сервис исполняет произвольный код, а при пустом
+    # CODE_RUNNER_AUTH_TOKEN проверка токена отключена — публикация на все
+    # интерфейсы отдала бы запуск кода любому узлу локальной сети.
+    # Внутри docker-сети доступен как http://code-runner:8090.
+    ports:
+      - "127.0.0.1:${CODE_RUNNER_PORT:-8090}:8090"
+    depends_on:
+      judge0-server:
+        condition: service_healthy
+
+  judge0-db:
+    image: postgres:16-alpine
+    container_name: mock-interview-judge0-db
+    profiles: ["code-runner", "all"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${JUDGE0_POSTGRES_USER:-judge0}
+      POSTGRES_PASSWORD: ${JUDGE0_POSTGRES_PASSWORD:-judge0}
+      POSTGRES_DB: ${JUDGE0_POSTGRES_DB:-judge0}
+    volumes:
+      - judge0-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${JUDGE0_POSTGRES_USER:-judge0} -d ${JUDGE0_POSTGRES_DB:-judge0}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: mock-interview-judge0-redis
+    profiles: ["code-runner", "all"]
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${JUDGE0_REDIS_PASSWORD:-judge0}
+    command: ["sh", "-c", "exec redis-server --appendonly no --requirepass \"$$REDIS_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    container_name: mock-interview-judge0-server
+    profiles: ["code-runner", "all"]
+    restart: unless-stopped
+    privileged: true
+    # Якорь переиспользуется воркерами: server и workers обязаны читать
+    # одну и ту же конфигурацию, иначе они разойдутся по БД или лимитам.
+    environment: &judge0-env
+      RAILS_ENV: production
+      RAILS_MAX_THREADS: ${JUDGE0_MAX_THREADS:-5}
+      POSTGRES_HOST: judge0-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${JUDGE0_POSTGRES_DB:-judge0}
+      POSTGRES_USER: ${JUDGE0_POSTGRES_USER:-judge0}
+      POSTGRES_PASSWORD: ${JUDGE0_POSTGRES_PASSWORD:-judge0}
+      REDIS_HOST: judge0-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${JUDGE0_REDIS_PASSWORD:-judge0}
+      # Общий секрет Judge0 (заголовок X-Auth-Token). Пустое значение оставляет
+      # API открытым внутри docker-сети — допустимо только локально.
+      AUTHN_HEADER: X-Auth-Token
+      AUTHN_TOKEN: ${JUDGE0_AUTH_TOKEN:-}
+      # Сеть в песочнице выключена и не может быть включена из запроса.
+      ENABLE_NETWORK: "false"
+      ALLOW_ENABLE_NETWORK: "false"
+    # Только на loopback: у Judge0 были CVE с побегом из песочницы,
+    # наружу его публиковать нельзя.
+    ports:
+      - "127.0.0.1:${JUDGE0_PORT:-2358}:2358"
+    # start_period перекрывает первый старт: до запуска puma Judge0 прогоняет
+    # миграции Rails, и без запаса контейнер успел бы уйти в unhealthy.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:2358/about > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    container_name: mock-interview-judge0-workers
+    profiles: ["code-runner", "all"]
+    restart: unless-stopped
+    privileged: true
+    command: ["./scripts/workers"]
+    environment:
+      <<: *judge0-env
+    depends_on:
+      judge0-server:
+        condition: service_started
 
 volumes:
   postgres-data:
   redis-data:
   minio-data:
   rabbitmq-data:
+  judge0-db-data:

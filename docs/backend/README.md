@@ -37,7 +37,10 @@
 │       └── Интеграция с LiveKit / WebRTC ──► apps/realtime/internal/webrtc/
 │
 └── Изолированный запуск кода пользователей (Code Sandbox)?
-    └── apps/code-runner/
+    └── Go-сервис ──► apps/code-runner/
+        ├── HTTP-обработчики (POST /api/v1/run) ──► apps/code-runner/internal/handler/
+        ├── Валидация, лимиты и маппинг статусов ──► apps/code-runner/internal/runner/
+        └── Адаптер к движку песочницы (Judge0) ──► apps/code-runner/internal/judge0/
 ```
 
 ---
@@ -48,6 +51,7 @@
 * [Обзор бэкенд-архитектуры и сервисов](./architecture/overview.md)
 * [Архитектура NestJS API модулей](./architecture/nestjs-modules.md)
 * [Высоконагруженный Realtime сервис (Go)](./architecture/realtime-go.md)
+* [Сервис выполнения кода (Go + Judge0)](./architecture/code-runner.md)
 
 ### 2. [Базы данных и Хранилище](./data/database-prisma.md)
 * [PostgreSQL и Prisma ORM](./data/database-prisma.md)

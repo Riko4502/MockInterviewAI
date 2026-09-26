@@ -12,7 +12,14 @@ docker-compose.yml
 ├── redis          # Redis 7 (порт 6379) — кэш, блэклисты токенов и Pub/Sub
 ├── minio          # MinIO (порт 9000 — S3 API, порт 9001 — Web Console)
 ├── livekit        # LiveKit SFU (порт 7880 — WS-сигналинг, 7881 — HTTPS, 60000–60018 — UDP-медиа)
-└── minio-init     # Одноразовый CLI-контейнер для автосоздания бакетов
+├── minio-init     # Одноразовый CLI-контейнер для автосоздания бакетов
+│
+└── профиль code-runner (не поднимается по умолчанию)
+    ├── code-runner    # Сервис выполнения кода (порт 8090)
+    ├── judge0-server  # API песочницы Judge0 CE (127.0.0.1:2358)
+    ├── judge0-workers # Пул исполнителей (privileged, isolate)
+    ├── judge0-db      # Postgres Judge0 под submissions
+    └── judge0-redis   # Redis Judge0 под очередь resque
 ```
 
 ### Порты и адреса:
@@ -25,6 +32,8 @@ docker-compose.yml
 | **MinIO Console** | `localhost:9001` | Веб-интерфейс управления файлами | `minioadmin / minioadmin` |
 | **LiveKit** | `localhost:7880` | WebSocket-сигналинг WebRTC, отдаётся как `serverUrl` в join-токене | ключ `devkey` / секрет `dev-local-secret-change-me-0123456789` |
 | **LiveKit** | `localhost:7881` | HTTPS-эндпоинт (для продакшена/внешних клиентов) | — |
+| **Code Runner** | `localhost:8090` | Запуск кода: `POST /api/v1/run` (профиль `code-runner`) | секрет `CODE_RUNNER_AUTH_TOKEN`, по умолчанию пуст |
+| **Judge0** | `127.0.0.1:2358` | API песочницы; наружу не публикуется (профиль `code-runner`) | токен `JUDGE0_AUTH_TOKEN`, по умолчанию пуст |
 | **LiveKit** | `localhost:60000–60018` | UDP-диапазон медиапотоков (аудио/видео); дефолт вне исключённых Hyper-V/WSL2 портов Windows 50000-50478, переопределяется через `LIVEKIT_UDP_PORT_START`/`LIVEKIT_UDP_PORT_END` | — |
 
 ---
@@ -71,6 +80,7 @@ pnpm --filter api test:e2e # e2e API (требует живой Redis)
 * `postgres-data` — файлы базы данных PostgreSQL.
 * `redis-data` — dump/AOF файлы Redis.
 * `minio-data` — загруженные файлы S3-хранилища.
+* `judge0-db-data` — база submissions Judge0 (профиль `code-runner`).
 
 ---
 
@@ -103,3 +113,46 @@ docker compose --env-file .env -f packages/observability/infra/observability.dev
 
 Правки `packages/observability/dashboards/*.json` подхватываются в Grafana без
 пересоздания контейнера (file-provisioning, `updateIntervalSeconds: 30`).
+
+---
+
+## 8. Code Runner и Judge0 (профиль `code-runner`)
+
+Стек выполнения кода вынесен в отдельный профиль и **не поднимается** обычным
+`pnpm infra:up`: контейнеры `judge0-server` и `judge0-workers` требуют
+`privileged: true`, потому что `isolate` внутри них создаёт namespaces и cgroups.
+
+```bash
+# Запуск сервиса вместе со всем стеком Judge0
+pnpm code-runner:up
+
+# Логи и остановка
+pnpm code-runner:logs
+pnpm code-runner:down
+```
+
+Проверка:
+
+```bash
+curl -s -X POST localhost:8090/api/v1/run -H 'Content-Type: application/json' -d '{"language":"python","code":"print(2+2)"}'
+```
+
+### Требование к хосту: cgroup v1
+
+Judge0 1.13.1 сэндбоксит через `isolate` 1.8, который поддерживает только cgroup v1:
+
+```bash
+stat -fc %T /sys/fs/cgroup
+```
+
+`tmpfs` — всё работает. `cgroup2fs` — контейнеры поднимутся и будут выглядеть
+здоровыми, но каждый запуск кода вернёт `INTERNAL_ERROR`, а в логах
+`judge0-workers` будет `Failed to create control group`. На Linux лечится разовой
+правкой GRUB (`GRUB_CMDLINE_LINUX="systemd.unified_cgroup_hierarchy=0"`) и
+перезагрузкой; на Docker Desktop (Windows/macOS) не лечится — там служебный VM
+на cgroup v2, который не переключается.
+
+Если Judge0 развёрнут отдельно, локальный стек не нужен: достаточно указать
+`JUDGE0_URL` на внешний инстанс.
+
+Детали сервиса — [Code Runner Service](../../backend/architecture/code-runner.md).
