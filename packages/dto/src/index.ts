@@ -28,6 +28,14 @@ export {
   type ResetPasswordErrorPayload,
   resetPasswordSchema,
 } from "./auth/reset-password.dto";
+export {
+  type TelegramAuthDto,
+  type TelegramCompleteDto,
+  type TelegramLinkDto,
+  telegramAuthSchema,
+  telegramCompleteSchema,
+  telegramLinkSchema,
+} from "./auth/telegram.dto";
 export type {
   MatchRequestResponseDto,
   UnreadMatchRequestsCountDto,
@@ -54,8 +62,13 @@ export {
 } from "./notifications/notification.dto";
 export {
   GIT_URL_REGEX,
+  type Locale,
+  localeLabels,
+  locales,
   normalizeTelegramUsername,
   TELEGRAM_USERNAME_REGEX,
+  THEME_MODES,
+  type ThemeMode,
   type UpdateProfileDto,
   USERNAME_REGEX,
   updateProfileSchema,
@@ -86,10 +99,51 @@ export type {
   ParticipantRole,
   PresenceJoinPayload,
   PresenceLeavePayload,
+  RoomErrorPayload,
   RoomSyncPayload,
   SupportedLanguage,
   SystemAckPayload,
   SystemErrorPayload,
+} from "./realtime/websocket-events.dto";
+export {
+  BASE64_REGEX,
+  baseWebSocketEnvelopeSchema,
+  type RoomErrorEnvelope,
+  roomErrorEnvelopeSchema,
+  roomErrorPayloadSchema,
+  type TaskSwitchEnvelope,
+  type TaskSwitchedEnvelope,
+  type TaskSwitchedPayload,
+  type TaskSwitchPayload,
+  taskSwitchEnvelopeSchema,
+  taskSwitchedEnvelopeSchema,
+  taskSwitchedPayloadSchema,
+  taskSwitchPayloadSchema,
+  YJS_MAX_BASE64_LENGTH,
+  YJS_SNAPSHOT_MAX_BASE64_LENGTH,
+  type YjsAckEnvelope,
+  type YjsAckPayload,
+  type YjsAwarenessEnvelope,
+  type YjsAwarenessPayload,
+  type YjsInitEnvelope,
+  type YjsInitPayload,
+  type YjsSnapshotEnvelope,
+  type YjsSnapshotPayload,
+  type YjsUpdateEnvelope,
+  type YjsUpdatePayload,
+  yjsAckEnvelopeSchema,
+  yjsAckPayloadSchema,
+  yjsAwarenessEnvelopeSchema,
+  yjsAwarenessPayloadSchema,
+  yjsDataSchema,
+  yjsInitEnvelopeSchema,
+  yjsInitPayloadSchema,
+  yjsSnapshotDataSchema,
+  yjsSnapshotEnvelopeSchema,
+  yjsSnapshotPayloadSchema,
+  yjsTaskKeySchema,
+  yjsUpdateEnvelopeSchema,
+  yjsUpdatePayloadSchema,
 } from "./realtime/websocket-events.dto";
 export {
   type CreateSessionResponseDto,
@@ -147,3 +201,33 @@ export type {
   ShowcaseCardResponseDto,
   ShowcaseCardStatsDto,
 } from "./showcase/showcase-response.dto";
+export {
+  type TelegramInterviewDto,
+  type TelegramInterviewsListDto,
+  type TelegramInterviewsQuery,
+  telegramInterviewSchema,
+  telegramInterviewsListSchema,
+  telegramInterviewsQuerySchema,
+} from "./telegram/interviews.dto";
+export {
+  type LinkRequest,
+  type LinkTokenResponse,
+  linkRequestSchema,
+  linkTokenResponseSchema,
+} from "./telegram/link.dto";
+export {
+  type TelegramPreferencesPatch,
+  telegramPreferencesPatchSchema,
+} from "./telegram/preferences.dto";
+export {
+  type TelegramProfileQuery,
+  type TelegramUserProfileDto,
+  telegramProfileQuerySchema,
+  telegramUserProfileSchema,
+} from "./telegram/profile.dto";
+export {
+  type UnlinkRequest,
+  type UnlinkResponse,
+  unlinkRequestSchema,
+  unlinkResponseSchema,
+} from "./telegram/unlink.dto";

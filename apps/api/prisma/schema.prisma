@@ -48,8 +48,14 @@ model User {
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
-  telegramUsername String?
+  telegramId           BigInt?   @unique
+  telegramUsername     String?
+  telegramChatId       String?   @unique
+  telegramLocale       String?
+  telegramLinkVerified Boolean   @default(false)
   gitUrl           String?
+  theme            ThemePreference @default(DARK)
+  locale           String          @default("ru")
   deletedAt        DateTime?
   generation       Int       @default(1)
   createdAt        DateTime  @default(now())
@@ -68,6 +74,7 @@ model User {
   @@index([roleId])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([telegramId])
   @@index([createdAt])
   @@map("users")
 }
@@ -149,6 +156,12 @@ model Notification {
   @@index([readAt])
   @@index([deletedAt])
   @@map("notifications")
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
 }
 
 enum Specialization {

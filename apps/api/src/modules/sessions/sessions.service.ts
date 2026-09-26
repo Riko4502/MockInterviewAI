@@ -1,4 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   ForbiddenException,
   Injectable,
@@ -7,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import * as Y from "yjs";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
 import {
   InterviewParticipantRole,
@@ -14,16 +17,133 @@ import {
 } from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
-
 import {
   sessionActiveKey,
   sessionInviteKey,
   sessionMembersKey,
+  sessionSeededTasksKey,
+  sessionTaskUpdatesKey,
 } from "./session-keys";
 
 const ACTIVE_VALUE = "true";
 const CLOSED_VALUE = "closed";
 const MAX_SESSION_PARTICIPANTS = 10;
+
+export const DEFAULT_TASK_KEY = "two-sum:typescript";
+export const TASK_DOC_TTL_SECONDS = 86400; // 24 часа
+
+/**
+ * Создаёт начальный бинарный Yjs апдейт (Base64) для заданного текста.
+ */
+export function createStarterYjsUpdate(initialContent = ""): string {
+  const doc = new Y.Doc();
+  const yText = doc.getText("monaco");
+  if (initialContent) {
+    yText.insert(0, initialContent);
+  }
+  const update = Y.encodeStateAsUpdate(doc);
+  return Buffer.from(update).toString("base64");
+}
+
+/**
+ * Резервная копия Lua-скрипта сидинга для автономных окружений (контейнеров).
+ * Источник истины: apps/realtime/internal/storage/scripts/seed_task_doc.lua
+ */
+export const FALLBACK_SEED_TASK_DOC_LUA = `
+-- KEYS[1]: {session:<sessionId>}:seeded_tasks (Redis Hash маркеров задач)
+-- KEYS[2]: {session:<sessionId>}:task:<taskKey>:updates (Redis Stream конкретной задачи)
+-- ARGV[1]: task_key (строка вида "<taskId>:<lang>")
+-- ARGV[2]: base64_starter_update (Yjs update со стартовым кодом)
+-- ARGV[3]: ttl_seconds (например, 86400)
+
+local has_marker = (redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1)
+local stream_exists = (redis.call('EXISTS', KEYS[2]) == 1)
+local stream_len = 0
+if stream_exists then
+    stream_len = redis.call('XLEN', KEYS[2])
+end
+
+if has_marker and stream_len > 0 then
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+    redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+    return 0
+end
+
+if (not stream_exists) or (stream_len == 0) then
+    local ok_xadd, err_or_id = pcall(redis.call, 'XADD', KEYS[2], '*', 'data', ARGV[2])
+    if not ok_xadd then
+        return redis.error_reply("ERR_XADD_FAILED: " .. tostring(err_or_id))
+    end
+
+    local ok_hset, err_hset = pcall(redis.call, 'HSET', KEYS[1], ARGV[1], '1')
+    if not ok_hset then
+        return redis.error_reply("ERR_HSET_FAILED: " .. tostring(err_hset))
+    end
+
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+    redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+
+    if has_marker then
+        return 3
+    else
+        return 1
+    end
+end
+
+if (not has_marker) and (stream_len > 0) then
+    local ok_hset, err_hset = pcall(redis.call, 'HSET', KEYS[1], ARGV[1], '1')
+    if not ok_hset then
+        return redis.error_reply("ERR_HSET_FAILED: " .. tostring(err_hset))
+    end
+
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+    redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+    return 2
+end
+
+return 0
+`;
+
+/**
+ * Относительный путь от текущего модуля к единому источнику истины скрипта сидинга в apps/realtime.
+ */
+export const REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH =
+  "../../../../realtime/internal/storage/scripts/seed_task_doc.lua";
+
+/**
+ * TODO временное решение
+ * Загружает скрипт seed_task_doc.lua из единого источника истины (apps/realtime).
+ */
+export function loadSeedTaskDocLua(): string {
+  const candidatePaths = [
+    path.resolve(__dirname, REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH),
+    path.resolve(
+      process.cwd(),
+      "../realtime/internal/storage/scripts/seed_task_doc.lua",
+    ),
+    path.resolve(
+      process.cwd(),
+      "apps/realtime/internal/storage/scripts/seed_task_doc.lua",
+    ),
+  ];
+
+  for (const candidate of candidatePaths) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return fs.readFileSync(candidate, "utf-8");
+      }
+    } catch {
+      // Игнорируем ошибки доступа и пробуем следующий путь
+    }
+  }
+
+  return FALLBACK_SEED_TASK_DOC_LUA;
+}
+
+/**
+ * Единый атомарный Lua-скрипт сидинга и восстановления служебных структур документа задачи (5 состояний).
+ */
+export const SEED_TASK_DOC_LUA = loadSeedTaskDocLua();
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -145,10 +265,48 @@ export class SessionsService {
       this.mirrorTtlSeconds,
     );
 
+    // Сидинг стартового документа задачи через seed_task_doc.lua строго после коммита транзакции сессии
+    try {
+      const starterUpdate = createStarterYjsUpdate("");
+      await this.redis.eval<number>(
+        SEED_TASK_DOC_LUA,
+        2,
+        sessionSeededTasksKey(session.id),
+        sessionTaskUpdatesKey(session.id, DEFAULT_TASK_KEY),
+        DEFAULT_TASK_KEY,
+        starterUpdate,
+        TASK_DOC_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `failed to seed initial task doc for session ${session.id}, falling back to lazy seeding in realtime: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     this.logger.log(
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
     );
     return { sessionId: session.id, inviteToken };
+  }
+
+  /**
+   * Атомарно проверяет и засевает/восстанавливает служебные структуры Yjs-документа задачи.
+   */
+  async seedTaskDoc(
+    sessionId: string,
+    taskKey: string,
+    initialContent = "",
+  ): Promise<number> {
+    const starterUpdate = createStarterYjsUpdate(initialContent);
+    return this.redis.eval<number>(
+      SEED_TASK_DOC_LUA,
+      2,
+      sessionSeededTasksKey(sessionId),
+      sessionTaskUpdatesKey(sessionId, taskKey),
+      taskKey,
+      starterUpdate,
+      TASK_DOC_TTL_SECONDS,
+    );
   }
 
   /**

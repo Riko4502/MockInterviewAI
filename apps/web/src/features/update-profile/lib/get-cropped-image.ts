@@ -30,6 +30,8 @@ export async function getCroppedImageFile(
     throw new Error("Canvas is not available");
   }
 
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
   context.drawImage(
     image,
     crop.x,

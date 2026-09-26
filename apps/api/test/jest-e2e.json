@@ -11,5 +11,6 @@
     "^@packages/dto$": "<rootDir>/../../packages/dto/src",
     "^@packages/types$": "<rootDir>/../../packages/types/src",
     "^@packages/utils$": "<rootDir>/../../packages/utils/src"
-  }
+  },
+  "setupFiles": ["<rootDir>/test/setup-env.ts"]
 }

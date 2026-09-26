@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   InternalServerErrorException,
@@ -43,7 +44,10 @@ describe("UsersService", () => {
     username: "ivan_dev",
     avatarUrl: "https://example.com/avatar.webp",
     telegramUsername: "ivan_tg",
+    telegramLinkVerified: false,
     gitUrl: "https://github.com/ivan_dev",
+    theme: "DARK",
+    locale: "ru",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
@@ -143,12 +147,15 @@ describe("UsersService", () => {
         passwordHash: _,
         deletedAt: __,
         generation: ___,
+        telegramLinkVerified: ______,
         createdAt: ____,
         updatedAt: _____,
+        theme: _______,
         ...safeProfile
       } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
+        theme: "dark",
         createdAt: mockUser.createdAt.toISOString(),
         updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
@@ -157,6 +164,7 @@ describe("UsersService", () => {
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
       expect(result).not.toHaveProperty("generation");
+      expect(result).not.toHaveProperty("telegramLinkVerified");
     });
 
     it("выбрасывает NotFoundException если профиль не найден", async () => {
@@ -184,6 +192,32 @@ describe("UsersService", () => {
 
       expect(result.displayName).toBe("New Name");
       expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("успешно обновляет тему и язык пользователя", async () => {
+      const updatedProfile = {
+        ...mockUser,
+        theme: "LIGHT",
+        locale: "en",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        theme: "light",
+        locale: "en",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            theme: "LIGHT",
+            locale: "en",
+          }),
+        }),
+      );
+      expect(result.theme).toBe("light");
+      expect(result.locale).toBe("en");
     });
 
     it("выбрасывает ConflictException при попытке занять чужой username", async () => {
@@ -342,6 +376,177 @@ describe("UsersService", () => {
       await expect(service.restoreAccount(mockUser.id)).rejects.toThrow(
         GoneException,
       );
+    });
+  });
+
+  describe("linkTelegram", () => {
+    it("успешно привязывает Telegram аккаунт к пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        return null;
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      const result = await service.linkTelegram(mockUser.id, {
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          telegramId: BigInt(123456789),
+          telegramUsername: "new_tg",
+          telegramLinkVerified: true,
+        },
+      });
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.linkTelegram("non-existent", {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("выбрасывает ConflictException если пользователь уже имеет другой привязанный telegramId", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(999999999),
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+    });
+
+    it("выбрасывает BadRequestException при попытке подтвердить уже привязанный неподтвержденный telegramId (telegramLinkVerified: false)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: false,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        ),
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если тот же telegramId уже привязан и подтвержден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: true,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если telegramId уже привязан к другому пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        if (args.where.telegramId)
+          return {
+            id: "22222222-2222-4222-a222-222222222222",
+            telegramId: BigInt(123456789),
+          };
+        return null;
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to another user");
+    });
+
+    it("обрабатывает Prisma P2025 ошибки как NotFoundException", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: null,
+      });
+      const p2025 = Object.assign(new Error("Record not found"), {
+        code: "P2025",
+      });
+      prismaMock.user.update.mockRejectedValue(p2025);
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("findByTelegramId and createTelegramUser", () => {
+    it("ищет пользователя по telegramId", async () => {
+      const tgUser = { ...mockUser, telegramId: BigInt(123456789) };
+      prismaMock.user.findUnique.mockResolvedValue(tgUser);
+
+      const result = await service.findByTelegramId(BigInt(123456789));
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { telegramId: BigInt(123456789) },
+      });
+      expect(result).toEqual(tgUser);
+    });
+
+    it("создает нового пользователя через createTelegramUser", async () => {
+      const createdUser = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        username: null,
+      };
+      prismaMock.user.create.mockResolvedValue(createdUser);
+
+      const result = await service.createTelegramUser({
+        email: "tg@example.com",
+        passwordHash: "argon2id$hash",
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        displayName: "Telegram User",
+        avatarUrl: "https://s3.local/avatar.webp",
+      });
+
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: "tg@example.com",
+          passwordHash: "argon2id$hash",
+          telegramId: BigInt(123456789),
+          telegramUsername: "tg_user",
+          telegramLinkVerified: false,
+          displayName: "Telegram User",
+          avatarUrl: "https://s3.local/avatar.webp",
+          username: null,
+          roleId: "00000000-0000-4000-a000-000000000002",
+        },
+      });
+      expect(result).toEqual(createdUser);
     });
   });
 

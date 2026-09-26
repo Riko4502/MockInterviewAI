@@ -126,4 +126,200 @@ describe("StorageService", () => {
       await expect(service.deleteFile(null)).resolves.not.toThrow();
     });
   });
+
+  describe("uploadAvatarFromUrl", () => {
+    it("блокирует SSRF обращения к недоверенным хостам, приватным IP и localhost", async () => {
+      const urlLocalhost = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://localhost:8080/image.jpg",
+      );
+      expect(urlLocalhost).toBeNull();
+
+      const urlPrivateIp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://192.168.1.1/image.jpg",
+      );
+      expect(urlPrivateIp).toBeNull();
+
+      const urlMetadata = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://169.254.169.254/latest/meta-data/",
+      );
+      expect(urlMetadata).toBeNull();
+
+      const urlUntrusted = await service.uploadAvatarFromUrl(
+        "user-123",
+        "https://example.com/avatar.jpg",
+      );
+      expect(urlUntrusted).toBeNull();
+    });
+
+    it("отклоняет HTTP редиректы (redirect: manual) во избежание SSRF обхода", async () => {
+      const originalFetch = global.fetch;
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 302,
+        headers: { get: () => null },
+      });
+      global.fetch = fetchMock;
+
+      try {
+        const expectedUrl = "https://cdn.telegram.org/redirect-to-internal.jpg";
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          expectedUrl,
+        );
+        expect(result).toBeNull();
+        expect(fetchMock).toHaveBeenCalledWith(
+          expectedUrl,
+          expect.objectContaining({
+            redirect: "manual",
+          }),
+        );
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("отклоняет протоколы отличные от https (включая http)", async () => {
+      const urlFtp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "file:///etc/passwd",
+      );
+      expect(urlFtp).toBeNull();
+
+      const urlHttp = await service.uploadAvatarFromUrl(
+        "user-123",
+        "http://cdn.telegram.org/avatar.jpg",
+      );
+      expect(urlHttp).toBeNull();
+    });
+
+    it("возвращает null при ошибке сети fetch", async () => {
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/avatar.jpg",
+        );
+        expect(result).toBeNull();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("успешно скачивает и загружает валидный аватар по внешней ссылке", async () => {
+      const pngBuffer = await sharp({
+        create: {
+          width: 100,
+          height: 100,
+          channels: 4,
+          background: { r: 0, g: 255, b: 0, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+
+      const mockReader = {
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new Uint8Array(pngBuffer),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        cancel: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (header: string) => {
+            if (header === "content-length") return String(pngBuffer.length);
+            if (header === "content-type") return "image/png";
+            return null;
+          },
+        },
+        body: {
+          getReader: () => mockReader,
+        },
+      });
+
+      try {
+        const url = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/avatar.png",
+        );
+        expect(url).toContain(
+          "http://localhost:9000/mock-interview-storage/avatars/user-123/",
+        );
+        expect(url?.endsWith(".webp")).toBe(true);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("прекращает чтение и отменяет reader при превышении лимита размера в процессе потоковой передачи", async () => {
+      const cancelMock = jest.fn().mockResolvedValue(undefined);
+      const chunk1 = new Uint8Array(1_500_000);
+      const chunk2 = new Uint8Array(1_000_000); // 1.5MB + 1MB = 2.5MB > 2MB limit
+
+      const mockReader = {
+        read: jest
+          .fn()
+          .mockResolvedValueOnce({ done: false, value: chunk1 })
+          .mockResolvedValueOnce({ done: false, value: chunk2 }),
+        cancel: cancelMock,
+      };
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: () => null,
+        },
+        body: {
+          getReader: () => mockReader,
+        },
+      });
+
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/large-avatar.png",
+        );
+
+        expect(result).toBeNull();
+        expect(cancelMock).toHaveBeenCalledTimes(1);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("возвращает null если response.body отсутствует", async () => {
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: null,
+      });
+
+      try {
+        const result = await service.uploadAvatarFromUrl(
+          "user-123",
+          "https://cdn.telegram.org/nobody.png",
+        );
+
+        expect(result).toBeNull();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });

@@ -1,12 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
-const { mutateMock, profileMutation } = vi.hoisted(() => ({
+const { mutateMock, profileMutation, toastPushMock } = vi.hoisted(() => ({
   mutateMock: vi.fn(),
+  toastPushMock: vi.fn(),
   profileMutation: {
     isPending: false,
     isError: false,
@@ -14,17 +15,33 @@ const { mutateMock, profileMutation } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@packages/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/ui")>();
+  return {
+    ...actual,
+    useToast: () => ({
+      push: toastPushMock,
+    }),
+  };
+});
+
+const initialUser = {
+  id: "11111111-1111-1111-1111-111111111111",
+  email: "dev@example.com",
+  displayName: "Иван",
+  username: "ivan",
+  avatarUrl: null as string | null,
+  telegramUsername: null as string | null,
+  gitUrl: null as string | null,
+  theme: "dark" as "dark" | "light" | "system",
+  locale: "ru" as "ru" | "en",
+};
+
+let mockUserData = { ...initialUser };
+
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => ({
-    data: {
-      id: "11111111-1111-1111-1111-111111111111",
-      email: "dev@example.com",
-      displayName: "Иван",
-      username: "ivan",
-      avatarUrl: null,
-      telegramUsername: null,
-      gitUrl: null,
-    },
+    data: mockUserData,
     isLoading: false,
     isError: false,
   }),
@@ -66,12 +83,14 @@ function renderForm() {
 describe("UpdateProfileForm", () => {
   beforeEach(() => {
     mutateMock.mockClear();
+    toastPushMock.mockClear();
     profileMutation.isPending = false;
     profileMutation.isError = false;
     profileMutation.isSuccess = false;
+    mockUserData = { ...initialUser };
   });
 
-  it("заполняет форму текущим профилем и отправляет изменения", async () => {
+  it("заполняет форму текущим профилем и отправляет только измененные поля", async () => {
     const user = userEvent.setup();
     renderForm();
 
@@ -91,14 +110,119 @@ describe("UpdateProfileForm", () => {
         {
           data: {
             displayName: "Иван Петров",
-            username: "ivan",
-            telegramUsername: null,
-            gitUrl: null,
           },
         },
-        expect.objectContaining({ onSuccess: expect.any(Function) }),
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
       );
     });
+
+    const options = mutateMock.mock.calls[0]?.[1] as {
+      onSuccess: (profile: typeof initialUser) => void;
+    };
+    act(() => {
+      options.onSuccess({
+        ...mockUserData,
+        displayName: "Иван Петров",
+      });
+    });
+    expect(toastPushMock).toHaveBeenCalledWith({
+      status: "success",
+      title: "Профиль сохранён.",
+    });
+  });
+
+  it("после сохранения показывает значения сервера и снова блокирует кнопку", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.clear(nameInput);
+    await user.type(nameInput, "  Иван Петров  ");
+    const usernameInput = screen.getByDisplayValue("ivan");
+    await user.clear(usernameInput);
+    await user.type(usernameInput, "IVAN");
+    await user.type(screen.getByPlaceholderText("@username"), "@ivan_dev");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalled();
+    });
+
+    const onSuccess = mutateMock.mock.calls[0]?.[1]?.onSuccess as (profile: {
+      displayName: string | null;
+      username: string | null;
+      telegramUsername: string | null;
+      gitUrl: string | null;
+      theme: "dark";
+      locale: "ru";
+    }) => void;
+
+    act(() => {
+      onSuccess({
+        displayName: "Иван Петров",
+        username: "ivan",
+        telegramUsername: "ivan_dev",
+        gitUrl: null,
+        theme: "dark",
+        locale: "ru",
+      });
+    });
+
+    expect(screen.getByRole("textbox", { name: "Имя" })).toHaveValue(
+      "Иван Петров",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Имя пользователя" }),
+    ).toHaveValue("ivan");
+    expect(screen.getByRole("textbox", { name: "Telegram" })).toHaveValue(
+      "ivan_dev",
+    );
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+  });
+
+  it("синхронизирует значения формы при обновлении профиля и не отправляет устаревшие предпочтения", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderForm();
+
+    mockUserData = {
+      ...mockUserData,
+      theme: "light",
+      locale: "en",
+    };
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <UpdateProfileForm />
+      </QueryClientProvider>,
+    );
+
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Иван Сидоров");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            displayName: "Иван Сидоров",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
+  });
+
+  it("не отправляет запрос, если ни одно поле не было изменено", () => {
+    renderForm();
+
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+    expect(mutateMock).not.toHaveBeenCalled();
   });
 
   it("блокирует сохранение, пока поля не изменились", async () => {
@@ -124,5 +248,7 @@ describe("UpdateProfileForm", () => {
     expect(saveButton).toBeDisabled();
     expect(saveButton).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Иван")).toBeDisabled();
+    expect(screen.getByDisplayValue("ivan")).toBeDisabled();
   });
 });

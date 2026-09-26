@@ -1,11 +1,7 @@
 "use client";
 
 import type { AnyWebSocketEnvelope } from "@packages/dto";
-import type {
-  Collaborator,
-  CursorPosition,
-  LanguageId,
-} from "@packages/editor";
+import type { LanguageId } from "@packages/editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -23,28 +19,18 @@ import {
   type SandboxCallbacks,
 } from "./dispatchSandboxMessage";
 import { getAuthUser } from "./getAuthUser";
-import {
-  getColorForUser,
-  mapPeerToCollaborator,
-} from "./mapPeerToCollaborator";
+import { getColorForUser } from "./mapPeerToCollaborator";
 import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
-
-interface PendingCodeState {
-  id: string;
-  code: string;
-  language: LanguageId;
-  baseVersion: number;
-}
 
 interface PendingTaskState {
   id: string;
   taskId: string;
+  language?: LanguageId;
 }
 
 interface UseSandboxRealtimeOptions {
   roomId: string;
-  onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
-  onRemoteTaskChange?: (taskId: string) => void;
+  onRemoteTaskChange?: (taskId: string, language?: LanguageId) => void;
   onRemoteWebRTCSignal?: (signal: WebRTCSignal) => void;
   onRemoteRunResult?: (result: RunResult) => void;
   onPeerJoined?: (peerId: string) => void;
@@ -52,7 +38,6 @@ interface UseSandboxRealtimeOptions {
 
 export function useSandboxRealtime({
   roomId,
-  onRemoteCodeUpdate,
   onRemoteTaskChange,
   onRemoteWebRTCSignal,
   onRemoteRunResult,
@@ -71,8 +56,6 @@ export function useSandboxRealtime({
   const [otherPeers, setOtherPeers] = useState<PeerInfo[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const lastServerVersionRef = useRef<number>(0);
-  const pendingCodeRef = useRef<PendingCodeState | null>(null);
   const pendingTaskRef = useRef<PendingTaskState | null>(null);
 
   const isSelfServerPeer = useCallback(
@@ -129,9 +112,37 @@ export function useSandboxRealtime({
     [],
   );
 
+  const envelopeListenersRef = useRef<
+    Set<(envelope: AnyWebSocketEnvelope) => void>
+  >(new Set());
+
+  const subscribeEnvelope = useCallback(
+    (listener: (envelope: AnyWebSocketEnvelope) => void) => {
+      envelopeListenersRef.current.add(listener);
+      return () => {
+        envelopeListenersRef.current.delete(listener);
+      };
+    },
+    [],
+  );
+
+  const sendEnvelope = useCallback((envelope: AnyWebSocketEnvelope) => {
+    try {
+      const socket = wsConnRef.current?.socket;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(envelope));
+      }
+    } catch {
+      // Игнорируем сетевые сбои
+    }
+  }, []);
+
+  const getSocket = useCallback(() => {
+    return wsConnRef.current?.socket ?? null;
+  }, []);
+
   // Храним актуальные колбэки в ref, чтобы не пересоздавать подписку при ререндерах
   const callbacksRef = useRef<SandboxCallbacks>({
-    onRemoteCodeUpdate,
     onRemoteTaskChange,
     onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
       onRemoteWebRTCSignal?.(signal);
@@ -152,7 +163,6 @@ export function useSandboxRealtime({
 
   useEffect(() => {
     callbacksRef.current = {
-      onRemoteCodeUpdate,
       onRemoteTaskChange,
       onRemoteWebRTCSignal: (signal: WebRTCSignal) => {
         onRemoteWebRTCSignal?.(signal);
@@ -215,34 +225,38 @@ export function useSandboxRealtime({
     [roomId, userId, userName],
   );
 
-  const broadcastCodeUpdate = useCallback(
-    (code: string, language: LanguageId) => {
-      const id = uuidv4();
-      pendingCodeRef.current = {
-        id,
-        code,
-        language,
-        baseVersion: lastServerVersionRef.current,
-      };
-      sendMessage("code-update", { code, language }, id);
+  const sendTaskSwitch = useCallback(
+    (taskId: string, lang?: LanguageId, id?: string) => {
+      if (!lang) return;
+      try {
+        const socket = wsConnRef.current?.socket;
+        if (socket?.readyState === WebSocket.OPEN) {
+          const taskKey = `${taskId}:${lang}`;
+          const envelope: AnyWebSocketEnvelope = {
+            type: "task.switch",
+            version: 1,
+            sessionId: roomId,
+            requestId: `req_switch_${id ?? uuidv4()}`,
+            timestamp: new Date().toISOString(),
+            payload: { taskKey },
+          };
+          socket.send(JSON.stringify(envelope));
+        }
+      } catch {
+        // Игнорируем сетевые сбои
+      }
     },
-    [sendMessage],
-  );
-
-  const broadcastCursorMove = useCallback(
-    (cursor: CursorPosition) => {
-      sendMessage("cursor-move", { cursor });
-    },
-    [sendMessage],
+    [roomId],
   );
 
   const broadcastTaskChange = useCallback(
-    (taskId: string) => {
+    (taskId: string, lang?: LanguageId) => {
       const id = uuidv4();
-      pendingTaskRef.current = { id, taskId };
-      sendMessage("task-change", { taskId }, id);
+      pendingTaskRef.current = { id, taskId, language: lang };
+      sendTaskSwitch(taskId, lang, id);
+      sendMessage("task-change", { taskId, language: lang }, id);
     },
-    [sendMessage],
+    [sendMessage, sendTaskSwitch],
   );
 
   const broadcastWebRTCSignal = useCallback(
@@ -276,14 +290,45 @@ export function useSandboxRealtime({
         if (!envelope || envelope.sessionId !== roomId || !envelope.payload)
           return;
 
+        // Уведомляем внешних подписчиков конвертов (например, RealtimeYjsProvider)
+        envelopeListenersRef.current.forEach((listener) => {
+          try {
+            listener(envelope);
+          } catch (err) {
+            console.error(
+              "[useSandboxRealtime] Error in envelope listener:",
+              err,
+            );
+          }
+        });
+
         switch (envelope.type) {
+          case "task.switched": {
+            if (
+              envelope.requestId &&
+              envelope.requestId === `req_switch_${pendingTaskRef.current?.id}`
+            ) {
+              pendingTaskRef.current = null;
+            }
+            const taskKey = (envelope.payload as { taskKey?: string })?.taskKey;
+            if (taskKey) {
+              const parts = taskKey.split(":");
+              const newTaskId = parts[0];
+              const newLang = parts[1] as LanguageId | undefined;
+              if (newTaskId) {
+                callbacksRef.current.onRemoteTaskChange?.(newTaskId, newLang);
+              }
+            }
+            break;
+          }
+
           case "system.ack": {
             const targetId = envelope.payload?.targetRequestId;
             if (targetId) {
-              if (pendingCodeRef.current?.id === targetId) {
-                pendingCodeRef.current = null;
-              }
-              if (pendingTaskRef.current?.id === targetId) {
+              if (
+                pendingTaskRef.current?.id === targetId ||
+                targetId === `req_switch_${pendingTaskRef.current?.id}`
+              ) {
                 pendingTaskRef.current = null;
               }
             }
@@ -305,51 +350,6 @@ export function useSandboxRealtime({
               }
             }
             updatePeers();
-
-            // Восстановление начального состояния кода при синхронизации комнаты
-            const serverCodeState = envelope.payload.codeState;
-            if (serverCodeState?.content !== undefined) {
-              const serverVersion =
-                serverCodeState.version ?? envelope.version ?? 0;
-              lastServerVersionRef.current = Math.max(
-                lastServerVersionRef.current,
-                serverVersion,
-              );
-
-              if (pendingCodeRef.current) {
-                if (pendingCodeRef.current.code === serverCodeState.content) {
-                  // Сервер уже содержит идентичный локальному код
-                  pendingCodeRef.current = null;
-                } else if (
-                  pendingCodeRef.current.baseVersion === serverVersion
-                ) {
-                  // Локально-новое состояние: базовая ревизия совпадает с серверной,
-                  // сервер не продвинулся дальше наших правок — повторно отправляем локальный код
-                  sendMessage(
-                    "code-update",
-                    {
-                      code: pendingCodeRef.current.code,
-                      language: pendingCodeRef.current.language,
-                    },
-                    pendingCodeRef.current.id,
-                  );
-                } else {
-                  // Серверно-новое состояние (serverVersion > baseVersion):
-                  // сервер ушел вперед (изменения другого участника),
-                  // сбрасываем устаревший локальный буфер во избежание затирания правок
-                  pendingCodeRef.current = null;
-                  callbacksRef.current.onRemoteCodeUpdate?.(
-                    serverCodeState.content,
-                    serverCodeState.language as LanguageId,
-                  );
-                }
-              } else {
-                callbacksRef.current.onRemoteCodeUpdate?.(
-                  serverCodeState.content,
-                  serverCodeState.language as LanguageId,
-                );
-              }
-            }
             break;
           }
 
@@ -377,58 +377,6 @@ export function useSandboxRealtime({
             if (p.userId && peersRef.current.has(p.userId)) {
               peersRef.current.delete(p.userId);
               updatePeers();
-            }
-            break;
-          }
-
-          case "cursor.move": {
-            const p = envelope.payload;
-            if (p.userId && !isSelfServerPeer(p.userId)) {
-              let existing = peersRef.current.get(p.userId);
-              if (!existing) {
-                existing = {
-                  id: p.userId,
-                  name: p.username || "Участник",
-                  color: getColorForUser(p.userId),
-                  lastSeen: Date.now(),
-                };
-                peersRef.current.set(p.userId, existing);
-              }
-              existing.cursor = {
-                line: p.line,
-                column: p.column,
-                selectionEndLine: p.selectionStart,
-                selectionEndColumn: p.selectionEnd,
-              };
-              existing.lastSeen = Date.now();
-              updatePeers();
-            }
-            break;
-          }
-
-          case "code.update": {
-            const reqId = envelope.requestId;
-            const isOwnPending = pendingCodeRef.current?.id === reqId;
-            if (isOwnPending) {
-              pendingCodeRef.current = null;
-            }
-            const incomingVersion =
-              envelope.payload?.version ?? envelope.version ?? 0;
-            if (incomingVersion > 0) {
-              lastServerVersionRef.current = Math.max(
-                lastServerVersionRef.current,
-                incomingVersion,
-              );
-            }
-            if (markMessageSeen(reqId) || isOwnPending) {
-              break;
-            }
-            const p = envelope.payload;
-            if (p.content !== undefined) {
-              callbacksRef.current.onRemoteCodeUpdate?.(
-                p.content,
-                p.language as LanguageId,
-              );
             }
             break;
           }
@@ -496,9 +444,17 @@ export function useSandboxRealtime({
           // Повторная отправка локального буфера кода выполняется исключительно в обработчике room.sync
           // после проверки совпадения базовой ревизии (baseVersion === serverVersion).
           if (pendingTaskRef.current) {
+            sendTaskSwitch(
+              pendingTaskRef.current.taskId,
+              pendingTaskRef.current.language,
+              pendingTaskRef.current.id,
+            );
             sendMessage(
               "task-change",
-              { taskId: pendingTaskRef.current.taskId },
+              {
+                taskId: pendingTaskRef.current.taskId,
+                language: pendingTaskRef.current.language,
+              },
               pendingTaskRef.current.id,
             );
           }
@@ -516,7 +472,7 @@ export function useSandboxRealtime({
       }
       setWsConnected(false);
     };
-  }, [roomId, isSelfServerPeer, markMessageSeen, sendMessage]);
+  }, [roomId, isSelfServerPeer, markMessageSeen, sendMessage, sendTaskSwitch]);
 
   // 2. Локальный BroadcastChannel и localStorage (для мгновенного обмена между вкладками одного браузера)
   useEffect(() => {
@@ -561,9 +517,6 @@ export function useSandboxRealtime({
           peersRef.current.set(msg.senderId, existing);
         }
 
-        if (msg.type === "cursor-move" && msg.payload.cursor) {
-          existing.cursor = msg.payload.cursor;
-        }
         existing.lastSeen = Date.now();
         updatePeersState();
 
@@ -617,24 +570,19 @@ export function useSandboxRealtime({
     };
   }, [roomId, userId, userName, isSelfLocalPeer, markMessageSeen]);
 
-  // Формируем список соавторов с курсорами для Monaco Editor (исключая самого себя)
-  const collaborators: Collaborator[] = otherPeers
-    .filter((peer) => !isSelfLocalPeer(peer.id))
-    .map(mapPeerToCollaborator);
-
   return {
     userId,
     userName,
     peerCount: Math.max(1, otherPeers.length + 1),
     otherPeers,
-    collaborators,
     wsConnected,
-    broadcastCodeUpdate,
-    broadcastCursorMove,
     broadcastTaskChange,
     broadcastWebRTCSignal,
     broadcastRunResult,
     subscribeWebRTCSignal,
     registerWebRTCSignalHandler: subscribeWebRTCSignal,
+    subscribeEnvelope,
+    sendEnvelope,
+    getSocket,
   };
 }

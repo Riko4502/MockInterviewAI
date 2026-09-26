@@ -15,7 +15,8 @@ import type { InputProps } from "./types";
  * Базовый компонент поля ввода (Input).
  *
  * Особенности:
- * - Поддержка всех стандартных HTML-типов (`text`, `password`, `email`, `number` и т.д.);
+ * - Поддержка всех стандартных HTML-типов (`text`, `password`, `email`, `number`, `range` и т.д.);
+ * - При `type="range"` рендерит ползунок без стилей текстового поля;
  * - При `type="number"` автоматически блокирует ввод нечисловых символов;
  * - Для `type="number"` отображает стильные кастомные кнопки регулирования значения (stepper);
  * - Для `type="password"` отображает кнопку переключения видимости пароля;
@@ -50,6 +51,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const isNumber = type === "number";
     const isPassword = type === "password";
+    const isRange = type === "range";
 
     const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
 
@@ -196,9 +198,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         className={cn(
-          inputVariants(),
-          isNumber && showStepper && "pr-8",
-          isPassword && "pr-10",
+          isRange
+            ? "h-2 w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+            : inputVariants(),
+          !isRange && isNumber && showStepper && "pr-8",
+          !isRange && isPassword && "pr-10",
           className,
         )}
         {...props}

@@ -25,6 +25,7 @@
     "@packages/icons": "workspace:*",
     "@packages/observability": "workspace:^",
     "@packages/tailwind-config": "workspace:*",
+    "@packages/types": "workspace:*",
     "@packages/ui": "workspace:*",
     "@packages/utils": "workspace:*",
     "@sentry/nextjs": "^10.73.0",
@@ -41,6 +42,8 @@
     "react-hook-form": "^7.85.0",
     "react-i18next": "^17.0.12",
     "uuid": "^14.0.2",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.23",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
   },

@@ -54,12 +54,21 @@ import { Input, Label } from "@packages/ui";
   argTypes: {
     type: {
       control: "select",
-      options: ["text", "email", "password", "number", "search", "tel", "url"],
+      options: [
+        "text",
+        "email",
+        "password",
+        "number",
+        "range",
+        "search",
+        "tel",
+        "url",
+      ],
       description: "HTML-тип поля ввода.",
       table: {
         type: {
           summary:
-            '"text" | "email" | "password" | "number" | "search" | "tel" | "url"',
+            '"text" | "email" | "password" | "number" | "range" | "search" | "tel" | "url"',
         },
         defaultValue: { summary: '"text"' },
       },
@@ -271,6 +280,25 @@ export const InvalidState: Story = {
       <span className="text-xs text-destructive">
         Пожалуйста, укажите корректный адрес электронной почты
       </span>
+    </div>
+  ),
+};
+
+/**
+ * Ползунок (`type="range"`).
+ */
+export const Range: Story = {
+  render: () => (
+    <div className="space-y-1.5 w-80">
+      <Label htmlFor="zoom">Масштаб</Label>
+      <Input
+        id="zoom"
+        type="range"
+        min={1}
+        max={3}
+        step={0.01}
+        defaultValue={1}
+      />
     </div>
   ),
 };

@@ -1,5 +1,6 @@
 import "multer";
 import {
+  BadRequestException,
   ConflictException,
   forwardRef,
   GoneException,
@@ -10,13 +11,20 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  Locale,
   PublicUserProfileDto,
+  ThemeMode,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
-import type { Prisma, Role, User } from "../../generated/prisma/client";
+import {
+  type Prisma,
+  type Role,
+  ThemePreference,
+  type User,
+} from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
@@ -44,6 +52,8 @@ const USER_PROFILE_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
+  theme: true,
+  locale: true,
   role: {
     select: {
       slug: true,
@@ -141,6 +151,33 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по telegramId.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя или `null`, если не найден.
+   */
+  async findByTelegramId(telegramId: bigint): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { telegramId } });
+  }
+
+  /**
+   * Ищет пользователя по telegramId с подгрузкой роли и прав.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleByTelegramId(
+    telegramId: bigint,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { telegramId },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  /**
    * Ищет пользователя по username.
    *
    * @param username - Уникальный username.
@@ -180,6 +217,125 @@ export class UsersService {
         ...(data.githubId ? { githubId: data.githubId } : {}),
         roleId: defaultRole.id,
       },
+    });
+  }
+
+  /**
+   * Привязывает Telegram-аккаунт к пользователю.
+   *
+   * @param userId - UUID пользователя.
+   * @param data - Telegram данные: `telegramId` и опционально `telegramUsername`.
+   * @returns Сообщение об успешной привязке.
+   * @throws {NotFoundException} Если пользователь не найден (или P2025).
+   * @throws {ConflictException} Если у пользователя уже привязан иной Telegram аккаунт или этот TelegramId занят другим пользователем (или P2002).
+   */
+  async linkTelegram(
+    userId: string,
+    data: { telegramId: bigint; telegramUsername?: string | null },
+  ): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (user.telegramId !== null) {
+      if (user.telegramId === data.telegramId && !user.telegramLinkVerified) {
+        throw new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        );
+      }
+      throw new ConflictException(
+        "Telegram account is already linked to this user",
+      );
+    }
+
+    const existingTgUser = await this.findByTelegramId(data.telegramId);
+    if (existingTgUser && existingTgUser.id !== userId) {
+      throw new ConflictException(
+        "Telegram account is already linked to another user",
+      );
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error) {
+        if (error.code === "P2002") {
+          throw new ConflictException(
+            "Telegram account is already linked to another user",
+          );
+        }
+        if (error.code === "P2025") {
+          throw new NotFoundException("User not found");
+        }
+      }
+      throw error;
+    }
+
+    return { message: "Telegram account linked successfully" };
+  }
+
+  /**
+   * Создаёт нового пользователя через Telegram с назначением дефолтной роли USER.
+   *
+   * @param data - Данные Telegram регистрации: `email`, `passwordHash`, `telegramId`, `telegramUsername`, `displayName`, `avatarUrl`.
+   * @returns Созданный объект пользователя.
+   */
+  async createTelegramUser(data: {
+    email: string;
+    passwordHash: string;
+    telegramId: bigint;
+    telegramUsername?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    roleSlug?: string;
+    telegramLinkVerified?: boolean;
+  }): Promise<User> {
+    const roleSlug = data.roleSlug ?? SystemRole.USER;
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { slug: roleSlug },
+    });
+
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Default role '${roleSlug}' not found in database.`,
+      );
+    }
+
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        telegramId: data.telegramId,
+        telegramUsername: data.telegramUsername ?? null,
+        telegramLinkVerified: data.telegramLinkVerified ?? false,
+        displayName: data.displayName ?? null,
+        avatarUrl: data.avatarUrl ?? null,
+        username: null,
+        roleId: defaultRole.id,
+      },
+    });
+  }
+
+  /**
+   * Обновляет хеш пароля пользователя (§67 SPEC.md).
+   *
+   * @param id - UUID пользователя.
+   * @param passwordHash - Новый Argon2id хеш пароля.
+   * @returns Обновлённый объект пользователя.
+   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
     });
   }
 
@@ -240,6 +396,10 @@ export class UsersService {
           telegramUsername: dto.telegramUsername,
         }),
         ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+        ...(dto.theme !== undefined && {
+          theme: dto.theme.toUpperCase() as ThemePreference,
+        }),
+        ...(dto.locale !== undefined && { locale: dto.locale }),
       },
       select: USER_PROFILE_SELECT,
     });
@@ -460,6 +620,8 @@ export class UsersService {
       avatarUrl: profile.avatarUrl,
       telegramUsername: profile.telegramUsername,
       gitUrl: profile.gitUrl,
+      theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
+      locale: (profile.locale === "en" ? "en" : "ru") as Locale,
       createdAt:
         typeof profile.createdAt === "string"
           ? profile.createdAt

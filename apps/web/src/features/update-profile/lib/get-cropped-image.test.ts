@@ -19,12 +19,16 @@ class MockImage {
 
 describe("getCroppedImageFile", () => {
   const drawImage = vi.fn();
+  const fillRect = vi.fn();
 
   beforeEach(() => {
     drawImage.mockClear();
+    fillRect.mockClear();
     vi.stubGlobal("Image", MockImage);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       drawImage,
+      fillRect,
+      fillStyle: "",
     } as unknown as CanvasRenderingContext2D);
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
       (callback) => {
@@ -41,6 +45,7 @@ describe("getCroppedImageFile", () => {
       height: 80,
     });
 
+    expect(fillRect).toHaveBeenCalledWith(0, 0, 400, 400);
     expect(drawImage).toHaveBeenCalledWith(
       expect.any(MockImage),
       10,

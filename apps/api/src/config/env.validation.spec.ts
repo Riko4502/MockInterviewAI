@@ -5,6 +5,7 @@ const requiredEnv = {
   JWT_ACCESS_SECRET: "a".repeat(32),
   JWT_REFRESH_SECRET: "b".repeat(32),
   REFRESH_TOKEN_HASH_SECRET: "c".repeat(32),
+  INTERNAL_SERVICE_KEY: "d".repeat(32),
 };
 const github = {
   GITHUB_CLIENT_ID: "client",
@@ -32,6 +33,7 @@ describe("Валидация переменных окружения GitHub OAut
       validate({
         ...requiredEnv,
         NODE_ENV: "production",
+        TELEGRAM_BOT_TOKEN: "mock_token",
         ...github,
         [key]: githubHttp[key as keyof typeof githubHttp],
       }),
@@ -41,7 +43,12 @@ describe("Валидация переменных окружения GitHub OAut
   });
   it("принимает HTTPS-конфигурацию OAuth в production и сохраняет настройки GitHub", () => {
     expect(
-      validate({ ...requiredEnv, NODE_ENV: "production", ...github }),
+      validate({
+        ...requiredEnv,
+        NODE_ENV: "production",
+        TELEGRAM_BOT_TOKEN: "mock_token",
+        ...github,
+      }),
     ).toMatchObject(github);
   });
   it("сохраняет HTTP URL для development и test", () => {
@@ -99,6 +106,28 @@ describe("env.validation SENTRY_DSN", () => {
   it("отвергает некорректный URL", () => {
     expect(() => validate({ ...requiredEnv, SENTRY_DSN: "not-a-url" })).toThrow(
       "SENTRY_DSN must be a valid URL",
+    );
+  });
+});
+
+describe("env.validation TELEGRAM_BOT_TOKEN", () => {
+  it("требует TELEGRAM_BOT_TOKEN в production", () => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        NODE_ENV: "production",
+      }),
+    ).toThrow("TELEGRAM_BOT_TOKEN is required in production environment");
+  });
+
+  it("успешно проигрывает валидацию в production при наличии TELEGRAM_BOT_TOKEN", () => {
+    const env = validate({
+      ...requiredEnv,
+      NODE_ENV: "production",
+      TELEGRAM_BOT_TOKEN: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+    });
+    expect(env.TELEGRAM_BOT_TOKEN).toBe(
+      "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
     );
   });
 });

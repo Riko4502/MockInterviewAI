@@ -8,6 +8,7 @@
 | ⚡ **Realtime (Go)** | Go Tests, Revive, Govulncheck, Docker Smoke | `{{REALTIME_COV}}` | {{REALTIME_STATUS}} |
 | 📚 **Storybook** | TypeScript, Build Storybook, Interaction-тесты| `{{STORYBOOK_COV}}`| {{STORYBOOK_STATUS}} |
 | 📝 **Editor** | TypeScript, Biome, Vitest, Rslib Build | `{{EDITOR_COV}}` | {{EDITOR_STATUS}} |
+| 🤖 **Telegram Bot** | TypeScript, Biome, Vitest, Docker Smoke | `{{TELEGRAM_BOT_COV}}` | {{TELEGRAM_BOT_STATUS}} |
 | 🛡️ **Security** | TruffleHog (Секреты), Hadolint (Docker) | — | {{SECURITY_STATUS}} |
 
 *Отчет обновлен автоматически системой CI/CD. Сбор покрытия носит информационный характер и не блокирует PR.*

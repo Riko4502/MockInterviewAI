@@ -194,3 +194,282 @@ func TestClientPayloadBoundaryLimits(t *testing.T) {
 		t.Error("expected error for path traversal in filePath, got nil")
 	}
 }
+
+func TestClientYjsPayloadValidation(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	client := &Client{
+		ID:        "c-1",
+		UserID:    "user-1",
+		Username:  "Tester",
+		SessionID: "session-1",
+		logger:    logger,
+	}
+
+	validTaskKey := "task-1:typescript"
+	validUpdateID := "c1:1"
+	validData := "dGVzdC1kYXRh"
+
+	// 1. Валидный yjs.update
+	validUpdateEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-1",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+
+	raw, err := ParseRawEnvelope(validUpdateEnv)
+	if err != nil {
+		t.Fatalf("ParseRawEnvelope failed: %v", err)
+	}
+
+	sanitized, err := client.sanitizeIncomingPayload(raw)
+	if err != nil {
+		t.Fatalf("sanitizeIncomingPayload failed for valid yjs.update: %v", err)
+	}
+	if len(sanitized) == 0 {
+		t.Fatal("expected non-empty sanitized bytes")
+	}
+
+	// 2. Отклонение пустого taskKey
+	badKeyEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-2",
+		YjsUpdatePayload{
+			TaskKey:  "   ",
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badKeyEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty taskKey, got nil")
+	}
+
+	// 3. Отклонение невалидного taskKey с path traversal
+	badKeyEnv, _ = NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-3",
+		YjsUpdatePayload{
+			TaskKey:  "../task-1:typescript",
+			UpdateID: validUpdateID,
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badKeyEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for path traversal taskKey, got nil")
+	}
+
+	// 4. Отклонение пустого updateId
+	badUpdateIDEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-4",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: "",
+			Data:     validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(badUpdateIDEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty updateId, got nil")
+	}
+
+	// 5. Отклонение пустых данных data
+	emptyDataEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-5",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     "",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(emptyDataEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for empty data, got nil")
+	}
+
+	// 6. Отклонение данных, превышающих лимит 64 КБ (87384 символа)
+	oversizedData := strings.Repeat("A", maxYjsBase64Length+1)
+	oversizedEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-6",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     oversizedData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(oversizedEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for oversized yjs update data (> 64KB), got nil")
+	}
+
+	// 6a. Отклонение данных yjs.update, содержащих CR/LF
+	crlfDataEnv, _ := NewEnvelope(
+		EventYjsUpdate,
+		"session-1",
+		"req-6a",
+		YjsUpdatePayload{
+			TaskKey:  validTaskKey,
+			UpdateID: validUpdateID,
+			Data:     "AAA\r\nAAA=",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(crlfDataEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for yjs update data containing CR/LF, got nil")
+	}
+
+	// 7. Валидный yjs.awareness
+	awarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-7",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    validData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(awarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid awareness: %v", err)
+	}
+
+	// 8. Отклонение yjs.awareness с данными > 16 КБ
+	oversizedAwarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-8",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    oversizedData,
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(oversizedAwarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for oversized awareness data, got nil")
+	}
+
+	// 8a. Отклонение данных yjs.awareness, содержащих CR/LF
+	crlfAwarenessEnv, _ := NewEnvelope(
+		EventYjsAwareness,
+		"session-1",
+		"req-8a",
+		YjsAwarenessPayload{
+			TaskKey: validTaskKey,
+			Data:    "AAA\nAAA=",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(crlfAwarenessEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err == nil {
+		t.Error("expected error for awareness data containing CR/LF, got nil")
+	}
+
+	// 9. Валидный task.switch
+	switchEnv, _ := NewEnvelope(
+		EventTaskSwitch,
+		"session-1",
+		"req-9",
+		TaskSwitchPayload{
+			TaskKey: "task-2:python",
+		},
+	).ToBytes()
+	raw, _ = ParseRawEnvelope(switchEnv)
+	if _, err := client.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid task.switch: %v", err)
+	}
+}
+
+func TestClient_SanitizeIncomingPayload_YjsSnapshot(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	interviewer := NewClient("client-interviewer", "user-1", "Alice", "interviewer", "session-1", nil, nil, logger)
+	candidate := NewClient("client-candidate", "user-2", "Bob", "candidate", "session-1", nil, nil, logger)
+	observer := NewClient("client-observer", "user-3", "Charlie", "observer", "session-1", nil, nil, logger)
+
+	// Валидный snapshot
+	validEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-1",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "dGVzdA==",
+		},
+	).ToBytes()
+	raw, err := ParseRawEnvelope(validEnv)
+	if err != nil {
+		t.Fatalf("failed to parse envelope: %v", err)
+	}
+
+	// 1. Интервьюер может успешно отправлять валидный снимок
+	if _, err := interviewer.sanitizeIncomingPayload(raw); err != nil {
+		t.Errorf("unexpected error for valid yjs.snapshot from interviewer: %v", err)
+	}
+
+	// 2. Кандидат не имеет права отправлять снимок (CWE-862)
+	if _, err := candidate.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected authorization error for candidate sending yjs.snapshot, got nil")
+	}
+
+	// 3. Наблюдатель не имеет права отправлять снимок
+	if _, err := observer.sanitizeIncomingPayload(raw); err == nil {
+		t.Errorf("expected authorization error for observer sending yjs.snapshot, got nil")
+	}
+
+	// 4. Snapshot с CR/LF
+	crlfEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-2",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "dGVz\r\ndA==",
+		},
+	).ToBytes()
+	rawCRLF, _ := ParseRawEnvelope(crlfEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawCRLF); err == nil {
+		t.Errorf("expected error for yjs.snapshot with CR/LF, got nil")
+	}
+
+	// 5. Пустой snapshot
+	emptyEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-3",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "",
+		},
+	).ToBytes()
+	rawEmpty, _ := ParseRawEnvelope(emptyEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawEmpty); err == nil {
+		t.Errorf("expected error for empty snapshot, got nil")
+	}
+
+	// 6. Слишком короткий snapshot (< 2 байт после декодирования)
+	tooShortEnv, _ := NewEnvelope(
+		EventYjsSnapshot,
+		"session-1",
+		"req-snap-4",
+		YjsSnapshotPayload{
+			TaskKey:  "two-sum:typescript",
+			Snapshot: "AQ==", // 1 байт (0x01)
+		},
+	).ToBytes()
+	rawTooShort, _ := ParseRawEnvelope(tooShortEnv)
+	if _, err := interviewer.sanitizeIncomingPayload(rawTooShort); err == nil {
+		t.Errorf("expected error for too short snapshot data, got nil")
+	}
+}
+

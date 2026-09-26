@@ -1,9 +1,16 @@
 "use client";
 
-import type { LanguageId } from "@packages/editor";
-import { CameraIcon, PlayIcon, SettingsIcon, UndoIcon } from "@packages/icons";
-import { Button, Select } from "@packages/ui";
+import type { LanguageId, Theme } from "@packages/editor";
+import {
+  CameraIcon,
+  MoonIcon,
+  PlayIcon,
+  SunIcon,
+  UndoIcon,
+} from "@packages/icons";
+import { Button, Select, useTheme } from "@packages/ui";
 import { useTranslation } from "react-i18next";
+import { usePreferences } from "@/entities/user";
 import "@/shared/lib/i18n";
 import { useSandboxMedia } from "../model/SandboxMediaContext";
 import { useSandboxStore } from "../model/useSandboxStore";
@@ -20,14 +27,17 @@ const LANGUAGES: { id: LanguageId; label: string }[] = [
 interface SandboxHeaderActionsProps {
   onLanguageChange?: (lang: LanguageId) => void;
   onResetCode?: () => void;
+  onRunCode?: () => void;
 }
 
 export function SandboxHeaderActions({
   onLanguageChange,
   onResetCode,
+  onRunCode,
 }: SandboxHeaderActionsProps) {
   const { t } = useTranslation("interview");
   const { isCallConnected: isInCall } = useSandboxMedia();
+  const isRunning = useSandboxStore((s) => s.isRunning);
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
   const theme = useSandboxStore((s) => s.theme);
@@ -35,6 +45,8 @@ export function SandboxHeaderActions({
   const resetCode = useSandboxStore((s) => s.resetCode);
   const isVideoOpen = useSandboxStore((s) => s.isVideoOpen);
   const toggleVideoOpen = useSandboxStore((s) => s.toggleVideoOpen);
+  const { setTheme: setAppTheme } = useTheme();
+  const { changeTheme } = usePreferences();
 
   const handleSelectLanguage = (val: string) => {
     const nextLang = val as LanguageId;
@@ -51,6 +63,13 @@ export function SandboxHeaderActions({
     } else {
       resetCode();
     }
+  };
+
+  const handleToggleTheme = () => {
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    toggleTheme();
+    setAppTheme?.(nextTheme);
+    changeTheme(nextTheme);
   };
 
   return (
@@ -98,11 +117,16 @@ export function SandboxHeaderActions({
       <Button
         variant="ghost"
         size="icon"
-        onClick={toggleTheme}
+        onClick={handleToggleTheme}
         className="size-9"
         title={t("sandbox.header.themeTooltip", { theme })}
+        aria-label={t("sandbox.header.themeTooltip", { theme })}
       >
-        <SettingsIcon className="size-4" />
+        {theme === "dark" ? (
+          <SunIcon className="size-4" />
+        ) : (
+          <MoonIcon className="size-4" />
+        )}
       </Button>
 
       {/* Сброс кода */}
@@ -117,16 +141,28 @@ export function SandboxHeaderActions({
         {t("sandbox.header.resetCode")}
       </Button>
 
-      {/* Запуск кода (временно отключено) */}
+      {/* Запуск кода */}
       <Button
         variant="primary"
         size="sm"
-        disabled={true}
-        className="h-9 gap-1.5 bg-emerald-600/50 px-4 text-xs text-white/70 cursor-not-allowed shadow-xs"
+        disabled={isRunning || !onRunCode}
+        onClick={onRunCode}
+        className={`h-9 gap-1.5 px-4 text-xs shadow-xs ${
+          isRunning || !onRunCode
+            ? "bg-emerald-600/50 text-white/70 cursor-not-allowed"
+            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+        }`}
         title={t("sandbox.header.runCodeTooltip")}
       >
-        <PlayIcon className="size-3.5 fill-current" />
-        {t("sandbox.header.runCode")}
+        {isRunning ? (
+          <div
+            data-testid="run-code-spinner"
+            className="size-3.5 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
+          />
+        ) : (
+          <PlayIcon className="size-3.5 fill-current" />
+        )}
+        {isRunning ? t("sandbox.console.running") : t("sandbox.header.runCode")}
       </Button>
     </div>
   );

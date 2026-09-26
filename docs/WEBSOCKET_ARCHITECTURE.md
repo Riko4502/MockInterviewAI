@@ -1,45 +1,55 @@
 # WebSocket Realtime Service: Архитектура, Принципы и Руководство для Go-разработчика
 
-Документ подробно описывает внутреннее устройство WebSocket-сервиса (`apps/realtime`), детально объясняет **что, зачем и почему** устроено именно так, разбирает основы многопоточности в Go, управление памятью, сетевую безопасность и горизонтальное масштабирование через Redis.
+Документ подробно описывает внутреннее устройство WebSocket-сервиса (`apps/realtime`), детально объясняет **что, зачем и почему** устроено именно так, разбирает архитектуру **Yjs CRDT + Dumb Relay**, паттерны многопоточности в Go, управление памятью, сетевую безопасность и персистентность через Redis Streams.
 
 ---
 
 ## Оглавление
-1. [Введение: Зачем нужен WebSocket и в чем отличие от HTTP](#1-введение-зачем-нужен-websocket)
-2. [Общая архитектурная схема сервиса](#2-общая-архитектурная-схема-сервиса)
-3. [Жизненный цикл соединения (Handshake, Sync, I/O, Cleanup)](#3-жизненный-цикл-соединения)
-4. [Анатомия компонентов: Hub, Room, Client](#4-анатомия-компонентов)
+1. [Введение: Архитектура реального времени и Yjs CRDT](#1-введение-архитектура-реального-времени-и-yjs-crdt)
+2. [Общая архитектурная схема сервиса (Yjs CRDT + Dumb Relay)](#2-общая-архитектурная-схема-сервиса)
+3. [Жизненный цикл соединения и протокол синхронизации](#3-жизненный-цикл-соединения-и-протокол-синхронизации)
+   - [3.1. Subscription-First Ordering](#31-subscription-first-ordering)
+   - [3.2. Ingress ACK и гарантии доставки](#32-ingress-ack-и-гарантии-доставки)
+   - [3.3. Переключение задач (Task Switching)](#33-переключение-задач-task-switching)
+4. [Анатомия компонентов: Hub, Room, Client, SaveQueue](#4-анатомия-компонентов)
    - [4.1. Hub — Глобальный реестр комнат](#41-hub--глобальный-реестр-комнат)
    - [4.2. Room — Изолированная комната сессии](#42-room--изолированная-комната-сессии)
    - [4.3. Client — Сетевое соединение и буферизация](#43-client--сетевое-соединение-и-буферизация)
+   - [4.4. SaveQueue — Асинхронное сохранение и in-memory буферизация](#44-savequeue--асинхронное-сохранение-и-in-memory-буферизация)
 5. [Паттерны многопоточности и Concurrency в Go](#5-паттерны-многопоточности-и-concurrency-в-go)
    - [Почему именно 2 горутины (ReadPump и WritePump)?](#почему-именно-2-горутины-readpump-и-writepump)
    - [Неблокирующая отправка и защита от зависших клиентов (Slow Consumer)](#неблокирующая-отправка-и-защита-от-зависших-клиентов)
    - [Защита от утечек горутин (Goroutine Leaks)](#защита-от-утечек-горутин-goroutine-leaks)
    - [Мьютексы и предотвращение Deadlock между Hub и Room](#мьютексы-и-предотвращение-deadlock)
-6. [Распределенная синхронизация через Redis](#6-распределенная-синхронизация-через-redis)
+6. [Распределенная синхронизация и персистентность через Redis](#6-распределенная-синхронизация-и-персистентность-через-redis)
+   - [Redis Streams: Хранение дельт документов per-task doc](#redis-streams-хранение-дельт-документов-per-task-doc)
+   - [5-состояний атомарного сидинга (seed_task_doc.lua)](#5-состояний-атомарного-сидинга-seed_task_doclua)
    - [Горизонтальное масштабирование комнат (Pub/Sub)](#горизонтальное-масштабирование-комнат-pubsub)
-   - [Персистентность кода при сбоях и перезапусках](#персистентность-кода-при-сбоях-и-перезапусках)
    - [Мгновенный отзыв токенов (Token Revocation & Eviction)](#мгновенный-отзыв-токенов-token-revocation--eviction)
 7. [Безопасность и валидация данных](#7-безопасность-и-валидация-данных)
 8. [Протокол сообщений (WebSocket Envelope)](#8-протокол-сообщений-websocket-envelope)
+   - [События Yjs CRDT](#события-yjs-crdt)
+   - [События медиа и чата](#события-медиа-и-чата)
+   - [Вывод из эксплуатации устаревших событий (Retirement Notice)](#вывод-из-эксплуатации-устаревших-событий-retirement-notice)
 9. [Пошаговое руководство: Как добавить новое событие](#9-пошаговое-руководство-как-добавить-новое-событие)
 10. [Словарь терминов Go-разработчика](#10-словарь-терминов)
 
 ---
 
-## 1. Введение: Зачем нужен WebSocket?
+## 1. Введение: Архитектура реального времени и Yjs CRDT
 
-### Проблема классического HTTP (REST API):
-В обычном HTTP протокол работает по модели **«Запрос — Ответ» (Request-Response)**. Инициатором всегда выступает клиент (браузер):
-- Клиент отправляет запрос: `GET /api/session/123/code`.
-- Сервер отвечает: `{ "code": "..." }` и закрывает TCP-соединение (или возвращает его в пул).
-- **Минус для реального времени:** Сервер **не может сам** отправить клиенту сообщение, когда второй участник (интервьюер) что-то напечатал. Если делать опрос (polling) каждые 500 мс — это создает огромную паразитную нагрузку на CPU, сеть и базу данных.
+### Эволюция синхронизации кода: от LWW к Yjs CRDT
+Ранее совместное редактирование кода в песочнице строилось на модели **Last-Write-Wins (LWW)**:
+- Клиенты отправляли полные строки кода или diff-снимки с инкрементальными версиями (`code.update`).
+- При одновременном вводе двумя участниками возникали гонки версий (race conditions), мердж-конфликты, откат правок одного из авторов и рассинхронизация курсоров.
 
-### Решение — WebSocket:
-WebSocket устанавливает **постоянное двунаправленное (Full-Duplex) TCP-соединение**:
-- И клиент, и сервер могут в любой миллисекундный момент отправить сообщение в сокет без накладных расходов на HTTP-заголовки.
-- Задержка между нажатием клавиши кандидатом и отображением у интервьюера составляет **< 20 мс**.
+### Архитектура Yjs CRDT + Dumb Relay:
+В новой архитектуре кодовая база переведена на **Yjs Conflict-free Replicated Data Types (CRDT)**:
+1. **Dumb Relay на Go бэкенде:** Go-сервис `apps/realtime` не парсит, не мерджит и не интерпретирует структуру документа Yjs в оперативной памяти Go. Он функционирует как ультрабыстрый, высоконадежный транзитный ретранслятор (**Dumb Relay**):
+   - Валидирует размеры конвертов и Base64-содержимого;
+   - Мгновенно рассылает дельты подключенным участникам комнаты ($P_{99} < 10$ мс, по бенчмаркам $\approx 520 \ \mu\text{s}$);
+   - Асинхронно персистит дельты в **Redis Streams** для гарантированного восстановления истории при переподключениях.
+2. **Deterministic Merge на клиентах:** Все клиенты (браузерные `Y.Doc`) получают бинарные дельты и локально применяют их через CRDT-алгоритмы Yjs. Математически гарантируется строгая сходимость (strong eventual consistency) без необходимости арбитража на сервере.
 
 ---
 
@@ -48,306 +58,193 @@ WebSocket устанавливает **постоянное двунаправл
 ```mermaid
 flowchart TB
     subgraph Clients["Клиенты (Браузеры)"]
-        C1["Кандидат (Браузер A)"]
-        C2["Интервьюер (Браузер B)"]
+        C1["Кандидат (Yjs Doc + Provider)"]
+        C2["Интервьюер (Yjs Doc + Provider)"]
     end
 
-    subgraph GoBackend["Go Realtime Service (apps/realtime)"]
+    subgraph GoBackend["Go Realtime Service (apps/realtime) — Dumb Relay"]
         direction TB
         
         subgraph EntryPoint["1. Точка входа & Аутентификация"]
-            Handler["WebSocketHandler (Chi Router)\n- Проверка Origin (CSWSH)\n- Верификация тикета (subprotocol: realtime, <ticket>)\n- Приоритет: тикет → Bearer → Cookie\n- Проверка лимитов (Max Connections)"]
+            Handler["WebSocketHandler (Chi Router)\n- Проверка Origin (CSWSH)\n- Верификация тикета (subprotocol: realtime, <ticket>)\n- Лимиты соединений"]
         end
 
         subgraph HubLayer["2. Hub (Синглтон реестра комнат)"]
-            Hub["Hub\n- rooms: map[string]*Room\n- mu: sync.RWMutex\n- EvictUser(userID) / EvictFromRoom(sessionID, userID)"]
+            Hub["Hub\n- rooms: map[string]*Room\n- mu: sync.RWMutex\n- EvictUser / EvictFromRoom"]
         end
 
-        subgraph RoomLayer["3. Room (Сессия собеседования: 123)"]
-            Room["Room (SessionId: 123)\n- clients: map[string]*Client\n- broadcast chan (буфер 256)\n- lastCodeState (снимок кода в памяти)\n- idleTimer (таймер очистки 60 сек)"]
+        subgraph RoomLayer["3. Room (SessionId: 123)"]
+            Room["Room (Dumb Relay Engine)\n- clients: map[string]*Client\n- activeTaskKey: string\n- saveQueue: SaveQueue (микробатчи в Redis)\n- pubQueue: chan []byte (FIFO в Redis Pub/Sub)"]
             
             subgraph Client1Goroutines["Client A (Кандидат)"]
-                R1["ReadPump() (чтение из сокета)"]
-                W1["WritePump() (запись в сокет + Ping)"]
+                R1["ReadPump()"]
+                W1["WritePump()"]
                 Ch1["sendCh: chan []byte (буфер 256)"]
             end
 
             subgraph Client2Goroutines["Client B (Интервьюер)"]
-                R2["ReadPump() (чтение из сокета)"]
-                W2["WritePump() (запись в сокет + Ping)"]
+                R2["ReadPump()"]
+                W2["WritePump()"]
                 Ch2["sendCh: chan []byte (буфер 256)"]
             end
         end
     end
 
-    subgraph RedisLayer["4. Слой данных (Redis)"]
-        RPubSub["Redis Pub/Sub\n(session:{id}:events)"]
-        RStorage["Redis KV Storage\n(session:{id}:code - TTL 24h)"]
-        RRevoke["Redis Pub/Sub\n(auth:revocations)"]
+    subgraph RedisLayer["4. Слой данных (Redis Cluster)"]
+        RStreams["Redis Streams (Per-task doc)\n{session:123}:task:<taskKey>:updates\n(TTL 24h, XRANGE / XADD)"]
+        RPubSub["Redis Pub/Sub\nsession:123:events"]
+        RRevoke["Redis Pub/Sub\nauth:revocations"]
     end
 
     %% Сетевой Handshake
     C1 <-->|"WSS Handshake (subprotocol: realtime, <ticket>)"| Handler
     C2 <-->|"WSS Handshake (subprotocol: realtime, <ticket>)"| Handler
 
-    %% Регистрация в Hub и Room
+    %% Регистрация
     Handler -->|"GetOrCreateRoom(id)"| Hub
     Hub -->|"room.Run(ctx)"| Room
-    Handler -->|"room.Register(client)"| Room
-    Room --> Client1Goroutines
-    Room --> Client2Goroutines
+    Handler -->|"room.Register(client) [Subscription-First]"| Room
 
-    %% Поток сообщений (Code Update)
-    C1 -->|"WS JSON Frame (code.update)"| R1
-    R1 -->|"Валидация & Санитизация"| Room
-    Room -->|"Broadcast"| Ch2
+    %% Поток Yjs дельт (Dumb Relay)
+    C1 -->|"WS JSON (yjs.update)"| R1
+    R1 -->|"Валидация Base64 (max 64KB)"| Room
+    Room -->|"1. Ingress ACK (yjs.ack)"| Ch1
+    Room -->|"2. Broadcast (yjs.update)"| Ch2
+    Room -->|"3. Enqueue"| RStreams
+    Room -->|"4. PubQueue"| RPubSub
     Ch2 --> W2
-    W2 -->|"WS JSON Frame"| C2
-
-    %% Взаимодействие с Redis
-    Room <-->|"Межсерверная синхронизация"| RPubSub
-    Room -->|"SaveCodeState (TTL 24h)"| RStorage
-    Hub <-->|"Слушает бан юзеров"| RRevoke
+    W2 -->|"WS JSON (yjs.update)"| C2
 ```
 
 ---
 
-## 3. Жизненный цикл соединения
+## 3. Жизненный цикл соединения и протокол синхронизации
 
-Ниже показана полная последовательность событий от первого клика в браузере до корректного закрытия:
+### 3.1. Subscription-First Ordering
+Критически важный паттерн при подключении клиента или смене задачи:
+1. **Шаг 1 (Subscription-First):** Сокет клиента сначала регистрируется в комнате (`r.clients[client.ID] = client`). Клиент начинает получать все live-события комнаты в реальном времени. В браузере провайдер складывает их во внутреннюю очередь `liveQueue`.
+2. **Шаг 2 (GetPending in-memory snapshot):** Захватывается снимок оперативной очереди `saveQueue.GetPending(taskKey)` — дельты, поступившие в память сервера, но еще не сброшенные в Redis.
+3. **Шаг 3 (XRANGE Redis Stream):** Выполняется запрос `XRANGE {session:<id>}:task:<taskKey>:updates - +` для получения всех дельт, персистированных в Redis.
+4. **Шаг 4 (Конкатенация истории):** Сервер конкатенирует `streamUpdates` и `pendingUpdates`.
+5. **Шаг 5 (`yjs.init` delivery):** Сервер отправляет клиенту конверт `yjs.init`. Клиент атомарно в транзакции применяет историю дельт к локальному документу `Y.Doc`, после чего синхронно опустошает (drains) накопленные в `liveQueue` сообщения. Гарантируется нулевая потеря обновлений между историей и live-потоком!
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Candidate as Кандидат (Client A)
-    actor Interviewer as Интервьюер (Client B)
-    participant Handler as WebSocketHandler
-    participant Hub as Hub
-    participant Room as Room Goroutine
-    participant Redis as Redis (KV & Pub/Sub)
+    actor Client as Клиент (RealtimeYjsProvider)
+    participant Room as Room (Go Realtime)
+    participant SaveQueue as In-Memory SaveQueue
+    participant Redis as Redis Stream
 
-    Note over Candidate,Handler: 1. ЭТАП: Получение тикета & HTTP Upgrade
-    Candidate->>Handler: POST /realtime/ticket (Bearer access)
-    Handler->>Handler: Верификация access, живая сессия (auth:session:{sid}), выпуск тикета (typ:"realtime", exp≈5м, bound to sessionId)
-    Handler-->>Candidate: { ticket }
-    Candidate->>Handler: GET /ws/sessions/{id} (subprotocol: realtime, <ticket>)
-    Handler->>Handler: Проверка Origin (Защита от CSWSH)
-    Handler->>Handler: Проверка тикета (VerifyToken, ConsumeTicket(jti), привязка к комнате)
-    Handler->>Handler: websocket.Accept(w, r) -> Апгрейд до WebSocket
-    
-    Note over Handler,Room: 2. ЭТАП: Регистрация и получение состояния
-    Handler->>Hub: Hub.GetOrCreateRoom(sessionID)
-    Hub->>Room: Запуск горутины Room.Run() (если комната новая)
-    Room->>Redis: GetCodeState(sessionID) -> загрузка сохраненного кода
-    Handler->>Room: Room.Register(Client A)
-    
-    par Запуск горутин клиента
-        Handler->>Candidate: go ClientA.WritePump()
-        Handler->>Candidate: go ClientA.ReadPump()
-    end
+    Note over Client,Room: 1. Подключение и регистрация (Subscription-First)
+    Client->>Room: WebSocket Connect & Register
+    Room->>Room: Добавление в r.clients (подписка на live updates активна)
+    Client->>Client: Буферизация live updates в liveQueue
 
-    Room->>Candidate: Отправка 'room.sync' (участники, текущий код, права)
+    Note over Room,Redis: 2. Сбор истории документа
+    Room->>SaveQueue: GetPending(taskKey) -> pendingUpdates
+    Room->>Redis: XRANGE {session:id}:task:taskKey:updates -> streamUpdates
+    Room->>Room: Конкатенация (streamUpdates + pendingUpdates)
 
-    Note over Interviewer,Room: 3. ЭТАП: Вход второго участника
-    Interviewer->>Handler: GET /ws/sessions/{id} (Вход интервьюера)
-    Handler->>Room: Room.Register(Client B)
-    Room->>Candidate: Event: 'presence.join' (Интервьюер вошел)
-    Room->>Interviewer: Event: 'room.sync' (Кандидат уже в комнате + код)
-
-    Note over Candidate,Interviewer: 4. ЭТАП: Активная работа (Печать кода)
-    Candidate->>Room: Event: 'code.update' (изменен файл solution.go)
-    Room->>Redis: 1. SET session:{id}:code (кеш на 24 часа)<br/>2. PUBLISH session:{id}:events (для других серверов)
-    Room->>Interviewer: Event: 'code.update' (доставка в буфер Client B)
-
-    Note over Candidate,Room: 5. ЭТАП: Heartbeat (Проверка связи)
-    loop Каждые 30 секунд
-        Room->>Candidate: Ping Frame
-        Candidate-->>Room: Pong Frame (ReadDeadline обновлен)
-    end
-
-    Note over Candidate,Room: 6. ЭТАП: Выход и очистка ресурсов
-    Candidate->>Room: Закрытие вкладки (TCP FIN)
-    Room->>Interviewer: Event: 'presence.leave' (Кандидат вышел)
-    Note over Room: Если в комнате 0 человек -> запуск idleTimer (60 сек)
-    Note over Room: По истечении 60 сек -> Hub.RemoveRoom(id), закрытие горутины
+    Note over Client,Room: 3. Инициализация документа
+    Room->>Client: Event: 'yjs.init' (все дельты)
+    Client->>Client: Y.applyUpdate(doc, updates)
+    Client->>Client: Synchronous drain liveQueue -> Y.applyUpdate
+    Client->>Client: State: 'synced'
 ```
+
+### 3.2. Ingress ACK и гарантии доставки
+- **Протокол Ingress ACK:** При получении `yjs.update` Go-сервер помещает дельту в оперативную очередь `saveQueue` и **немедленно** отправляет клиенту-автору подтверждение `yjs.ack` с `taskKey` и `updateId`.
+- **Accepted MVP Risk Window:** Подтверждение отдается сразу после постановки в in-memory очередь (ACK-after-enqueue), до фактического выполнения батч-сброса в Redis Stream (который происходит каждые 50 мс или при накоплении батча). В случае внезапного аварийного падения процесса Go (SIGKILL/паника ОС) в течение этого окна до 50 мс дельты могут быть утрачены. Для MVP это осознанный компромисс ради достижения $P_{99} < 10$ мс broadcast latency.
+- **Повторная отправка при обрыве:** На стороне веб-клиента неотвеченные дельты хранятся в `unsentQueue`. При разрыве соединения и реконнекте клиент автоматически выполняет пакетный досыл накопленных дельт.
+
+### 3.3. Переключение задач (Task Switching)
+- Переключение активной задачи инициируется конвертом `task.switch { taskKey: "<taskId>:<lang>" }`.
+- Go-сервер атомарно выполняет сидинг целевой задачи в Redis (`seed_task_doc.lua`), рассылает широковещательное уведомление `task.switched`, после чего отправляет всем участникам актуальный `yjs.init` для новой задачи.
 
 ---
 
 ## 4. Анатомия компонентов
 
-В коде реализовано строгое разделение ответственности между тремя основными сущностями.
+### 4.1. Hub — Глобальный реестр комнат (`internal/ws/hub.go`)
+- Синглтон реестра комнат `rooms map[string]*Room`.
+- Слушает Redis Pub/Sub канал `auth:revocations`. При вызове `Hub.EvictUser(userID)` или `Hub.EvictFromRoom(sessionID, userID)` разрывает соединения с кодом `StatusPolicyViolation`.
 
-### 4.1. Hub — Глобальный реестр комнат
-- **Файл:** `internal/ws/hub.go`
-- **Что делает:** Является синглтоном в памяти сервиса и держит карту всех комнат `rooms map[string]*Room`.
-- **Зачем нужен:**
-  1. Централизует доступ к комнатам — когда приходит новый HTTP-запрос, `Hub` определяет, существует ли уже комната или ее нужно создать (`GetOrCreateRoom`).
-  2. Слушает глобальный канал Redis `auth:revocations`. При ревокации (logout/bane) `Hub.EvictUser(userID)` мгновенно находит все комнаты, где сидит этот пользователь, и принудительно разрывает сокет с кодом `StatusPolicyViolation` (`user authentication revoked`). Если сообщение содержит `sessionId` (close-сессии), вызывается `Hub.EvictFromRoom(sessionID, userID)` — только в комнате данной сессии, с кодом `StatusPolicyViolation` (`session closed`).
-  3. Предоставляет метрики для Prometheus: `TotalRooms()`, `TotalClients()`.
+### 4.2. Room — Изолированная комната сессии (`internal/ws/room.go`)
+- Управляет клиентами сессии, порядком доставки сообщений и очередями сохранения.
+- **Политика 1 сокет = 1 пользователь:** Вытесняет дублирующие соединения (`StatusGoingAway: displaced by new connection`).
+- **Сворачивание при простое (Idle Timer):** При 0 участников запускает 60-секундный таймер перед выгрузкой из Hub.
 
-### 4.2. Room — Изолированная комната сессии
-- **Файл:** `internal/ws/room.go`
-- **Что делает:** Управляет отдельным собеседованием (`sessionID`), изолируя его участников от других сессий.
-- **Ключевые механизмы:**
-  - **Политика «1 пользователь = 1 активное соединение»:** Если кандидат открыл собеседование во второй вкладке браузера, `Room.handleRegister()` находит его старое соединение и мягко вытесняет его (`StatusGoingAway: displaced by new connection`). Это предотвращает рассинхронизацию стейта.
-  - **Снимок кода (`lastCodeState`):** Комната всегда держит в памяти актуальный код. При входе нового участника он не ждет, пока кто-то нажмет клавишу, а сразу получает актуальный код через событие `room.sync`.
-  - **Автоматическая выгрузка (Reaper Timer):** Пустая комната не висит в памяти вечно. Если из комнаты вышли все участники, включается `idleTimer` на 60 секунд. Если за 60 секунд никто не вернулся — комната удаляется из `Hub` и её горутина завершается.
+### 4.3. Client — Сетевое соединение (`internal/ws/client.go`)
+- Обертка над WebSocket-соединением (`coder/websocket`).
+- Содержит `sendCh chan []byte` (буфер 256) и `limiter *rate.Limiter` (60 msg/s, burst 120).
 
-### 4.3. Client — Сетевое соединение и буферизация
-- **Файл:** `internal/ws/client.go`
-- **Что делает:** Представляет собой обертку над физическим TCP/WebSocket-соединением конкретного пользователя.
-- **Ключевые поля структуры:**
-  ```go
-  type Client struct {
-      ID        string          // Уникальный UUID соединения
-      UserID    string          // ID пользователя из JWT
-      Username  string          // Отображаемое имя
-      Role      string          // Роль: "interviewer" | "candidate"
-      SessionID string          // ID сессии
-      conn      *websocket.Conn // Сырое соединение (coder/websocket)
-      sendCh    chan []byte     // Буферизированный канал отправки (256 msg)
-      doneCh    chan struct{}   // Сигнал закрытия соединения
-      limiter   *rate.Limiter   // Token Bucket (60 msg/s, burst 120)
-  }
-  ```
+### 4.4. SaveQueue — Асинхронное сохранение Yjs (`internal/ws/save_queue.go`)
+- Специализированная очередь для дельт Yjs:
+  - Буферизирует до 10 000 входящих дельт (`MaxSaveQueueSize = 10000`);
+  - При переполнении очереди возвращает ошибку `ErrSaveQueueFull`, предотвращая неконтролируемый рост памяти процесса (OOM protection);
+  - Метод `GetPending(taskKey)` возвращает изолированную shallow copy еще не сброшенных дельт для детерминированной сборки пакета `yjs.init`;
+  - Фоновый воркер сбрасывает дельты в Redis Stream пачками (`MaxBatchSize = 100`) с интервалом `DefaultFlushInterval = 50ms`;
+  - При graceful shutdown комнаты вызывается `finalFlush()` с тайм-аутом 3 секунды для сохранения всех накопившихся дельт перед завершением.
 
 ---
 
 ## 5. Паттерны многопоточности и Concurrency в Go
 
-Этот раздел — самый важный для понимания того, как писать отказоустойчивый асинхронный код на Go без дедлоков и утечек памяти.
-
 ### Почему именно 2 горутины (`ReadPump` и `WritePump`)?
-
-> ⚠️ **Главное ограничение WebSocket-библиотек в Go:**  
-> Структура `websocket.Conn` **НЕ является потокобезопасной для одновременной записи**. Если две горутины одновременно вызовут `conn.Write()`, это приведет к порче данных во фреймах протокола или панике рантайма.
-
-#### Решение — Паттерн «Один писатель, один читатель»:
-1. **`WritePump` (Единственный писатель):**
-   - Только эта горутина вызывает `conn.Write()` и `conn.Ping()`.
-   - Она сидит в цикле `select` и ждет сообщений из канала `client.sendCh`.
-   - Если серверу нужно отправить сообщение клиенту, он **не пишет в сокет напрямую**, а кладет байты в `client.sendCh`.
-2. **`ReadPump` (Единственный читатель):**
-   - Только эта горутина вызывает `conn.Read()`.
-   - Она блокируется в ожидании байтов от клиента. Как только сообщение пришло — проверяет лимиты, парсит JSON и передает в комнату `room.broadcast <- data`.
-
-```go
-// WritePump: Единственная горутина, пишущая в сокет
-func (c *Client) WritePump(ctx context.Context) {
-    pingTicker := time.NewTicker(30 * time.Second)
-    defer pingTicker.Stop()
-
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case <-c.doneCh:
-            return
-        case <-pingTicker.C:
-            // Heartbeat: отправляем Ping кадр
-            pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-            err := c.conn.Ping(pingCtx)
-            cancel()
-            if err != nil {
-                c.Close(websocket.StatusGoingAway, "heartbeat timeout")
-                return
-            }
-        case msg, ok := <-c.sendCh:
-            if !ok {
-                return // Канал закрыт
-            }
-            writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-            err := c.conn.Write(writeCtx, websocket.MessageText, msg)
-            cancel()
-            if err != nil {
-                c.Close(websocket.StatusInternalError, "write failure")
-                return
-            }
-        }
-    }
-}
-```
-
----
+`websocket.Conn` **не является потокобезопасным для параллельной записи**. 
+- `WritePump` — единственная горутина, вызывающая `conn.Write()` и `conn.Ping()`. Вычитывает байты из `client.sendCh`.
+- `ReadPump` — единственная горутина, читающая из сокета через `conn.Read()`.
 
 ### Неблокирующая отправка и защита от зависших клиентов
-
-Что произойдет, если у одного из участников (например, у кандидата в поезде) пропал интернет или завис браузер?
-- Его TCP-буфер заполнится.
-- Если бы мы писали в канал блокирующим вызовом `c.sendCh <- msg`, то при заполнении буфера горутина комнаты `Room.Run()` **намертво бы заблокировалась**!
-- В результате перестали бы доставляться сообщения **всем остальным участникам комнаты**!
-
-#### Решение в `client.Send()`:
-Используется конструкция `select` с блоком `default`:
 ```go
 func (c *Client) Send(msg []byte) bool {
     select {
     case <-c.doneCh:
         return false
     case c.sendCh <- msg:
-        return true // Успешно положили в буфер
+        return true
     default:
-        // Буфер переполнен (Slow Consumer / сетевой лаг)
+        // Slow Consumer: буфер переполнен
         c.logger.Warn("client send buffer full, dropping message")
         return false
     }
 }
 ```
-Если буфер канала (256 сообщений) заполнен, вызов не зависает, а мгновенно выходит в `default`.
-
----
-
-### Защита от утечек горутин (Goroutine Leaks)
-
-Если горутина осталась висеть в памяти навсегда (например, заблокировалась на чтении из канала, который никто не закроет) — память процесса будет расти, пока сервер не упадет с Out of Memory (OOM).
-
-Как мы предотвращаем утечки:
-1. **Канал закрытия `doneCh`:** При вызове `c.Close()` срабатывает `sync.Once`, который закрывает `doneCh`. Все циклы `select` реагируют на `case <-c.doneCh:` и немедленно завершают горутины.
-2. **Передача `context.Context`:** Все I/O операции (`Read`, `Write`, `Ping`) принимают контекст с таймаутом (`context.WithTimeout`). Если сокет завис, операция принудительно прервется через 5 секунд.
-3. **`sync.WaitGroup` в Hub:** При Graceful Shutdown сервер ждет завершения всех горутин комнат (`h.wg.Wait()`).
-
----
+При переполнении буфера медленный клиент принудительно отключается сервером (`StatusPolicyViolation: send buffer overflow`).
 
 ### Мьютексы и предотвращение Deadlock
-
-В сервисе используются два уровня мьютексов:
-- `Hub.mu` (`sync.RWMutex`) — защищает карту комнат `rooms`.
-- `Room.mu` (`sync.RWMutex`) — защищает список клиентов комнаты `clients` и состояние кода `lastCodeState`.
-
-#### Правило порядка захвата мьютексов:
-> Чтобы избежать дедлока, порядок захвата блокировок должен быть **всегда однонаправленным**:  
-> `Hub.mu` ➡️ `Room.mu` (и никогда наоборот!).
-
-Если комнате нужно удалить саму себя из `Hub`, она не захватывает `Hub.mu` напрямую изнутри критической секции `Room.mu`, а вызывает переданный колбэк `onEmpty(roomID)`, предварительно освободив все свои мьютексы.
+Строгий порядок захвата блокировок:  
+`Hub.mu` ➡️ `Room.mu` (и никогда наоборот!).
 
 ---
 
-## 6. Распределенная синхронизация через Redis
+## 6. Распределенная синхронизация и персистентность через Redis
 
-Когда проект вырастает из одного сервера в кластер (несколько реплик бэкенда за балансировщиком нагрузки Nginx / AWS ALB), клиенты одной сессии могут подключиться к разным инстансам:
+### Redis Streams: Хранение дельт документов per-task doc
+Для каждого документа сессии и задачи создается отдельный Redis Stream:
+- Ключ: `{session:<sessionId>}:task:<taskKey>:updates`
+- Hash tag `{session:<sessionId>}` гарантирует коллокацию ключей одной сессии в одном Redis Cluster слоте.
+- TTL: 24 часа (86400 сек).
+- Запись дельт: `XADD {session:<id>}:task:<taskKey>:updates * data <base64_delta>`
+- Чтение истории: `XRANGE {session:<id>}:task:<taskKey>:updates - +`
 
-```
-[ Кандидат ] ---> WSS ---> [ Сервер 1 (Go) ] 
-                                  │
-                             Redis Pub/Sub (session:123:events)
-                                  │
-[ Интервьюер ] -> WSS ---> [ Сервер 2 (Go) ]
-```
+### 5-состояний атомарного сидинга (`seed_task_doc.lua`)
+Атомарный скрипт предотвращает гонки при создании или восстановлении стрима:
+- **KEYS[1]:** `{session:<sessionId>}:seeded_tasks` (Redis Hash маркеров задач)
+- **KEYS[2]:** `{session:<sessionId>}:task:<taskKey>:updates` (Redis Stream задачи)
 
-### 1. Горизонтальное масштабирование (Pub/Sub):
-- Когда Кандидат на Сервере 1 обновляет код, Сервер 1 шлет событие локальным клиентам и публикует в Redis: `PUBLISH session:123:events <data>`.
-- Сервер 2, имеющий активную комнату `123`, подписан на этот канал. Он получает событие из Redis и вызывает `BroadcastFromRemote(data)`, пересылая его Интервьюеру.
-- **Флаг `isRemote`:** Сообщения, полученные из Redis, помечаются как `isRemote = true`. Это гарантирует, что Сервер 2 **не станет повторно публиковать их в Redis**, предотвращая бесконечный цикл эхо-рассылки.
+| Случай | Маркер в Hash | Длина Stream | Действие скрипта | Возврат |
+|---|---|---|---|---|
+| **1** | Есть | $> 0$ | No-op, продление TTL обоих ключей | `0` |
+| **2** | Есть | $0$ (истек/удален) | Восстановление стрима: `XADD` стартовой дельты, продление TTL | `3` |
+| **3** | Есть | Пуст (аномалия) | `XADD` стартовой дельты, продление TTL | `3` |
+| **4** | Нет | $> 0$ | Рассинхронизация: `HSET` маркера без `XADD` (защита от дублей) | `2` |
+| **5** | Нет | $0$ / Отсутствует | Первичный сидинг: `XADD` стартовой дельты + `HSET` маркера | `1` |
 
-### 2. Персистентность кода при сбоях (Redis KV Storage):
-- При каждом событии `code.update` актуальный исходный код сохраняется в Redis по ключу `session:{sessionId}:code` с TTL 24 часа.
-- Если сервер упадет или перезагрузится, при старте новой комнаты код будет автоматически восстановлен из Redis (`r.sessionStore.GetCodeState(ctx, r.ID)`).
-
-### 3. Мгновенный отзыв токенов (Token Revocation):
-- При logout/bane или закрытии сессии Auth-сервис удаляет ключ `auth:session:{sid}` и публикует в канал `auth:revocations` сообщение `{instanceId, data: <userId>, sessionId?}`. Поле `sessionId` заполняется при close-сессии (room-scoped evict).
-- Все запущенные инстансы Realtime-сервиса ловят это событие: без `sessionId` вызывается `Hub.EvictUser(userID)` — закрываются все сокеты пользователя (`user authentication revoked`); с `sessionId` — `Hub.EvictFromRoom(sessionID, userID)`, закрывается только комната данной сессии (`session closed`). Код закрытия в обоих случаях — `StatusPolicyViolation`.
-- При аутентификации рукопожатия realtime выполняет fail-closed проверки: `IsAuthSessionActive(auth:session:{sid})`, `IsSessionActive(session:{id}:active)`, `GetSessionUserRole(session:{id}:members)`; `IsTokenRevoked(blacklist:token:{jti})` — только для access-фолбэка. При успешном входе TTL зеркала (`session:{id}:active` / `session:{id}:members`) продлевается (`TouchMirror`).
+### Горизонтальное масштабирование комнат (Pub/Sub)
+- События публикуются в Redis канал `session:{sessionId}:events`.
+- Другие реплики Realtime-сервиса с активной комнатой вычитывают события и отправляют своим клиентам с флагом `isRemote = true` (исключает эхо-рассылку).
 
 ---
 
@@ -355,112 +252,89 @@ func (c *Client) Send(msg []byte) bool {
 
 | Механизм защиты | Описание реализации |
 |---|---|
-| **CSWSH Protection** | Проверка заголовка `Origin` при Handshake через список `ALLOWED_ORIGINS`. Запрещает сторонним сайтам открывать сокет от лица авторизованного пользователя. |
-| **Аутентификация** | Одноразовый тикет (`POST /realtime/ticket`) передается в `Sec-WebSocket-Protocol: realtime, <ticket>` (согласованный subprotocol — `realtime`); приоритет кредов: тикет → `Authorization: Bearer` → `HttpOnly Cookie`. Защита от XSS-атак (JavaScript не имеет доступа к Cookie). |
-| **Одноразовый тикет** | `typ: "realtime"`, `exp ≈ 5 мин`, привязан к `sessionId` (иначе `403`), одноразовый `ConsumeTicket` по `jti` (повторное использование → `401`). Для совместимости при раскатке допускается `typ: "access"` (multi-use, без `ConsumeTicket`). |
-| **Защита от спуфинга UserID** | Поля `senderId`, `userId`, `username` и `role` в событиях перезаписываются сервером (`sanitizeIncomingPayload`) на основании данных из JWT. Клиент не может выдать себя за другого человека или сменить роль на `interviewer`. |
-| **Token Bucket Rate Limiting** | Ограничение частоты: 60 сообщений/сек (всплеск до 120). Защищает бэкенд от флуда и DoS атак. |
-| **Read Limit (Размер сообщений)** | Ограничение `conn.SetReadLimit(1024 * 1024)` (1 MB). Предотвращает отправку огромных пакетов данных. |
-| **Лимит размера кода и чата** | Максимальный размер текста кода — 500 KB, длина сообщения чата — 4000 символов, длина пути к файлу — 255 символов (защита от Path Traversal). |
+| **CSWSH Protection** | Проверка `Origin` при WebSocket handshake по `ALLOWED_ORIGINS`. |
+| **Аутентификация** | Одноразовый тикет (`POST /realtime/ticket`) в `Sec-WebSocket-Protocol: realtime, <ticket>`; priority: тикет → `Bearer` → `Cookie`. |
+| **Лимиты Yjs Envelopes** | Максимальный размер Base64 дельты `yjs.update` — 64 KB (87,384 байт base64). Максимальный размер `yjs.awareness` — 16 KB. Строгая валидация Base64 алфавита без аллокаций. |
+| **Санитизация полей** | `senderId`, `userId`, `username`, `role` перезаписываются сервером из верифицированного JWT. |
+| **Rate Limiting** | Token Bucket: 60 сообщений/сек, всплеск до 120 на сокет. |
+| **Read Limit** | Ограничение размера сокет-фрейма `conn.SetReadLimit(1024 * 1024)` (1 MB). |
 
 ---
 
 ## 8. Протокол сообщений (WebSocket Envelope)
 
-Все сообщения строго стандартизированы. Они упакованы в обертку (конверт):
-
-```go
-type WebSocketEnvelope[T any] struct {
-    Type      string    `json:"type"`      // Тип события (например, "code.update")
-    Version   string    `json:"version"`   // Версия протокола (всегда "1.0")
-    SessionID string    `json:"sessionId"` // ID сессии интервью
-    RequestID string    `json:"requestId"` // UUID запроса (для трассировки)
-    Timestamp int64     `json:"timestamp"` // Unix timestamp в миллисекундах
-    Payload   T         `json:"payload"`   // Полезная нагрузка события
+Формат стандартного конверта:
+```json
+{
+  "type": "yjs.update",
+  "version": 1,
+  "sessionId": "session-123",
+  "requestId": "uuid",
+  "timestamp": "2026-09-23T20:00:00Z",
+  "payload": { ... }
 }
 ```
 
-### Основные типы событий в системе:
-- `room.sync` — Полный снимок состояния комнаты при входе (участники + код).
-- `presence.join` / `presence.leave` — Вход или выход участника из комнаты.
-- `code.update` — Изменение содержимого файла кода кандидатом или интервьюером.
-- `cursor.move` — Перемещение курсора в редакторе (строка, колонка).
-- `chat.message` — Сообщение в текстовом чате собеседования.
-- `ai.suggestion` — Подсказка от AI ассистента для интервьюера.
-- `system.error` — Сообщение об ошибке (например, превышение rate limit).
+### События Yjs CRDT
+1. **`yjs.update`** — инкрементальная CRDT-дельта документа:
+   ```json
+   { "taskKey": "task-1:typescript", "updateId": "uuid-1", "data": "<base64>" }
+   ```
+2. **`yjs.ack`** — немедленный Ingress ACK клиенту-автору дельты:
+   ```json
+   { "taskKey": "task-1:typescript", "updateId": "uuid-1" }
+   ```
+3. **`yjs.init`** — полная история дельт документа для инициализации:
+   ```json
+   { "taskKey": "task-1:typescript", "updates": ["<base64_1>", "<base64_2>"] }
+   ```
+4. **`yjs.awareness`** — эфемерное состояние присутствия (курсоры, выбор текста):
+   ```json
+   { "taskKey": "task-1:typescript", "data": "<base64_awareness>" }
+   ```
+5. **`task.switch`** / **`task.switched`** — запрос и подтверждение смены задачи:
+   ```json
+   { "taskKey": "task-2:python" }
+   ```
+6. **`room.error`** — ошибка уровня комнаты (`code: "SYNC_FAILED"`):
+   ```json
+   { "code": "SYNC_FAILED", "message": "server queue full", "taskKey": "task-1:typescript" }
+   ```
+
+### События медиа и чата
+- `room.sync`, `presence.join`, `presence.leave`
+- `chat.message`, `ai.suggestion`
+- `media.state_update`, `media.recording`, `media.speaker`
+
+### Вывод из эксплуатации устаревших событий (Retirement Notice)
+> ⚠️ **RETIRED / DEPRECATED:**  
+> Устаревшие события Last-Write-Wins **`code.update`** и **`cursor.move`** выведены из эксплуатации.  
+> Клиенты и веб-приложение больше не используют эти события. Все взаимодействие с кодом и многопользовательскими курсорами осуществляется исключительно через события семейства `yjs.*`.
 
 ---
 
 ## 9. Пошаговое руководство: Как добавить новое событие
 
-Представим задачу: нужно добавить событие **`code.run_request`** (кандидат нажал кнопку «Запустить тесты»).
-
-### Шаг 1: Добавить константу типа события
-В файле `internal/ws/protocol.go`:
-```go
-const (
-    EventCodeRunRequest = "code.run_request"
-)
-```
-
-### Шаг 2: Создать DTO структуру для Payload
-В файле `internal/ws/protocol.go`:
-```go
-type CodeRunRequestPayload struct {
-    Language string `json:"language"` // "go", "python", "typescript"
-    Code     string `json:"code"`     // Исходный код для исполнения
-    Stdin    string `json:"stdin"`    // Пользовательский ввод
-}
-```
-
-### Шаг 3: Добавить валидацию и санитизацию
-В файле `internal/ws/client.go` в метод `sanitizeIncomingPayload()`:
-```go
-case EventCodeRunRequest:
-    payload, err := UnpackPayload[CodeRunRequestPayload](raw)
-    if err != nil {
-        return nil, err
-    }
-    
-    // Проверяем валидность языка
-    if payload.Language == "" {
-        return nil, errors.New("language is required")
-    }
-    
-    // Ограничиваем размер кода
-    if len(payload.Code) > maxCodeContentLength {
-        return nil, errors.New("code exceeds maximum length")
-    }
-
-    env := NewEnvelope(raw.Type, c.SessionID, raw.RequestID, payload)
-    return env.ToBytes()
-```
-
-### Шаг 4: Обработать событие в комнате (если нужна особая логика)
-В файле `internal/ws/room.go` в метод `handleBroadcast()`:
-```go
-if raw.Type == EventCodeRunRequest {
-    r.logger.Info("code execution requested",
-        slog.String("sessionId", r.ID),
-        slog.String("senderId", msg.senderID),
-    )
-    // Здесь можно отправить задачу в очередь RabbitMQ/Kafka для runner-сервиса
-}
-```
-
-### Шаг 5: Написать Unit-тест
-В файле `internal/ws/protocol_test.go` проверить корректность маршалинга и валидации вашего нового события.
+1. **Константа типа события** в `internal/ws/message.go`:
+   ```go
+   const EventCustomAction EventType = "custom.action"
+   ```
+2. **Структура Payload** в `internal/ws/message.go`:
+   ```go
+   type CustomActionPayload struct { ... }
+   ```
+3. **Регистрация в интерфейсе `EventPayload`** в `internal/ws/protocol.go`.
+4. **Валидация и санитизация** в `internal/ws/client.go` (`sanitizeIncomingPayload`).
+5. **Обработка в комнате** в `internal/ws/room.go` (`handleBroadcast`).
+6. **Unit-тесты** в `internal/ws/protocol_test.go` и `internal/ws/room_test.go`.
 
 ---
 
 ## 10. Словарь терминов
 
-- **Full-Duplex (Полнодуплексный режим):** Режим связи, при котором обе стороны могут передавать и принимать информацию одновременно по одному каналу связи.
-- **Handshake (Рукопожатие):** Начальный процесс установки соединения, в ходе которого клиент и сервер согласуют переход с протокола HTTP на WebSocket (`HTTP 101 Switching Protocols`).
-- **Heartbeat (Ping/Pong):** Периодический обмен пустыми системными кадрами (каждые 30 сек) для проверки того, что соединение живо и сетевой роутер/NAT не закрыл неактивный TCP-сокет.
-- **Token Bucket (Корзина токенов):** Алгоритм ограничения частоты запросов (Rate Limiting). Позволяет пропускать кратковременные всплески активности, но ограничивает постоянную среднюю скорость.
-- **Slow Consumer (Медленный потребитель):** Клиент, который вычитывает данные медленнее, чем сервер их генерирует.
-- **Goroutine Leak (Утечка горутины):** Ситуация, когда запущенная горутина не может завершиться из-за вечной блокировки, оставаясь в памяти процесса навсегда.
-- **Deadlock (Взаимная блокировка):** Ситуация в многопоточном коде, когда горутина A ждет ресурс, захваченный горутиной B, а горутина B ждет ресурс, захваченный горутиной A.
-- **Data Race (Гонка данных):** Ошибка параллелизма, возникающая, когда две горутины обращаются к одной ячейке памяти одновременно, и хотя бы одно из обращений — это запись.
-- **Pub/Sub (Publish/Subscribe):** Паттерн обмена сообщениями через брокер (Redis), где отправитель публикует сообщение в именованный канал, а все подписанные получатели моментально его считывают.
+- **CRDT (Conflict-free Replicated Data Type):** Структура данных, обеспечивающая непротиворечивую распределенную репликацию без необходимости централизованного разрешения конфликтов.
+- **Dumb Relay:** Архитектурный паттерн, в котором сервер не вскрывает и не парсит полезную нагрузку данных документа, а лишь валидирует envelope, быстро пересылает ее клиентам и сохраняет в хранилище.
+- **Subscription-First:** Порядок подключения, при котором сокет регистрируется в канале live-рассылки до запроса исторического снимка, исключая окна потери данных.
+- **Ingress ACK:** Подтверждение приема данных сервером в оперативную память (буфер/очередь), возвращаемое клиенту до длительной операции записи на диск или в распределенную БД.
+- **Slow Consumer:** Клиент, чей сетевой канал или обработчик не успевает вычитывать сообщения с сервера, вызывая переполнение буфера `sendCh`.
+

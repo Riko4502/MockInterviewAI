@@ -8,7 +8,8 @@
     "continue": "Продолжить",
     "back": "Назад",
     "submit": "Отправить",
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "switchLanguage": "Сменить язык"
   },
   "navigation": {
     "home": "Главная",
@@ -45,6 +46,13 @@
     "saveSuccess": "Профиль сохранён.",
     "avatarError": "Не удалось загрузить аватар.",
     "avatarTypeError": "Можно загрузить только JPEG, PNG или WebP.",
+    "preferencesTitle": "Внешний вид и язык",
+    "preferencesSubtitle": "Настройте тему оформления и язык интерфейса.",
+    "theme": "Тема оформления",
+    "themeLight": "Светлая",
+    "themeDark": "Тёмная",
+    "themeSystem": "Системная",
+    "language": "Язык интерфейса",
     "errors": {
       "displayNameMin": "Имя должно содержать минимум 2 символа",
       "displayNameMax": "Имя должно содержать максимум 50 символов",

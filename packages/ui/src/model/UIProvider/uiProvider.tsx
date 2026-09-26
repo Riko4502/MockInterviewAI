@@ -25,9 +25,17 @@ import type { PropsWithChildren } from "react";
  * }
  * ```
  */
-export function UIProvider({ children }: PropsWithChildren) {
+export interface UIProviderProps extends PropsWithChildren {
+  /** Начальная тема по умолчанию (например, из SSR cookies) */
+  defaultTheme?: string;
+}
+
+export function UIProvider({
+  children,
+  defaultTheme = "dark",
+}: UIProviderProps) {
   return (
-    <ThemeProvider>
+    <ThemeProvider defaultTheme={defaultTheme}>
       <DialogProvider>
         <DrawerProvider>
           <ToastProvider>{children}</ToastProvider>
