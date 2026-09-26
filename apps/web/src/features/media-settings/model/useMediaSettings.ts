@@ -6,6 +6,7 @@ import {
 } from "@packages/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/entities/session";
+import { useCurrentUser } from "@/entities/user";
 import { playChimeSound } from "../lib/soundTest";
 import {
   getClientDeviceId,
@@ -53,6 +54,11 @@ export function useMediaSettings(): MediaSettingsContextValue {
   const session = useSession({ optional: true });
   const isAuthenticated = session?.isAuthenticated ?? false;
 
+  const { data: currentUser } = useCurrentUser({
+    enabled: isAuthenticated && typeof window !== "undefined",
+  });
+  const userId = currentUser?.id;
+
   const [settings, setSettings] = useState<MediaSettings>(currentSettings);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
@@ -62,29 +68,41 @@ export function useMediaSettings(): MediaSettingsContextValue {
   const clientId =
     typeof window !== "undefined" ? getClientDeviceId() : "client-init";
 
-  const { data: serverSettings } = useProfileControllerGetDeviceSettings(
-    { clientId },
-    {
-      query: {
-        enabled: isAuthenticated && typeof window !== "undefined",
+  const { data: serverSettings, isFetching: isFetchingServerSettings } =
+    useProfileControllerGetDeviceSettings(
+      { clientId },
+      {
+        query: {
+          enabled: isAuthenticated && typeof window !== "undefined",
+        },
       },
-    },
-  );
+    );
 
   const updateMutation = useProfileControllerUpdateDeviceSettings();
+  const { mutate } = updateMutation;
+  const initialSyncDoneRef = useRef(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localRevisionRef = useRef(0);
+  const hydrationRevisionRef = useRef(0);
+  const wasFetchingServerSettingsRef = useRef(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: сброс флага при смене устройства (clientId), статуса авторизации (isAuthenticated) или пользователя (userId)
+  useEffect(() => {
+    initialSyncDoneRef.current = false;
+  }, [clientId, isAuthenticated, userId]);
 
   // Синхронизация локальных настроек с бэкендом (с дебаунсом)
   const syncToServer = useCallback(
-    (toSave: MediaSettings) => {
+    (toSave: MediaSettings, isLocalChange = true) => {
       if (!isAuthenticated || typeof window === "undefined") return;
+      if (isLocalChange) localRevisionRef.current += 1;
 
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
 
       syncTimeoutRef.current = setTimeout(() => {
-        updateMutation.mutate({
+        mutate({
           data: {
             clientId: getClientDeviceId(),
             deviceName: getDeviceName(),
@@ -98,17 +116,31 @@ export function useMediaSettings(): MediaSettingsContextValue {
         });
       }, 400);
     },
-    [isAuthenticated, updateMutation],
+    [isAuthenticated, mutate],
   );
 
   // При получении настроек с сервера для текущего устройства обновляем локальный стейт
   useEffect(() => {
-    if (!serverSettings) return;
+    if (isFetchingServerSettings && !wasFetchingServerSettingsRef.current) {
+      hydrationRevisionRef.current = localRevisionRef.current;
+    }
+    wasFetchingServerSettingsRef.current = isFetchingServerSettings;
+
+    if (
+      !serverSettings ||
+      isFetchingServerSettings ||
+      localRevisionRef.current !== hydrationRevisionRef.current
+    ) {
+      return;
+    }
 
     if (!serverSettings.isPersisted) {
       // На сервере ещё нет сохранённых настроек для этого устройства.
       // Не перезаписываем локальные настройки дефолтами, а отправляем текущие настройки на сервер.
-      syncToServer(currentSettings);
+      if (!initialSyncDoneRef.current) {
+        initialSyncDoneRef.current = true;
+        syncToServer(currentSettings, false);
+      }
       return;
     }
 
@@ -130,7 +162,7 @@ export function useMediaSettings(): MediaSettingsContextValue {
         prev.preferredVideoInputLabel ??
         null,
     }));
-  }, [serverSettings, syncToServer]);
+  }, [isFetchingServerSettings, serverSettings, syncToServer]);
 
   // Проверка поддержки HTMLMediaElement.prototype.setSinkId
   const isSinkIdSupported =
