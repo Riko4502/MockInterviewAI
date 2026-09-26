@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.8-alpine3.21
     container_name: mock-interview-postgres
     restart: unless-stopped
     environment:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine3.21
     container_name: mock-interview-redis
     restart: unless-stopped
     environment:
@@ -35,7 +35,7 @@ services:
       retries: 5
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest-dev
     container_name: mock-interview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -48,13 +48,13 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/minio/health/live || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.7
     container_name: mock-interview-livekit
     restart: unless-stopped
     command:
@@ -82,7 +82,7 @@ services:
       - "${LIVEKIT_UDP_PORT_START:-60000}-${LIVEKIT_UDP_PORT_END:-60018}:${LIVEKIT_UDP_PORT_START:-60000}-${LIVEKIT_UDP_PORT_END:-60018}/udp"
 
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev
     container_name: mock-interview-minio-init
     depends_on:
       minio:
@@ -101,7 +101,7 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-mock-interview-storage}
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3.13.7-management-alpine
     container_name: mock-interview-rabbitmq
     restart: unless-stopped
     environment:
