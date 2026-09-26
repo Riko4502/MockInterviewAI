@@ -7,6 +7,7 @@ import {
   EyeOffIcon,
   MicIcon,
   ScreenIcon,
+  SlidersIcon,
 } from "@packages/icons";
 import { Button } from "@packages/ui";
 import { useTranslation } from "react-i18next";
@@ -23,12 +24,14 @@ export function SandboxVideoWidgetControls() {
     isScreenSharing,
     connectionState,
     hasPeerOnline,
+    setIsSettingsOpen,
     onStartCall,
     onEndCall,
     onToggleAudio,
     onToggleVideo,
     onToggleScreenShare,
   } = useSandboxMedia();
+
   return (
     <div className="flex items-center justify-between border-t border-border/80 bg-muted/20 px-3 py-2.5">
       <div className="flex items-center gap-1.5">
@@ -112,6 +115,18 @@ export function SandboxVideoWidgetControls() {
             </Button>
           </>
         )}
+
+        {/* Кнопка настроек звука, речи и устройств */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsSettingsOpen(true)}
+          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer shadow-2xs"
+          title={t("sandbox.videoWidget.controls.settingsTooltip")}
+          aria-label={t("sandbox.videoWidget.controls.settingsTooltip")}
+        >
+          <SlidersIcon className="size-3.5" />
+        </Button>
       </div>
 
       <span className="text-[11px] font-medium text-muted-foreground">
