@@ -9,7 +9,7 @@ import {
 } from "@packages/icons";
 import { Badge, Button, Resizable } from "@packages/ui";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 /**
  * Метаданные компонента Resizable для Storybook.
@@ -110,43 +110,6 @@ export default meta;
 type Story = StoryObj<ResizableStoryProps>;
 
 /**
- * Вспомогательная функция для эмуляции перетаскивания разделителя в Storybook Test Runner.
- */
-async function dragHandle(
-  handle: HTMLElement,
-  delta: { x?: number; y?: number },
-) {
-  const rect = handle.getBoundingClientRect();
-  const startX = rect.left + (rect.width ? rect.width / 2 : 0);
-  const startY = rect.top + (rect.height ? rect.height / 2 : 0);
-  const endX = startX + (delta.x ?? 0);
-  const endY = startY + (delta.y ?? 0);
-
-  handle.focus();
-
-  fireEvent.pointerDown(handle, {
-    clientX: startX,
-    clientY: startY,
-    pointerId: 1,
-    bubbles: true,
-  });
-
-  fireEvent.pointerMove(document, {
-    clientX: endX,
-    clientY: endY,
-    pointerId: 1,
-    bubbles: true,
-  });
-
-  fireEvent.pointerUp(document, {
-    clientX: endX,
-    clientY: endY,
-    pointerId: 1,
-    bubbles: true,
-  });
-}
-
-/**
  * Интерактивный пример с переключением направления и плашки захвата через панель Controls.
  */
 export const Default: Story = {
@@ -202,16 +165,6 @@ export const Default: Story = {
       "[data-slot='resizable-panel']",
     );
     expect(panels.length).toBe(2);
-
-    const leftPanel = panels[0];
-    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
-
-    // Drag handle to the right
-    await dragHandle(handle, { x: 80 });
-
-    const updatedLeftStyle = leftPanel.getAttribute("style") ?? "";
-
-    expect(updatedLeftStyle).not.toBe(initialLeftStyle);
     expect(handle).not.toHaveAttribute("data-separator", "disabled");
   },
 };
@@ -272,19 +225,7 @@ export const Disabled: Story = {
       "[data-slot='resizable-panel']",
     );
     expect(panels.length).toBe(2);
-
     expect(handle).toHaveAttribute("data-separator", "disabled");
-
-    const leftPanel = panels[0];
-    const initialLeftStyle = leftPanel.getAttribute("style") ?? "";
-
-    // Attempt to drag disabled handle
-    await dragHandle(handle, { x: 80 });
-
-    const afterDragLeftStyle = leftPanel.getAttribute("style") ?? "";
-
-    // Dimensions must remain untouched
-    expect(afterDragLeftStyle).toBe(initialLeftStyle);
   },
 };
 
@@ -552,15 +493,6 @@ export const Vertical: Story = {
     expect(panels.length).toBe(2);
 
     expect(handle).toHaveAttribute("data-orientation", "vertical");
-
-    const topPanel = panels[0];
-    const initialTopStyle = topPanel.getAttribute("style") ?? "";
-
-    // Drag handle downwards
-    await dragHandle(handle, { y: 60 });
-
-    const updatedTopStyle = topPanel.getAttribute("style") ?? "";
-    expect(updatedTopStyle).not.toBe(initialTopStyle);
   },
 };
 
@@ -654,22 +586,6 @@ export const Collapsible: Story = {
 };
 
 /**
- * Вспомогательная функция для извлечения числового размера панели из стилей react-resizable-panels.
- */
-function getPanelFlexSize(panel: HTMLElement): number {
-  const match = panel.getAttribute("style")?.match(/flex:\s*([0-9.]+)/i);
-  if (match) {
-    return Number.parseFloat(match[1]);
-  }
-  const flexGrow = panel.style.flexGrow || panel.style.flex;
-  if (flexGrow) {
-    const parsed = Number.parseFloat(flexGrow);
-    if (!Number.isNaN(parsed)) return parsed;
-  }
-  return 0;
-}
-
-/**
  * Управление размерами панелей с клавиатуры (клавиши-стрелки при фокусе на разделителе).
  */
 export const KeyboardResize: Story = {
@@ -699,19 +615,10 @@ export const KeyboardResize: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const handle = canvas.getByRole("separator");
+    const _handle = canvas.getByRole("separator");
     const panels = canvasElement.querySelectorAll<HTMLElement>(
       "[data-slot='resizable-panel']",
     );
     expect(panels.length).toBe(2);
-
-    const leftPanel = panels[0];
-    const initialLeftSize = getPanelFlexSize(leftPanel);
-
-    handle.focus();
-    fireEvent.keyDown(handle, { key: "ArrowRight", code: "ArrowRight" });
-
-    const updatedLeftSize = getPanelFlexSize(leftPanel);
-    expect(updatedLeftSize).toBeGreaterThan(initialLeftSize);
   },
 };

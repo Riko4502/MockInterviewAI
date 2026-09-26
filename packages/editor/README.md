@@ -2,7 +2,7 @@
 
 Пакет-обёртка вокруг **Monaco Editor** для платформы **MockInterviewAI**.
 
-Предоставляет готовый React-компонент `CodeEditor` с поддержкой множества языков программирования, кастомных тем оформления, мультиплеерных курсоров (коллаборация в реальном времени) и стартовых шаблонов кода для алгоритмических и SQL-задач.
+Предоставляет готовый React-компонент `CodeEditor` с поддержкой 8 языков программирования, кастомных тем оформления, бесконфликтной совместной работы на базе **Yjs CRDT** с отображением курсоров и выделений соавторов (**Yjs Awareness**), а также стартовых шаблонов кода для алгоритмических и SQL-задач.
 
 ---
 
@@ -16,8 +16,7 @@ import {
   CodeEditor,
   CodeEditorLazy,
   type CodeEditorProps,
-  type CursorPosition,
-  type Collaborator,
+  type CodeEditorLazyProps,
   type Theme,
 } from "@packages/editor";
 
@@ -30,7 +29,7 @@ import {
 } from "@packages/editor";
 ```
 
-> **SSR (Next.js):** Monaco Editor работает только в браузере. В `apps/web` используйте `CodeEditorLazy` — обёртку с `React.lazy` + `Suspense`, которая предотвращает ошибки серверного рендеринга.
+> **SSR (Next.js):** Monaco Editor работает только в браузере. В `apps/web` используйте `CodeEditorLazy` — обёртку с `React.lazy` + `Suspense`, предотвращающую ошибки серверного рендеринга.
 
 ---
 
@@ -48,21 +47,21 @@ import {
 | Экспорт | Тип | Описание |
 | :--- | :--- | :--- |
 | **`CodeEditorProps`** | `interface` | Пропсы компонента `CodeEditor` |
-| **`CursorPosition`** | `interface` | Позиция курсора (`line`, `column`, `selectionEnd*`) |
-| **`Collaborator`** | `interface` | Участник комнаты (`id`, `name`, `color`, `cursor?`) |
+| **`CodeEditorLazyProps`** | `interface` | Пропсы для `CodeEditorLazy` |
 | **`Theme`** | `type` | Тема оформления: `"dark"` \| `"light"` |
 | **`LanguageId`** | `type` | Идентификатор языка программирования |
 | **`LanguageConfig`** | `interface` | Конфигурация языка (отступы, название) |
 | **`TaskCategory`** | `type` | Категория задачи: `"algorithm"` \| `"sql"` |
-| **`CodeEditorLazyProps`** | `interface` | Пропсы для `CodeEditorLazy` (наследует `CodeEditorProps`) |
 
 ### Функции и константы
 
 | Экспорт | Тип | Описание |
 | :--- | :--- | :--- |
-| **`getTemplate(language, category)`** | `function` | Возвращает стартовый шаблон кода для языка и категории задачи |
+| **`getTemplate(language, category)`** | `function` | Возвращает стартовый шаблон кода |
+| **`updateYjsAwarenessStyles(awareness)`** | `function` | Динамически стилизует курсоры и селекшены соавторов |
+| **`removeYjsAwarenessStyles()`** | `function` | Удаляет динамические стили Awareness из `<head>` |
 | **`registerThemes(monaco)`** | `function` | Регистрирует кастомные темы в инстансе Monaco |
-| **`LANGUAGE_CONFIGS`** | `Record` | Словарь настроек отступов для каждого языка |
+| **`LANGUAGE_CONFIGS`** | `Record` | Словарь настроек для каждого языка |
 | **`THEMES`** | `const` | Массив доступных тем: `["dark", "light"]` |
 | **`DEFAULT_EDITOR_OPTIONS`** | `const` | Дефолтные настройки Monaco Editor |
 
@@ -72,15 +71,16 @@ import {
 
 | Проп | Тип | По умолчанию | Описание |
 | :--- | :--- | :--- | :--- |
-| `value` | `string` | `""` | Текст кода в редакторе (управляемое состояние) |
-| `onChange` | `(value: string) => void` | — | Коллбэк при изменении текста |
 | `language` | `LanguageId` | `"typescript"` | Язык программирования |
 | `theme` | `Theme` | `"dark"` | Тема оформления |
 | `readOnly` | `boolean` | `false` | Режим только для чтения |
-| `collaborators` | `Collaborator[]` | `[]` | Массив участников для отображения их курсоров |
-| `onCursorChange` | `(position: CursorPosition) => void` | — | Коллбэк при перемещении курсора (с троттлингом) |
-| `cursorThrottleMs` | `number` | `50` | Интервал троттлинга курсора в мс |
-| `options` | `editor.IStandaloneEditorConstructionOptions` | `{}` | Дополнительные опции Monaco Editor |
+| `yText` | `Y.Text` | — | Экземпляр Yjs Text для CRDT синхронизации |
+| `awareness` | `Awareness` | — | Инстанс Yjs Awareness для отображения курсоров соавторов |
+| `undoManager` | `Y.UndoManager` | — | Опциональный внешний менеджер отмен |
+| `onUndoManagerInit` | `(um) => void` | — | Коллбэк инициализации локального UndoManager |
+| `value` | `string` | `""` | Локальный текст кода (автономный режим без Yjs) |
+| `onChange` | `(val) => void` | — | Коллбэк изменения текста (автономный режим) |
+| `options` | `editor.IStandalone...` | `{}` | Дополнительные опции Monaco Editor |
 
 ---
 
@@ -97,182 +97,67 @@ import {
 | Rust | `rust` | 4 | Пробелы | Кастомный (ключевые слова + макросы) |
 | SQL | `sql` | 2 | Пробелы | Кастомный (SQL-команды и агрегаты) |
 
-> **TypeScript и JavaScript** получают полноценный IntelliSense из коробки Monaco Editor. Для остальных языков регистрируется базовый автокомплит ключевых слов.
-
 ---
 
 ## 🎨 Темы
-
-Пакет регистрирует две кастомные темы, наследующие стандартные цветовые схемы VS Code:
 
 | Тема | ID | Базовая | Описание |
 | :--- | :--- | :--- | :--- |
 | Тёмная | `"dark"` | `vs-dark` | Тёмная тема на базе VS Code Dark+ |
 | Светлая | `"light"` | `vs` | Светлая тема на базе VS Code Light+ |
 
-Темы регистрируются автоматически при инициализации редактора (в `beforeMount`).
-
 ---
 
-## 👥 Мультиплеер (курсоры соавторов)
+## 👥 Мультиплеер (Yjs CRDT + Awareness)
 
-Компонент поддерживает отображение курсоров других участников в реальном времени. Дизайн курсоров: цветные «флажки» с именем участника (как в Google Docs / VS Code Live Share).
-
-### Использование
+Совместная работа основана на **CRDT** (`yjs` + `y-monaco` + `y-protocols/awareness`):
 
 ```tsx
-import { CodeEditor, type Collaborator, type CursorPosition } from "@packages/editor";
+import { CodeEditorLazy } from "@packages/editor";
+import { useMemo } from "react";
+import * as Y from "yjs";
 
-const collaborators: Collaborator[] = [
-  {
-    id: "user-2",
-    name: "Интервьюер",
-    color: "#FF6B6B",
-    cursor: { line: 5, column: 12 },
-  },
-];
+function CollaborativeWorkspace({ yDoc, provider }) {
+  const yText = useMemo(() => yDoc.getText("monaco"), [yDoc]);
 
-function handleCursorChange(position: CursorPosition) {
-  // Отправить позицию через WebSocket (событие cursor.move)
-  ws.send(JSON.stringify({ type: "cursor.move", payload: position }));
+  return (
+    <CodeEditorLazy
+      language="typescript"
+      theme="dark"
+      yText={yText}
+      awareness={provider.awareness}
+    />
+  );
 }
-
-<CodeEditor
-  value={code}
-  onChange={setCode}
-  language="typescript"
-  collaborators={collaborators}
-  onCursorChange={handleCursorChange}
-  cursorThrottleMs={50}
-/>;
 ```
 
-### Интеграция с Realtime
+- **Многопользовательские курсоры:** Позиции и выделения соавторов передаются через Yjs Awareness. Стили каретки, цветного выделения и бейджа с именем участника внедряются автоматически через `updateYjsAwarenessStyles`.
+- **Изолированный Undo/Redo:** Компонент настраивает `Y.UndoManager` с фильтрацией `trackedOrigins: new Set([binding])`, так что `Ctrl+Z` отменяет только локальные правки текущего пользователя.
 
-Поля типа `CursorPosition` (`line`, `column`, `selectionEndLine`, `selectionEndColumn`) совпадают с контрактом `CursorPayload` протокола WebSocket (`cursor.move`), что позволяет напрямую маппить данные без трансформаций.
+> ⚠️ **RETIRED:** Устаревшие LWW-механизмы (`collaborators: Collaborator[]`, `onCursorChange`, `code.update`, `cursor.move`) выведены из эксплуатации.
 
 ---
 
 ## 📝 Шаблоны кода
-
-Функция `getTemplate` возвращает стартовый шаблон (бойлерплейт) для выбранного языка и категории задачи:
 
 ```ts
 import { getTemplate } from "@packages/editor";
 
 // Алгоритмическая задача на Python
 const template = getTemplate("python", "algorithm");
-// → "def solution(nums: list[int]) -> int:\n    # Ваш код здесь\n    pass\n"
 
 // SQL-задача
 const sqlTemplate = getTemplate("sql", "sql");
-// → "-- Напишите ваш SQL-запрос ниже\nSELECT * FROM users;\n"
 ```
-
----
-
-## 🛠️ Архитектурные правила и стандарты
-
-1. **Только через Public API:** запрещены глубокие импорты из внутренностей пакета.
-   ```tsx
-   // ❌ ЗАПРЕЩЕНО
-   import { CodeEditor } from "@packages/editor/src/components/CodeEditor/code-editor";
-
-   // ✅ РАЗРЕШЕНО
-   import { CodeEditor } from "@packages/editor";
-   ```
-2. **Строгая типизация:** полный запрет на `any` и `as`.
-3. **Русскоязычные комментарии:** все JSDoc описания оформляются на русском языке.
-4. **Нет бизнес-логики:** пакет — чистая UI-обёртка. Логика подключения к WebSocket, управление состоянием комнаты и хранение кода — ответственность `apps/web`.
 
 ---
 
 ## 📖 Storybook
 
-Истории компонента расположены в `apps/ui-docs/src/stories/CodeEditor/`:
+Интерактивные истории компонента, включая совместное редактирование в реальном времени, доступны в Storybook:
 
 ```bash
 pnpm storybook
 ```
 
-Storybook доступен по адресу `http://localhost:6006`.
-
----
-
-## 🔨 Сборка и проверка
-
-```bash
-# Сборка пакета (Rslib)
-pnpm --filter @packages/editor build
-
-# Проверка типов TypeScript
-pnpm --filter @packages/editor typecheck
-
-# Линтинг (Biome)
-pnpm --filter @packages/editor lint
-
-# Автоформатирование
-pnpm --filter @packages/editor format
-
-# Тесты (Vitest)
-pnpm --filter @packages/editor test
-```
-
----
-
-## 📁 Структура пакета
-
-```
-packages/editor/
-├── package.json
-├── rslib.config.ts
-├── tsconfig.json
-├── vitest.config.ts
-├── README.md
-└── src/
-    ├── index.ts                        # Точка входа: реэкспорт всех модулей
-    ├── components/
-    │   ├── index.ts
-    │   └── CodeEditor/
-    │       ├── index.ts                # Public API компонента
-    │       ├── types.ts                # CodeEditorProps, CursorPosition, Collaborator
-    │       ├── constants.ts            # DEFAULT_EDITOR_OPTIONS
-    │       ├── code-editor.tsx         # Основной компонент
-    │       └── code-editor.lazy.tsx    # Lazy-обёртка для SSR
-    ├── themes/
-    │   ├── index.ts
-    │   ├── register.ts                 # registerThemes() + THEMES
-    │   ├── mockinterview-dark.ts       # Тёмная тема (vs-dark)
-    │   └── mockinterview-light.ts      # Светлая тема (vs)
-    ├── languages/
-    │   ├── index.ts
-    │   ├── config.ts                   # LanguageId, LANGUAGE_CONFIGS
-    │   ├── python.ts                   # registerPythonCompletion
-    │   ├── go.ts                       # registerGoCompletion
-    │   ├── java.ts                     # registerJavaCompletion
-    │   ├── cpp.ts                      # registerCppCompletion
-    │   ├── rust.ts                     # registerRustCompletion
-    │   └── sql.ts                      # registerSqlCompletion
-    ├── templates/
-    │   ├── index.ts
-    │   ├── get-template.ts             # getTemplate(language, category)
-    │   ├── get-template.test.ts        # Vitest тесты (10 кейсов)
-    │   ├── algorithm.ts                # Шаблоны для алгоритмических задач
-    │   └── sql.ts                      # Шаблоны для SQL-задач
-    └── multiplayer/
-        ├── index.ts
-        ├── use-remote-cursors.ts       # Хук useRemoteCursors
-        └── cursor-css.ts              # Генерация CSS для чужих курсоров
-```
-
----
-
-## 🔗 Зависимости
-
-| Зависимость | Тип | Назначение |
-| :--- | :--- | :--- |
-| `@monaco-editor/react` | dependency | React-обёртка для Monaco Editor |
-| `monaco-editor` | dependency | Ядро редактора кода (типы + runtime) |
-| `@packages/types` | workspace | Общий тип `Theme` |
-| `@packages/ui` | workspace | Дизайн-система (CSS-переменные) |
-| `react`, `react-dom` | peer | Хост-приложение предоставляет React |
+История `Editor/Multiplayer` демонстрирует работу двух редакторов с единым документом `Y.Doc` и трансляцией курсоров через `Awareness`.

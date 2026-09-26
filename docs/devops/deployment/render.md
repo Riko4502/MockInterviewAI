@@ -38,7 +38,12 @@
    - `devsync-redis` (Redis)
    - `devsync-api` (Web Service Docker)
    - `devsync-realtime` (Web Service Docker)
+   - `devsync-livekit` (Web Service Docker Image: livekit/livekit-server)
+   - `devsync-telegram-bot` (Web Service Docker)
    - `devsync-web` (Web Service Docker)
+   - `devsync-landing` (Web Service Static)
+   - `devsync-ui-docs` (Web Service Static)
+   - `devsync-grafana` (Web Service Docker Image: grafana/grafana)
 5. Нажмите **Apply**.
 
 
@@ -49,15 +54,36 @@
 
 #### В `devsync-api`:
 - `ALLOWED_ORIGINS`: URL созданного фронтенда (например `https://devsync-web.onrender.com`).
+- Для GitHub OAuth задайте все четыре значения: `GITHUB_CLIENT_ID` и
+  `GITHUB_CLIENT_SECRET` из GitHub OAuth App, `GITHUB_CALLBACK_URL` =
+  `https://<api-domain>/api/v1/auth/github/callback`, `FRONTEND_URL` =
+  `https://<web-domain>`. Callback должен совпадать с настройкой GitHub OAuth App.
+  Секрет вводится только в Render; `COOKIE_SECURE=true` уже задан в Blueprint.
+  Для существующего сервиса добавьте новые `sync: false` переменные вручную
+  в Environment: обновление Blueprint не добавляет их автоматически.
+  Если OAuth не используется, не задавайте эти переменные (пустые строки не подходят).
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_URL`.
-- `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+- `LIVEKIT_URL`: URL LiveKit сервера (внутренний `wss://devsync-livekit.onrender.com` или внешний `wss://<project>.livekit.cloud`).
+- `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: заполняются автоматически из `devsync-livekit` через `fromService`.
+- `INTERNAL_SERVICE_KEY`: сервисный ключ (≥ 32 символа) для заголовка
+  `X-Internal-Service-Key`. Задаётся вручную; `devsync-telegram-bot`
+  автоматически получает его значение через `fromService` в Blueprint.
+
+#### В `devsync-livekit`:
+- `LIVEKIT_API_KEY` (`devsync_key`) и `LIVEKIT_API_SECRET` (`generateValue: true`): Render автоматически генерирует криптографически надёжный случайный секрет и безопасно пробрасывает его в `devsync-api` и `devsync-realtime`. Ручной ввод не требуется.
 
 #### В `devsync-realtime`:
 - `ALLOWED_ORIGINS`: URL созданного фронтенда.
+- `LIVEKIT_WEBHOOK_API_KEY`, `LIVEKIT_WEBHOOK_API_SECRET`: заполняются автоматически из `devsync-livekit` через `fromService`.
 
 #### В `devsync-web`:
+- `NEXT_PUBLIC_APP_URL`: URL веб-приложения (например `https://devsync-web.onrender.com`).
+- `NEXT_PUBLIC_SITE_URL`: URL лендинга (например `https://devsync-landing.onrender.com`).
 - `NEXT_PUBLIC_API_URL`: URL бэкенда (например `https://devsync-api.onrender.com`).
 - `NEXT_PUBLIC_REALTIME_URL`: URL realtime сервера (например `wss://devsync-realtime.onrender.com`).
+
+#### В `devsync-grafana`:
+- `GF_SECURITY_ADMIN_PASSWORD`: задайте надежный пароль администратора Grafana (логин по умолчанию: `admin`).
 
 ---
 

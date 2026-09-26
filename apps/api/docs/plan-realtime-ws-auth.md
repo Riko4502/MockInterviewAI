@@ -265,7 +265,7 @@ Phase B требует одновременного выката зеркала 
 > и `pnpm-lock.yaml`).
 
 ### Шаги
-1. `apps/web/src/shared/api/endpoints.ts`:
+1. `apps/web/src/shared/api/config/endpoints.ts`:
    - `realtime: { ticket: "/realtime/ticket" }`;
    - `realtimeWsUrl = process.env.NEXT_PUBLIC_REALTIME_URL ?? "ws://localhost:8080"`.
 2. `apps/web/src/features/realtime/lib/ticket.ts`:

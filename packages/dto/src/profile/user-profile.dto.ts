@@ -1,3 +1,5 @@
+import { locales } from "@packages/i18n";
+import { THEME_MODES } from "@packages/types";
 import { z } from "zod";
 
 /**
@@ -10,7 +12,7 @@ export const publicUserProfileSchema = z.object({
   avatarUrl: z.string().nullable(),
   telegramUsername: z.string().nullable(),
   gitUrl: z.string().nullable(),
-  createdAt: z.date().or(z.string()),
+  createdAt: z.iso.datetime(),
 });
 
 export type PublicUserProfileDto = z.infer<typeof publicUserProfileSchema>;
@@ -22,7 +24,9 @@ export const userProfileSchema = publicUserProfileSchema.extend({
   email: z.string().email(),
   role: z.string(),
   permissions: z.string(),
-  updatedAt: z.date().or(z.string()),
+  theme: z.enum(THEME_MODES),
+  locale: z.enum(locales),
+  updatedAt: z.iso.datetime(),
 });
 
 export type UserProfileDto = z.infer<typeof userProfileSchema>;

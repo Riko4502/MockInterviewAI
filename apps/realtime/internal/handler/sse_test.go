@@ -32,6 +32,8 @@ type fakeStore struct {
 	history         []storage.StreamEvent
 	revoked         map[string]bool
 	revokedSessions map[string]bool
+	minGen          map[string]int
+	genErr          error
 }
 
 func newFakeStore() *fakeStore {
@@ -39,6 +41,7 @@ func newFakeStore() *fakeStore {
 		live:            make(chan storage.StreamEvent, 16),
 		revoked:         make(map[string]bool),
 		revokedSessions: make(map[string]bool),
+		minGen:          make(map[string]int),
 	}
 }
 
@@ -76,6 +79,30 @@ func (f *fakeStore) IsAuthSessionActive(_ context.Context, sid string) (bool, er
 	return !f.revokedSessions[sid], nil
 }
 
+func (f *fakeStore) CheckMinGeneration(_ context.Context, userID string, generation int) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.genErr != nil {
+		return false, f.genErr
+	}
+	if f.minGen == nil {
+		return true, nil
+	}
+	min, ok := f.minGen[userID]
+	if !ok {
+		return true, nil
+	}
+	return generation >= min, nil
+}
+
+func (f *fakeStore) setMinGeneration(userID string, minGen int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.minGen[userID] = minGen
+}
+
 func (f *fakeStore) ConsumeTicket(context.Context, string) (bool, error) { return true, nil }
 
 func (f *fakeStore) TouchMirror(context.Context, string, time.Duration) error { return nil }
@@ -85,7 +112,7 @@ func (f *fakeStore) GetSessionUserRole(context.Context, string, string) (string,
 }
 
 func (f *fakeStore) NextCodeVersion(context.Context, string) (int64, error) { return 0, nil }
-func (f *fakeStore) SaveCodeState(context.Context, string, []byte) error { return nil }
+func (f *fakeStore) SaveCodeState(context.Context, string, []byte) error    { return nil }
 
 func (f *fakeStore) GetCodeState(context.Context, string) ([]byte, error) { return nil, nil }
 
@@ -162,14 +189,20 @@ func (f *fakeStore) Enabled() bool { return true }
 
 // newTestToken выпускает валидный access-токен для тестового пользователя.
 func newTestToken(t *testing.T, userID string) string {
+	gen := 1
+	return newTestTokenWithGen(t, userID, &gen)
+}
+
+// newTestTokenWithGen выпускает access-токен с явно указанным generation.
+func newTestTokenWithGen(t *testing.T, userID string, generation *int) string {
 	t.Helper()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &auth.UserClaims{
-		UserID:   userID,
-		Username: "tester",
-		// Верификатор требует typ из набора access|realtime и непустой sid.
-		Type: "access",
-		SID:  "sid-" + userID,
+		UserID:     userID,
+		Username:   "tester",
+		Type:       "access",
+		SID:        "sid-" + userID,
+		Generation: generation,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -467,24 +500,31 @@ func TestSSERejectsConnectionsOverUserLimit(t *testing.T) {
 func awaitComment(t *testing.T, body io.Reader) {
 	t.Helper()
 
-	done := make(chan struct{})
+	resCh := make(chan error, 1)
 
 	go func() {
-		defer close(done)
-
 		scanner := bufio.NewScanner(body)
 		for scanner.Scan() {
 			if strings.HasPrefix(scanner.Text(), ":") {
+				resCh <- nil
 				return
 			}
 		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-			t.Errorf("sse scan stopped before expected comment: %v", err)
+		if err := scanner.Err(); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("sse scan stopped before expected comment: %v", err)
+			}
+			resCh <- err
+			return
 		}
+		resCh <- io.EOF
 	}()
 
 	select {
-	case <-done:
+	case err := <-resCh:
+		if err != nil {
+			t.Fatalf("failed waiting for sse comment frame: %v", err)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for the sse stream to open")
 	}
@@ -543,5 +583,88 @@ func TestSSEReplayDrainsHistoryBeyondOnePage(t *testing.T) {
 		if !strings.Contains(frame.Data, `"n":`+strconv.Itoa(i)) {
 			t.Fatalf("event %d: unexpected payload %q", i, frame.Data)
 		}
+	}
+}
+
+// TestSSENotificationsGenerationFence проверяет, что токен со старым поколением отклоняется (§CWE-613).
+func TestSSENotificationsGenerationFence(t *testing.T) {
+	store := newFakeStore()
+	store.setMinGeneration("user-fence", 5)
+
+	server := newSSETestServer(t, store, sse.Options{})
+	defer server.Close()
+
+	// 0. Токен без generation -> 401
+	reqNoGen, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqNoGen.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", nil))
+
+	respNoGen, err := http.DefaultClient.Do(reqNoGen)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respNoGen.Body.Close()
+
+	if respNoGen.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for missing generation, got %d", respNoGen.StatusCode)
+	}
+
+	// 1. Токен с generation < minGen (gen=3 < minGen=5) -> 401
+	oldGen := 3
+	reqOld, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqOld.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &oldGen))
+
+	respOld, err := http.DefaultClient.Do(reqOld)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respOld.Body.Close()
+
+	if respOld.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for outdated generation, got %d", respOld.StatusCode)
+	}
+
+	// 2. Токен с generation >= minGen (gen=5 >= minGen=5) -> 200
+	validGen := 5
+	reqValid, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqValid.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &validGen))
+
+	respValid, err := http.DefaultClient.Do(reqValid)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = respValid.Body.Close() }()
+
+	if respValid.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid generation, got %d", respValid.StatusCode)
+	}
+
+	// 3. Ошибка CheckMinGeneration (fail-closed при сбое store / Redis) -> 401
+	store.mu.Lock()
+	store.genErr = storage.ErrRedisUnavailable
+	store.mu.Unlock()
+
+	reqErr, err := http.NewRequest(http.MethodGet, server.URL+"/sse/notifications", nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	reqErr.Header.Set("Authorization", "Bearer "+newTestTokenWithGen(t, "user-fence", &validGen))
+
+	respErr, err := http.DefaultClient.Do(reqErr)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	_ = respErr.Body.Close()
+
+	if respErr.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for CheckMinGeneration error (fail-closed), got %d", respErr.StatusCode)
 	}
 }

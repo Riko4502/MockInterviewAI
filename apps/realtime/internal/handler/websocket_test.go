@@ -22,13 +22,15 @@ import (
 // generateTestJWT создает подписанный JWT токен для тестов.
 func generateTestJWT(secret, userID, username, sessionID string) (string, error) {
 	now := time.Now().UTC()
+	gen := 1
 	claims := auth.UserClaims{
-		UserID:    userID,
-		Username:  username,
-		SessionID: sessionID,
-		TokenID:   fmt.Sprintf("tok-%d", now.UnixNano()),
-		Type:      "access",
-		SID:       "sid-" + userID,
+		UserID:     userID,
+		Username:   username,
+		SessionID:  sessionID,
+		TokenID:    fmt.Sprintf("tok-%d", now.UnixNano()),
+		Type:       "access",
+		SID:        "sid-" + userID,
+		Generation: &gen,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        fmt.Sprintf("tok-%d", now.UnixNano()),
@@ -45,13 +47,15 @@ func generateTestJWT(secret, userID, username, sessionID string) (string, error)
 // с привязкой к конкретной комнате через SessionID.
 func generateTestTicket(secret, userID, username, sessionID string) (string, error) {
 	now := time.Now().UTC()
+	gen := 1
 	claims := auth.UserClaims{
-		UserID:    userID,
-		Username:  username,
-		SessionID: sessionID,
-		TokenID:   fmt.Sprintf("ticket-%d", now.UnixNano()),
-		Type:      "realtime",
-		SID:       "sid-" + userID,
+		UserID:     userID,
+		Username:   username,
+		SessionID:  sessionID,
+		TokenID:    fmt.Sprintf("ticket-%d", now.UnixNano()),
+		Type:       "realtime",
+		SID:        "sid-" + userID,
+		Generation: &gen,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        fmt.Sprintf("ticket-%d", now.UnixNano()),
@@ -70,6 +74,7 @@ type mockSessionStore struct {
 	active    map[string]bool
 	codeState map[string][]byte
 	consumed  map[string]bool
+	minGen    map[string]int
 }
 
 func (m *mockSessionStore) IsTokenRevoked(_ context.Context, _ string) (bool, error) {
@@ -94,6 +99,17 @@ func (m *mockSessionStore) GetSessionUserRole(_ context.Context, _ string, userI
 
 func (m *mockSessionStore) IsAuthSessionActive(_ context.Context, sid string) (bool, error) {
 	return sid != "", nil
+}
+
+func (m *mockSessionStore) CheckMinGeneration(_ context.Context, userID string, generation int) (bool, error) {
+	if m.minGen == nil {
+		return true, nil
+	}
+	min, ok := m.minGen[userID]
+	if !ok {
+		return true, nil
+	}
+	return generation >= min, nil
 }
 
 func (m *mockSessionStore) ConsumeTicket(_ context.Context, tokenID string) (bool, error) {
@@ -133,14 +149,9 @@ func dialWebSocket(
 	ctx context.Context,
 	url string,
 	opts *websocket.DialOptions,
-) (*websocket.Conn, error) {
+) (*websocket.Conn, *http.Response, error) {
 	conn, resp, err := websocket.Dial(ctx, url, opts)
-
-	if err != nil && resp != nil {
-		_ = resp.Body.Close()
-	}
-
-	return conn, err
+	return conn, resp, err
 }
 
 func TestE2EWebSocketSessionWorkflow(t *testing.T) {
@@ -182,6 +193,9 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected dial without token to fail with 401, but succeeded")
 	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %v", http.StatusUnauthorized, resp)
+	}
 
 	// 3. Тест: Отклонение не-участника активной сессии (403 Forbidden, fail-closed)
 	// intruder не входит в roles → нет роли → "not a member of this session".
@@ -194,13 +208,19 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 			"Cookie": []string{"access_token=" + badToken},
 		},
 	}
-	_, err = dialWebSocket(
+	_, resp, err = dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsBad,
 	)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected dial by non-member to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 
 	// 4. Подключение Кандидата с токеном в Cookie (User A)
@@ -215,7 +235,7 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connCandidate, err := dialWebSocket(
+	connCandidate, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsCandidate,
@@ -238,6 +258,19 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		t.Fatalf("expected first event to be %s, got %s", ws.EventRoomSync, rawSync1.Type)
 	}
 
+	// Кандидат получает первичный yjs.init
+	_, msgCandidateYjs, err := connCandidate.Read(ctx)
+	if err != nil {
+		t.Fatalf("candidate failed to read yjs.init: %v", err)
+	}
+	rawYjs1, err := ws.ParseRawEnvelope(msgCandidateYjs)
+	if err != nil {
+		t.Fatalf("candidate failed to parse yjs.init envelope: %v", err)
+	}
+	if rawYjs1.Type != ws.EventYjsInit {
+		t.Fatalf("expected second event to be %s, got %s", ws.EventYjsInit, rawYjs1.Type)
+	}
+
 	// 5. Подключение Собеседующего с токеном в Cookie (User B)
 	interviewerToken, err := generateTestJWT(secret, "int-1", "Interviewer-Sarah", sessionID)
 	if err != nil {
@@ -250,7 +283,7 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 		},
 	}
 
-	connInterviewer, err := dialWebSocket(
+	connInterviewer, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOptsInterviewer,
@@ -271,10 +304,23 @@ func TestE2EWebSocketSessionWorkflow(t *testing.T) {
 	}
 	syncPayload2, err := ws.UnpackPayload[ws.RoomSyncPayload](rawSync2)
 	if err != nil {
-		t.Fatalf("failed to unpack room sync: %v", err)
+		t.Fatalf("interviewer failed to unpack room sync: %v", err)
 	}
 	if len(syncPayload2.Participants) != 2 {
 		t.Errorf("expected 2 participants in room.sync, got %d", len(syncPayload2.Participants))
+	}
+
+	// Собеседующий получает первичный yjs.init
+	_, msgInterviewerYjs, err := connInterviewer.Read(ctx)
+	if err != nil {
+		t.Fatalf("interviewer failed to read yjs.init: %v", err)
+	}
+	rawYjs2, err := ws.ParseRawEnvelope(msgInterviewerYjs)
+	if err != nil {
+		t.Fatalf("interviewer failed to parse yjs.init envelope: %v", err)
+	}
+	if rawYjs2.Type != ws.EventYjsInit {
+		t.Fatalf("expected interviewer to receive %s, got %s", ws.EventYjsInit, rawYjs2.Type)
 	}
 
 	// Кандидат должен получить presence.join о входе собеседующего
@@ -388,7 +434,7 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts1 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok1}},
 	}
-	conn1, err := dialWebSocket(
+	conn1, _, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOpts1,
@@ -404,13 +450,19 @@ func TestWebSocketRoomCapacityLimit(t *testing.T) {
 	dialOpts2 := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok2}},
 	}
-	_, err = dialWebSocket(
+	_, resp, err := dialWebSocket(
 		ctx,
 		wsURL+"/ws/sessions/"+sessionID,
 		dialOpts2,
 	)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected second user to be rejected because room is full, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -449,9 +501,15 @@ func TestWebSocketClosedSessionRejected(t *testing.T) {
 	dialOpts := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	}
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected dial to a closed session to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -476,9 +534,15 @@ func TestWebSocketNonMemberRejected(t *testing.T) {
 	dialOpts := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	}
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, dialOpts)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected non-member dial to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -504,7 +568,7 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	// 1-е использование тикета — успешно. Клиент предлагает два подпротокола:
 	// "realtime" (для согласования) и сам тикет; заголовок получается
 	// "realtime,<ticket>", откуда хендлер извлекает тикет.
-	conn1, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	conn1, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
 	})
 	if err != nil {
@@ -513,10 +577,78 @@ func TestWebSocketTicketSingleUse(t *testing.T) {
 	conn1.Close(websocket.StatusNormalClosure, "done")
 
 	// Повторное использование того же тикета — отклоняется (ConsumeTicket=false → 401).
-	if _, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
-	}); err == nil {
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
 		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
+	}
+}
+
+// TestWebSocketTicketNotConsumedOnAccessRejection проверяет, что если запрос
+// отклонён проверками доступа (например, комната закрыта или пользователь не участник),
+// тикет не расходуется (ConsumeTicket не вызывается) и повторная попытка успешна.
+func TestWebSocketTicketNotConsumedOnAccessRejection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket-rejection"
+	sessionID := "room-access-reject"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{sessionID: false}, // комната изначально закрыта
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+
+	ticket, err := generateTestTicket(secret, "user-1", "User1", sessionID)
+	if err != nil {
+		t.Fatalf("failed to generate ticket: %v", err)
+	}
+
+	// 1-я попытка: сессия закрыта -> 403 Forbidden. Тикет НЕ должен сгореть.
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected failure on closed session, got success")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d on closed session, got %v", http.StatusForbidden, resp)
+	}
+
+	// Открываем сессию
+	store.active[sessionID] = true
+
+	// 2-я попытка с тем же тикетом: должна пройти успешно, так как тикет не был израсходован.
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if err != nil {
+		t.Fatalf("expected retry with unconsumed ticket to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+
+	// 3-я попытка: теперь тикет уже использован -> 401 Unauthorized.
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", ticket},
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected ticket reuse to fail with 401, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d on ticket reuse, got %v", http.StatusUnauthorized, resp)
 	}
 }
 
@@ -539,11 +671,17 @@ func TestWebSocketTicketBoundToAnotherSession(t *testing.T) {
 		t.Fatalf("failed to generate ticket: %v", err)
 	}
 
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/target-room", &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/target-room", &websocket.DialOptions{
 		Subprotocols: []string{"realtime", ticket},
 	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected ticket bound to another session to fail with 403, but succeeded")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
 	}
 }
 
@@ -574,10 +712,249 @@ func TestWebSocketAccessFallbackDisabled(t *testing.T) {
 		t.Fatalf("failed to generate access token: %v", err)
 	}
 
-	_, err = dialWebSocket(ctx, wsURL+"/ws/sessions/room", &websocket.DialOptions{
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/room", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Cookie": []string{"access_token=" + tok}},
 	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected access-fallback-disabled dial to fail with 403, but succeeded")
 	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %v", http.StatusForbidden, resp)
+	}
+}
+
+// TestWebSocketTicketGeneration проверяет проверку generation claim в realtime-тикете (§CWE-613).
+func TestWebSocketTicketGeneration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	secret := "test-secret-ticket-gen"
+	store := &mockSessionStore{
+		roles:  map[string]string{"user-1": "candidate"},
+		active: map[string]bool{"room": true},
+		minGen: map[string]int{"user-1": 5},
+	}
+	wsURL, _ := helperHandler(t, secret, store, 20)
+	sessionID := "room"
+
+	// 1. Тикет без generation — отклоняется (401).
+	now := time.Now().UTC()
+	noGenClaims := auth.UserClaims{
+		UserID:    "user-1",
+		Username:  "User1",
+		SessionID: sessionID,
+		TokenID:   fmt.Sprintf("ticket-nogen-%d", now.UnixNano()),
+		Type:      "realtime",
+		SID:       "sid-user-1",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "user-1",
+			ID:        fmt.Sprintf("ticket-nogen-%d", now.UnixNano()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+		},
+	}
+	noGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noGenClaims)
+	noGenTicket, err := noGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign no-gen ticket: %v", err)
+	}
+
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", noGenTicket},
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected ticket without generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d for ticket without generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 2. Тикет без TokenID (jti) — отклоняется (401).
+	gen5 := 5
+	noJtiClaims := noGenClaims
+	noJtiClaims.TokenID = ""
+	noJtiClaims.Generation = &gen5
+	noJtiToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noJtiClaims)
+	noJtiTicket, err := noJtiToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign no-jti ticket: %v", err)
+	}
+
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", noJtiTicket},
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected ticket without jti/TokenID to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d for ticket without jti, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 3. Тикет с generation < minGen (gen=3 < minGen=5) — отклоняется (401).
+	oldGen := 3
+	oldGenClaims := noGenClaims
+	oldGenClaims.TokenID = fmt.Sprintf("ticket-oldgen-%d", now.UnixNano())
+	oldGenClaims.Generation = &oldGen
+	oldGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, oldGenClaims)
+	oldGenTicket, err := oldGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign old-gen ticket: %v", err)
+	}
+
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", oldGenTicket},
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected ticket with generation < min_generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d for ticket with outdated generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 3. Тикет с generation >= minGen (gen=5 >= minGen=5) — успешен.
+	validGen := 5
+	validGenClaims := noGenClaims
+	validGenClaims.TokenID = fmt.Sprintf("ticket-validgen-%d", now.UnixNano())
+	validGenClaims.Generation = &validGen
+	validGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, validGenClaims)
+	validGenTicket, err := validGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign valid-gen ticket: %v", err)
+	}
+
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		Subprotocols: []string{"realtime", validGenTicket},
+	})
+	if err != nil {
+		t.Fatalf("expected valid generation ticket to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+}
+
+// TestWebSocketAccessFallbackGeneration проверяет обязательность generation claim в access token fallback (§CWE-613).
+func TestWebSocketAccessFallbackGeneration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	secret := "access-gen-test-secret"
+	tokenVerifier := auth.NewTokenVerifier(secret)
+	sessionID := "interview-session-acc-gen"
+	userID := "user-acc-gen"
+
+	sessionStore := &mockSessionStore{
+		roles: map[string]string{
+			userID: "candidate",
+		},
+		active: map[string]bool{
+			sessionID: true,
+		},
+		minGen: map[string]int{
+			userID: 5,
+		},
+	}
+	hub := ws.NewHub(ctx, nil, sessionStore, logger)
+	wsHandler := NewWebSocketHandler(hub, tokenVerifier, sessionStore, logger, []string{"*"}, "access_token", 100, 10, true)
+
+	r := chi.NewRouter()
+	r.Get("/ws/sessions/{sessionId}", wsHandler.HandleSessionWS)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// 1. Access-токен без generation — отклоняется (401).
+	now := time.Now().UTC()
+	noGenClaims := auth.UserClaims{
+		UserID:    userID,
+		Username:  "tester",
+		SessionID: sessionID,
+		TokenID:   fmt.Sprintf("tok-nogen-%d", now.UnixNano()),
+		Type:      "access",
+		SID:       "sid-" + userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			ID:        fmt.Sprintf("tok-nogen-%d", now.UnixNano()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(1 * time.Hour)),
+		},
+	}
+	noGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, noGenClaims)
+	noGenJWT, err := noGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign access token: %v", err)
+	}
+
+	reqHeader := http.Header{}
+	reqHeader.Set("Authorization", "Bearer "+noGenJWT)
+
+	_, resp, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeader,
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected access token without generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d for access token without generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 2. Access-токен с generation < minGen (gen=3 < minGen=5) — отклоняется (401).
+	oldGen := 3
+	oldGenClaims := noGenClaims
+	oldGenClaims.TokenID = fmt.Sprintf("tok-oldgen-%d", now.UnixNano())
+	oldGenClaims.Generation = &oldGen
+	oldGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, oldGenClaims)
+	oldGenJWT, err := oldGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign old-gen access token: %v", err)
+	}
+
+	reqHeaderOld := http.Header{}
+	reqHeaderOld.Set("Authorization", "Bearer "+oldGenJWT)
+
+	_, resp, err = dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeaderOld,
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected access token with outdated generation to fail with 401, but succeeded")
+	} else if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d for access token with outdated generation, got %v", http.StatusUnauthorized, resp)
+	}
+
+	// 3. Access-токен с generation >= minGen (gen=5 >= minGen=5) — успешен.
+	validGen := 5
+	validGenClaims := noGenClaims
+	validGenClaims.TokenID = fmt.Sprintf("tok-validgen-%d", now.UnixNano())
+	validGenClaims.Generation = &validGen
+	validGenToken := jwt.NewWithClaims(jwt.SigningMethodHS256, validGenClaims)
+	validGenJWT, err := validGenToken.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign valid-gen access token: %v", err)
+	}
+
+	reqHeaderValid := http.Header{}
+	reqHeaderValid.Set("Authorization", "Bearer "+validGenJWT)
+
+	conn, _, err := dialWebSocket(ctx, wsURL+"/ws/sessions/"+sessionID, &websocket.DialOptions{
+		HTTPHeader: reqHeaderValid,
+	})
+	if err != nil {
+		t.Fatalf("expected valid generation access token to succeed, got: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
 }

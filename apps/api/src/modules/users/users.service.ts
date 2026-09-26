@@ -1,22 +1,34 @@
 import "multer";
 import {
+  BadRequestException,
   ConflictException,
+  forwardRef,
   GoneException,
+  Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  Locale,
   PublicUserProfileDto,
+  ThemeMode,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
-import { publishUserRevocation } from "../../common/pubsub/revocation";
-import type { Role, User } from "../../generated/prisma/client";
+import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
+import {
+  type Prisma,
+  type Role,
+  ThemePreference,
+  type User,
+} from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
+import { AuthSessionService } from "../auth/services/auth-session.service";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -40,6 +52,8 @@ const USER_PROFILE_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
+  theme: true,
+  locale: true,
   role: {
     select: {
       slug: true,
@@ -72,10 +86,14 @@ const PUBLIC_PROFILE_SELECT = {
  */
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => AuthSessionService))
+    private readonly authSessionService: AuthSessionService,
   ) {}
 
   /**
@@ -133,6 +151,33 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по telegramId.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя или `null`, если не найден.
+   */
+  async findByTelegramId(telegramId: bigint): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { telegramId } });
+  }
+
+  /**
+   * Ищет пользователя по telegramId с подгрузкой роли и прав.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleByTelegramId(
+    telegramId: bigint,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { telegramId },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  /**
    * Ищет пользователя по username.
    *
    * @param username - Уникальный username.
@@ -150,7 +195,8 @@ export class UsersService {
    */
   async create(data: {
     email: string;
-    passwordHash: string;
+    passwordHash: string | null;
+    githubId?: string;
     roleSlug?: string;
   }): Promise<User> {
     const roleSlug = data.roleSlug ?? SystemRole.USER;
@@ -168,6 +214,111 @@ export class UsersService {
       data: {
         email: data.email,
         passwordHash: data.passwordHash,
+        ...(data.githubId ? { githubId: data.githubId } : {}),
+        roleId: defaultRole.id,
+      },
+    });
+  }
+
+  /**
+   * Привязывает Telegram-аккаунт к пользователю.
+   *
+   * @param userId - UUID пользователя.
+   * @param data - Telegram данные: `telegramId` и опционально `telegramUsername`.
+   * @returns Сообщение об успешной привязке.
+   * @throws {NotFoundException} Если пользователь не найден (или P2025).
+   * @throws {ConflictException} Если у пользователя уже привязан иной Telegram аккаунт или этот TelegramId занят другим пользователем (или P2002).
+   */
+  async linkTelegram(
+    userId: string,
+    data: { telegramId: bigint; telegramUsername?: string | null },
+  ): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (user.telegramId !== null) {
+      if (user.telegramId === data.telegramId && !user.telegramLinkVerified) {
+        throw new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        );
+      }
+      throw new ConflictException(
+        "Telegram account is already linked to this user",
+      );
+    }
+
+    const existingTgUser = await this.findByTelegramId(data.telegramId);
+    if (existingTgUser && existingTgUser.id !== userId) {
+      throw new ConflictException(
+        "Telegram account is already linked to another user",
+      );
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error) {
+        if (error.code === "P2002") {
+          throw new ConflictException(
+            "Telegram account is already linked to another user",
+          );
+        }
+        if (error.code === "P2025") {
+          throw new NotFoundException("User not found");
+        }
+      }
+      throw error;
+    }
+
+    return { message: "Telegram account linked successfully" };
+  }
+
+  /**
+   * Создаёт нового пользователя через Telegram с назначением дефолтной роли USER.
+   *
+   * @param data - Данные Telegram регистрации: `email`, `passwordHash`, `telegramId`, `telegramUsername`, `displayName`, `avatarUrl`.
+   * @returns Созданный объект пользователя.
+   */
+  async createTelegramUser(data: {
+    email: string;
+    passwordHash: string;
+    telegramId: bigint;
+    telegramUsername?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    roleSlug?: string;
+    telegramLinkVerified?: boolean;
+  }): Promise<User> {
+    const roleSlug = data.roleSlug ?? SystemRole.USER;
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { slug: roleSlug },
+    });
+
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Default role '${roleSlug}' not found in database.`,
+      );
+    }
+
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        telegramId: data.telegramId,
+        telegramUsername: data.telegramUsername ?? null,
+        telegramLinkVerified: data.telegramLinkVerified ?? false,
+        displayName: data.displayName ?? null,
+        avatarUrl: data.avatarUrl ?? null,
+        username: null,
         roleId: defaultRole.id,
       },
     });
@@ -205,21 +356,7 @@ export class UsersService {
       throw new NotFoundException("User profile not found");
     }
 
-    return {
-      id: profile.id,
-      email: profile.email,
-      displayName: profile.displayName,
-      username: profile.username,
-      avatarUrl: profile.avatarUrl,
-      telegramUsername: profile.telegramUsername,
-      gitUrl: profile.gitUrl,
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
-      role: profile.role?.slug ?? SystemRole.USER,
-      permissions: (
-        profile.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(profile);
   }
 
   /**
@@ -259,25 +396,15 @@ export class UsersService {
           telegramUsername: dto.telegramUsername,
         }),
         ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+        ...(dto.theme !== undefined && {
+          theme: dto.theme.toUpperCase() as ThemePreference,
+        }),
+        ...(dto.locale !== undefined && { locale: dto.locale }),
       },
       select: USER_PROFILE_SELECT,
     });
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      displayName: updated.displayName,
-      username: updated.username,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-      role: updated.role?.slug ?? SystemRole.USER,
-      permissions: (
-        updated.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(updated);
   }
 
   /**
@@ -344,18 +471,79 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: new Date() },
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          generation: { increment: 1 },
+        },
+        select: {
+          generation: true,
+        },
+      });
+      const preIncrementGeneration = updatedUser.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: {
+          userId,
+          generation: preIncrementGeneration,
+        },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = preIncrementGeneration;
     });
 
-    // Отзываем текущую сессию в Redis
-    if (sessionId) {
-      await this.redisService.delete(`${REDIS_SESSION_PREFIX}${sessionId}`);
+    try {
+      if (sessionId) {
+        await this.redisService
+          .delete(`${REDIS_SESSION_PREFIX}${sessionId}`)
+          .catch(() => undefined);
+      }
+      await this.revokeSessionsWithRetry(userId, taskCreatedAt, taskGeneration);
+      if (taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${userId} during deactivateAccount (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
+  }
 
-    // Оповещаем Realtime WebSocket сервис через Pub/Sub о блокировке/деактивации
-    await publishUserRevocation(this.redisService, userId);
+  /**
+   * Отзывает все активные сессии пользователя с повторными попытками.
+   */
+  private async revokeSessionsWithRetry(
+    userId: string,
+    maxCreatedAt?: Date | string,
+    maxGeneration?: number,
+    retries = 3,
+    delayMs = 50,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.authSessionService.revokeAllUserSessions(
+          userId,
+          maxCreatedAt,
+          maxGeneration,
+        );
+        await publishUserRevocationOrThrow(this.redisService, userId);
+        return;
+      } catch (error) {
+        if (attempt === retries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
   }
 
   /**
@@ -389,21 +577,7 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      displayName: updated.displayName,
-      username: updated.username,
-      avatarUrl: updated.avatarUrl,
-      telegramUsername: updated.telegramUsername,
-      gitUrl: updated.gitUrl,
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
-      role: updated.role?.slug ?? SystemRole.USER,
-      permissions: (
-        updated.role?.permissions ?? SystemPermission.NONE
-      ).toString(),
-    };
+    return this.mapToUserProfile(updated);
   }
 
   /**
@@ -429,6 +603,57 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    return user;
+    return this.mapToPublicUserProfile(user);
+  }
+
+  /**
+   * Преобразует выборку пользователя Prisma в полный UserProfileDto с ISO-строками дат.
+   */
+  private mapToUserProfile(
+    profile: Prisma.UserGetPayload<{ select: typeof USER_PROFILE_SELECT }>,
+  ): UserProfileDto {
+    return {
+      id: profile.id,
+      email: profile.email,
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+      telegramUsername: profile.telegramUsername,
+      gitUrl: profile.gitUrl,
+      theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
+      locale: (profile.locale === "en" ? "en" : "ru") as Locale,
+      createdAt:
+        typeof profile.createdAt === "string"
+          ? profile.createdAt
+          : profile.createdAt.toISOString(),
+      updatedAt:
+        typeof profile.updatedAt === "string"
+          ? profile.updatedAt
+          : profile.updatedAt.toISOString(),
+      role: profile.role?.slug ?? SystemRole.USER,
+      permissions: (
+        profile.role?.permissions ?? SystemPermission.NONE
+      ).toString(),
+    };
+  }
+
+  /**
+   * Преобразует выборку публичного профиля Prisma в PublicUserProfileDto с ISO-строкой даты.
+   */
+  private mapToPublicUserProfile(
+    user: Prisma.UserGetPayload<{ select: typeof PUBLIC_PROFILE_SELECT }>,
+  ): PublicUserProfileDto {
+    return {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      telegramUsername: user.telegramUsername,
+      gitUrl: user.gitUrl,
+      createdAt:
+        typeof user.createdAt === "string"
+          ? user.createdAt
+          : user.createdAt.toISOString(),
+    };
   }
 }

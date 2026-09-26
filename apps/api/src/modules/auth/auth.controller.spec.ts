@@ -1,9 +1,11 @@
 import { HttpStatus, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import type { TelegramAuthDto, TelegramLinkDto } from "@packages/dto";
 import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { GithubOAuthService } from "./services/github-oauth.service";
 import type { TokenPayload } from "./services/token.service";
 
 const DTO = {
@@ -49,6 +51,9 @@ describe("AuthController", () => {
   let changePasswordMock: jest.Mock;
   let forgotPasswordMock: jest.Mock;
   let resetPasswordMock: jest.Mock;
+  let telegramAuthMock: jest.Mock;
+  let telegramCompleteMock: jest.Mock;
+  let telegramLinkMock: jest.Mock;
   let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
@@ -69,6 +74,14 @@ describe("AuthController", () => {
       message: "The password has been successfully changed",
     });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramAuthMock = jest.fn().mockResolvedValue({
+      status: "AUTHENTICATED",
+      ...AUTH_RESULT,
+    });
+    telegramCompleteMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramLinkMock = jest
+      .fn()
+      .mockResolvedValue({ message: "Telegram account linked successfully" });
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
     statusMock = jest.fn();
@@ -90,8 +103,12 @@ describe("AuthController", () => {
         forgotPassword: forgotPasswordMock,
         resetPassword: resetPasswordMock,
         refresh: refreshMock,
+        telegramAuth: telegramAuthMock,
+        telegramComplete: telegramCompleteMock,
+        telegramLink: telegramLinkMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
+      {} as GithubOAuthService,
     );
   }
 
@@ -612,6 +629,92 @@ describe("AuthController", () => {
     });
   });
 
+  describe("POST /auth/telegram", () => {
+    const tgDto = {
+      id: 123456789,
+      auth_date: 1700000000,
+      hash: "hash",
+    };
+
+    it("при статсуе AUTHENTICATED выставляет refresh cookie и возвращает accessToken", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
+      const result = await createController().telegramAuth(
+        request,
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(telegramAuthMock).toHaveBeenCalledWith(tgDto, tgDto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        status: "AUTHENTICATED",
+        accessToken: "raw.access.token",
+      });
+    });
+
+    it("при статусе NEED_EMAIL возвращает onboardingToken без вызова cookie", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
+      telegramAuthMock.mockResolvedValue({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+
+      const result = await createController().telegramAuth(
+        request,
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(cookieMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+    });
+  });
+
+  describe("POST /auth/telegram/complete", () => {
+    it("выставляет refresh cookie и возвращает accessToken", async () => {
+      const dto = { onboardingToken: "token_123", email: "test@example.com" };
+      const result = await createController().telegramComplete(dto, response);
+
+      expect(telegramCompleteMock).toHaveBeenCalledWith(dto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(statusMock).toHaveBeenCalledWith(201);
+      expect(result).toEqual({ accessToken: "raw.access.token" });
+    });
+  });
+
+  describe("POST /auth/telegram/link", () => {
+    it("привязывает Telegram аккаунт к авторизованному пользователю", async () => {
+      const request = createRequestWithUser({ sub: "user-uuid" });
+      const tgDto = { id: 123456789, auth_date: 1700000000, hash: "hash" };
+      request.body = tgDto;
+
+      const result = await createController().telegramLink(
+        request,
+        tgDto as TelegramLinkDto,
+      );
+
+      expect(telegramLinkMock).toHaveBeenCalledWith("user-uuid", tgDto, tgDto);
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+  });
+
   describe("POST /auth/reset-password", () => {
     it("200 OK при успешной смене пароля, сбрасывает refresh cookie", async () => {
       const controller = createController();
@@ -663,5 +766,142 @@ describe("AuthController", () => {
       ) as unknown[];
       expect(guards).toContain(AuthThrottlerGuard);
     });
+  });
+});
+
+describe("Авторизация через GitHub OAuth в AuthController", () => {
+  const user = { id: "github-user" };
+  const oauth = {
+    authorize: jest.fn(),
+    callback: jest.fn(),
+    isAvailable: jest.fn(),
+  };
+  const auth = { loginUser: jest.fn() };
+  const responseMock = {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+    redirect: jest.fn(),
+    setHeader: jest.fn(),
+  };
+  const config = {
+    get: (key: string) =>
+      ({
+        "cookie.secure": true,
+        "cookie.refreshTokenName": "custom_refresh",
+        "jwt.refreshExpiresIn": "7d",
+      })[key],
+    getOrThrow: () => "https://web.example.com",
+  };
+  const controller = new AuthController(
+    auth as unknown as AuthService,
+    config as unknown as ConfigService,
+    oauth as unknown as GithubOAuthService,
+  );
+  const response = responseMock as unknown as Response;
+  it.each([
+    true,
+    false,
+  ])("exposes only public OAuth availability: %s", (available) => {
+    oauth.isAvailable.mockReturnValue(available);
+    expect(controller.oauthProviders(response)).toEqual({ github: available });
+    expect(responseMock.setHeader).toHaveBeenCalledWith(
+      "Cache-Control",
+      "no-store",
+    );
+    expect(
+      Reflect.getMetadata("isPublic", AuthController.prototype.oauthProviders),
+    ).toBe(true);
+  });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    oauth.authorize.mockResolvedValue({
+      url: "https://github.com/login/oauth/authorize?state=random",
+      browserSecret: "browser-secret",
+    });
+    oauth.callback.mockResolvedValue(user);
+    auth.loginUser.mockResolvedValue(AUTH_RESULT);
+  });
+  it("начинает OAuth, устанавливает краткоживущую HttpOnly cookie привязки к браузеру и перенаправляет на GitHub", async () => {
+    await controller.github(response);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      "browser-secret",
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 300000,
+      },
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://github.com/login/oauth/authorize?state=random",
+    );
+  });
+  it("завершает обработку возврата через существующую сессию, устанавливает refresh cookie и перенаправляет на dashboard", async () => {
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(oauth.callback).toHaveBeenCalledWith("code", "state", "binding");
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
+    expect(responseMock.cookie).toHaveBeenCalledWith(
+      "custom_refresh",
+      AUTH_RESULT.refreshToken,
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/api/v1/auth",
+        maxAge: 604800000,
+      },
+    );
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/dashboard",
+    );
+    expect(JSON.stringify(responseMock.redirect.mock.calls)).not.toContain(
+      "token",
+    );
+  });
+  it("перенаправляет на login без деталей ошибки при некорректном возврате", async () => {
+    oauth.callback.mockRejectedValueOnce(
+      new UnauthorizedException("private provider error"),
+    );
+    await controller.githubCallback(
+      undefined,
+      undefined,
+      {} as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.clearCookie).toHaveBeenCalledWith(
+      "github_oauth_state",
+      expect.objectContaining({ httpOnly: true, secure: true }),
+    );
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
+  });
+  it("перенаправляет на login без refresh cookie и деталей ошибки создания сессии", async () => {
+    auth.loginUser.mockRejectedValueOnce(new Error("session failure"));
+    await controller.githubCallback("code", "state", {} as Request, response);
+    expect(auth.loginUser).toHaveBeenCalledWith(user);
+    expect(responseMock.cookie).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledTimes(1);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=github",
+    );
   });
 });

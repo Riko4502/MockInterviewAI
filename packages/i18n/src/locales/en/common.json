@@ -8,7 +8,8 @@
     "continue": "Continue",
     "back": "Back",
     "submit": "Submit",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "switchLanguage": "Switch language"
   },
   "navigation": {
     "home": "Home",
@@ -40,6 +41,13 @@
     "saveError": "Failed to save profile.",
     "saveSuccess": "Profile saved.",
     "avatarError": "Failed to upload avatar.",
+    "preferencesTitle": "Appearance & Language",
+    "preferencesSubtitle": "Customize interface theme and display language.",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
     "errors": {
       "displayNameMin": "Name must be at least 2 characters",
       "displayNameMax": "Name must be at most 50 characters",
@@ -47,5 +55,37 @@
       "telegram": "Telegram: 5–32 characters, letters, numbers and _",
       "gitUrl": "Enter a GitHub or GitLab profile URL"
     }
+  },
+  "notifications": {
+    "unreadAria": "Unread notifications: {{count}}",
+    "markAllAsRead": "Mark all as read",
+    "viewAll": "View all notifications",
+    "filters": {
+      "all": "All",
+      "interview": "Interviews",
+      "message": "Messages",
+      "system": "System"
+    },
+    "loading": "Loading notifications",
+    "loadError": "Could not load notifications.",
+    "retry": "Try again",
+    "empty": "You have no notifications yet",
+    "categories": "Notification categories",
+    "pagination": {
+      "label": "Notification pages",
+      "page": "Page {{page}}",
+      "next": "Next",
+      "previousAria": "Go to previous page",
+      "nextAria": "Go to next page"
+    },
+    "enableSystem": "Enable system notifications",
+    "pendingPermission": "Waiting for permission…",
+    "enabled": "System notifications are enabled",
+    "denied": "Notifications are blocked. Allow them in your browser site settings.",
+    "permissionError": "Could not request permission. Please try again.",
+    "view": "View",
+    "open": "Open notifications",
+    "deleteAria": "Delete notification: {{title}}",
+    "updateError": "Could not update the notification. Please try again."
   }
 }

@@ -13,6 +13,8 @@ describe("createProfileFormSchema", () => {
       username: "Ivan_Dev",
       telegramUsername: " @ivan_dev ",
       gitUrl: "https://github.com/ivan",
+      theme: "dark",
+      locale: "ru",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -20,6 +22,8 @@ describe("createProfileFormSchema", () => {
       username: "ivan_dev",
       telegramUsername: "ivan_dev",
       gitUrl: "https://github.com/ivan",
+      theme: "dark",
+      locale: "ru",
     });
   });
 
@@ -29,6 +33,8 @@ describe("createProfileFormSchema", () => {
       username: "ivan",
       telegramUsername: "  ",
       gitUrl: "",
+      theme: "light",
+      locale: "en",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -36,7 +42,30 @@ describe("createProfileFormSchema", () => {
       username: "ivan",
       telegramUsername: null,
       gitUrl: null,
+      theme: "light",
+      locale: "en",
     });
+  });
+
+  it("отправляет только измененные поля, если переданы dirtyFields", () => {
+    const parsed = schema.parse({
+      displayName: "Иван",
+      username: "ivan",
+      telegramUsername: "",
+      gitUrl: "",
+      theme: "dark",
+      locale: "ru",
+    });
+
+    expect(toUpdateProfileDto(parsed, { displayName: true })).toEqual({
+      displayName: "Иван",
+    });
+
+    expect(toUpdateProfileDto(parsed, { theme: true })).toEqual({
+      theme: "dark",
+    });
+
+    expect(toUpdateProfileDto(parsed, {})).toEqual({});
   });
 
   it("отклоняет слишком короткое отображаемое имя", () => {

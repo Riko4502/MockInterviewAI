@@ -1,8 +1,15 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
-import type { RedisService } from "../../redis/redis.service";
-import { SessionsService } from "./sessions.service";
+import { RedisService } from "../../redis/redis.service";
+import {
+  FALLBACK_SEED_TASK_DOC_LUA,
+  REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
+  SEED_TASK_DOC_LUA,
+  SessionsService,
+} from "./sessions.service";
 
 describe("SessionsService", () => {
   let prismaMock: {
@@ -114,6 +121,53 @@ describe("SessionsService", () => {
         `session:${sessionId}:invite`,
         result.inviteToken,
         7200,
+      );
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
+        `{session:${sessionId}}:seeded_tasks`,
+        `{session:${sessionId}}:task:two-sum:typescript:updates`,
+        "two-sum:typescript",
+        expect.any(String),
+        86400,
+      );
+    });
+
+    it("успешно создаёт сессию, даже если сидинг Redis завершился ошибкой (lazy fallback)", async () => {
+      prismaMock.interviewSession.create.mockResolvedValue({
+        id: sessionId,
+        userId: ownerId,
+      });
+      redisMock.eval.mockRejectedValueOnce(
+        new Error("Redis connection timeout"),
+      );
+
+      const result = await service.createSession(ownerId);
+
+      expect(result.sessionId).toBe(sessionId);
+      expect(result.inviteToken).toHaveLength(64);
+    });
+  });
+
+  describe("seedTaskDoc", () => {
+    it("вызывает seed_task_doc.lua со специальным taskKey и контентом", async () => {
+      redisMock.eval.mockResolvedValue(1);
+
+      const status = await service.seedTaskDoc(
+        sessionId,
+        "task-2:python",
+        "def solution(): pass",
+      );
+
+      expect(status).toBe(1);
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        2,
+        `{session:${sessionId}}:seeded_tasks`,
+        `{session:${sessionId}}:task:task-2:python:updates`,
+        "task-2:python",
+        expect.any(String),
+        86400,
       );
     });
   });
@@ -631,6 +685,33 @@ describe("SessionsService", () => {
       );
 
       await expect(service.reconcileMirrors()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("SEED_TASK_DOC_LUA contract with apps/realtime", () => {
+    it("соответствует seed_task_doc.lua из apps/realtime", () => {
+      const realtimeScriptPath = path.resolve(
+        __dirname,
+        REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
+      );
+      expect(fs.existsSync(realtimeScriptPath)).toBe(true);
+
+      const realtimeContent = fs.readFileSync(realtimeScriptPath, "utf-8");
+
+      const normalize = (script: string) =>
+        script
+          .replace(/\r\n/g, "\n")
+          .replace(/--[^\n]*/g, "") // Удаляем однострочные комментарии Lua
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join("\n");
+
+      // Резервная копия должна совпадать с источником истины
+      expect(normalize(FALLBACK_SEED_TASK_DOC_LUA)).toBe(
+        normalize(realtimeContent),
+      );
+      expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
     });
   });
 });

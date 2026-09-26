@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   InternalServerErrorException,
@@ -7,6 +8,7 @@ import {
 import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { AuthSessionService } from "../auth/services/auth-session.service";
 import type { StorageService } from "../storage/storage.service";
 import { UsersService } from "./users.service";
 
@@ -21,9 +23,17 @@ describe("UsersService", () => {
     role: {
       findUnique: jest.Mock;
     };
+    authRevocationTask: {
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let storageServiceMock: jest.Mocked<Partial<StorageService>>;
   let redisServiceMock: jest.Mocked<Partial<RedisService>>;
+  let authSessionServiceMock: {
+    revokeAllUserSessions: jest.Mock;
+  };
   let service: UsersService;
 
   const mockUser = {
@@ -34,9 +44,13 @@ describe("UsersService", () => {
     username: "ivan_dev",
     avatarUrl: "https://example.com/avatar.webp",
     telegramUsername: "ivan_tg",
+    telegramLinkVerified: false,
     gitUrl: "https://github.com/ivan_dev",
+    theme: "DARK",
+    locale: "ru",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
+    generation: 1,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   };
@@ -47,7 +61,7 @@ describe("UsersService", () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         create: jest.fn(),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue({ ...mockUser, generation: 2 }),
       },
       role: {
         findUnique: jest.fn().mockResolvedValue({
@@ -56,50 +70,59 @@ describe("UsersService", () => {
           permissions: SystemPermission.USERS_READ,
         }),
       },
+      authRevocationTask: {
+        create: jest.fn().mockResolvedValue({
+          id: "task-1",
+          createdAt: new Date("2026-09-10T12:00:00.000Z"),
+        }),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn().mockImplementation((arg) => {
+        if (typeof arg === "function") {
+          return arg(prismaMock);
+        }
+        return Promise.all(arg);
+      }),
     };
     storageServiceMock = {
       uploadAvatar: jest
         .fn()
-        .mockResolvedValue("https://s3.example.com/new_avatar.webp"),
+        .mockResolvedValue("https://example.com/new_avatar.webp"),
       deleteFile: jest.fn().mockResolvedValue(undefined),
     };
     redisServiceMock = {
-      delete: jest.fn().mockResolvedValue(undefined),
-      publish: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(1),
+      publish: jest.fn().mockResolvedValue(1),
+    };
+    authSessionServiceMock = {
+      revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new UsersService(
       prismaMock as unknown as PrismaService,
-      storageServiceMock as StorageService,
-      redisServiceMock as RedisService,
+      storageServiceMock as unknown as StorageService,
+      redisServiceMock as unknown as RedisService,
+      authSessionServiceMock as unknown as AuthSessionService,
     );
   });
 
   describe("create", () => {
     it("создаёт нового пользователя с ID найденной роли", async () => {
-      prismaMock.user.create.mockResolvedValue({
-        id: mockUser.id,
-        email: mockUser.email,
-        passwordHash: mockUser.passwordHash,
-        roleId: "00000000-0000-4000-a000-000000000002",
-      });
+      prismaMock.user.create.mockResolvedValue(mockUser);
 
       const result = await service.create({
-        email: mockUser.email,
-        passwordHash: mockUser.passwordHash,
+        email: "test@example.com",
+        passwordHash: "argon2id$hashed",
       });
 
-      expect(prismaMock.role.findUnique).toHaveBeenCalledWith({
-        where: { slug: SystemRole.USER },
-      });
+      expect(result).toEqual(mockUser);
       expect(prismaMock.user.create).toHaveBeenCalledWith({
         data: {
-          email: mockUser.email,
-          passwordHash: mockUser.passwordHash,
+          email: "test@example.com",
+          passwordHash: "argon2id$hashed",
           roleId: "00000000-0000-4000-a000-000000000002",
         },
       });
-      expect(result.id).toBe(mockUser.id);
     });
 
     it("выбрасывает InternalServerErrorException если роль не найдена", async () => {
@@ -108,31 +131,40 @@ describe("UsersService", () => {
       await expect(
         service.create({
           email: "test@example.com",
-          passwordHash: "hash",
+          passwordHash: "argon2id$hashed",
         }),
       ).rejects.toThrow(InternalServerErrorException);
-      expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
   });
 
   describe("getProfile", () => {
     it("возвращает профиль пользователя без passwordHash с ролью и ненулевой маской", async () => {
-      const { passwordHash: _, deletedAt: __, ...safeProfile } = mockUser;
-      prismaMock.user.findUnique.mockResolvedValue(safeProfile);
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.getProfile(mockUser.id);
 
-      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-        where: { id: mockUser.id },
-        select: expect.any(Object),
-      });
+      const {
+        passwordHash: _,
+        deletedAt: __,
+        generation: ___,
+        telegramLinkVerified: ______,
+        createdAt: ____,
+        updatedAt: _____,
+        theme: _______,
+        ...safeProfile
+      } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
+        theme: "dark",
+        createdAt: mockUser.createdAt.toISOString(),
+        updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
-        permissions: "2",
+        permissions: SystemPermission.USERS_READ.toString(),
       });
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
+      expect(result).not.toHaveProperty("generation");
+      expect(result).not.toHaveProperty("telegramLinkVerified");
     });
 
     it("выбрасывает NotFoundException если профиль не найден", async () => {
@@ -146,33 +178,53 @@ describe("UsersService", () => {
 
   describe("updateProfile", () => {
     it("успешно обновляет профиль пользователя", async () => {
-      prismaMock.user.findUnique.mockResolvedValue(mockUser);
       const updatedProfile = {
         ...mockUser,
         displayName: "New Name",
-        telegramUsername: "new_tg",
-        gitUrl: "https://gitlab.com/new_user",
       };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.findFirst.mockResolvedValue(null);
       prismaMock.user.update.mockResolvedValue(updatedProfile);
 
       const result = await service.updateProfile(mockUser.id, {
         displayName: "New Name",
-        telegramUsername: "new_tg",
-        gitUrl: "https://gitlab.com/new_user",
       });
 
       expect(result.displayName).toBe("New Name");
-      expect(result.gitUrl).toBe("https://gitlab.com/new_user");
-      expect(result.role).toBe(SystemRole.USER);
-      expect(result.permissions).toBe("2");
       expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("успешно обновляет тему и язык пользователя", async () => {
+      const updatedProfile = {
+        ...mockUser,
+        theme: "LIGHT",
+        locale: "en",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        theme: "light",
+        locale: "en",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            theme: "LIGHT",
+            locale: "en",
+          }),
+        }),
+      );
+      expect(result.theme).toBe("light");
+      expect(result.locale).toBe("en");
     });
 
     it("выбрасывает ConflictException при попытке занять чужой username", async () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(mockUser)
         .mockResolvedValueOnce({
-          id: "22222222-2222-4222-a222-222222222222",
+          id: "another-user-id",
           username: "taken_username",
         });
 
@@ -185,7 +237,7 @@ describe("UsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updateProfile("non-existent", { displayName: "Test" }),
+        service.updateProfile("non-existent-id", { displayName: "New Name" }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -195,26 +247,38 @@ describe("UsersService", () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
       prismaMock.user.update.mockResolvedValue({
         ...mockUser,
-        avatarUrl: "https://s3.example.com/new_avatar.webp",
+        avatarUrl: "https://example.com/new_avatar.webp",
       });
 
-      const mockFile = { buffer: Buffer.from("test") } as Express.Multer.File;
+      const mockFile = {
+        buffer: Buffer.from("fake-image"),
+        mimetype: "image/png",
+      } as Express.Multer.File;
+
       const result = await service.updateAvatar(mockUser.id, mockFile);
 
+      expect(result).toEqual({
+        avatarUrl: "https://example.com/new_avatar.webp",
+      });
       expect(storageServiceMock.uploadAvatar).toHaveBeenCalledWith(
         mockUser.id,
         mockFile,
       );
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { avatarUrl: "https://example.com/new_avatar.webp" },
+      });
       expect(storageServiceMock.deleteFile).toHaveBeenCalledWith(
         mockUser.avatarUrl,
       );
-      expect(result).toEqual({
-        avatarUrl: "https://s3.example.com/new_avatar.webp",
-      });
     });
 
     it("удаляет текущий аватар из S3 и обнуляет в БД", async () => {
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        avatarUrl: null,
+      });
 
       await service.deleteAvatar(mockUser.id);
 
@@ -236,15 +300,46 @@ describe("UsersService", () => {
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: mockUser.id },
-        data: { deletedAt: expect.any(Date) },
+        data: {
+          deletedAt: expect.any(Date),
+          generation: { increment: 1 },
+        },
+        select: {
+          generation: true,
+        },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: {
+          userId: mockUser.id,
+          generation: 1,
+        },
+      });
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
       });
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         "auth:session:session-123",
+      );
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUser.id,
+        new Date("2026-09-10T12:00:00.000Z"),
+        1,
       );
       expect(redisServiceMock.publish).toHaveBeenCalledWith(
         "auth:revocations",
         expect.stringContaining(mockUser.id),
       );
+    });
+
+    it("не удаляет authRevocationTask если публикация в Redis завершилась ошибкой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      redisServiceMock.publish = jest
+        .fn()
+        .mockRejectedValue(new Error("Redis publish error"));
+
+      await service.deactivateAccount(mockUser.id, "session-123");
+
+      expect(prismaMock.authRevocationTask.delete).not.toHaveBeenCalled();
     });
 
     it("восстанавливает аккаунт если прошло менее 30 дней", async () => {
@@ -284,6 +379,177 @@ describe("UsersService", () => {
     });
   });
 
+  describe("linkTelegram", () => {
+    it("успешно привязывает Telegram аккаунт к пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        return null;
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      const result = await service.linkTelegram(mockUser.id, {
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          telegramId: BigInt(123456789),
+          telegramUsername: "new_tg",
+          telegramLinkVerified: true,
+        },
+      });
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.linkTelegram("non-existent", {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("выбрасывает ConflictException если пользователь уже имеет другой привязанный telegramId", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(999999999),
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+    });
+
+    it("выбрасывает BadRequestException при попытке подтвердить уже привязанный неподтвержденный telegramId (telegramLinkVerified: false)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: false,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        ),
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если тот же telegramId уже привязан и подтвержден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: true,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если telegramId уже привязан к другому пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        if (args.where.telegramId)
+          return {
+            id: "22222222-2222-4222-a222-222222222222",
+            telegramId: BigInt(123456789),
+          };
+        return null;
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to another user");
+    });
+
+    it("обрабатывает Prisma P2025 ошибки как NotFoundException", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: null,
+      });
+      const p2025 = Object.assign(new Error("Record not found"), {
+        code: "P2025",
+      });
+      prismaMock.user.update.mockRejectedValue(p2025);
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("findByTelegramId and createTelegramUser", () => {
+    it("ищет пользователя по telegramId", async () => {
+      const tgUser = { ...mockUser, telegramId: BigInt(123456789) };
+      prismaMock.user.findUnique.mockResolvedValue(tgUser);
+
+      const result = await service.findByTelegramId(BigInt(123456789));
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { telegramId: BigInt(123456789) },
+      });
+      expect(result).toEqual(tgUser);
+    });
+
+    it("создает нового пользователя через createTelegramUser", async () => {
+      const createdUser = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        username: null,
+      };
+      prismaMock.user.create.mockResolvedValue(createdUser);
+
+      const result = await service.createTelegramUser({
+        email: "tg@example.com",
+        passwordHash: "argon2id$hash",
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        displayName: "Telegram User",
+        avatarUrl: "https://s3.local/avatar.webp",
+      });
+
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: "tg@example.com",
+          passwordHash: "argon2id$hash",
+          telegramId: BigInt(123456789),
+          telegramUsername: "tg_user",
+          telegramLinkVerified: false,
+          displayName: "Telegram User",
+          avatarUrl: "https://s3.local/avatar.webp",
+          username: null,
+          roleId: "00000000-0000-4000-a000-000000000002",
+        },
+      });
+      expect(result).toEqual(createdUser);
+    });
+  });
+
   describe("getPublicProfile", () => {
     it("ищет по UUID и игнорирует удаленные аккаунты", async () => {
       const publicData = {
@@ -303,7 +569,10 @@ describe("UsersService", () => {
         where: { id: mockUser.id, deletedAt: null },
         select: expect.any(Object),
       });
-      expect(result).toEqual(publicData);
+      expect(result).toEqual({
+        ...publicData,
+        createdAt: mockUser.createdAt.toISOString(),
+      });
     });
   });
 });

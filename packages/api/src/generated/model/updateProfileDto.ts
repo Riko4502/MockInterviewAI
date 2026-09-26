@@ -9,6 +9,8 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateProfileDtoLocale } from './updateProfileDtoLocale';
+import type { UpdateProfileDtoTheme } from './updateProfileDtoTheme';
 
 export interface UpdateProfileDto {
   /**
@@ -30,4 +32,6 @@ export interface UpdateProfileDto {
      * @pattern ^https?:\/\/(www\.)?(github|gitlab)\.com\/[a-zA-Z0-9_.-]+\/?$
      */
   gitUrl?: string | null;
+  theme?: UpdateProfileDtoTheme;
+  locale?: UpdateProfileDtoLocale;
 }

@@ -186,3 +186,34 @@ func TestTokenVerificationTypSID(t *testing.T) {
 		t.Error("expected error for token with empty sid, got nil")
 	}
 }
+
+func TestTokenVerificationGeneration(t *testing.T) {
+	secret := "test-super-secret-key-12345"
+	verifier := NewTokenVerifier(secret)
+	now := time.Now().UTC()
+	gen := 42
+	claims := UserClaims{
+		UserID:     "user-1",
+		Username:   "Alice",
+		SessionID:  "session-100",
+		SID:        "sid-1",
+		Type:       "realtime",
+		Generation: &gen,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "user-1",
+			ID:        "tok-1",
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(1 * time.Hour)),
+		},
+	}
+
+	tok := signTestToken(t, secret, claims)
+	verified, err := verifier.VerifyToken(tok)
+	if err != nil {
+		t.Fatalf("expected valid token with generation to pass, got error: %v", err)
+	}
+
+	if verified.Generation == nil || *verified.Generation != 42 {
+		t.Errorf("expected generation 42, got %v", verified.Generation)
+	}
+}

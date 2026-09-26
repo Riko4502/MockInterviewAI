@@ -226,7 +226,6 @@ describe("E2E: RBAC & Dynamic Bitmask Permissions Flow", () => {
     expect(adminAllowedRes.status).toBe(200);
     expect(adminAllowedRes.body).toEqual({ status: "permissions-ok" });
   });
-
   it("RBAC-06: Обычная (не-ADMIN) роль с требуемым SystemPermission.ROLES_MANAGE получает доступ (200) к @RequirePermissions", async () => {
     const email = uniqueEmail();
     usedEmails.push(email);

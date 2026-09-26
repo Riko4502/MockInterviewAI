@@ -2,9 +2,12 @@ package storage
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +31,7 @@ type SessionStore interface {
 	IsSessionActive(ctx context.Context, sessionID string) (bool, error)
 	GetSessionUserRole(ctx context.Context, sessionID, userID string) (string, error)
 	IsAuthSessionActive(ctx context.Context, sid string) (bool, error)
+	CheckMinGeneration(ctx context.Context, userID string, generation int) (bool, error)
 	ConsumeTicket(ctx context.Context, tokenID string) (bool, error)
 	TouchMirror(ctx context.Context, sessionID string, ttl time.Duration) error
 	NextCodeVersion(ctx context.Context, sessionID string) (int64, error)
@@ -35,6 +39,15 @@ type SessionStore interface {
 	GetCodeState(ctx context.Context, sessionID string) ([]byte, error)
 	Ping(ctx context.Context) error
 	Close() error
+}
+
+// YjsDocStore интерфейс для работы со стримами и сидингом CRDT-документов Yjs в Redis.
+type YjsDocStore interface {
+	SeedTaskDoc(ctx context.Context, sessionID, taskKey, starterUpdateBase64 string, ttlSeconds int64) (int, error)
+	GetTaskUpdates(ctx context.Context, sessionID, taskKey string) ([]string, error)
+	AppendTaskUpdate(ctx context.Context, sessionID, taskKey, updateBase64 string) (string, error)
+	CompactTaskStream(ctx context.Context, sessionID, taskKey, snapshotBase64 string) error
+	TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error
 }
 
 // PubSubMessage обертка над сообщением для предотвращения эхо-повторов на одном и том же сервере.
@@ -399,7 +412,7 @@ func (r *RedisStore) IsSessionActive(ctx context.Context, sessionID string) (boo
 	key := fmt.Sprintf("session:%s:active", sessionID)
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 		r.logger.Warn("failed to check session active in redis", slog.String("error", err.Error()))
@@ -421,7 +434,7 @@ func (r *RedisStore) GetSessionUserRole(ctx context.Context, sessionID, userID s
 	key := fmt.Sprintf("session:%s:members", sessionID)
 	role, err := r.client.HGet(ctx, key, userID).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return "", nil
 		}
 		r.logger.Warn("failed to fetch user role from redis session members",
@@ -452,6 +465,57 @@ func (r *RedisStore) IsAuthSessionActive(ctx context.Context, sid string) (bool,
 	}
 
 	return exists > 0, nil
+}
+
+// ErrRedisUnavailable возвращается security-критичными методами при недоступном Redis
+// или отключённом клиенте (fail-closed режим, §CWE-613).
+var ErrRedisUnavailable = errors.New("redis unavailable")
+
+// CheckMinGeneration проверяет, удовлетворяет ли generation токена минимальному активному поколению
+// пользователя в Redis (ключ "auth:user:<userId>:min_generation", §CWE-613).
+//
+// Fail-closed: при недоступном Redis или nil-клиенте возвращает (false, ErrRedisUnavailable),
+// чтобы SSE и WebSocket хендлеры завершили запрос с 401 вместо пропуска проверки.
+//
+// Если min_generation не установлен (redis.Nil), ключ ещё не записан — токен считается
+// действительным (true, nil): ключ появляется только при отзыве сессий.
+// Если generation < min_generation, возвращает (false, nil).
+// При ошибке Redis (не Nil) логирует и возвращает (false, err).
+func (r *RedisStore) CheckMinGeneration(ctx context.Context, userID string, generation int) (bool, error) {
+	if !r.enabled || r.client == nil {
+		r.logger.Warn("CheckMinGeneration: redis unavailable, rejecting (fail-closed)",
+			slog.String("userId", userID),
+		)
+		return false, ErrRedisUnavailable
+	}
+	if userID == "" {
+		return false, errors.New("CheckMinGeneration: empty userID")
+	}
+
+	key := fmt.Sprintf("auth:user:%s:min_generation", userID)
+	val, err := r.client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return true, nil
+		}
+		r.logger.Warn("failed to check min generation in redis",
+			slog.String("userId", userID),
+			slog.String("error", err.Error()),
+		)
+		return false, err
+	}
+
+	minGen, err := strconv.Atoi(strings.TrimSpace(val))
+	if err != nil {
+		r.logger.Warn("invalid min generation value in redis",
+			slog.String("userId", userID),
+			slog.String("val", val),
+			slog.String("error", err.Error()),
+		)
+		return false, nil
+	}
+
+	return generation >= minGen, nil
 }
 
 // ConsumeTicket атомарно помечает одноразовый тикет использованным:
@@ -584,7 +648,7 @@ func (r *RedisStore) GetCodeState(ctx context.Context, sessionID string) ([]byte
 	key := fmt.Sprintf("session:%s:code", sessionID)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -607,4 +671,135 @@ func (r *RedisStore) Close() error {
 		return r.client.Close()
 	}
 	return nil
+}
+
+//go:embed scripts/seed_task_doc.lua
+var seedTaskDocLua string
+
+var seedTaskDocScript *redis.Script
+
+func init() {
+	seedTaskDocScript = redis.NewScript(seedTaskDocLua)
+}
+
+// SeedTaskDoc атомарно проверяет и засевает начальный документ Yjs для задачи через seed_task_doc.lua.
+// Возвращает код состояния скрипта:
+// 0 - No-op (уже засеяно и валидно)
+// 1 - Первичный сидинг успешно выполнен
+// 2 - Маркер успешно восстановлен без повторного XADD
+// 3 - Служебная структура стрима восстановлена со стартовым шаблоном
+func (r *RedisStore) SeedTaskDoc(ctx context.Context, sessionID, taskKey, starterUpdateBase64 string, ttlSeconds int64) (int, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return 0, nil
+	}
+
+	keys := []string{
+		fmt.Sprintf("{session:%s}:seeded_tasks", sessionID),
+		fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey),
+	}
+
+	res, err := seedTaskDocScript.Run(ctx, r.client, keys, taskKey, starterUpdateBase64, ttlSeconds).Int()
+	if err != nil {
+		r.logger.Warn("failed to execute seed_task_doc.lua in redis",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return 0, err
+	}
+
+	return res, nil
+}
+
+// GetTaskUpdates считывает все сохраненные дельты задачи из Redis Stream ({session:<id>}:task:<taskKey>:updates) через XRANGE.
+func (r *RedisStore) GetTaskUpdates(ctx context.Context, sessionID, taskKey string) ([]string, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return nil, nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	entries, err := r.client.XRange(ctx, streamKey, "-", "+").Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		r.logger.Warn("failed to fetch task updates from stream",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	updates := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if val, ok := entry.Values["data"].(string); ok && val != "" {
+			updates = append(updates, val)
+		}
+	}
+
+	return updates, nil
+}
+
+// AppendTaskUpdate записывает очередную дельту Yjs в Redis Stream задачи через XADD.
+func (r *RedisStore) AppendTaskUpdate(ctx context.Context, sessionID, taskKey, updateBase64 string) (string, error) {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" || updateBase64 == "" {
+		return "", nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	return r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		ID:     "*",
+		Values: map[string]interface{}{"data": updateBase64},
+	}).Result()
+}
+
+// CompactTaskStream сохраняет новый snapshot документа в Redis Stream и удаляет устаревшие дельты через XTRIM MINID.
+func (r *RedisStore) CompactTaskStream(ctx context.Context, sessionID, taskKey, snapshotBase64 string) error {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" || snapshotBase64 == "" {
+		return nil
+	}
+
+	streamKey := fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey)
+	// 1. Записываем сжатый snapshot в стрим
+	snapshotID, err := r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		ID:     "*",
+		Values: map[string]interface{}{"data": snapshotBase64},
+	}).Result()
+	if err != nil {
+		r.logger.Warn("failed to append snapshot to stream during compaction",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to append snapshot to stream: %w", err)
+	}
+
+	// 2. Обрезаем стрим так, чтобы snapshotID стал первой записью (XTRIM MINID snapshotID)
+	if err := r.client.XTrimMinID(ctx, streamKey, snapshotID).Err(); err != nil {
+		r.logger.Warn("failed to trim stream after snapshot",
+			slog.String("sessionId", sessionID),
+			slog.String("taskKey", taskKey),
+			slog.String("snapshotId", snapshotID),
+			slog.String("error", err.Error()),
+		)
+		return fmt.Errorf("failed to trim stream: %w", err)
+	}
+
+	return nil
+}
+
+// TouchTaskStream синхронно продлевает TTL ключей активной задачи ({session:<id>}:seeded_tasks и стрима задачи) на заданный TTL.
+func (r *RedisStore) TouchTaskStream(ctx context.Context, sessionID, taskKey string, ttl time.Duration) error {
+	if !r.enabled || r.client == nil || sessionID == "" || taskKey == "" {
+		return nil
+	}
+
+	pipe := r.client.Pipeline()
+	pipe.Expire(ctx, fmt.Sprintf("{session:%s}:seeded_tasks", sessionID), ttl)
+	pipe.Expire(ctx, fmt.Sprintf("{session:%s}:task:%s:updates", sessionID, taskKey), ttl)
+	_, err := pipe.Exec(ctx)
+	return err
 }

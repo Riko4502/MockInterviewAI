@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Request } from "express";
+import { OAUTH_NAVIGATION_KEY } from "../decorators/oauth-navigation.decorator";
 
 /**
  * Глобальный guard проверки `Origin`/`Referer` заголовков (CSF, §29 SPEC.md).
@@ -37,13 +38,26 @@ export class OriginCheckGuard implements CanActivate {
    */
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
+    if (
+      request.method === "GET" &&
+      Reflect.getMetadata(OAUTH_NAVIGATION_KEY, context.getHandler()) === true
+    ) {
+      return true;
+    }
     const allowedOrigins =
       this.configService.get<string[]>("allowedOrigins") ?? [];
 
     const origin = request.headers.origin;
     const referer = request.headers.referer;
 
-    const value = origin ?? referer;
+    let value = origin;
+    if (!value && referer) {
+      try {
+        value = new URL(referer).origin;
+      } catch {
+        value = referer;
+      }
+    }
 
     if (!value) {
       return true;
@@ -58,7 +72,9 @@ export class OriginCheckGuard implements CanActivate {
       return true;
     }
 
-    const isAllowed = allowedOrigins.some((allowed) => value === allowed);
+    const isAllowed = allowedOrigins.some(
+      (allowed) => value === allowed.replace(/\/+$/, ""),
+    );
 
     if (!isAllowed) {
       throw new ForbiddenException("Origin not allowed");

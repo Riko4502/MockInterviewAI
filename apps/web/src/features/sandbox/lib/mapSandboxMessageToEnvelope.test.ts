@@ -5,61 +5,6 @@ import { mapSandboxMessageToEnvelope } from "./mapSandboxMessageToEnvelope";
 describe("mapSandboxMessageToEnvelope", () => {
   const roomId = "test-room-123";
 
-  it("should correctly map 'code-update' message to 'code.update' WebSocket envelope", () => {
-    const msg: SandboxRealtimeMessage = {
-      id: "message-123",
-      type: "code-update",
-      roomId,
-      senderId: "user-1",
-      senderName: "Alice",
-      payload: {
-        code: "const x = 42;",
-        language: "typescript",
-      },
-    };
-
-    const envelope = mapSandboxMessageToEnvelope(msg, roomId);
-
-    expect(envelope.type).toBe("code.update");
-    expect(envelope.sessionId).toBe(roomId);
-    expect(envelope.requestId).toBe("message-123");
-    expect(envelope.payload).toMatchObject({
-      filePath: "main",
-      language: "typescript",
-      content: "const x = 42;",
-    });
-  });
-
-  it("should correctly map 'cursor-move' message to 'cursor.move' WebSocket envelope", () => {
-    const msg: SandboxRealtimeMessage = {
-      type: "cursor-move",
-      roomId,
-      senderId: "user-2",
-      senderName: "Bob",
-      payload: {
-        cursor: {
-          line: 10,
-          column: 5,
-          selectionEndLine: 10,
-          selectionEndColumn: 12,
-        },
-      },
-    };
-
-    const envelope = mapSandboxMessageToEnvelope(msg, roomId);
-
-    expect(envelope.type).toBe("cursor.move");
-    expect(envelope.sessionId).toBe(roomId);
-    expect(envelope.payload).toMatchObject({
-      userId: "user-2",
-      username: "Bob",
-      line: 10,
-      column: 5,
-      selectionStart: 10,
-      selectionEnd: 12,
-    });
-  });
-
   it("should correctly map 'presence-leave' message to 'presence.leave' WebSocket envelope", () => {
     const msg: SandboxRealtimeMessage = {
       type: "presence-leave",

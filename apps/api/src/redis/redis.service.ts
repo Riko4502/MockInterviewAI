@@ -18,7 +18,7 @@ import { MetricsService } from "../common/metrics/metrics.service";
  *
  * Предоставляет операции для:
  * - key-value (`set`, `get`, `delete`, `expire`);
- * - distributed lock (`setNx`);
+ * - distributed lock (`setNx`, `compareAndDelete`);
  * - hash (`hset`, `hget`, `hdel`);
  * - SCAN (`scanKeys`);
  * - Pub/Sub (`publish`);
@@ -150,6 +150,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Получает значения по массиву ключей (MGET).
+   *
+   * @param keys - Массив имен ключей.
+   * @returns Массив значений (строка или `null` для отсутствующих ключей).
+   * @throws {Error} При ошибке Redis.
+   */
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) {
+      return [];
+    }
+    return this.client.mget(...keys);
+  }
+
+  /**
    * Атомарно возвращает и удаляет ключ (GETDEL).
    *
    * @param key - Имя ключа.
@@ -179,6 +193,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async delete(key: string): Promise<void> {
     await this.client.del(key);
+  }
+
+  /**
+   * Атомарно сравнивает значение ключа с ожидаемым и удаляет ключ при совпадении (Lua compare-and-delete).
+   * Используется для безопасного снятия распределенного лока (safe unlock) только владельцем токена.
+   *
+   * @param key - Имя ключа.
+   * @param expectedValue - Ожидаемое значение (токен владельца лока).
+   * @returns `true`, если токен совпал и ключ был удален, иначе `false`.
+   */
+  async compareAndDelete(key: string, expectedValue: string): Promise<boolean> {
+    const script = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+else
+  return 0
+end
+`;
+    const result = await this.client.eval(script, 1, key, expectedValue);
+
+    return result === 1;
   }
 
   /**
@@ -345,7 +380,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       "*",
       "type",
       type,
-      "data",
+      "payload",
       JSON.stringify(data),
     );
 
@@ -357,6 +392,43 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Выполняет Lua-скрипт в Redis (EVAL).
+   *
+   * Поддерживает обе формы вызова:
+   * 1. `eval(script, keys, args)`
+   * 2. `eval(script, numKeys, ...args)`
+   */
+  async eval<T = unknown>(
+    script: string,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<T>;
+  async eval<T = unknown>(
+    script: string,
+    keysOrNumKeys: string[] | number,
+    ...rest: unknown[]
+  ): Promise<T> {
+    if (Array.isArray(keysOrNumKeys)) {
+      const keys = keysOrNumKeys;
+      const args = (rest[0] as (string | number)[]) ?? [];
+      return (await this.client.eval(
+        script,
+        keys.length,
+        ...keys,
+        ...args,
+      )) as T;
+    }
+    const numKeys = keysOrNumKeys;
+    const args = rest as (string | number)[];
+    return (await this.client.eval(script, numKeys, ...args)) as T;
+  }
+
+  /**
    * Проверяет доступность Redis (PING/PONG).
    *
    * @returns Ответ сервера (`"PONG"`).
@@ -364,22 +436,5 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async ping(): Promise<string> {
     return this.client.ping();
-  }
-
-  /**
-   * Выполняет произвольный Lua-скрипт в Redis (EVAL).
-   *
-   * @param script - Текст Lua-скрипта.
-   * @param numKeys - Количество ключей.
-   * @param args - Ключи и аргументы.
-   * @returns Результат выполнения скрипта.
-   * @throws {Error} При ошибке Redis.
-   */
-  async eval<T = unknown>(
-    script: string,
-    numKeys: number,
-    ...args: (string | number)[]
-  ): Promise<T> {
-    return (await this.client.eval(script, numKeys, ...args)) as T;
   }
 }
