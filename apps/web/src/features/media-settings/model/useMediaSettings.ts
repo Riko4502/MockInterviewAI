@@ -52,6 +52,53 @@ function matchDevice(
   return defaultDev ? defaultDev.deviceId : devices[0].deviceId;
 }
 
+interface PendingSnapshot {
+  settings: MediaSettings;
+  revision: number;
+}
+
+interface DeviceSyncState {
+  isSaving: boolean;
+  pendingSnapshot: PendingSnapshot | null;
+  syncTimeout: ReturnType<typeof setTimeout> | null;
+  localRevision: number;
+  committedRevision: number;
+  initialSyncDone: boolean;
+  activeMutate?: (
+    variables: Parameters<
+      ReturnType<typeof useProfileControllerUpdateDeviceSettings>["mutate"]
+    >[0],
+    options?: Parameters<
+      ReturnType<typeof useProfileControllerUpdateDeviceSettings>["mutate"]
+    >[1],
+  ) => void;
+  activeQueryClient?: ReturnType<typeof useQueryClient>;
+}
+
+const deviceSyncQueues = new Map<string, DeviceSyncState>();
+
+export function getDeviceSyncQueue(clientId: string): DeviceSyncState {
+  let queue = deviceSyncQueues.get(clientId);
+  if (!queue) {
+    queue = {
+      isSaving: false,
+      pendingSnapshot: null,
+      syncTimeout: null,
+      localRevision: 0,
+      committedRevision: 0,
+      initialSyncDone: false,
+    };
+    deviceSyncQueues.set(clientId, queue);
+  }
+  return queue;
+}
+
+export function clearDeviceSyncQueuesForTesting(): void {
+  deviceSyncQueues.clear();
+  currentSettings = loadStoredMediaSettings();
+  listeners.clear();
+}
+
 export function useMediaSettings(): MediaSettingsContextValue {
   const session = useSession({ optional: true });
   const isAuthenticated = session?.isAuthenticated ?? false;
@@ -83,107 +130,226 @@ export function useMediaSettings(): MediaSettingsContextValue {
   const queryClient = useQueryClient();
   const updateMutation = useProfileControllerUpdateDeviceSettings();
   const { mutate } = updateMutation;
-  const initialSyncDoneRef = useRef(false);
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const localRevisionRef = useRef(0);
-  const committedRevisionRef = useRef(0);
+
+  const queue = getDeviceSyncQueue(clientId);
+  queue.activeMutate = mutate;
+  queue.activeQueryClient = queryClient;
+
   const hydrationRevisionRef = useRef(0);
   const wasFetchingServerSettingsRef = useRef(false);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: сброс флага при смене устройства (clientId), статуса авторизации (isAuthenticated) или пользователя (userId)
-  useEffect(() => {
-    initialSyncDoneRef.current = false;
-    localRevisionRef.current = 0;
-    committedRevisionRef.current = 0;
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = null;
+  const prevUserIdRef = useRef<string | undefined>(userId);
+  const prevClientIdRef = useRef<string>(clientId);
+  const prevIsAuthenticatedRef = useRef<boolean>(isAuthenticated);
+
+  // Отправка отложенного снимка с гарантией сериализации: не более одного активного PUT на устройство
+  const sendPendingSnapshot = useCallback(() => {
+    // Если дебаунс ещё тикает, ждём его окончания
+    if (queue.syncTimeout !== null) {
+      return;
     }
-  }, [clientId, isAuthenticated, userId]);
+
+    // Если нет данных для сохранения или предыдущий PUT ещё выполняется — выходим
+    if (!queue.pendingSnapshot || queue.isSaving) {
+      return;
+    }
+
+    if (!isAuthenticated || typeof window === "undefined") {
+      queue.pendingSnapshot = null;
+      return;
+    }
+
+    const snapshot = queue.pendingSnapshot;
+    queue.pendingSnapshot = null;
+    queue.isSaving = true;
+
+    const mutateFn = queue.activeMutate ?? mutate;
+    const client = queue.activeQueryClient ?? queryClient;
+
+    client
+      .cancelQueries({
+        queryKey: getProfileControllerGetDeviceSettingsQueryKey({
+          clientId,
+        }),
+      })
+      .catch(() => {});
+
+    try {
+      mutateFn(
+        {
+          data: {
+            clientId: getClientDeviceId(),
+            deviceName: getDeviceName(),
+            audioVolume: snapshot.settings.audioVolume,
+            speechVolume: snapshot.settings.speechVolume,
+            micGain: snapshot.settings.micGain,
+            preferredAudioInputLabel:
+              snapshot.settings.preferredAudioInputLabel ?? null,
+            preferredAudioOutputLabel:
+              snapshot.settings.preferredAudioOutputLabel ?? null,
+            preferredVideoInputLabel:
+              snapshot.settings.preferredVideoInputLabel ?? null,
+          },
+        },
+        {
+          onSuccess: (savedData) => {
+            queue.committedRevision = Math.max(
+              queue.committedRevision,
+              snapshot.revision,
+            );
+            // Согласовать кэш GET-запроса после успешного сохранения настроек на сервере (PUT)
+            client.setQueryData(
+              getProfileControllerGetDeviceSettingsQueryKey({ clientId }),
+              savedData,
+            );
+          },
+          onError: (err) => {
+            console.warn(
+              "[useMediaSettings] Failed to save media settings:",
+              err,
+            );
+          },
+          onSettled: () => {
+            queue.isSaving = false;
+            // После завершения предыдущей записи отправляем последний накопившийся снимок
+            sendPendingSnapshot();
+          },
+        },
+      );
+    } catch (err) {
+      queue.isSaving = false;
+      console.warn("[useMediaSettings] Synchronous error in mutate:", err);
+    }
+  }, [clientId, isAuthenticated, mutate, queryClient, queue]);
+
+  useEffect(() => {
+    const prevUserId = prevUserIdRef.current;
+    const prevClientId = prevClientIdRef.current;
+    const prevIsAuthenticated = prevIsAuthenticatedRef.current;
+
+    prevUserIdRef.current = userId;
+    prevClientIdRef.current = clientId;
+    prevIsAuthenticatedRef.current = isAuthenticated;
+
+    // Переход userId от undefined к текущему пользователю при активной сессии
+    // — это завершение начальной загрузки профиля, а не смена пользователя.
+    const isInitialUserResolution =
+      prevClientId === clientId &&
+      prevIsAuthenticated === isAuthenticated &&
+      isAuthenticated &&
+      prevUserId === undefined &&
+      userId !== undefined;
+
+    if (isInitialUserResolution) {
+      // Сохраняем начальную синхронизацию и запланированные снимки.
+      // Если снимок был отложен и таймер не активен (например, уже истёк во время ожидания), отправляем его.
+      if (
+        queue.pendingSnapshot &&
+        queue.syncTimeout === null &&
+        !queue.isSaving
+      ) {
+        sendPendingSnapshot();
+      }
+      return;
+    }
+
+    // При реальной смене пользователя или выходе из системы сбрасываем очередь
+    const isUserSwitch =
+      (prevUserId !== undefined &&
+        userId !== undefined &&
+        prevUserId !== userId) ||
+      (prevIsAuthenticated && !isAuthenticated);
+
+    const isClientChange = prevClientId !== clientId;
+
+    if (isUserSwitch || isClientChange) {
+      if (queue.syncTimeout) {
+        clearTimeout(queue.syncTimeout);
+        queue.syncTimeout = null;
+      }
+      queue.initialSyncDone = false;
+      queue.localRevision = 0;
+      queue.committedRevision = 0;
+      queue.isSaving = false;
+      queue.pendingSnapshot = null;
+    }
+  }, [clientId, isAuthenticated, userId, queue, sendPendingSnapshot]);
 
   useEffect(() => {
     return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = null;
+      // При размонтировании не теряем запланированные изменения:
+      // если таймер дебаунса ещё активен, отменяем ожидание и немедленно отправляем
+      // накопленный снимок с учётом статуса сессии
+      if (queue.syncTimeout) {
+        clearTimeout(queue.syncTimeout);
+        queue.syncTimeout = null;
+      }
+      if (
+        isAuthenticated &&
+        typeof window !== "undefined" &&
+        queue.pendingSnapshot
+      ) {
+        sendPendingSnapshot();
       }
     };
-  }, []);
+  }, [isAuthenticated, queue, sendPendingSnapshot]);
 
-  // Синхронизация локальных настроек с бэкендом (с дебаунсом)
+  // Синхронизация локальных настроек с бэкендом (с дебаунсом и сериализацией)
   const syncToServer = useCallback(
     (toSave: MediaSettings, isLocalChange = true) => {
       if (!isAuthenticated || typeof window === "undefined") return;
-      if (isLocalChange) localRevisionRef.current += 1;
+      if (isLocalChange) queue.localRevision += 1;
 
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
+      // Сохраняем самый свежий снимок настроек для отправки
+      queue.pendingSnapshot = {
+        settings: toSave,
+        revision: queue.localRevision,
+      };
+
+      if (queue.syncTimeout) {
+        clearTimeout(queue.syncTimeout);
       }
 
-      const revisionToSave = localRevisionRef.current;
-
-      syncTimeoutRef.current = setTimeout(() => {
-        syncTimeoutRef.current = null;
-
-        queryClient
-          .cancelQueries({
-            queryKey: getProfileControllerGetDeviceSettingsQueryKey({
-              clientId,
-            }),
-          })
-          .catch(() => {});
-
-        mutate(
-          {
-            data: {
-              clientId: getClientDeviceId(),
-              deviceName: getDeviceName(),
-              audioVolume: toSave.audioVolume,
-              speechVolume: toSave.speechVolume,
-              micGain: toSave.micGain,
-              preferredAudioInputLabel: toSave.preferredAudioInputLabel ?? null,
-              preferredAudioOutputLabel:
-                toSave.preferredAudioOutputLabel ?? null,
-              preferredVideoInputLabel: toSave.preferredVideoInputLabel ?? null,
-            },
-          },
-          {
-            onSuccess: (savedData) => {
-              committedRevisionRef.current = Math.max(
-                committedRevisionRef.current,
-                revisionToSave,
-              );
-              // Согласовать кэш GET-запроса после успешного сохранения настроек на сервере (PUT)
-              queryClient.setQueryData(
-                getProfileControllerGetDeviceSettingsQueryKey({ clientId }),
-                savedData,
-              );
-            },
-          },
-        );
+      queue.syncTimeout = setTimeout(() => {
+        queue.syncTimeout = null;
+        sendPendingSnapshot();
       }, 400);
     },
-    [clientId, isAuthenticated, mutate, queryClient],
+    [isAuthenticated, queue, sendPendingSnapshot],
   );
 
+  // Подписка на глобальные изменения настроек
+  useEffect(() => {
+    const listener: Listener = (newSettings) => {
+      setSettings(newSettings);
+    };
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+
   // При получении настроек с сервера для текущего устройства обновляем локальный стейт
+  // biome-ignore lint/correctness/useExhaustiveDependencies: синхронизация локального стейта при получении serverSettings
   useEffect(() => {
     if (isFetchingServerSettings && !wasFetchingServerSettingsRef.current) {
-      hydrationRevisionRef.current = localRevisionRef.current;
+      hydrationRevisionRef.current = queue.localRevision;
     }
     wasFetchingServerSettingsRef.current = isFetchingServerSettings;
 
-    // Учитываем незавершённые локальные записи (отложенный дебаунс, выполняющийся PUT или не подтверждённая ревизия)
+    // Учитываем незавершённые локальные записи (отложенный дебаунс, выполняющийся PUT, накопившийся снимок в очереди или неподтверждённая ревизия)
     const hasPendingLocalWrites =
-      syncTimeoutRef.current !== null ||
+      queue.syncTimeout !== null ||
+      queue.isSaving ||
+      queue.pendingSnapshot !== null ||
       updateMutation.isPending ||
-      localRevisionRef.current > committedRevisionRef.current;
+      queue.localRevision > queue.committedRevision;
 
     if (
       !serverSettings ||
       isFetchingServerSettings ||
       hasPendingLocalWrites ||
-      localRevisionRef.current !== hydrationRevisionRef.current
+      queue.localRevision !== hydrationRevisionRef.current
     ) {
       return;
     }
@@ -191,8 +357,8 @@ export function useMediaSettings(): MediaSettingsContextValue {
     if (!serverSettings.isPersisted) {
       // На сервере ещё нет сохранённых настроек для этого устройства.
       // Не перезаписываем локальные настройки дефолтами, а отправляем текущие настройки на сервер.
-      if (!initialSyncDoneRef.current) {
-        initialSyncDoneRef.current = true;
+      if (!queue.initialSyncDone) {
+        queue.initialSyncDone = true;
         syncToServer(currentSettings, false);
       }
       return;
@@ -228,17 +394,6 @@ export function useMediaSettings(): MediaSettingsContextValue {
     typeof window !== "undefined" &&
     typeof HTMLMediaElement !== "undefined" &&
     "setSinkId" in HTMLMediaElement.prototype;
-
-  // Подписка на глобальные изменения настроек
-  useEffect(() => {
-    const listener: Listener = (newSettings) => {
-      setSettings(newSettings);
-    };
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
 
   // Перечисление устройств
   const refreshDevices = useCallback(async () => {
