@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileDto } from "@packages/api";
+import { localeLabels, locales } from "@packages/dto";
 import { GlobeIcon, MoonIcon, SlidersIcon, SunIcon } from "@packages/icons";
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   Input,
   Select,
   Skeleton,
+  Spin,
   useToast,
 } from "@packages/ui";
 import { useRouter } from "next/navigation";
@@ -18,7 +20,6 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
-import { localeLabels, locales } from "@packages/dto";
 import {
   createProfileFormSchema,
   type ProfileFormValues,
@@ -33,6 +34,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
   const updateProfile = useUpdateProfile();
   const toast = useToast();
   const schema = useMemo(() => createProfileFormSchema(t), [t]);
+  const isSaving = updateProfile.isPending;
 
   const defaultValues = useMemo<ProfileFormValues>(
     () => ({
@@ -51,7 +53,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
     control,
     handleSubmit,
     reset,
-    formState: { errors, dirtyFields },
+    formState: { errors, isDirty, dirtyFields },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(schema),
     defaultValues,
@@ -143,6 +145,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                 <Input
                   data-invalid={!!errors.displayName}
                   aria-invalid={!!errors.displayName}
+                  disabled={isSaving}
                   {...register("displayName")}
                 />
                 <Field.Error>{errors.displayName?.message}</Field.Error>
@@ -155,6 +158,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                 <Input
                   data-invalid={!!errors.username}
                   aria-invalid={!!errors.username}
+                  disabled={isSaving}
                   {...register("username")}
                 />
                 <Field.Error>{errors.username?.message}</Field.Error>
@@ -168,6 +172,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   placeholder="@username"
                   data-invalid={!!errors.telegramUsername}
                   aria-invalid={!!errors.telegramUsername}
+                  disabled={isSaving}
                   {...register("telegramUsername")}
                 />
                 <Field.Error>{errors.telegramUsername?.message}</Field.Error>
@@ -181,6 +186,7 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   placeholder="https://github.com/username"
                   data-invalid={!!errors.gitUrl}
                   aria-invalid={!!errors.gitUrl}
+                  disabled={isSaving}
                   {...register("gitUrl")}
                 />
                 <Field.Error>{errors.gitUrl?.message}</Field.Error>
@@ -205,7 +211,11 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   control={control}
                   name="theme"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isSaving}
+                    >
                       <Select.Trigger className="w-full">
                         <Select.Value />
                       </Select.Trigger>
@@ -242,7 +252,11 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   control={control}
                   name="locale"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isSaving}
+                    >
                       <Select.Trigger className="w-full">
                         <Select.Value />
                       </Select.Trigger>
@@ -277,11 +291,11 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
             <Button
               type="submit"
               className="sm:w-auto"
-              disabled={updateProfile.isPending}
+              disabled={!isDirty || isSaving}
+              aria-busy={isSaving}
             >
-              {updateProfile.isPending
-                ? t("profile.saving")
-                : t("actions.save")}
+              {isSaving ? <Spin size="sm" variant="current" /> : null}
+              {isSaving ? t("profile.saving") : t("actions.save")}
             </Button>
           </div>
         </Card.Content>
