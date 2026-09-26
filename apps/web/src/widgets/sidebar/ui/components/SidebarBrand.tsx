@@ -11,7 +11,12 @@ export function SidebarBrand() {
   return (
     <UiSidebar.Menu>
       <UiSidebar.MenuItem>
-        <UiSidebar.MenuButton size="lg" asChild tooltip="DEVSYNC Interview AI">
+        <UiSidebar.MenuButton
+          size="lg"
+          asChild
+          tooltip="DEVSYNC Interview AI"
+          className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+        >
           <Logo
             asChild
             variant={collapsed ? "icon" : "full"}

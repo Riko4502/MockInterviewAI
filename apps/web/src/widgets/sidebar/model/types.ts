@@ -12,8 +12,16 @@ export type NavLabelKey =
   | "navigation.statistics"
   | "navigation.resources";
 
+export type NavGroupLabelKey = "navigation.workspace" | "navigation.analytics";
+
 export type NavItem = {
   labelKey: NavLabelKey;
   href: string;
   icon: NavIcon;
+  badge?: string | number;
+};
+
+export type NavGroup = {
+  labelKey?: NavGroupLabelKey;
+  items: NavItem[];
 };

@@ -35,7 +35,22 @@ export function usePreferences() {
   const { setTheme: setAppTheme, theme, resolvedTheme } = useTheme();
   const { i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const updateProfileMutation = useProfileControllerUpdateMyProfile();
+  const updateProfileMutation = useProfileControllerUpdateMyProfile({
+    mutation: {
+      onSuccess: (updated) => {
+        queryClient.setQueryData(
+          getProfileControllerGetMyProfileQueryKey(),
+          updated,
+        );
+        if (updated.theme) {
+          setPreferenceCookies({ theme: updated.theme });
+        }
+        if (updated.locale) {
+          setPreferenceCookies({ locale: updated.locale });
+        }
+      },
+    },
+  });
 
   const changeTheme = useCallback(
     (newTheme: ThemeMode) => {
@@ -44,7 +59,12 @@ export function usePreferences() {
       if (isAuthenticated) {
         queryClient.setQueryData(
           getProfileControllerGetMyProfileQueryKey(),
-          (old: UpdateProfileDto) => (old ? { ...old, theme: newTheme } : old),
+          (old: unknown) => {
+            if (!old || typeof old !== "object") {
+              return { theme: newTheme };
+            }
+            return { ...(old as Record<string, unknown>), theme: newTheme };
+          },
         );
         updateProfileMutation.mutate({ data: { theme: newTheme } });
       }
@@ -72,16 +92,13 @@ export function usePreferences() {
   );
 
   const toggleTheme = useCallback(() => {
-    let nextTheme: ThemeMode;
-    if (theme === "dark") {
-      nextTheme = "light";
-    } else if (theme === "light") {
-      nextTheme = "system";
-    } else {
-      nextTheme = "dark";
-    }
+    const isCurrentlyDark =
+      theme === "dark" ||
+      (theme === "system" && resolvedTheme === "dark") ||
+      (!theme && resolvedTheme === "dark");
+    const nextTheme: ThemeMode = isCurrentlyDark ? "light" : "dark";
     changeTheme(nextTheme);
-  }, [theme, changeTheme]);
+  }, [theme, resolvedTheme, changeTheme]);
 
   const currentLocale = locales.includes(i18n.language as Locale)
     ? (i18n.language as Locale)

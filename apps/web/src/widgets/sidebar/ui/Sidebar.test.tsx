@@ -36,6 +36,14 @@ vi.mock("@/entities/user", () => ({
     isLoading: false,
     isError: false,
   }),
+  usePreferences: () => ({
+    theme: "light",
+    resolvedTheme: "light",
+    locale: "ru",
+    toggleTheme: vi.fn(),
+    changeTheme: vi.fn(),
+    changeLocale: vi.fn(),
+  }),
   UserAvatar: () => <span>avatar</span>,
 }));
 
@@ -50,6 +58,7 @@ vi.mock("@/features/auth", () => ({
 
 describe("Sidebar", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     usePathnameMock.mockReturnValue(paths.dashboard);
     logoutMock.mockClear();
 
@@ -107,14 +116,14 @@ describe("Sidebar", () => {
     ).toHaveAttribute("href", paths.dashboard);
   });
 
-  it("открывает меню пользователя с профилем и выходом", async () => {
+  it("открывает меню пользователя с настройками и выходом", async () => {
     const user = userEvent.setup();
 
     renderSidebar(<h1>Контент дашборда</h1>);
 
     await user.click(screen.getByRole("button", { name: /Sarah Jenkins/i }));
 
-    expect(screen.getByRole("menuitem", { name: "Профиль" })).toHaveAttribute(
+    expect(screen.getByRole("menuitem", { name: "Настройки" })).toHaveAttribute(
       "href",
       paths.profile,
     );
@@ -122,5 +131,45 @@ describe("Sidebar", () => {
 
     await user.click(screen.getByRole("menuitem", { name: "Выйти" }));
     expect(logoutMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("позволяет сворачивать и разворачивать группы навигации", async () => {
+    const user = userEvent.setup();
+
+    renderSidebar(<h1>Контент дашборда</h1>);
+
+    const workspaceTrigger = screen.getByRole("button", {
+      name: /Рабочее пространство/i,
+    });
+    expect(workspaceTrigger).toHaveAttribute("data-state", "open");
+    expect(
+      screen.getByRole("link", { name: "Панель управления" }),
+    ).toBeInTheDocument();
+
+    await user.click(workspaceTrigger);
+    expect(workspaceTrigger).toHaveAttribute("data-state", "closed");
+
+    await user.click(workspaceTrigger);
+    expect(workspaceTrigger).toHaveAttribute("data-state", "open");
+  });
+
+  it("в свёрнутом виде сайдбара оставляет все пункты доступными, даже если группы были свернуты", async () => {
+    const user = userEvent.setup();
+
+    renderSidebar(<h1>Контент дашборда</h1>);
+
+    const workspaceTrigger = screen.getByRole("button", {
+      name: /Рабочее пространство/i,
+    });
+    await user.click(workspaceTrigger);
+    expect(workspaceTrigger).toHaveAttribute("data-state", "closed");
+
+    await user.click(
+      document.querySelector('[data-slot="sidebar-trigger"]') as HTMLElement,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Панель управления" }),
+    ).toBeInTheDocument();
   });
 });
