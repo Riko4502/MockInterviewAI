@@ -140,6 +140,29 @@ services:
         sync: false
 
   # -------------------------------------------------------------
+  # Code Runner (Go) — sandboxed code execution service
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-code-runner
+    runtime: docker
+    dockerfilePath: ./apps/code-runner/Dockerfile
+    dockerContext: ./apps/code-runner
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: "8090"
+      - key: CODE_RUNNER_AUTH_TOKEN
+        generateValue: true
+      - key: JUDGE0_URL
+        sync: false # e.g. http://judge0-server:2358
+      - key: JUDGE0_AUTH_TOKEN
+        sync: false
+
+  # -------------------------------------------------------------
   # Web Frontend (Next.js)
   # -------------------------------------------------------------
   - type: web
