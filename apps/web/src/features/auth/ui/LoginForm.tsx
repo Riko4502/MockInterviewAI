@@ -13,7 +13,7 @@ import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { getErrorMessage } from "../lib/getErrorMessage";
 import type { LoginFormValues } from "../lib/schemas";
-
+import { TelegramLoginButton } from "../telegram-login";
 import { GithubLoginButton } from "./GithubLoginButton";
 
 export function LoginForm() {
@@ -82,6 +82,7 @@ export function LoginForm() {
       </Button>
 
       <GithubLoginButton />
+      <TelegramLoginButton />
 
       {loginMutation.isError && (
         <Typography.P className="text-sm text-destructive">
