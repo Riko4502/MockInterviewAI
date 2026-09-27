@@ -20,6 +20,7 @@
 import { RefreshSessionError, refreshAccessToken } from "../auth/auth-session";
 import { authToken } from "../auth/auth-token";
 import { getApiUrl } from "../config/endpoints";
+import { notifyForbidden } from "./forbidden";
 
 export class HttpError<T = unknown> extends Error {
   constructor(
@@ -141,7 +142,9 @@ async function extractErrorPayload(
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const { message, data } = await extractErrorPayload(response);
-    throw new HttpError(message, response.status, data);
+    const error = new HttpError(message, response.status, data);
+    if (response.status === 403) notifyForbidden();
+    throw error;
   }
 
   if (response.status === 204) {
