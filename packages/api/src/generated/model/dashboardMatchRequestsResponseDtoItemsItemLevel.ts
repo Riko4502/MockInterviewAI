@@ -10,7 +10,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DashboardMatchRequestsResponseDtoItemsItemLevel = typeof DashboardMatchRequestsResponseDtoItemsItemLevel[keyof typeof DashboardMatchRequestsResponseDtoItemsItemLevel];
+/**
+ * @nullable
+ */
+export type DashboardMatchRequestsResponseDtoItemsItemLevel = typeof DashboardMatchRequestsResponseDtoItemsItemLevel[keyof typeof DashboardMatchRequestsResponseDtoItemsItemLevel] | null;
 
 
 export const DashboardMatchRequestsResponseDtoItemsItemLevel = {

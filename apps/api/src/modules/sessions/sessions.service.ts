@@ -346,6 +346,102 @@ export class SessionsService {
     this.logger.log(
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
     );
+    await this.invalidateUserDashboard(creatorUserId);
+    return { sessionId: session.id, inviteToken };
+  }
+
+  /**
+   * Инвалидирует кэш дашборда пользователя (upcoming, stats, readiness, recent).
+   * Вызывается при создании, изменении состава и закрытии сессий (TASK-BACK-45).
+   */
+  private async invalidateUserDashboard(userId: string): Promise<void> {
+    try {
+      await Promise.all([
+        this.redis.delete(`cache:dashboard:upcoming:${userId}`),
+        this.redis.delete(`cache:dashboard:stats:${userId}`),
+        this.redis.delete(`cache:dashboard:readiness:${userId}`),
+      ]);
+      const recentKeys = await this.redis.scanKeys(
+        `cache:dashboard:recent:${userId}:*`,
+      );
+      if (recentKeys.length > 0) {
+        await Promise.all(recentKeys.map((k) => this.redis.delete(k)));
+      }
+    } catch (err) {
+      this.logger.warn(
+        `failed to invalidate dashboard cache for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Создает сессию мгновенного матча для двоих участников со статусом ACTIVE,
+   * сохраняет inviteToken в Postgres и прогревает Redis-зеркало для обоих участников (CWE-613).
+   */
+  async createLiveMatchSession(
+    firstUserId: string,
+    secondUserId: string,
+  ): Promise<{ sessionId: string; inviteToken: string }> {
+    const inviteToken = this.generateInviteToken();
+    const session = await this.prisma.interviewSession.create({
+      data: {
+        userId: firstUserId,
+        status: InterviewSessionStatus.ACTIVE,
+        inviteToken,
+        startedAt: new Date(),
+        participants: {
+          create: [
+            {
+              userId: firstUserId,
+              role: InterviewParticipantRole.CANDIDATE,
+            },
+            {
+              userId: secondUserId,
+              role: InterviewParticipantRole.INTERVIEWER,
+            },
+          ],
+        },
+      },
+    });
+
+    await this.redis.set(
+      sessionActiveKey(session.id),
+      ACTIVE_VALUE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(session.id),
+      firstUserId,
+      InterviewParticipantRole.CANDIDATE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(session.id),
+      secondUserId,
+      InterviewParticipantRole.INTERVIEWER,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.set(
+      sessionInviteKey(session.id),
+      inviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    try {
+      await this.seedTaskDoc(session.id, DEFAULT_TASK_KEY, "");
+    } catch (error) {
+      this.logger.warn(
+        `failed to seed initial task doc for live match session ${session.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    this.logger.log(
+      `created live match session ${session.id} for users ${firstUserId} & ${secondUserId}`,
+    );
+    await Promise.all([
+      this.invalidateUserDashboard(firstUserId),
+      this.invalidateUserDashboard(secondUserId),
+    ]);
     return { sessionId: session.id, inviteToken };
   }
 
@@ -497,6 +593,8 @@ export class SessionsService {
       `user ${userId} joined session ${sessionId} as ${participant.role}`,
     );
 
+    await this.invalidateUserDashboard(userId);
+
     return {
       role: participant.role as InterviewParticipantRole,
       inviteToken: effectiveInviteToken,
@@ -610,6 +708,7 @@ export class SessionsService {
       role,
       this.mirrorTtlSeconds,
     );
+    await this.invalidateUserDashboard(userId);
   }
 
   /**
@@ -692,6 +791,8 @@ export class SessionsService {
     // Выселяем участника из активного realtime WS (1008)
     await publishUserRevocation(this.redis, userId, sessionId);
 
+    await this.invalidateUserDashboard(userId);
+
     this.logger.log(
       `removed user ${userId} from session ${sessionId} and rotated invite token`,
     );
@@ -753,6 +854,11 @@ export class SessionsService {
     // TASK-BACK-38: Удаляем инвайт-токен и хэш участников закрытой сессии
     await this.redis.delete(sessionInviteKey(sessionId));
     await this.redis.delete(sessionMembersKey(sessionId));
+
+    // TASK-BACK-45: Инвалидируем кэш дашборда для всех участников завершенной сессии
+    await Promise.all(
+      participants.map((p) => this.invalidateUserDashboard(p.userId)),
+    );
   }
 
   /**

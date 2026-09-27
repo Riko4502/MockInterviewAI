@@ -37,6 +37,7 @@ describe("SessionsService", () => {
     publish: jest.Mock;
     delete: jest.Mock;
     eval: jest.Mock;
+    scanKeys: jest.Mock;
   };
   let configMock: { get: jest.Mock };
   let service: SessionsService;
@@ -74,6 +75,7 @@ describe("SessionsService", () => {
       publish: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn().mockResolvedValue(undefined),
       eval: jest.fn().mockResolvedValue(1),
+      scanKeys: jest.fn().mockResolvedValue([]),
     };
     configMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -151,6 +153,63 @@ describe("SessionsService", () => {
 
       expect(result.sessionId).toBe(sessionId);
       expect(result.inviteToken).toHaveLength(64);
+    });
+  });
+
+  describe("createLiveMatchSession", () => {
+    it("создаёт сессию мгновенного матча, разогревает Redis-зеркало для обоих участников и инвалидирует кэш дашборда (TASK-BACK-42, TASK-BACK-45, TASK-BACK-46)", async () => {
+      const partnerId = "33333333-3333-4333-c333-333333333333";
+      prismaMock.interviewSession.create.mockResolvedValue({
+        id: sessionId,
+        userId: ownerId,
+      });
+
+      const result = await service.createLiveMatchSession(ownerId, partnerId);
+
+      expect(result.sessionId).toBe(sessionId);
+      expect(result.inviteToken).toHaveLength(64);
+      expect(prismaMock.interviewSession.create).toHaveBeenCalledWith({
+        data: {
+          userId: ownerId,
+          status: "ACTIVE",
+          inviteToken: result.inviteToken,
+          startedAt: expect.any(Date),
+          participants: {
+            create: [
+              { userId: ownerId, role: "CANDIDATE" },
+              { userId: partnerId, role: "INTERVIEWER" },
+            ],
+          },
+        },
+      });
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:active`,
+        "true",
+        7200,
+      );
+      expect(redisMock.hset).toHaveBeenCalledWith(
+        `session:${sessionId}:members`,
+        ownerId,
+        "CANDIDATE",
+        7200,
+      );
+      expect(redisMock.hset).toHaveBeenCalledWith(
+        `session:${sessionId}:members`,
+        partnerId,
+        "INTERVIEWER",
+        7200,
+      );
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
+        result.inviteToken,
+        7200,
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        `cache:dashboard:upcoming:${ownerId}`,
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        `cache:dashboard:upcoming:${partnerId}`,
+      );
     });
   });
 
@@ -801,6 +860,18 @@ describe("SessionsService", () => {
       );
       expect(redisMock.delete).toHaveBeenCalledWith(
         `session:${sessionId}:members`,
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        "cache:dashboard:upcoming:u-1",
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        "cache:dashboard:upcoming:u-2",
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        "cache:dashboard:stats:u-1",
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(
+        "cache:dashboard:stats:u-2",
       );
       expect(redisMock.publish).toHaveBeenCalledTimes(2);
       expect(redisMock.publish.mock.calls[0]).toEqual([

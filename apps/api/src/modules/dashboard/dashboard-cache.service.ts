@@ -67,4 +67,33 @@ export class DashboardCacheService {
       );
     }
   }
+
+  /**
+   * Инвалидирует кэш дашборда, связанный с сессиями (upcoming, stats, recent).
+   */
+  async invalidateUserSessions(userId: string): Promise<void> {
+    await Promise.all([
+      this.invalidate(`cache:dashboard:upcoming:${userId}`),
+      this.invalidate(`cache:dashboard:stats:${userId}`),
+      this.invalidatePattern(`cache:dashboard:recent:${userId}:*`),
+      this.invalidate(`cache:dashboard:readiness:${userId}`),
+    ]);
+  }
+
+  /**
+   * Инвалидирует кэш готовности онбординга (readiness).
+   */
+  async invalidateUserReadiness(userId: string): Promise<void> {
+    await this.invalidate(`cache:dashboard:readiness:${userId}`);
+  }
+
+  /**
+   * Инвалидирует кэш статуса анкеты на витрине (showcase).
+   */
+  async invalidateUserShowcase(userId: string): Promise<void> {
+    await Promise.all([
+      this.invalidate(`cache:dashboard:showcase:${userId}`),
+      this.invalidate(`cache:dashboard:readiness:${userId}`),
+    ]);
+  }
 }

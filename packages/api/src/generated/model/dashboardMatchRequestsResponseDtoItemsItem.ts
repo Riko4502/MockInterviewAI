@@ -21,8 +21,10 @@ export type DashboardMatchRequestsResponseDtoItemsItem = {
   senderName: string | null;
   /** @nullable */
   senderAvatarUrl?: string | null;
-  specialization: DashboardMatchRequestsResponseDtoItemsItemSpecialization;
-  level: DashboardMatchRequestsResponseDtoItemsItemLevel;
+  /** @nullable */
+  specialization?: DashboardMatchRequestsResponseDtoItemsItemSpecialization;
+  /** @nullable */
+  level?: DashboardMatchRequestsResponseDtoItemsItemLevel;
   skills: string[];
   createdAt: string;
   /** @nullable */

@@ -10,7 +10,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DashboardMatchRequestsResponseDtoItemsItemSpecialization = typeof DashboardMatchRequestsResponseDtoItemsItemSpecialization[keyof typeof DashboardMatchRequestsResponseDtoItemsItemSpecialization];
+/**
+ * @nullable
+ */
+export type DashboardMatchRequestsResponseDtoItemsItemSpecialization = typeof DashboardMatchRequestsResponseDtoItemsItemSpecialization[keyof typeof DashboardMatchRequestsResponseDtoItemsItemSpecialization] | null;
 
 
 export const DashboardMatchRequestsResponseDtoItemsItemSpecialization = {

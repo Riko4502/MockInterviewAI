@@ -2623,6 +2623,63 @@ components:
           type: boolean
       required:
         - isActive
+    CreateSessionResponseDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        inviteToken:
+          type: string
+      required:
+        - sessionId
+        - inviteToken
+    JoinSessionDto:
+      default: {}
+      type: object
+      properties:
+        inviteToken:
+          type: string
+    JoinSessionResponseDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+          description: Роль пользователя в сессии
+        inviteToken:
+          type: string
+          description: Инвайт-токен сессии
+      required:
+        - role
+        - inviteToken
+    AddParticipantDto:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        role:
+          type: string
+          enum:
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+      required:
+        - userId
+        - role
+    RotateInviteResponseDto:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+          description: Новый инвайт-токен сессии
+      required:
+        - inviteToken
     UpcomingSessionResponseDto:
       type: object
       properties:
@@ -2859,6 +2916,7 @@ components:
                 nullable: true
                 type: string
               specialization:
+                nullable: true
                 type: string
                 enum:
                   - FRONTEND
@@ -2870,6 +2928,7 @@ components:
                   - DATA_ML
                   - SYSTEM_DESIGN
               level:
+                nullable: true
                 type: string
                 enum:
                   - JUNIOR
@@ -2889,8 +2948,6 @@ components:
               - id
               - senderId
               - senderName
-              - specialization
-              - level
               - skills
               - createdAt
         totalPendingCount:
@@ -3252,63 +3309,6 @@ components:
           type: boolean
       required:
         - success
-    CreateSessionResponseDto:
-      type: object
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-        inviteToken:
-          type: string
-      required:
-        - sessionId
-        - inviteToken
-    JoinSessionDto:
-      default: {}
-      type: object
-      properties:
-        inviteToken:
-          type: string
-    JoinSessionResponseDto:
-      type: object
-      properties:
-        role:
-          type: string
-          enum:
-            - CANDIDATE
-            - INTERVIEWER
-            - OBSERVER
-          description: Роль пользователя в сессии
-        inviteToken:
-          type: string
-          description: Инвайт-токен сессии
-      required:
-        - role
-        - inviteToken
-    AddParticipantDto:
-      type: object
-      properties:
-        userId:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-        role:
-          type: string
-          enum:
-            - CANDIDATE
-            - INTERVIEWER
-            - OBSERVER
-      required:
-        - userId
-        - role
-    RotateInviteResponseDto:
-      type: object
-      properties:
-        inviteToken:
-          type: string
-          description: Новый инвайт-токен сессии
-      required:
-        - inviteToken
     TicketDto:
       type: object
       properties:

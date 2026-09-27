@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { SessionsModule } from "../sessions/sessions.module";
 import { DashboardController } from "./dashboard.controller";
 import { DashboardService } from "./dashboard.service";
 import { DashboardCacheService } from "./dashboard-cache.service";
@@ -8,6 +9,7 @@ import { DashboardReadinessService } from "./dashboard-readiness.service";
 import { DashboardStatsService } from "./dashboard-stats.service";
 
 @Module({
+  imports: [SessionsModule],
   controllers: [DashboardController],
   providers: [
     DashboardService,

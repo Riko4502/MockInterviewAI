@@ -14,6 +14,6 @@ import type { LiveMatchToggleDtoSpecialization } from './liveMatchToggleDtoSpeci
 
 export interface LiveMatchToggleDto {
   isSearching: boolean;
-  specialization?: LiveMatchToggleDtoSpecialization;
-  level?: LiveMatchToggleDtoLevel;
+  specialization: LiveMatchToggleDtoSpecialization;
+  level: LiveMatchToggleDtoLevel;
 }

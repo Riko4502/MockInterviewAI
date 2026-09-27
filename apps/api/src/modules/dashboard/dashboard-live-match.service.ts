@@ -1,24 +1,28 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
-import {
-  InterviewParticipantRole,
-  InterviewSessionStatus,
-  type LiveMatchStatusResponseDto,
-  type LiveMatchToggleDto,
+import type {
+  LiveMatchStatusResponseDto,
+  LiveMatchToggleDto,
 } from "@packages/dto";
-import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { SessionsService } from "../sessions/sessions.service";
+
+const QUEUE_TTL_SECONDS = 600; // 10 минут на весь ключ очереди
+const MATCH_EXPIRATION_MS = 5 * 60 * 1000; // 5 минут на активность заявки пользователя
 
 @Injectable()
 export class DashboardLiveMatchService {
   private readonly logger = new Logger(DashboardLiveMatchService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly sessionsService: SessionsService,
     private readonly redisService: RedisService,
   ) {}
 
   /**
    * Включение / отключение режима живого поиска напарника в реальном времени.
+   * Очередь построена на Redis ZSET (score = timestamp) для автоматического
+   * удаления зависших офлайн-пользователей (TASK-BACK-43).
+   * При нахождении пары создается сессия с полным прогревом Redis-зеркала (TASK-BACK-42).
    */
   async toggleLiveMatch(
     userId: string,
@@ -34,64 +38,71 @@ export class DashboardLiveMatchService {
     const level = dto.level;
     const queueKey = `live_queue:${spec}:${level}`;
 
-    // Если пользователь отключает поиск — убираем его из очереди
+    const now = Date.now();
+    const cutoff = now - MATCH_EXPIRATION_MS;
+
+    // 1. Очищаем устаревшие заявки (старше 5 минут)
+    try {
+      await this.redisService.zremrangebyscore(queueKey, "-inf", cutoff);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to prune expired live queue entries for ${queueKey}: ${(err as Error).message}`,
+      );
+    }
+
+    // 2. Если пользователь отключает поиск — убираем его из очереди
     if (!dto.isSearching) {
-      await this.redisService.srem(queueKey, userId);
+      await this.redisService.zrem(queueKey, userId);
       return { status: "IDLE" };
     }
 
-    // Проверяем, есть ли уже ожидающий кандидат в очереди
-    const partnerId = await this.redisService.spop(queueKey);
+    // 3. Ищем наиболее давно ожидающего напарника (первые кандидаты в ZSET)
+    const candidates = await this.redisService.zrange(queueKey, 0, 5);
+    const partnerId = candidates.find((id) => id !== userId);
 
-    if (partnerId && partnerId !== userId) {
-      this.logger.log(
-        `Live match found: ${userId} <-> ${partnerId} (${spec}/${level})`,
-      );
+    if (partnerId) {
+      // Атомарно извлекаем напарника из очереди (защита от race condition между двумя параллельными парами)
+      const removed = await this.redisService.zrem(queueKey, partnerId);
 
-      try {
-        // Создаем активную сессию для двоих участников
-        const session = await this.prisma.interviewSession.create({
-          data: {
-            userId,
-            status: InterviewSessionStatus.ACTIVE,
-            startedAt: new Date(),
-            participants: {
-              create: [
-                {
-                  userId,
-                  role: InterviewParticipantRole.CANDIDATE,
-                },
-                {
-                  userId: partnerId,
-                  role: InterviewParticipantRole.INTERVIEWER,
-                },
-              ],
-            },
-          },
-        });
-
-        // Оповещаем второго участника через Redis Pub/Sub
-        await this.redisService.publish(
-          `live_match:notify:${partnerId}`,
-          JSON.stringify({ sessionId: session.id }),
+      if (removed > 0) {
+        this.logger.log(
+          `Live match found: ${userId} <-> ${partnerId} (${spec}/${level})`,
         );
 
-        return {
-          status: "MATCHED",
-          sessionId: session.id,
-        };
-      } catch (error) {
-        this.logger.error(
-          `Failed to create live session: ${(error as Error).message}`,
-        );
-        // Возвращаем напарника обратно в очередь
-        await this.redisService.sadd(queueKey, partnerId);
+        try {
+          // Создаем сессию и прогреваем Redis-зеркало через SessionsService (TASK-BACK-42)
+          const { sessionId } =
+            await this.sessionsService.createLiveMatchSession(
+              userId,
+              partnerId,
+            );
+
+          // Убираем себя из очереди, если уже были там
+          await this.redisService.zrem(queueKey, userId);
+
+          // Оповещаем второго участника через Redis Pub/Sub
+          await this.redisService.publish(
+            `live_match:notify:${partnerId}`,
+            JSON.stringify({ sessionId }),
+          );
+
+          return {
+            status: "MATCHED",
+            sessionId,
+          };
+        } catch (error) {
+          this.logger.error(
+            `Failed to create live session: ${(error as Error).message}`,
+          );
+          // Возвращаем напарника обратно в очередь
+          await this.redisService.zadd(queueKey, now, partnerId);
+        }
       }
     }
 
-    // Если напарник не найден — добавляем себя в очередь с TTL 5 минут
-    await this.redisService.sadd(queueKey, userId);
-    await this.redisService.expire(queueKey, 300);
+    // 4. Если напарник не найден — регистрируем себя со свежим timestamp
+    await this.redisService.zadd(queueKey, now, userId);
+    await this.redisService.expire(queueKey, QUEUE_TTL_SECONDS);
 
     return {
       status: "SEARCHING",
