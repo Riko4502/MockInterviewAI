@@ -9,7 +9,6 @@ import { getErrorMessage } from "../../lib/getErrorMessage";
 import { useTelegramAuth } from "../model/useTelegramAuth";
 
 const TELEGRAM_WIDGET_SRC = "https://telegram.org/js/telegram-widget.js";
-const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
 type ScriptStatus = "loading" | "ready" | "error";
 
@@ -21,6 +20,7 @@ type ScriptStatus = "loading" | "ready" | "error";
  * Не рендерится, если не задан NEXT_PUBLIC_TELEGRAM_BOT_USERNAME.
  */
 export function TelegramLoginButton() {
+  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
   const { t } = useTranslation("auth");
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptStatus, setScriptStatus] = useState<ScriptStatus>("loading");
@@ -28,14 +28,14 @@ export function TelegramLoginButton() {
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!BOT_USERNAME || !container) return;
+    if (!botUsername || !container) return;
 
     window.onTelegramAuth = (user) => mutate({ data: user });
 
     const script = document.createElement("script");
     script.src = TELEGRAM_WIDGET_SRC;
     script.async = true;
-    script.dataset.telegramLogin = BOT_USERNAME;
+    script.dataset.telegramLogin = botUsername;
     script.dataset.size = "large";
     script.dataset.onauth = "onTelegramAuth(user)";
     script.onload = () => setScriptStatus("ready");
@@ -47,9 +47,9 @@ export function TelegramLoginButton() {
       container.replaceChildren();
       delete window.onTelegramAuth;
     };
-  }, [mutate]);
+  }, [botUsername, mutate]);
 
-  if (!BOT_USERNAME) return null;
+  if (!botUsername) return null;
 
   let errorMessage: string | null = null;
   if (scriptStatus === "error") {
