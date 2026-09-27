@@ -36,6 +36,8 @@ export {
   telegramCompleteSchema,
   telegramLinkSchema,
 } from "./auth/telegram.dto";
+// Dashboard
+export * from "./dashboard";
 export type {
   MatchRequestResponseDto,
   UnreadMatchRequestsCountDto,
@@ -174,6 +176,11 @@ export {
   type InterviewParticipantRole,
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
+export {
+  type InterviewSessionStatus,
+  interviewSessionStatusSchema,
+} from "./sessions/session-status.dto";
+
 export {
   type CreateShowcaseCardDto,
   createShowcaseCardSchema,

@@ -7,6 +7,9 @@ export const interviewParticipantRoleSchema = z.enum([
   "OBSERVER",
 ]);
 
+/** Объект-enum значений роли участника интервью-сессии. */
+export const InterviewParticipantRole = interviewParticipantRoleSchema.enum;
+
 /** Тип роли участника интервью-сессии. */
 export type InterviewParticipantRole = z.infer<
   typeof interviewParticipantRoleSchema

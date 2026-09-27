@@ -586,19 +586,19 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 ## 6. Пошаговые задачи реализации (Backend)
 
 ### Этап 1: Пакет DTO (`packages/dto`)
-- [ ] **TASK-BACK-01**: Создать директорию `packages/dto/src/dashboard/`.
-- [ ] **TASK-BACK-02**: Реализовать `UpcomingSessionResponseDto` и `UpcomingPartnerDto` с валидацией.
-- [ ] **TASK-BACK-03**: Реализовать `DashboardReadinessResponseDto` и `ReadinessStepDto`.
-- [ ] **TASK-BACK-04**: Реализовать `DailyChallengeResponseDto`.
-- [ ] **TASK-BACK-05**: Реализовать `LiveMatchToggleDto` и `LiveMatchStatusResponseDto`.
-- [ ] **TASK-BACK-06**: Реализовать `DashboardStatsResponseDto` и `SolvedTasksBreakdownDto`.
-- [ ] **TASK-BACK-07**: Реализовать `DashboardMatchRequestsResponseDto` и `DashboardMatchRequestItemDto`.
-- [ ] **TASK-BACK-08**: Реализовать `RecentSessionsResponseDto`, `DashboardInsightsResponseDto`, `ShowcaseStatusResponseDto`.
-- [ ] **TASK-BACK-09**: Экспортировать все схемы в `packages/dto/src/index.ts` и проверить компиляцию пакета `pnpm build`.
+- [x] **TASK-BACK-01**: Создать директорию `packages/dto/src/dashboard/`.
+- [x] **TASK-BACK-02**: Реализовать `UpcomingSessionResponseDto` и `UpcomingPartnerDto` с валидацией.
+- [x] **TASK-BACK-03**: Реализовать `DashboardReadinessResponseDto` и `ReadinessStepDto`.
+- [x] **TASK-BACK-04**: Реализовать `DailyChallengeResponseDto`.
+- [x] **TASK-BACK-05**: Реализовать `LiveMatchToggleDto` и `LiveMatchStatusResponseDto`.
+- [x] **TASK-BACK-06**: Реализовать `DashboardStatsResponseDto` и `SolvedTasksBreakdownDto`.
+- [x] **TASK-BACK-07**: Реализовать `DashboardMatchRequestsResponseDto` и `DashboardMatchRequestItemDto`.
+- [x] **TASK-BACK-08**: Реализовать `RecentSessionsResponseDto`, `DashboardInsightsResponseDto`, `ShowcaseStatusResponseDto`.
+- [x] **TASK-BACK-09**: Экспортировать все схемы в `packages/dto/src/index.ts` и проверить компиляцию пакета `pnpm build`.
 
 ### Этап 2: Модуль и контроллер (`apps/api`)
-- [ ] **TASK-BACK-10**: Создать модуль `apps/api/src/modules/dashboard/dashboard.module.ts` и импортировать в `app.module.ts`.
-- [ ] **TASK-BACK-11**: Создать `DashboardController` со всеми 9 маршрутами:
+- [x] **TASK-BACK-10**: Создать модуль `apps/api/src/modules/dashboard/dashboard.module.ts` и импортировать в `app.module.ts`.
+- [x] **TASK-BACK-11**: Создать `DashboardController` со всеми 9 маршрутами:
   - `GET /api/v1/dashboard/upcoming`
   - `GET /api/v1/dashboard/readiness`
   - `GET /api/v1/dashboard/daily-challenge`
@@ -608,41 +608,42 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
   - `GET /api/v1/dashboard/recent-sessions`
   - `GET /api/v1/dashboard/insights`
   - `GET /api/v1/dashboard/showcase-status`
-- [ ] **TASK-BACK-12**: Добавить Swagger-аннотации (`@ApiTags('Dashboard')`, `@ApiBearerAuth()`, `@ApiResponse`).
+- [x] **TASK-BACK-12**: Добавить Swagger-аннотации (`@ApiTags('Dashboard')`, `@ApiBearerAuth()`, `@ApiResponse`).
 
 ### Этап 3: Сервисный слой и логика запросов
-- [ ] **TASK-BACK-13**: Реализовать `DashboardService.getUpcomingSession(userId)`:
+- [x] **TASK-BACK-13**: Реализовать `DashboardService.getUpcomingSession(userId)`:
   - Выборка ближайшей сессии (`SCHEDULED`, `WAITING`, `ACTIVE`).
   - Вычисление `isReadyToJoin` (до старта <= 10 мин или уже активна).
   - Подгрузка данных собеседника (без паролей и лишних полей).
-- [ ] **TASK-BACK-14**: Реализовать `DashboardReadinessService.getReadiness(userId)`:
+- [x] **TASK-BACK-14**: Реализовать `DashboardReadinessService.getReadiness(userId)`:
   - Проверка 5 шагов (email, медиа, telegram, витрина, первое интервью).
   - Расчет итогового процента.
-- [ ] **TASK-BACK-15**: Реализовать `DashboardChallengeService.getDailyChallenge(userId)`:
+- [x] **TASK-BACK-15**: Реализовать `DashboardChallengeService.getDailyChallenge(userId)`:
   - Детерминированный выбор задачи по хэшу даты.
   - Проверка сабмита пользователя за текущие сутки.
-- [ ] **TASK-BACK-16**: Реализовать `DashboardLiveMatchService.toggleLiveMatch(userId, dto)`:
+- [x] **TASK-BACK-16**: Реализовать `DashboardLiveMatchService.toggleLiveMatch(userId, dto)`:
   - Атомарное добавление/удаление из Redis Set.
   - Создание комнаты при спаривании и отправка события.
-- [ ] **TASK-BACK-17**: Реализовать `DashboardStatsService.getStats(userId)`:
+- [x] **TASK-BACK-17**: Реализовать `DashboardStatsService.getStats(userId)`:
   - Выборка уникальных дней активности и вызов `calculateStreakFromDates`.
   - Подсчет решенных задач (Easy, Med, Hard).
-- [ ] **TASK-BACK-18**: Реализовать выборку `DashboardService.getMatchRequests(userId, limit)`.
-- [ ] **TASK-BACK-19**: Реализовать выборку `DashboardService.getRecentSessions(userId, limit)`.
-- [ ] **TASK-BACK-20**: Реализовать сервис `DashboardInsightsService` с агрегацией слабых категорий.
-- [ ] **TASK-BACK-21**: Реализовать выборку `DashboardService.getShowcaseStatus(userId)` с расчетом кулдауна `bump`.
+- [x] **TASK-BACK-18**: Реализовать выборку `DashboardService.getMatchRequests(userId, limit)`.
+- [x] **TASK-BACK-19**: Реализовать выборку `DashboardService.getRecentSessions(userId, limit)`.
+- [x] **TASK-BACK-20**: Реализовать сервис `DashboardInsightsService` с агрегацией слабых категорий.
+- [x] **TASK-BACK-21**: Реализовать выборку `DashboardService.getShowcaseStatus(userId)` с расчетом кулдауна `bump`.
 
 ### Этап 4: Кэширование, события и инвалидация
-- [ ] **TASK-BACK-22**: Реализовать `DashboardCacheService` с типизированными обертками `getOrSet`.
+- [x] **TASK-BACK-22**: Реализовать `DashboardCacheService` с типизированными обертками `getOrSet`.
 - [ ] **TASK-BACK-23**: Реализовать `DashboardEventsListener`:
   - Инвалидация статистики и истории при `@OnEvent('session.completed')`.
   - Инвалидация готовности при `@OnEvent('telegram.linked')` и сохранении устройств.
   - Инвалидация витрины при `@OnEvent('showcase.bumped')`.
 
 ### Этап 5: Тестирование и документация
-- [ ] **TASK-BACK-24**: Написать юнит-тесты для алгоритма стрика `calculateStreakFromDates` (сценарии: вчера и сегодня, пропуск дня, високосный год, разные таймзоны).
-- [ ] **TASK-BACK-25**: Написать модульные тесты для `DashboardController` и `DashboardReadinessService`.
-- [ ] **TASK-BACK-26**: Проверить генерацию OpenAPI и TypeScript клиента через Orval (`pnpm openapi:generate`).
+- [x] **TASK-BACK-24**: Написать юнит-тесты для алгоритма стрика `calculateStreakFromDates` (сценарии: вчера и сегодня, пропуск дня, високосный год, разные таймзоны).
+- [x] **TASK-BACK-25**: Написать модульные тесты для `DashboardController` и `DashboardReadinessService`.
+- [x] **TASK-BACK-26**: Проверить генерацию OpenAPI и TypeScript клиента через Orval (`pnpm openapi:generate`).
+
 
 ---
 

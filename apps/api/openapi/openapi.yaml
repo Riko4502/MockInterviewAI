@@ -904,6 +904,155 @@ paths:
       security: *a4
       summary: Восстановить удаленного пользователя администратором
       tags: *a5
+  /api/v1/dashboard/upcoming:
+    get:
+      operationId: DashboardController_getUpcoming
+      parameters: []
+      responses:
+        "200":
+          description: Информация о ближайшем интервью с таймером и статусом готовности
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpcomingSessionResponseDto"
+      security: &a6
+        - bearer: []
+      summary: Получить ближайшее запланированное или активное интервью
+      tags: &a7
+        - Dashboard
+  /api/v1/dashboard/readiness:
+    get:
+      operationId: DashboardController_getReadiness
+      parameters: []
+      responses:
+        "200":
+          description: Процент готовности и список шагов с actionUrl
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardReadinessResponseDto"
+      security: *a6
+      summary: Получить процент готовности профиля и статус шагов онбординга
+      tags: *a7
+  /api/v1/dashboard/daily-challenge:
+    get:
+      operationId: DashboardController_getDailyChallenge
+      parameters: []
+      responses:
+        "200":
+          description: Задача дня с бейджем сложности и статусом решения
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyChallengeResponseDto"
+      security: *a6
+      summary: Получить сегодняшнюю задачу дня по алгоритмам
+      tags: *a7
+  /api/v1/dashboard/live-match/toggle:
+    post:
+      operationId: DashboardController_toggleLiveMatch
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiveMatchToggleDto"
+      responses:
+        "200":
+          description: Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveMatchStatusResponseDto"
+      security: *a6
+      summary: Включить или выключить режим мгновенного поиска напарника
+      tags: *a7
+  /api/v1/dashboard/match-requests:
+    get:
+      operationId: DashboardController_getMatchRequests
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: integer
+            default: 5
+            maximum: 20
+      responses:
+        "200":
+          description: Список входящих заявок в статусе PENDING
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMatchRequestsResponseDto"
+      security: *a6
+      summary: Получить входящие запросы на собеседование с витрины
+      tags: *a7
+  /api/v1/dashboard/stats:
+    get:
+      operationId: DashboardController_getStats
+      parameters: []
+      responses:
+        "200":
+          description: "Метрики: интервью, стрик дней, задачи, средний балл"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStatsResponseDto"
+      security: *a6
+      summary: Получить сводные показатели активности и стрик кандидата
+      tags: *a7
+  /api/v1/dashboard/recent-sessions:
+    get:
+      operationId: DashboardController_getRecentSessions
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: integer
+            default: 5
+            maximum: 10
+      responses:
+        "200":
+          description: Список недавних сессий с оценками и ссылками на отчеты
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecentSessionsResponseDto"
+      security: *a6
+      summary: Получить список последних завершенных интервью
+      tags: *a7
+  /api/v1/dashboard/insights:
+    get:
+      operationId: DashboardController_getInsights
+      parameters: []
+      responses:
+        "200":
+          description: Слабые темы и ссылки на практические материалы в песочнице
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardInsightsResponseDto"
+      security: *a6
+      summary: Получить рекомендации AI по зонам роста на основе прошлых интервью
+      tags: *a7
+  /api/v1/dashboard/showcase-status:
+    get:
+      operationId: DashboardController_getShowcaseStatus
+      parameters: []
+      responses:
+        "200":
+          description: "Статус карточки: оставшиеся дни, просмотры, возможность bump"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseStatusResponseDto"
+      security: *a6
+      summary: Получить статус анкеты на витрине поиска напарников
+      tags: *a7
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession
@@ -917,10 +1066,10 @@ paths:
                 $ref: "#/components/schemas/CreateSessionResponseDto"
         "401":
           description: Не авторизован
-      security: &a6
+      security: &a8
         - bearer: []
       summary: Создать новую интервью-сессию
-      tags: &a7
+      tags: &a9
         - Sessions
   /api/v1/sessions/{id}/join:
     post:
@@ -954,9 +1103,9 @@ paths:
             участником)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security: *a8
       summary: Присоединиться к интервью-сессии
-      tags: *a7
+      tags: *a9
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -986,9 +1135,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security: *a8
       summary: Добавить участника в сессию
-      tags: *a7
+      tags: *a9
   /api/v1/sessions/{id}/participants/{userId}:
     delete:
       operationId: SessionsController_removeParticipant
@@ -1016,9 +1165,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия или участник не найдены
-      security: *a6
+      security: *a8
       summary: Удалить участника из сессии
-      tags: *a7
+      tags: *a9
   /api/v1/sessions/{id}/close:
     post:
       operationId: SessionsController_closeSession
@@ -1039,9 +1188,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security: *a8
       summary: Закрыть интервью-сессию
-      tags: *a7
+      tags: *a9
   /api/v1/sessions/{id}/rotate-invite:
     post:
       operationId: SessionsController_rotateInviteToken
@@ -1066,9 +1215,9 @@ paths:
           description: Доступ запрещен (не владелец или сессия закрыта)
         "404":
           description: Сессия не найдена
-      security: *a6
+      security: *a8
       summary: Ротировать инвайт-токен сессии
-      tags: *a7
+      tags: *a9
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -1095,10 +1244,10 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: &a8
+      security: &a10
         - bearer: []
       summary: Выдать одноразовый тикет для подключения к WebSocket комнате
-      tags: &a9
+      tags: &a11
         - Realtime
   /api/v1/realtime/media-token:
     post:
@@ -1126,9 +1275,9 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: *a8
+      security: *a10
       summary: Выдать LiveKit join-токен для WebRTC медиа
-      tags: *a9
+      tags: *a11
   /api/v1/notifications:
     get:
       operationId: NotificationsController_getNotifications
@@ -1169,10 +1318,10 @@ paths:
                 $ref: "#/components/schemas/NotificationsListDto"
         "400":
           description: Invalid pagination or category parameters
-      security: &a10
+      security: &a12
         - bearer: []
       summary: Get user notifications
-      tags: &a11
+      tags: &a13
         - Notifications
   /api/v1/notifications/unread-count:
     get:
@@ -1185,9 +1334,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadNotificationsCountDto"
-      security: *a10
+      security: *a12
       summary: Get unread notifications count
-      tags: *a11
+      tags: *a13
   /api/v1/notifications/read-all:
     post:
       operationId: NotificationsController_markAllAsRead
@@ -1199,9 +1348,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
-      security: *a10
+      security: *a12
       summary: Mark all notifications as read
-      tags: *a11
+      tags: *a13
   /api/v1/notifications/{id}/read:
     patch:
       operationId: NotificationsController_markAsRead
@@ -1221,9 +1370,9 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a10
+      security: *a12
       summary: Mark notification as read
-      tags: *a11
+      tags: *a13
   /api/v1/notifications/{id}:
     delete:
       operationId: NotificationsController_markAsDeleted
@@ -1243,9 +1392,9 @@ paths:
                 $ref: "#/components/schemas/NotificationActionResponseDto"
         "404":
           description: Notification not found
-      security: *a10
+      security: *a12
       summary: Delete notification
-      tags: *a11
+      tags: *a13
   /api/v1/showcase:
     get:
       operationId: ShowcaseController_findAll
@@ -1332,10 +1481,10 @@ paths:
           description: Пагинированный список анкет
         "400":
           description: Некорректные параметры query
-      security: &a12
+      security: &a14
         - bearer: []
       summary: Получить каталог активных карточек витрины
-      tags: &a13
+      tags: &a15
         - Showcase
     post:
       operationId: ShowcaseController_create
@@ -1354,9 +1503,9 @@ paths:
           description: Не заполнен профиль или превышен лимит 5 анкет
         "409":
           description: Уже есть активная анкета с такой специализацией и уровнем
-      security: *a12
+      security: *a14
       summary: Создать новую анкету на витрине
-      tags: *a13
+      tags: *a15
   /api/v1/showcase/my:
     get:
       operationId: ShowcaseController_findMy
@@ -1364,9 +1513,9 @@ paths:
       responses:
         "200":
           description: Список анкет пользователя
-      security: *a12
+      security: *a14
       summary: Получить анкеты текущего пользователя со статистикой заявок
-      tags: *a13
+      tags: *a15
   /api/v1/showcase/{id}:
     get:
       operationId: ShowcaseController_findOne
@@ -1383,9 +1532,9 @@ paths:
           description: Данные анкеты
         "404":
           description: Анкета не найдена
-      security: *a12
+      security: *a14
       summary: Получить детальную информацию об анкете по ID
-      tags: *a13
+      tags: *a15
     patch:
       operationId: ShowcaseController_update
       parameters:
@@ -1412,9 +1561,9 @@ paths:
           description: Анкета не найдена
         "409":
           description: Конфликт уникальности специализации и уровня
-      security: *a12
+      security: *a14
       summary: Редактировать анкету (только автор)
-      tags: *a13
+      tags: *a15
     delete:
       operationId: ShowcaseController_remove
       parameters:
@@ -1432,9 +1581,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a12
+      security: *a14
       summary: Удалить анкету
-      tags: *a13
+      tags: *a15
   /api/v1/showcase/{id}/status:
     patch:
       operationId: ShowcaseController_updateStatus
@@ -1462,9 +1611,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a12
+      security: *a14
       summary: Переключить статус анкеты ACTIVE <-> INACTIVE
-      tags: *a13
+      tags: *a15
   /api/v1/showcase/{id}/bump:
     post:
       operationId: ShowcaseController_bump
@@ -1485,9 +1634,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a12
+      security: *a14
       summary: Поднять анкету в топ каталога (раз в 24 часа)
-      tags: *a13
+      tags: *a15
   /api/v1/showcase/{id}/renew:
     post:
       operationId: ShowcaseController_renew
@@ -1508,9 +1657,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a12
+      security: *a14
       summary: Продлить истекшую анкету (EXPIRED -> ACTIVE)
-      tags: *a13
+      tags: *a15
   /api/v1/matchmaking/requests/unread-count:
     get:
       operationId: MatchmakingController_getUnreadCount
@@ -1518,10 +1667,10 @@ paths:
       responses:
         "200":
           description: Количество непрочитанных заявок
-      security: &a14
+      security: &a16
         - bearer: []
       summary: Получить количество входящих заявок в ожидании ответа (статус PENDING)
-      tags: &a15
+      tags: &a17
         - Matchmaking
   /api/v1/matchmaking/requests:
     post:
@@ -1546,9 +1695,9 @@ paths:
           description: Целевая карточка не найдена или не активна
         "429":
           description: Превышен лимит активных исходящих заявок (максимум 5)
-      security: *a14
+      security: *a16
       summary: Отправить заявку (отклик) на карточку собеседования
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/incoming:
     get:
       operationId: MatchmakingController_findIncoming
@@ -1580,9 +1729,9 @@ paths:
       responses:
         "200":
           description: Пагинированный список входящих заявок
-      security: *a14
+      security: *a16
       summary: Получить список входящих заявок текущего пользователя
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/outgoing:
     get:
       operationId: MatchmakingController_findOutgoing
@@ -1614,9 +1763,9 @@ paths:
       responses:
         "200":
           description: Пагинированный список исходящих заявок
-      security: *a14
+      security: *a16
       summary: Получить список исходящих заявок текущего пользователя
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/{id}/accept:
     post:
       operationId: MatchmakingController_accept
@@ -1637,9 +1786,9 @@ paths:
           description: Недостаточно прав для принятия чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a14
+      security: *a16
       summary: Принять входящую заявку на собеседование
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/{id}/reject:
     post:
       operationId: MatchmakingController_reject
@@ -1667,9 +1816,9 @@ paths:
           description: Недостаточно прав для отклонения чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a14
+      security: *a16
       summary: Отклонить входящую заявку на собеседование
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/{id}/cancel:
     post:
       operationId: MatchmakingController_cancel
@@ -1690,9 +1839,9 @@ paths:
           description: Недостаточно прав для отмены чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a14
+      security: *a16
       summary: Отменить свою исходящую заявку на собеседование
-      tags: *a15
+      tags: *a17
 info:
   title: Mock Interview AI API
   description: |-
@@ -2474,6 +2623,496 @@ components:
           type: boolean
       required:
         - isActive
+    UpcomingSessionResponseDto:
+      type: object
+      properties:
+        hasUpcoming:
+          type: boolean
+        session:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            title:
+              type: string
+            status:
+              type: string
+              enum:
+                - CREATED
+                - ACTIVE
+                - CLOSED
+            scheduledAt:
+              type: string
+            role:
+              type: string
+              enum:
+                - CANDIDATE
+                - INTERVIEWER
+                - OBSERVER
+            partner:
+              nullable: true
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                displayName:
+                  nullable: true
+                  type: string
+                username:
+                  nullable: true
+                  type: string
+                avatarUrl:
+                  nullable: true
+                  type: string
+                specialization:
+                  nullable: true
+                  type: string
+                  enum:
+                    - FRONTEND
+                    - BACKEND
+                    - FULLSTACK
+                    - DEVOPS
+                    - QA
+                    - MOBILE
+                    - DATA_ML
+                    - SYSTEM_DESIGN
+                level:
+                  nullable: true
+                  type: string
+                  enum:
+                    - JUNIOR
+                    - MIDDLE
+                    - SENIOR
+                    - LEAD
+              required:
+                - id
+                - displayName
+                - username
+                - avatarUrl
+            isReadyToJoin:
+              type: boolean
+            secondsUntilStart:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+          required:
+            - id
+            - title
+            - status
+            - scheduledAt
+            - role
+            - isReadyToJoin
+            - secondsUntilStart
+      required:
+        - hasUpcoming
+    DashboardReadinessResponseDto:
+      type: object
+      properties:
+        totalPercentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        isFullyReady:
+          type: boolean
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                enum:
+                  - EMAIL_CONFIRMED
+                  - MEDIA_CONFIGURED
+                  - TELEGRAM_LINKED
+                  - SHOWCASE_CREATED
+                  - FIRST_MOCK_COMPLETED
+              title:
+                type: string
+              description:
+                type: string
+              isCompleted:
+                type: boolean
+              actionUrl:
+                type: string
+            required:
+              - key
+              - title
+              - description
+              - isCompleted
+              - actionUrl
+      required:
+        - totalPercentage
+        - isFullyReady
+        - steps
+    DailyChallengeResponseDto:
+      type: object
+      properties:
+        problemId:
+          type: string
+        title:
+          type: string
+        difficulty:
+          type: string
+          enum:
+            - EASY
+            - MEDIUM
+            - HARD
+        tags:
+          type: array
+          items:
+            type: string
+        timeUntilResetSeconds:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        isSolvedToday:
+          type: boolean
+        solvedAt:
+          nullable: true
+          type: string
+        pointsReward:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - problemId
+        - title
+        - difficulty
+        - tags
+        - timeUntilResetSeconds
+        - isSolvedToday
+        - pointsReward
+    LiveMatchToggleDto:
+      type: object
+      properties:
+        isSearching:
+          type: boolean
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+      required:
+        - isSearching
+    LiveMatchStatusResponseDto:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - IDLE
+            - SEARCHING
+            - MATCHED
+        sessionId:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        estimatedWaitSeconds:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+      required:
+        - status
+    DashboardMatchRequestsResponseDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              senderId:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              senderName:
+                nullable: true
+                type: string
+              senderAvatarUrl:
+                nullable: true
+                type: string
+              specialization:
+                type: string
+                enum:
+                  - FRONTEND
+                  - BACKEND
+                  - FULLSTACK
+                  - DEVOPS
+                  - QA
+                  - MOBILE
+                  - DATA_ML
+                  - SYSTEM_DESIGN
+              level:
+                type: string
+                enum:
+                  - JUNIOR
+                  - MIDDLE
+                  - SENIOR
+                  - LEAD
+              skills:
+                type: array
+                items:
+                  type: string
+              createdAt:
+                type: string
+              message:
+                nullable: true
+                type: string
+            required:
+              - id
+              - senderId
+              - senderName
+              - specialization
+              - level
+              - skills
+              - createdAt
+        totalPendingCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - items
+        - totalPendingCount
+    DashboardStatsResponseDto:
+      type: object
+      properties:
+        totalInterviews:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        completedInterviews:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        averageScore:
+          nullable: true
+          type: number
+        currentStreakDays:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        maxStreakDays:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        solvedTasks:
+          type: object
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            easy:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            medium:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            hard:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - total
+            - easy
+            - medium
+            - hard
+        totalPracticeTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - totalInterviews
+        - completedInterviews
+        - averageScore
+        - currentStreakDays
+        - maxStreakDays
+        - solvedTasks
+        - totalPracticeTimeMinutes
+    RecentSessionsResponseDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              title:
+                type: string
+              completedAt:
+                type: string
+              durationMinutes:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              score:
+                nullable: true
+                type: number
+              specialization:
+                nullable: true
+                type: string
+                enum:
+                  - FRONTEND
+                  - BACKEND
+                  - FULLSTACK
+                  - DEVOPS
+                  - QA
+                  - MOBILE
+                  - DATA_ML
+                  - SYSTEM_DESIGN
+              level:
+                nullable: true
+                type: string
+                enum:
+                  - JUNIOR
+                  - MIDDLE
+                  - SENIOR
+                  - LEAD
+              role:
+                type: string
+                enum:
+                  - CANDIDATE
+                  - INTERVIEWER
+                  - OBSERVER
+              hasFeedbackReport:
+                type: boolean
+            required:
+              - id
+              - title
+              - completedAt
+              - durationMinutes
+              - role
+              - hasFeedbackReport
+      required:
+        - items
+    DashboardInsightsResponseDto:
+      type: object
+      properties:
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              category:
+                type: string
+                enum:
+                  - ALGORITHMS
+                  - SYSTEM_DESIGN
+                  - COMMUNICATION
+                  - CODE_QUALITY
+              headline:
+                type: string
+              recommendation:
+                type: string
+              practiceUrl:
+                type: string
+            required:
+              - id
+              - category
+              - headline
+              - recommendation
+        overallSummary:
+          nullable: true
+          type: string
+      required:
+        - insights
+    ShowcaseStatusResponseDto:
+      type: object
+      properties:
+        hasActiveCard:
+          type: boolean
+        card:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            specialization:
+              type: string
+              enum:
+                - FRONTEND
+                - BACKEND
+                - FULLSTACK
+                - DEVOPS
+                - QA
+                - MOBILE
+                - DATA_ML
+                - SYSTEM_DESIGN
+            level:
+              type: string
+              enum:
+                - JUNIOR
+                - MIDDLE
+                - SENIOR
+                - LEAD
+            isUrgent:
+              type: boolean
+            expiresAt:
+              type: string
+            daysLeft:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            canBump:
+              type: boolean
+            lastBumpedAt:
+              type: string
+            viewsCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            incomingRequestsCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - id
+            - specialization
+            - level
+            - isUrgent
+            - expiresAt
+            - daysLeft
+            - canBump
+            - lastBumpedAt
+            - viewsCount
+            - incomingRequestsCount
+      required:
+        - hasActiveCard
     HealthResponseDto:
       type: object
       properties:

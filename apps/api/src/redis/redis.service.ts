@@ -286,6 +286,34 @@ end
   }
 
   /**
+   * Добавляет элемент в Set (SADD).
+   */
+  async sadd(key: string, member: string): Promise<number> {
+    return this.client.sadd(key, member);
+  }
+
+  /**
+   * Извлекает случайный элемент из Set (SPOP).
+   */
+  async spop(key: string): Promise<string | null> {
+    return this.client.spop(key);
+  }
+
+  /**
+   * Удаляет элемент из Set (SREM).
+   */
+  async srem(key: string, member: string): Promise<number> {
+    return this.client.srem(key, member);
+  }
+
+  /**
+   * Возвращает количество элементов в Set (SCARD).
+   */
+  async scard(key: string): Promise<number> {
+    return this.client.scard(key);
+  }
+
+  /**
    * Возвращает ключи, соответствующие шаблону,
    * через SCAN-итерацию.
    *
