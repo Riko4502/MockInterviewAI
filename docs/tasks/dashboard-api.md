@@ -749,3 +749,105 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 - [x] **TASK-BACK-33**: Добавить изолированный `try-catch` для каждой сессии с логированием метрик ошибок.
 - [x] **TASK-BACK-34**: Заменить магическую строку `"ACTIVE"` на `InterviewSessionStatus.ACTIVE`.
 
+---
+
+## 9. Архитектурный долг и уязвимости управления сессиями (SessionsService & SessionsController)
+
+В ходе углубленного аудита методов жизненного цикла сессий и управления участниками выявлен ряд критических уязвимостей, логических багов и утечек ресурсов.
+
+### 9.1 Реестр выявленных проблем жизненного цикла сессий
+
+#### 1. Критичные баги в `addParticipant`: отсутствие валидаций и лимитов (Bugs & Security)
+* **Что неправильно:**
+  1. Метод не проверяет статус сессии (`status === CLOSED`).
+  2. Метод не проверяет лимит участников (`maxSessionParticipants = 10`).
+  3. Не проверяется формат `sessionId` через `UUID_REGEX`.
+* **Почему это проблема:**
+  - Владелец может через `POST /sessions/:id/participants` добавлять участников в уже **закрытую** сессию, прогревая для них зеркало в Redis.
+  - Владелец может добавить 50+ участников, полностью обойдя лимит `MAX_SESSION_PARTICIPANTS` (в то время как в `joinSession` лимит строго контролируется).
+  - При невалидном UUID Postgres выбросит `QueryFailedError` с кодом 500 вместо 404/400.
+* **Impact:** Нарушение целостности данных, переполнение комнат в realtime-сервисе, 500-е ошибки в API.
+* **Как исправить:** Проверять валидность UUID, статус сессии (`!CLOSED`) и текущее количество участников перед `upsert`.
+
+#### 2. Удаление владельца сессии и падение по 500 в `removeParticipant` (Edge cases & Crash)
+* **Что неправильно:**
+  1. Нет проверки, является ли удаляемый `userId` владельцем сессии (`session.userId`).
+  2. Нет проверки на статус сессии `CLOSED`.
+  3. `tx.interviewParticipant.delete(...)` вызывается без предварительной проверки существования участника.
+* **Почему это проблема:**
+  - Владелец (случайно или намеренно) может удалить самого себя из сессии, оставив комнату без интервьюера.
+  - Если передать `userId` пользователя, которого **нет** в сессии, Prisma выбросит исключение `P2025 ("Record to delete does not exist")`, которое не перехватывается и возвращает клиенту необработанный **500 Internal Server Error** вместо 404 `NotFoundException`.
+* **Impact:** Поломка логики владения сессией, 500-е ошибки в API при некорректном `userId`.
+* **Как исправить:** 
+  1. Запретить удаление владельца (`if (userId === session.userId) throw new ForbiddenException("Cannot remove session owner")`).
+  2. Использовать `findUnique` перед удалением или перехватывать Prisma `P2025` и возвращать `NotFoundException("Participant not found in session")`.
+
+#### 3. Тупик холодного зеркала для новых кандидатов в `joinSession` (UX Deadlock)
+* **Что неправильно:**
+  В методе `joinSession`:
+  ```typescript
+  activeInviteToken = await this.redis.get(sessionInviteKey(sessionId));
+  // ...
+  const isInviteValid = this.validateInviteToken(activeInviteToken, inviteToken);
+  if (!isInviteValid) {
+    throw new ForbiddenException("User is not invited to this interview session");
+  }
+  ```
+* **Почему это проблема:** Если Redis перезагрузился или TTL инвайт-токена (2 часа) истек до прихода кандидата, `activeInviteToken` равен `null`. Проверка `validateInviteToken(null, inviteToken)` **всегда возвращает false**.
+* **Impact:** Новый кандидат с абсолютно валидной ссылкой **никогда не сможет войти** в сессию, пока владелец сессии не зайдет первым и не сгенерирует новый токен. А если владелец сгенерирует новый токен, старая ссылка кандидата всё равно окажется невалидной.
+* **Как исправить:** Хранить `inviteToken` в таблице `InterviewSession` в Postgres (как source of truth), либо при `null` в Redis подтягивать его из БД/генерировать HMAC от `sessionId + secret`.
+
+#### 4. Утечка памяти в Redis при `closeSession` (Resource Leak)
+* **Что неправильно:**
+  При закрытии сессии удаляется инвайт-токен и выставляется `activeKey = "closed"`:
+  ```typescript
+  await this.redis.set(sessionActiveKey(sessionId), CLOSED_VALUE, this.mirrorTtlSeconds);
+  await this.redis.delete(sessionInviteKey(sessionId));
+  ```
+  Но хэш участников `sessionMembersKey(sessionId)` **не удаляется**!
+* **Почему это проблема:** Хэш со всеми ролями и ID участников закрытой сессии продолжает висеть в памяти Redis вплоть до истечения TTL (2 часа).
+* **Impact:** Бесполезная трата RAM в Redis и сохранение устаревших структур закрытых сессий.
+* **Как исправить:** Добавить `await this.redis.delete(sessionMembersKey(sessionId));`.
+
+#### 5. Повторное закрытие сессии перезаписывает `endedAt` (Data Corruption)
+* **Что неправильно:**
+  В `closeSession` нет проверки:
+  ```typescript
+  if (session.status === InterviewSessionStatus.CLOSED) {
+    return; // или throw new BadRequestException("Session already closed");
+  }
+  ```
+* **Почему это проблема:** Если повторно вызвать `closeSession`, запрос обновит `endedAt = new Date()`.
+* **Impact:** Искажается реальная длительность собеседования, что ломает расчет статистики и времени практики в дашборде (`totalPracticeTimeMinutes`).
+* **Как исправить:** Выбрасывать ошибку или выходить без перезаписи `endedAt`, если сессия уже закрыта.
+
+#### 6. Лишний N+1 запрос к БД в контроллере (`assertOwner`) (Performance)
+* **Что неправильно:**
+  В контроллере перед каждым вызовом сервиса вызывается `this.assertOwner(sessionId, ownerId)`, который делает `SELECT userId FROM interview_sessions`.
+  Затем сервис (`removeParticipant`, `closeSession`, `rotateInviteToken`) делает **второй точно такой же запрос** к `interview_sessions`.
+* **Почему это проблема:** На каждое действие владельца выполняется 2 последовательных SQL-запроса вместо одного.
+* **Impact:** Лишняя нагрузка на пул соединений Postgres и задержка ответа на 10-25 мс.
+* **Как исправить:** Передавать `ownerId` прямо в методы сервиса и проверять владельца в рамках одной выборки (под FOR UPDATE).
+
+#### 7. Хрупкий тест на синхронизацию Lua-скрипта с `apps/realtime` (CI/Docker Fragility)
+* **Что неправильно:**
+  Тест делает жесткую проверку наличия файла на диске:
+  ```typescript
+  expect(fs.existsSync(realtimeScriptPath)).toBe(true);
+  ```
+* **Почему это проблема:** В Dockerfile при многоэтапной сборке контейнера `apps/api` директория `apps/realtime` не копируется для уменьшения размера контекста и кэша.
+* **Impact:** Падение сборки контейнера или CI пайплайна, тестирующего изолированный сервис `api`.
+* **Как исправить:** Проверять файл только если он существует физически, либо вынести общий скрипт в shared package.
+
+---
+
+### 9.2 Задачи по устранению техдолга (Этап 7)
+- [x] **TASK-BACK-35**: Добавить валидацию UUID, проверку статуса `CLOSED` и лимита `MAX_SESSION_PARTICIPANTS` в `addParticipant`.
+- [x] **TASK-BACK-36**: Защитить владельца от удаления и перехватывать Prisma `P2025` с выбросом 404 в `removeParticipant`.
+- [x] **TASK-BACK-37**: Устранить дедлок холодного зеркала в `joinSession` при `activeInviteToken === null`.
+- [x] **TASK-BACK-38**: Добавить удаление `sessionMembersKey` при закрытии сессии в `closeSession`.
+- [x] **TASK-BACK-39**: Защитить `endedAt` от перезаписи при повторном вызове `closeSession`.
+- [x] **TASK-BACK-40**: Оптимизировать проверку владельца сессии в контроллере и сервисе (устранить дублирующий `SELECT`).
+- [x] **TASK-BACK-41**: Обеспечить устойчивость теста контракта Lua-скрипта сидинга в изолированных CI/Docker окружениях.
+
+

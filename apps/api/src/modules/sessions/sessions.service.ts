@@ -220,6 +220,7 @@ export interface SessionMirrorParticipant {
 /** Данные интервью-сессии для сверки и прогрева зеркала в Redis. */
 export interface SessionMirrorData {
   id: string;
+  inviteToken?: string | null;
   participants: SessionMirrorParticipant[];
 }
 
@@ -292,9 +293,11 @@ export class SessionsService {
   async createSession(
     creatorUserId: string,
   ): Promise<{ sessionId: string; inviteToken: string }> {
+    const inviteToken = this.generateInviteToken();
     const session = await this.prisma.interviewSession.create({
       data: {
         userId: creatorUserId,
+        inviteToken,
         participants: {
           create: {
             userId: creatorUserId,
@@ -316,7 +319,6 @@ export class SessionsService {
       this.mirrorTtlSeconds,
     );
 
-    const inviteToken = this.generateInviteToken(session.id);
     await this.redis.set(
       sessionInviteKey(session.id),
       inviteToken,
@@ -430,10 +432,21 @@ export class SessionsService {
         throw new ForbiddenException("Interview session is full");
       }
 
+      // TASK-BACK-37: Если зеркало токена в Redis остыло (null), восстанавливаем из БД
+      if (!activeInviteToken && fresh.inviteToken) {
+        activeInviteToken = fresh.inviteToken;
+        await this.redis.set(
+          sessionInviteKey(sessionId),
+          activeInviteToken,
+          this.mirrorTtlSeconds,
+        );
+      }
+
       const isInviteValid = this.validateInviteToken(
         activeInviteToken,
         inviteToken,
       );
+
       if (!isInviteValid) {
         throw new ForbiddenException(
           "User is not invited to this interview session",
@@ -492,10 +505,13 @@ export class SessionsService {
 
   /**
    * Ротирует invite-токен сессии: генерирует новый криптографически стойкий токен,
-   * сохраняет его в Redis с обновлением TTL и возвращает `{ inviteToken }`.
+   * сохраняет его в Postgres и Redis с обновлением TTL и возвращает `{ inviteToken }`.
    * Старый токен мгновенно становится невалидным (CWE-613).
    */
-  async rotateInviteToken(sessionId: string): Promise<{ inviteToken: string }> {
+  async rotateInviteToken(
+    sessionId: string,
+    callerUserId?: string,
+  ): Promise<{ inviteToken: string }> {
     if (!UUID_REGEX.test(sessionId)) {
       throw new NotFoundException("Session not found");
     }
@@ -506,11 +522,20 @@ export class SessionsService {
     if (!session) {
       throw new NotFoundException("Session not found");
     }
+    if (callerUserId && session.userId !== callerUserId) {
+      throw new ForbiddenException(
+        "Only the session owner can perform this action",
+      );
+    }
     if (session.status === InterviewSessionStatus.CLOSED) {
       throw new ForbiddenException("Session is closed");
     }
 
     const newInviteToken = this.generateInviteToken(sessionId);
+    await this.prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { inviteToken: newInviteToken },
+    });
     await this.redis.set(
       sessionInviteKey(sessionId),
       newInviteToken,
@@ -522,18 +547,61 @@ export class SessionsService {
   }
 
   /**
-   * Добавляет участника в сессию (только владелец): запись в Postgres +
+   * Добавляет участника в сессию (только владелец): валидация UUID, проверка
+   * статуса (не CLOSED) и лимита участников под FOR UPDATE, запись в Postgres +
    * HSET в зеркало с продлением TTL.
    */
   async addParticipant(
     sessionId: string,
     userId: string,
     role: InterviewParticipantRole,
+    callerUserId?: string,
   ): Promise<void> {
-    await this.prisma.interviewParticipant.upsert({
-      where: { sessionId_userId: { sessionId, userId } },
-      create: { sessionId, userId, role },
-      update: { role },
+    if (!UUID_REGEX.test(sessionId) || !UUID_REGEX.test(userId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "interview_sessions" WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("Session not found");
+      }
+
+      const session = await tx.interviewSession.findUnique({
+        where: { id: sessionId },
+        include: { participants: true },
+      });
+
+      if (!session) {
+        throw new NotFoundException("Session not found");
+      }
+
+      if (callerUserId && session.userId !== callerUserId) {
+        throw new ForbiddenException(
+          "Only the session owner can perform this action",
+        );
+      }
+
+      if (session.status === InterviewSessionStatus.CLOSED) {
+        throw new ForbiddenException("Session is closed");
+      }
+
+      const isExisting = session.participants.some((p) => p.userId === userId);
+      if (
+        !isExisting &&
+        session.participants.length >= this.maxSessionParticipants
+      ) {
+        throw new ForbiddenException("Interview session is full");
+      }
+
+      await tx.interviewParticipant.upsert({
+        where: { sessionId_userId: { sessionId, userId } },
+        create: { sessionId, userId, role },
+        update: { role },
+      });
     });
 
     await this.redis.hset(
@@ -547,12 +615,16 @@ export class SessionsService {
   /**
    * Удаляет участника из сессии:
    * 1. В транзакции блокирует строку сессии (FOR UPDATE), ротирует invite-токен
-   *    в Redis и удаляет участника из Postgres под тем же замком, исключая race condition с joinSession (CWE-613).
+   *    в Postgres и Redis и удаляет участника из Postgres под тем же замком, исключая race condition с joinSession (CWE-613).
    * 2. После завершения транзакции выполняет HDEL из зеркала и публикует
    *    room-scoped ревокацию в realtime (WS 1008).
    */
-  async removeParticipant(sessionId: string, userId: string): Promise<void> {
-    if (!UUID_REGEX.test(sessionId)) {
+  async removeParticipant(
+    sessionId: string,
+    userId: string,
+    callerUserId?: string,
+  ): Promise<void> {
+    if (!UUID_REGEX.test(sessionId) || !UUID_REGEX.test(userId)) {
       throw new NotFoundException("Session not found");
     }
 
@@ -565,8 +637,40 @@ export class SessionsService {
         throw new NotFoundException("Session not found");
       }
 
+      const session = await tx.interviewSession.findUnique({
+        where: { id: sessionId },
+        include: { participants: true },
+      });
+
+      if (!session) {
+        throw new NotFoundException("Session not found");
+      }
+
+      if (callerUserId && session.userId !== callerUserId) {
+        throw new ForbiddenException(
+          "Only the session owner can perform this action",
+        );
+      }
+
+      if (session.status === InterviewSessionStatus.CLOSED) {
+        throw new ForbiddenException("Session is closed");
+      }
+
+      if (session.userId === userId) {
+        throw new ForbiddenException("Cannot remove session owner");
+      }
+
+      const participant = session.participants.find((p) => p.userId === userId);
+      if (!participant) {
+        throw new NotFoundException("Participant not found in session");
+      }
+
       // Инвалидируем старый инвайт-токен путём ротации нового под тем же lock
       const newInviteToken = this.generateInviteToken(sessionId);
+      await tx.interviewSession.update({
+        where: { id: sessionId },
+        data: { inviteToken: newInviteToken },
+      });
       await this.redis.set(
         sessionInviteKey(sessionId),
         newInviteToken,
@@ -599,13 +703,28 @@ export class SessionsService {
    * (room-scoped evict в realtime). Ревокации публикуются по участникам ДО
    * удаления зеркала, чтобы закрывающийся не переподключался (P2).
    */
-  async closeSession(sessionId: string): Promise<void> {
+  async closeSession(sessionId: string, callerUserId?: string): Promise<void> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { participants: true },
     });
     if (!session) {
       throw new NotFoundException("Session not found");
+    }
+
+    if (callerUserId && session.userId !== callerUserId) {
+      throw new ForbiddenException(
+        "Only the session owner can perform this action",
+      );
+    }
+
+    // TASK-BACK-39: Если сессия уже закрыта, не перезаписываем endedAt
+    if (session.status === InterviewSessionStatus.CLOSED) {
+      return;
     }
 
     const participants = session.participants;
@@ -631,8 +750,9 @@ export class SessionsService {
       this.mirrorTtlSeconds,
     );
 
-    // Удаляем инвайт-токен закрытой сессии
+    // TASK-BACK-38: Удаляем инвайт-токен и хэш участников закрытой сессии
     await this.redis.delete(sessionInviteKey(sessionId));
+    await this.redis.delete(sessionMembersKey(sessionId));
   }
 
   /**
@@ -742,7 +862,8 @@ export class SessionsService {
     const activeKey = sessionActiveKey(session.id);
     const membersKey = sessionMembersKey(session.id);
     const inviteKey = sessionInviteKey(session.id);
-    const fallbackToken = this.generateInviteToken(session.id);
+    const fallbackToken =
+      session.inviteToken ?? this.generateInviteToken(session.id);
 
     const membersArgs: string[] = [];
     for (const p of session.participants) {
@@ -771,6 +892,10 @@ export class SessionsService {
    * @throws {NotFoundException} Если сессия не существует (404).
    */
   async getOwner(sessionId: string): Promise<string> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       select: { userId: true },
