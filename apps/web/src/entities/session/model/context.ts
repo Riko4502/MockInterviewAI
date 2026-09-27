@@ -1,7 +1,11 @@
+import type { UserRole } from "@packages/types";
 import { createContext } from "react";
 import type { SessionStatus } from "./constants";
 
 export interface SessionContextValue {
+  userId: string | null;
+  role: UserRole | null;
+  permissions: bigint;
   status: SessionStatus;
   isAuthenticated: boolean;
   startSession: (accessToken: string) => void;

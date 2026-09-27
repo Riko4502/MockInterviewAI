@@ -1,3 +1,4 @@
+import { createAccessToken } from "@/entities/session/lib/test-token";
 import "@testing-library/jest-dom/vitest";
 import { useProfileControllerGetMyProfile } from "@packages/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,7 +16,7 @@ import {
   initApiTransport,
   resetApiTransportState,
 } from "@/shared/api";
-import { useLogout } from "../model/use-logout";
+import { useLogout } from "../../model/use-logout";
 import { AuthBoundary } from "./AuthBoundary";
 
 const replace = vi.fn();
@@ -107,30 +108,34 @@ describe("Восстановление сессии после полной за
       { method: "POST", credentials: "include" },
     );
 
-    completeRefresh(Response.json({ accessToken: "restored-access" }));
+    completeRefresh(
+      Response.json({
+        accessToken: createAccessToken({ sid: "restored-access" }),
+      }),
+    );
     await screen.findByText("github-user@example.com");
-    expect(authToken.get()).toBe("restored-access");
+    expect(authToken.get()).toBe(createAccessToken({ sid: "restored-access" }));
     const [url, options] = http.mock.calls[1];
     expect(url).toBe("https://api.example.com/api/v1/profile/me");
     expect(options?.credentials).toBe("include");
     expect(new Headers(options?.headers).get("Authorization")).toBe(
-      "Bearer restored-access",
+      `Bearer ${createAccessToken({ sid: "restored-access" })}`,
     );
     expect(replace).not.toHaveBeenCalled();
   });
 
   it("повторно восстанавливает сессию при перезагрузке без постоянного хранения access token", async () => {
-    successfulResponses("first-access");
+    successfulResponses(createAccessToken({ sid: "first-access" }));
     const first = mount();
     await screen.findByText("github-user@example.com");
     first.unmount();
     client.clear();
     authToken.clear();
 
-    successfulResponses("reloaded-access");
+    successfulResponses(createAccessToken({ sid: "reloaded-access" }));
     mount();
     await screen.findByText("github-user@example.com");
-    expect(authToken.get()).toBe("reloaded-access");
+    expect(authToken.get()).toBe(createAccessToken({ sid: "reloaded-access" }));
     expect(
       http.mock.calls.filter(([url]) => String(url).endsWith("/auth/refresh")),
     ).toHaveLength(2);
@@ -138,7 +143,7 @@ describe("Восстановление сессии после полной за
   });
 
   it("использует общую мутацию выхода и очищает токен и кеш запросов", async () => {
-    successfulResponses("oauth-session-access");
+    successfulResponses(createAccessToken({ sid: "oauth-session-access" }));
     mount();
     await screen.findByText("github-user@example.com");
     http.mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -148,7 +153,13 @@ describe("Восстановление сессии после полной за
       "https://api.example.com/api/v1/auth/logout",
       expect.objectContaining({ method: "POST", credentials: "include" }),
     );
-    expect(client.getQueryCache().getAll()).toHaveLength(0);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.data === undefined),
+    ).toBe(true);
+    expect(http).toHaveBeenCalledTimes(3);
     expect(replace).toHaveBeenCalledWith("/login");
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
   });

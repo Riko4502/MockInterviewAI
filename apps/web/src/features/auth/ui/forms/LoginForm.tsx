@@ -11,8 +11,8 @@ import { useTranslation } from "react-i18next";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
-import { getErrorMessage } from "../lib/getErrorMessage";
-import type { LoginFormValues } from "../lib/schemas";
+import { getErrorMessage } from "../../lib/getErrorMessage";
+import type { LoginFormValues } from "../../lib/schemas";
 
 import { GithubLoginButton } from "./GithubLoginButton";
 
