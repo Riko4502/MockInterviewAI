@@ -28,6 +28,8 @@ describe("SessionsService", () => {
   };
   let redisMock: {
     set: jest.Mock;
+    setNx: jest.Mock;
+    compareAndDelete: jest.Mock;
     get: jest.Mock;
     hset: jest.Mock;
     hdel: jest.Mock;
@@ -63,6 +65,8 @@ describe("SessionsService", () => {
     };
     redisMock = {
       set: jest.fn().mockResolvedValue(undefined),
+      setNx: jest.fn().mockResolvedValue(true),
+      compareAndDelete: jest.fn().mockResolvedValue(true),
       get: jest.fn().mockResolvedValue(null),
       hset: jest.fn().mockResolvedValue(undefined),
       hdel: jest.fn().mockResolvedValue(undefined),
@@ -654,7 +658,7 @@ describe("SessionsService", () => {
   });
 
   describe("reconcileMirrors", () => {
-    it("восстанавливает зеркало ACTIVE-сессий из Postgres", async () => {
+    it("восстанавливает зеркало ACTIVE-сессий из Postgres через атомарный Lua-скрипт", async () => {
       prismaMock.interviewSession.findMany.mockResolvedValue([
         {
           id: sessionId,
@@ -666,25 +670,79 @@ describe("SessionsService", () => {
 
       await service.reconcileMirrors();
 
-      expect(redisMock.set).toHaveBeenCalledWith(
-        `session:${sessionId}:active`,
-        "true",
-        7200,
+      expect(redisMock.setNx).toHaveBeenCalledWith(
+        "lock:cron:session-mirror-reconcile",
+        expect.any(String),
+        300,
       );
-      expect(redisMock.hset).toHaveBeenCalledWith(
+      expect(redisMock.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        3,
+        `session:${sessionId}:active`,
         `session:${sessionId}:members`,
+        `session:${sessionId}:invite`,
+        "true",
+        "closed",
+        7200,
+        expect.any(String),
         ownerId,
         "INTERVIEWER",
-        7200,
+      );
+      expect(redisMock.compareAndDelete).toHaveBeenCalledWith(
+        "lock:cron:session-mirror-reconcile",
+        expect.any(String),
       );
     });
 
-    it("не падает при ошибке Postgres", async () => {
+    it("пропускает выполнение, если распределенный замок уже занят другой репликой", async () => {
+      redisMock.setNx.mockResolvedValue(false);
+
+      await service.reconcileMirrors();
+
+      expect(prismaMock.interviewSession.findMany).not.toHaveBeenCalled();
+      expect(redisMock.eval).not.toHaveBeenCalled();
+      expect(redisMock.compareAndDelete).not.toHaveBeenCalled();
+    });
+
+    it("не падает при ошибке Postgres и освобождает распределенный замок", async () => {
       prismaMock.interviewSession.findMany.mockRejectedValue(
         new Error("db down"),
       );
 
       await expect(service.reconcileMirrors()).resolves.toBeUndefined();
+      expect(redisMock.compareAndDelete).toHaveBeenCalledWith(
+        "lock:cron:session-mirror-reconcile",
+        expect.any(String),
+      );
+    });
+
+    it("продолжает обработку других сессий при ошибке на одной сессии", async () => {
+      prismaMock.interviewSession.findMany.mockResolvedValue([
+        {
+          id: "session-fail",
+          userId: "u-1",
+          status: "ACTIVE",
+          participants: [],
+        },
+        {
+          id: "session-ok",
+          userId: "u-2",
+          status: "ACTIVE",
+          participants: [{ userId: "u-2", role: "CANDIDATE" }],
+        },
+      ]);
+
+      redisMock.eval
+        .mockRejectedValueOnce(new Error("redis fail"))
+        .mockResolvedValueOnce(1);
+
+      await expect(service.reconcileMirrors()).resolves.toBeUndefined();
+
+      expect(redisMock.eval).toHaveBeenCalledTimes(2);
+      expect(redisMock.compareAndDelete).toHaveBeenCalledWith(
+        "lock:cron:session-mirror-reconcile",
+        expect.any(String),
+      );
     });
   });
 

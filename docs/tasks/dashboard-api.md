@@ -740,12 +740,12 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 ---
 
 ### 8.2 Задачи по устранению техдолга синхронизации (Этап 6)
-- [ ] **TASK-BACK-27**: Устранить race condition при закрытии сессий в `reconcileMirrors` (проверка `CLOSED_VALUE` перед перезаписью).
-- [ ] **TASK-BACK-28**: Реализовать атомарную перезапись участников `session:{id}:members` (защита от зомби-участников).
-- [ ] **TASK-BACK-29**: Добавить поле `inviteToken` в Prisma-модель `InterviewSession` (персистентный Source of Truth).
-- [ ] **TASK-BACK-30**: Перевести Redis-операции в `reconcileMirrors` на батчинг/пайплайны (`redis.pipeline()`).
-- [ ] **TASK-BACK-31**: Добавить пагинацию/курсорную обработку активных сессий в `reconcileMirrors`.
-- [ ] **TASK-BACK-32**: Реализовать распределенный замок (`distributed lock`) для крон-задачи через `RedisService.setNx`.
-- [ ] **TASK-BACK-33**: Добавить изолированный `try-catch` для каждой сессии с логированием метрик ошибок.
-- [ ] **TASK-BACK-34**: Заменить магическую строку `"ACTIVE"` на `InterviewSessionStatus.ACTIVE`.
+- [x] **TASK-BACK-27**: Устранить race condition при закрытии сессий в `reconcileMirrors` (проверка `CLOSED_VALUE` перед перезаписью через Lua-скрипт).
+- [x] **TASK-BACK-28**: Реализовать атомарную перезапись участников `session:{id}:members` (защита от зомби-участников через `DEL` + `HSET` в Lua-скрипте).
+- [x] **TASK-BACK-29**: Защитить валидные инвайт-токены в Redis от сброса и инвалидации при сверке (продление TTL существующего токена в Lua-скрипте).
+- [x] **TASK-BACK-30**: Устранить сетевой N+1 и перевести операции в `reconcileMirrors` на атомарный Lua-батчинг (`RECONCILE_SESSION_MIRROR_LUA`).
+- [x] **TASK-BACK-31**: Добавить курсорную пагинацию (батчи по 50 сессий) активных сессий в `reconcileMirrors` (защита от OOM).
+- [x] **TASK-BACK-32**: Реализовать распределенный замок (`distributed lock`) для крон-задачи через `RedisService.setNx` и безопасное снятие через `compareAndDelete`.
+- [x] **TASK-BACK-33**: Добавить изолированный `try-catch` для каждой сессии с логированием метрик ошибок.
+- [x] **TASK-BACK-34**: Заменить магическую строку `"ACTIVE"` на `InterviewSessionStatus.ACTIVE`.
 

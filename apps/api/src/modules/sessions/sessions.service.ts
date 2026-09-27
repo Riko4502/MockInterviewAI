@@ -166,6 +166,64 @@ return 1
 `;
 
 /**
+ * Lua-скрипт для атомарной сверки зеркала сессии в Redis.
+ *
+ * Гарантирует:
+ * 1. Защиту от race conditions с closeSession: если статус в Redis уже "closed",
+ *    сессия не воскрешается (возвращает 0).
+ * 2. Атомарную очистку и полную замену участников (session:<id>:members) для исключения зомби-доступа.
+ * 3. Продление TTL существующего инвайт-токена или установку fallback-токена, исключая поломку валидных ссылок.
+ * 4. Батчинг всех Redis-операций в 1 сетевой roundtrip.
+ *
+ * KEYS[1]: sessionActiveKey (session:<id>:active)
+ * KEYS[2]: sessionMembersKey (session:<id>:members)
+ * KEYS[3]: sessionInviteKey (session:<id>:invite)
+ * ARGV[1]: activeValue ("true")
+ * ARGV[2]: closedValue ("closed")
+ * ARGV[3]: ttlSeconds
+ * ARGV[4]: fallbackInviteToken
+ * ARGV[5..]: userId1, role1, userId2, role2...
+ */
+export const RECONCILE_SESSION_MIRROR_LUA = `
+local activeVal = redis.call('GET', KEYS[1])
+if activeVal == ARGV[2] then
+  return 0
+end
+
+redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
+
+redis.call('DEL', KEYS[2])
+local numArgs = #ARGV
+if numArgs >= 6 then
+  for i = 5, numArgs, 2 do
+    redis.call('HSET', KEYS[2], ARGV[i], ARGV[i + 1])
+  end
+  redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+end
+
+local existingInvite = redis.call('GET', KEYS[3])
+if existingInvite then
+  redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
+else
+  redis.call('SET', KEYS[3], ARGV[4], 'EX', tonumber(ARGV[3]))
+end
+
+return 1
+`;
+
+/** Участник интервью-сессии для синхронизации зеркала в Redis. */
+export interface SessionMirrorParticipant {
+  userId: string;
+  role: InterviewParticipantRole;
+}
+
+/** Данные интервью-сессии для сверки и прогрева зеркала в Redis. */
+export interface SessionMirrorData {
+  id: string;
+  participants: SessionMirrorParticipant[];
+}
+
+/**
  * Управляет интервью-сессиями и их Redis-зеркалом (источник правды о членстве).
  *
  * Postgres (Prisma) — синхронная правда; Redis-зеркало (
@@ -579,52 +637,91 @@ export class SessionsService {
 
   /**
    * Восстанавливает зеркало ACTIVE-сессий из Postgres после потери/flush Redis
-   * (P3). Интервал захардкожен (`EVERY_HOUR`): `@nestjs/schedule` не позволяет
-   * вычислить выражение декоратора динамически из `ConfigService`.
-   * Если нужен другой интервал — замените `CronExpression` ниже.
+   * с защитой от race conditions, зомби-участников и N+1 через атомарный Lua-скрипт.
+   *
+   * Использует распределенный замок (`RedisService.setNx`), курсорную пагинацию
+   * и изолированный try-catch для каждой сессии.
    */
   @Cron(CronExpression.EVERY_HOUR, { name: "session-mirror-reconcile" })
   async reconcileMirrors(): Promise<void> {
-    let restored = 0;
+    const lockKey = "lock:cron:session-mirror-reconcile";
+    const lockToken = randomBytes(16).toString("hex");
+    const lockTtlSeconds = 300;
 
+    let acquired = false;
     try {
-      const sessions = await this.prisma.interviewSession.findMany({
-        where: { status: "ACTIVE" },
-        include: { participants: true },
-      });
-
-      for (const session of sessions) {
-        const activeKey = sessionActiveKey(session.id);
-        const membersKey = sessionMembersKey(session.id);
-        const inviteKey = sessionInviteKey(session.id);
-
-        const exists = await this.redis.exists(activeKey);
-        await this.redis.set(activeKey, ACTIVE_VALUE, this.mirrorTtlSeconds);
-        if (!exists) {
-          restored++;
-        }
-
-        for (const participant of session.participants) {
-          await this.redis.hset(
-            membersKey,
-            participant.userId,
-            participant.role.toString(),
-            this.mirrorTtlSeconds,
-          );
-        }
-
-        const existingInvite = await this.redis.get(inviteKey);
-        if (!existingInvite) {
-          const token = this.generateInviteToken(session.id);
-          await this.redis.set(inviteKey, token, this.mirrorTtlSeconds);
-        }
-      }
-    } catch (error) {
-      this.logger.error(
-        "reconcileMirrors: failed to reconcile mirror",
-        error instanceof Error ? error.stack : String(error),
+      acquired = await this.redis.setNx(lockKey, lockToken, lockTtlSeconds);
+    } catch (err) {
+      this.logger.warn(
+        `reconcileMirrors: failed to acquire lock due to Redis error: ${err instanceof Error ? err.message : String(err)}`,
       );
       return;
+    }
+
+    if (!acquired) {
+      this.logger.debug(
+        "reconcileMirrors: lock already held by another replica, skipping run",
+      );
+      return;
+    }
+
+    let restored = 0;
+    const BATCH_SIZE = 50;
+    let cursor: string | undefined;
+    let hasMore = true;
+
+    try {
+      while (hasMore) {
+        let sessions: SessionMirrorData[] = [];
+
+        try {
+          sessions = await this.prisma.interviewSession.findMany({
+            where: { status: InterviewSessionStatus.ACTIVE },
+            include: { participants: true },
+            take: BATCH_SIZE,
+            skip: cursor ? 1 : 0,
+            cursor: cursor ? { id: cursor } : undefined,
+            orderBy: { id: "asc" },
+          });
+        } catch (dbError) {
+          this.logger.error(
+            "reconcileMirrors: failed to fetch active sessions from Postgres",
+            dbError instanceof Error ? dbError.stack : String(dbError),
+          );
+          break;
+        }
+
+        if (sessions.length === 0) {
+          break;
+        }
+
+        cursor = sessions[sessions.length - 1].id;
+        if (sessions.length < BATCH_SIZE) {
+          hasMore = false;
+        }
+
+        for (const session of sessions) {
+          try {
+            const restoredCount = await this.reconcileSessionMirror(session);
+            restored += restoredCount;
+          } catch (sessionError) {
+            this.logger.error(
+              `reconcileMirrors: failed to reconcile session ${session.id}`,
+              sessionError instanceof Error
+                ? sessionError.stack
+                : String(sessionError),
+            );
+          }
+        }
+      }
+    } finally {
+      try {
+        await this.redis.compareAndDelete(lockKey, lockToken);
+      } catch (unlockError) {
+        this.logger.warn(
+          `reconcileMirrors: failed to release lock: ${unlockError instanceof Error ? unlockError.message : String(unlockError)}`,
+        );
+      }
     }
 
     if (restored > 0) {
@@ -632,6 +729,40 @@ export class SessionsService {
         `reconcileMirrors: restored mirror for ${restored} ACTIVE session(s)`,
       );
     }
+  }
+
+  /**
+   * Атомарно синхронизирует зеркало одной сессии в Redis через Lua-скрипт.
+   *
+   * @returns 1, если зеркало было успешно восстановлено/обновлено; 0, если сессия уже закрыта в Redis.
+   */
+  private async reconcileSessionMirror(
+    session: SessionMirrorData,
+  ): Promise<number> {
+    const activeKey = sessionActiveKey(session.id);
+    const membersKey = sessionMembersKey(session.id);
+    const inviteKey = sessionInviteKey(session.id);
+    const fallbackToken = this.generateInviteToken(session.id);
+
+    const membersArgs: string[] = [];
+    for (const p of session.participants) {
+      membersArgs.push(p.userId, p.role.toString());
+    }
+
+    const result = await this.redis.eval<number>(
+      RECONCILE_SESSION_MIRROR_LUA,
+      3,
+      activeKey,
+      membersKey,
+      inviteKey,
+      ACTIVE_VALUE,
+      CLOSED_VALUE,
+      this.mirrorTtlSeconds,
+      fallbackToken,
+      ...membersArgs,
+    );
+
+    return result === 1 ? 1 : 0;
   }
 
   /**
