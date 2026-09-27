@@ -30,7 +30,7 @@ export function TelegramLoginButton() {
     const container = containerRef.current;
     if (!BOT_USERNAME || !container) return;
 
-    window.onTelegramAuth = (user) => mutate(user);
+    window.onTelegramAuth = (user) => mutate({ data: user });
 
     const script = document.createElement("script");
     script.src = TELEGRAM_WIDGET_SRC;
