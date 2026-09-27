@@ -30,6 +30,7 @@ export function useTelegramAuth() {
           return;
         }
 
+        sessionStorage.removeItem(TELEGRAM_ONBOARDING_TOKEN_KEY);
         startSession(response.accessToken);
         router.replace(paths.dashboard);
       },

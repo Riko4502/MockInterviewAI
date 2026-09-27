@@ -123,6 +123,7 @@ describe("TelegramLoginButton", () => {
   });
 
   it("входит существующего пользователя и переходит в /dashboard", async () => {
+    sessionStorage.setItem("telegramOnboardingToken", "stale-token");
     vi.mocked(fetch).mockResolvedValue(
       Response.json({
         status: "AUTHENTICATED",
@@ -144,6 +145,7 @@ describe("TelegramLoginButton", () => {
         body: JSON.stringify(telegramUser),
       }),
     );
+    expect(sessionStorage.getItem("telegramOnboardingToken")).toBeNull();
   });
 
   it("для нового пользователя сохраняет onboardingToken и ведёт на ввод email", async () => {
