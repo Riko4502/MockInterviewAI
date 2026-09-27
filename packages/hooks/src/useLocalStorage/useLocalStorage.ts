@@ -67,7 +67,10 @@ export function useLocalStorage<T>(
     return getInitialValue();
   }, [key, deserializer, getInitialValue]);
 
-  const [storedValue, setStoredValue] = useState<T>(readValue);
+  const [storedValue, setStoredValue] = useState<T>(getInitialValue);
+
+  const storedValueRef = useRef(storedValue);
+  storedValueRef.current = storedValue;
 
   const setValue: Dispatch<SetStateAction<T>> = useCallback(
     (value) => {
@@ -79,22 +82,20 @@ export function useLocalStorage<T>(
       }
 
       try {
-        setStoredValue((current) => {
-          const valueToStore =
-            value instanceof Function
-              ? (value as (prev: T) => T)(current)
-              : value;
+        const valueToStore =
+          value instanceof Function
+            ? (value as (prev: T) => T)(storedValueRef.current)
+            : value;
 
-          window.localStorage.setItem(key, serializer(valueToStore));
+        window.localStorage.setItem(key, serializer(valueToStore));
+        storedValueRef.current = valueToStore;
+        setStoredValue(valueToStore);
 
-          window.dispatchEvent(
-            new CustomEvent(LOCAL_STORAGE_SYNC_EVENT, {
-              detail: { key, value: valueToStore },
-            }),
-          );
-
-          return valueToStore;
-        });
+        window.dispatchEvent(
+          new CustomEvent(LOCAL_STORAGE_SYNC_EVENT, {
+            detail: { key, value: valueToStore },
+          }),
+        );
       } catch (error) {
         console.warn(`[useLocalStorage] Ошибка записи ключа "${key}":`, error);
       }

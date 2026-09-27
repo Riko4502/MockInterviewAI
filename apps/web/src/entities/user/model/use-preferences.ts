@@ -2,7 +2,7 @@
 
 import {
   getProfileControllerGetMyProfileQueryKey,
-  type UpdateProfileDto,
+  type UserProfileDto,
   useProfileControllerUpdateMyProfile,
 } from "@packages/api";
 import { defaultLocale, type Locale, locales } from "@packages/i18n";
@@ -59,12 +59,8 @@ export function usePreferences() {
       if (isAuthenticated) {
         queryClient.setQueryData(
           getProfileControllerGetMyProfileQueryKey(),
-          (old: unknown) => {
-            if (!old || typeof old !== "object") {
-              return { theme: newTheme };
-            }
-            return { ...(old as Record<string, unknown>), theme: newTheme };
-          },
+          (old: UserProfileDto | undefined) =>
+            old ? { ...old, theme: newTheme } : old,
         );
         updateProfileMutation.mutate({ data: { theme: newTheme } });
       }
@@ -82,7 +78,7 @@ export function usePreferences() {
       if (isAuthenticated) {
         queryClient.setQueryData(
           getProfileControllerGetMyProfileQueryKey(),
-          (old: UpdateProfileDto) =>
+          (old: UserProfileDto | undefined) =>
             old ? { ...old, locale: newLocale } : old,
         );
         updateProfileMutation.mutate({ data: { locale: newLocale } });

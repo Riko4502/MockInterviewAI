@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLocalStorage } from "./useLocalStorage";
 
 describe("useLocalStorage", () => {
@@ -91,5 +91,36 @@ describe("useLocalStorage", () => {
       useLocalStorage("broken-key", "fallback"),
     );
     expect(result.current[0]).toBe("fallback");
+  });
+
+  it("поддерживает несколько последовательных функциональных обновлений до следующего рендера", () => {
+    const { result } = renderHook(() => useLocalStorage("counter-key", 0));
+
+    act(() => {
+      result.current[1]((prev) => prev + 1);
+      result.current[1]((prev) => prev + 1);
+    });
+
+    expect(result.current[0]).toBe(2);
+    expect(window.localStorage.getItem("counter-key")).toBe("2");
+  });
+
+  it("не изменяет состояние при ошибке записи в localStorage", () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+
+    const { result } = renderHook(() =>
+      useLocalStorage("error-key", "initial"),
+    );
+
+    act(() => {
+      result.current[1]("new-value");
+    });
+
+    expect(result.current[0]).toBe("initial");
+    setItemSpy.mockRestore();
   });
 });

@@ -19,7 +19,12 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
-import { localeLabels, locales, type ThemeMode } from "@packages/dto";
+import {
+  localeLabels,
+  locales,
+  THEME_MODES,
+  type ThemeMode,
+} from "@packages/dto";
 import {
   createProfileFormSchema,
   type ProfileFormValues,
@@ -213,10 +218,10 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   render={({ field }) => (
                     <Select
                       value={field.value}
-                      onValueChange={(val: ThemeMode) => {
-                        field.onChange(val);
-                        setTheme(val);
-                        setPreferenceCookies({ theme: val });
+                      onValueChange={(val: string) => {
+                        const theme = THEME_MODES.find((mode) => mode === val);
+                        if (!theme) return;
+                        field.onChange(theme);
                       }}
                     >
                       <Select.Trigger className="w-full">
