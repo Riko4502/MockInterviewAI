@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type {
-  DashboardReadinessResponseDto,
-  ReadinessStepDto,
+import {
+  type DashboardReadinessResponseDto,
+  InterviewSessionStatus,
+  type ReadinessStepDto,
 } from "@packages/dto";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -19,12 +20,14 @@ export class DashboardReadinessService {
         deviceSettings: { take: 1 },
         showcaseCards: { select: { id: true, status: true }, take: 1 },
         sessions: {
-          where: { status: "CLOSED" },
+          where: { status: InterviewSessionStatus.CLOSED },
           select: { id: true },
           take: 1,
         },
         participations: {
-          where: { session: { status: "CLOSED" } },
+          where: {
+            session: { status: InterviewSessionStatus.CLOSED },
+          },
           select: { sessionId: true },
           take: 1,
         },

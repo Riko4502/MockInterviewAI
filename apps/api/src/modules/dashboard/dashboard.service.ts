@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import type {
-  DashboardInsightsResponseDto,
-  DashboardMatchRequestsResponseDto,
-  RecentSessionsResponseDto,
-  ShowcaseStatusResponseDto,
-  UpcomingSessionResponseDto,
+import {
+  type DashboardInsightsResponseDto,
+  type DashboardMatchRequestsResponseDto,
+  InterviewParticipantRole,
+  InterviewSessionStatus,
+  type RecentSessionsResponseDto,
+  type ShowcaseStatusResponseDto,
+  type UpcomingSessionResponseDto,
 } from "@packages/dto";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -20,7 +22,9 @@ export class DashboardService {
   ): Promise<UpcomingSessionResponseDto> {
     const session = await this.prisma.interviewSession.findFirst({
       where: {
-        status: { in: ["CREATED", "ACTIVE"] },
+        status: {
+          in: [InterviewSessionStatus.CREATED, InterviewSessionStatus.ACTIVE],
+        },
         OR: [{ userId }, { participants: { some: { userId } } }],
       },
       orderBy: { createdAt: "desc" },
@@ -51,13 +55,14 @@ export class DashboardService {
 
     // Готов к входу, если сессия уже ACTIVE или до старта <= 10 минут
     const isReadyToJoin =
-      session.status === "ACTIVE" || secondsUntilStart <= 600;
+      session.status === InterviewSessionStatus.ACTIVE ||
+      secondsUntilStart <= 600;
 
     // Определяем роль текущего пользователя
     const currentParticipant = session.participants.find(
       (p) => p.userId === userId,
     );
-    const role = currentParticipant?.role ?? "CANDIDATE";
+    const role = currentParticipant?.role ?? InterviewParticipantRole.CANDIDATE;
 
     // Напарник (первый участник, не являющийся текущим пользователем)
     const partnerParticipant = session.participants.find(
@@ -154,7 +159,7 @@ export class DashboardService {
   ): Promise<RecentSessionsResponseDto> {
     const sessions = await this.prisma.interviewSession.findMany({
       where: {
-        status: "CLOSED",
+        status: InterviewSessionStatus.CLOSED,
         OR: [{ userId }, { participants: { some: { userId } } }],
       },
       take: limit,
@@ -184,7 +189,7 @@ export class DashboardService {
         score: Number((8.0 + (idx % 3) * 0.5).toFixed(1)),
         specialization: null,
         level: null,
-        role: s.participants[0]?.role ?? "CANDIDATE",
+        role: s.participants[0]?.role ?? InterviewParticipantRole.CANDIDATE,
         hasFeedbackReport: true,
       };
     });

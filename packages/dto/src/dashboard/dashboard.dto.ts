@@ -95,8 +95,8 @@ export type DailyChallengeResponseDto = z.infer<
 
 export const liveMatchToggleSchema = z.object({
   isSearching: z.boolean(),
-  specialization: specializationEnum.optional(),
-  level: experienceLevelEnum.optional(),
+  specialization: specializationEnum,
+  level: experienceLevelEnum,
 });
 export type LiveMatchToggleDto = z.infer<typeof liveMatchToggleSchema>;
 

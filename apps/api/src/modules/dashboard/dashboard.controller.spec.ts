@@ -116,11 +116,17 @@ describe("DashboardController", () => {
   });
 
   it("should toggle live match", async () => {
-    const res = await controller.toggleLiveMatch(userId, { isSearching: true });
-    expect(res.status).toBe("SEARCHING");
-    expect(liveMatchServiceMock.toggleLiveMatch).toHaveBeenCalledWith(userId, {
+    const payload = {
       isSearching: true,
-    });
+      specialization: "FRONTEND" as const,
+      level: "MIDDLE" as const,
+    };
+    const res = await controller.toggleLiveMatch(userId, payload);
+    expect(res.status).toBe("SEARCHING");
+    expect(liveMatchServiceMock.toggleLiveMatch).toHaveBeenCalledWith(
+      userId,
+      payload,
+    );
   });
 
   it("should return stats", async () => {

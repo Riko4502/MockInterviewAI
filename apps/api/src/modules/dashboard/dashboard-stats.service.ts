@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import type { DashboardStatsResponseDto } from "@packages/dto";
+import {
+  type DashboardStatsResponseDto,
+  InterviewSessionStatus,
+} from "@packages/dto";
 import { PrismaService } from "../../prisma/prisma.service";
 
 @Injectable()
@@ -27,7 +30,9 @@ export class DashboardStatsService {
     });
 
     const totalInterviews = sessions.length;
-    const completedSessions = sessions.filter((s) => s.status === "CLOSED");
+    const completedSessions = sessions.filter(
+      (s) => s.status === InterviewSessionStatus.CLOSED,
+    );
     const completedInterviews = completedSessions.length;
 
     // 2. Расчет общего времени практики в минутах

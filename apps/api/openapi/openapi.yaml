@@ -2814,6 +2814,8 @@ components:
             - LEAD
       required:
         - isSearching
+        - specialization
+        - level
     LiveMatchStatusResponseDto:
       type: object
       properties:

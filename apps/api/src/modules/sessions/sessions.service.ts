@@ -554,7 +554,7 @@ export class SessionsService {
 
     await this.prisma.interviewSession.update({
       where: { id: sessionId },
-      data: { status: "CLOSED", endedAt: new Date() },
+      data: { status: InterviewSessionStatus.CLOSED, endedAt: new Date() },
     });
 
     // Room-scoped evict: публикуем ревокацию по каждому участнику с sessionId.

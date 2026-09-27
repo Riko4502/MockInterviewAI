@@ -173,11 +173,11 @@ export {
 export {
   type AddParticipantDto,
   addParticipantSchema,
-  type InterviewParticipantRole,
+  InterviewParticipantRole,
   interviewParticipantRoleSchema,
 } from "./sessions/participant.dto";
 export {
-  type InterviewSessionStatus,
+  InterviewSessionStatus,
   interviewSessionStatusSchema,
 } from "./sessions/session-status.dto";
 

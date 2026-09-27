@@ -4102,7 +4102,7 @@
             "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
           }
         },
-        "required": ["isSearching"]
+        "required": ["isSearching", "specialization", "level"]
       },
       "LiveMatchStatusResponseDto": {
         "type": "object",

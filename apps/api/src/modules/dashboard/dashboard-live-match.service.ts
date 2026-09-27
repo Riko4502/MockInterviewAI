@@ -1,7 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
-import type {
-  LiveMatchStatusResponseDto,
-  LiveMatchToggleDto,
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import {
+  InterviewParticipantRole,
+  InterviewSessionStatus,
+  type LiveMatchStatusResponseDto,
+  type LiveMatchToggleDto,
 } from "@packages/dto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
@@ -22,8 +24,14 @@ export class DashboardLiveMatchService {
     userId: string,
     dto: LiveMatchToggleDto,
   ): Promise<LiveMatchStatusResponseDto> {
-    const spec = dto.specialization ?? "FRONTEND";
-    const level = dto.level ?? "MIDDLE";
+    if (!dto.specialization || !dto.level) {
+      throw new BadRequestException(
+        "Специализация и уровень обязательны для участия в поиске напарника",
+      );
+    }
+
+    const spec = dto.specialization;
+    const level = dto.level;
     const queueKey = `live_queue:${spec}:${level}`;
 
     // Если пользователь отключает поиск — убираем его из очереди
@@ -45,12 +53,18 @@ export class DashboardLiveMatchService {
         const session = await this.prisma.interviewSession.create({
           data: {
             userId,
-            status: "ACTIVE",
+            status: InterviewSessionStatus.ACTIVE,
             startedAt: new Date(),
             participants: {
               create: [
-                { userId, role: "CANDIDATE" },
-                { userId: partnerId, role: "INTERVIEWER" },
+                {
+                  userId,
+                  role: InterviewParticipantRole.CANDIDATE,
+                },
+                {
+                  userId: partnerId,
+                  role: InterviewParticipantRole.INTERVIEWER,
+                },
               ],
             },
           },
