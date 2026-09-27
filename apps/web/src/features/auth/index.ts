@@ -8,6 +8,7 @@ export {
   ResetPasswordForm,
   ResetPasswordPageClient,
 } from "./reset-password";
+export { CompleteTelegramPageClient } from "./telegram-login";
 export type {
   AuthBoundaryMode,
   AuthBoundaryProps,
