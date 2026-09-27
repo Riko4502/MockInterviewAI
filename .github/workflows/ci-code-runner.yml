@@ -1,0 +1,109 @@
+name: "CI Code Runner (Go)"
+
+on:
+  workflow_call:
+    inputs:
+      should_build_docker:
+        type: boolean
+        default: true
+        description: "Флаг запуска сборки Docker"
+    outputs:
+      coverage:
+        description: "Процент покрытия тестами Code Runner"
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    name: "Unit-тесты Go"
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.go_coverage.outputs.pct }}
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Code Runner (go.mod)"
+        id: check_code_runner
+        run: |
+          if [ -f "apps/code-runner/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка Go"
+        if: steps.check_code_runner.outputs.exists == 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'apps/code-runner/go.mod'
+          cache-dependency-path: 'apps/code-runner/go.sum'
+
+      - name: "Запуск unit-тестов Go с отчетом о покрытии"
+        id: go_coverage
+        if: steps.check_code_runner.outputs.exists == 'true'
+        working-directory: apps/code-runner
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+          TOTAL_COV=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
+          echo "pct=$TOTAL_COV" >> $GITHUB_OUTPUT
+          echo "### 📊 Отчет о покрытии тестами Code Runner (Go)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Общее покрытие кода (Statements):** \`$TOTAL_COV\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Unit-тесты Code Runner успешно выполнены." >> $GITHUB_STEP_SUMMARY
+
+  security:
+    name: "SAST и аудит Go"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Code Runner (go.mod)"
+        id: check_code_runner
+        run: |
+          if [ -f "apps/code-runner/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка Go"
+        if: steps.check_code_runner.outputs.exists == 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'apps/code-runner/go.mod'
+          cache-dependency-path: 'apps/code-runner/go.sum'
+
+      - name: "Загрузка зависимостей Go"
+        if: steps.check_code_runner.outputs.exists == 'true'
+        working-directory: apps/code-runner
+        run: go mod download
+
+      - name: "Проверка уязвимостей в зависимостях (govulncheck)"
+        if: steps.check_code_runner.outputs.exists == 'true'
+        working-directory: apps/code-runner
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: "Запуск линтера и статического анализа (go vet & revive)"
+        if: steps.check_code_runner.outputs.exists == 'true'
+        working-directory: apps/code-runner
+        run: |
+          go vet ./...
+          go install github.com/mgechev/revive@latest
+          revive -config .revive.toml -formatter friendly ./...
+
+      - name: "Настройка Docker Buildx"
+        if: steps.check_code_runner.outputs.exists == 'true' && inputs.should_build_docker
+        uses: docker/setup-buildx-action@v4
+
+      - name: "Проверка сборки Docker-образа Code Runner (Smoke Test)"
+        if: steps.check_code_runner.outputs.exists == 'true' && inputs.should_build_docker
+        uses: docker/build-push-action@v7
+        with:
+          context: ./apps/code-runner
+          file: ./apps/code-runner/Dockerfile
+          push: false
+          tags: mockinterviewai-code-runner:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

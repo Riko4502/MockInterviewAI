@@ -56,6 +56,7 @@
 * **Design & UI Kit:** [Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)
 * **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
 * **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
+* **Code Runner Service:** Go 1.26.6, Chi router, Judge0 CE (песочница `isolate`)
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
 * **Message Broker / Queues:** RabbitMQ (асинхронные задачи и уведомления)
@@ -195,6 +196,18 @@ pnpm dev
     pnpm dev:realtime
     # или: cd apps/realtime && go run cmd/server/main.go
     ```
+* **Code Runner — выполнение кода кандидата (порт 8090):**
+  Поднимается отдельным профилем вместе со стеком Judge0 (API-сервер, воркеры, своя Postgres и Redis):
+  ```bash
+  pnpm code-runner:up      # Запуск сервиса и Judge0
+  pnpm code-runner:logs    # Просмотр логов
+  pnpm code-runner:down    # Остановка
+  ```
+  Проверка:
+  ```bash
+  curl -s -X POST localhost:8090/api/v1/run -H 'Content-Type: application/json' -d '{"language":"python","code":"print(2+2)"}'
+  ```
+  *Требуется хост на cgroup v1 — ограничение Judge0. Подробности и матрица лимитов: [Code Runner Service](docs/backend/architecture/code-runner.md).*
 
 ### 9. Отправка и тестирование SSE-уведомлений (CLI)
 
@@ -226,6 +239,7 @@ pnpm sse:send -i
 * 🔌 **[API Contracts & OpenAPI / Swagger](docs/frontend/data/api-contracts.md)** — workflow обновления OpenAPI-схемы и генерации типов.
 * 🎨 **[Storybook Guidelines & Галерея иконок](docs/frontend/ui/storybook.md)** — правила создания Stories, запуск Storybook и работа с `@packages/ui` и `@packages/icons`.
 * 🧩 **[UI Kit & shadcn/ui](docs/frontend/ui/ui-kit.md)** — компоненты дизайн-системы и токены.
+* 🧪 **[Code Runner Service](docs/backend/architecture/code-runner.md)** — сервис безопасного выполнения кода (Go + Judge0): контракт API, статусы, лимиты и изоляция.
 * 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
@@ -248,6 +262,10 @@ pnpm sse:send -i
   ```bash
   pnpm test:realtime
   ```
+* **Тесты сервиса Code Runner (Go):**
+  ```bash
+  pnpm test:code-runner
+  ```
 * **Тесты веб-приложения (Jest / React Testing Library):**
   ```bash
   pnpm test:web
@@ -258,6 +276,7 @@ pnpm sse:send -i
   # или для конкретных приложений:
   pnpm lint:api
   pnpm lint:realtime
+  pnpm lint:code-runner
   ```
 
 ---
