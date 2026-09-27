@@ -19,6 +19,7 @@ const MATCH_EXPIRATION_MS = 5 * 60 * 1000; // 5 минут на активнос
  * ARGV[1]: userId
  * ARGV[2]: nowScore (timestamp в миллисекундах)
  * ARGV[3]: ttlSeconds (время жизни ключа очереди)
+ * ARGV[4]: cutoff (timestamp в миллисекундах)
  *
  * Если в очереди есть подходящий напарник (отличный от userId) — извлекает его
  * из очереди и удаляет текущего пользователя, возвращая partnerId.
@@ -29,7 +30,9 @@ local queueKey = KEYS[1]
 local userId = ARGV[1]
 local nowScore = tonumber(ARGV[2])
 local ttlSeconds = tonumber(ARGV[3])
+local cutoff = tonumber(ARGV[4])
 
+redis.call('ZREMRANGEBYSCORE', queueKey, '-inf', cutoff)
 local candidates = redis.call('ZRANGE', queueKey, 0, 10)
 for i = 1, #candidates do
   if candidates[i] ~= userId then
@@ -101,6 +104,7 @@ export class DashboardLiveMatchService {
       userId,
       now,
       QUEUE_TTL_SECONDS,
+      cutoff,
     );
 
     if (partnerId) {

@@ -107,6 +107,7 @@ describe("DashboardLiveMatchService", () => {
       "user-1",
       expect.any(Number),
       600,
+      expect.any(Number),
     );
   });
 
@@ -130,6 +131,7 @@ describe("DashboardLiveMatchService", () => {
       "user-1",
       expect.any(Number),
       600,
+      expect.any(Number),
     );
     expect(sessionsServiceMock.createLiveMatchSession).toHaveBeenCalledWith(
       "user-1",

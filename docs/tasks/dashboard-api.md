@@ -12,7 +12,7 @@
 1. **Изоляция сбоев (Failure Isolation):** Каждый блок дашборда обслуживается собственной изолированной ручкой. Сбой в расчете AI-инсайтов или статистики не должен блокировать выдачу информации о ближайшем интервью.
 2. **Мгновенный TTI (<25 мс):** Критичные данные (`upcoming`, `readiness`, `showcase-status`) кэшируются в Redis или выбираются по индексам.
 3. **Безопасность данных (Zero Data Leak):** В селекторах Prisma строго исключаются чувствительные данные (`passwordHash`, сервисные токены, системные метаданные).
-4. **Масштабируемость матчмейкинга:** Режим живого поиска (`Live Match`) реализован на базе Redis Sorted Sets (`ZSET`) с атомарным Lua-скриптом (`MATCH_OR_ENQUEUE_LUA`) и time-based очисткой устаревших заявок (120 секунд), исключающим утечки зависших пользователей.
+4. **Масштабируемость матчмейкинга:** Режим живого поиска (`Live Match`) реализован на базе Redis Sorted Sets (`ZSET`) с атомарным Lua-скриптом (`MATCH_OR_ENQUEUE_LUA`) и time-based очисткой устаревших заявок (5 минут), исключающим утечки зависших пользователей.
 5. **Строгая типизация:** Все DTO описаны через схемы Zod в пакете `packages/dto` и валидируются в NestJS через `ZodValidationPipe`, регистрируясь в OpenAPI/Swagger для Orval-автогенерации клиента в `@packages/api`.
 
 ---
@@ -44,7 +44,7 @@
       ┌─────────────────────────┐       ┌─────────────────────────┐
       │     ⚡ Redis Cache      │       │   🐘 PostgreSQL DB      │
       │  cache:dashboard:*      │       │     Prisma Client       │
-      │  live_match:queue:*     │       │  Sessions, Users, Cards │
+      │  live_queue:*           │       │  Sessions, Users, Cards │
       └─────────────────────────┘       └─────────────────────────┘
 ```
 
@@ -113,8 +113,8 @@ sequenceDiagram
 
     CandidateA->>Ctrl: POST /dashboard/live-match/toggle { isSearching: true, specialization: "BACKEND", level: "MIDDLE" }
     Ctrl->>LMSvc: toggleLiveMatch(userA, dto)
-    LMSvc->>Redis: ZREMRANGEBYSCORE live_match:queue:BACKEND:MIDDLE (очистка stale > 120s)
-    LMSvc->>Redis: EVAL MATCH_OR_ENQUEUE_LUA (ZRANGE + ZREM partner либо ZADD userA)
+    LMSvc->>Redis: ZREMRANGEBYSCORE live_queue:BACKEND:MIDDLE (очистка stale > 5 min)
+    LMSvc->>Redis: EVAL MATCH_OR_ENQUEUE_LUA (ZREMRANGEBYSCORE + ZRANGE + ZREM partner либо ZADD userA)
     alt Очередь пуста (напарник не найден)
         Redis-->>LMSvc: null (userA добавлен в ZSET)
         LMSvc-->>Ctrl: { status: 'SEARCHING', estimatedWaitSeconds: 45 }
@@ -432,13 +432,13 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 ```
 
 ### 4.2 Алгоритм Live Match (Быстрый поиск)
-* **Структура ключа очереди:** `live_match:queue:{specialization}:{level}` (Redis Sorted Set / ZSET).
+* **Структура ключа очереди:** `live_queue:{specialization}:{level}` (Redis Sorted Set / ZSET).
 * **Атомарный поиск и постановка в очередь (`MATCH_OR_ENQUEUE_LUA`):**
   - Очередь хранит `userId` со скором `score = Date.now()` (время постановки в очередь).
-  - Атомарный Lua-скрипт извлекает первого доступного партнера (`ZRANGE queueKey 0 0`), удаляет его из ZSET (`ZREM queueKey partnerId`) и возвращает `partnerId`.
-  - Если очередь пуста, скрипт атомарно добавляет текущего пользователя (`ZADD queueKey now userId`) и возвращает `nil`.
+  - Атомарный Lua-скрипт очищает просроченные заявки (`ZREMRANGEBYSCORE queueKey -inf cutoff`), проверяет кандидатов (`ZRANGE queueKey 0 10`), удаляет выбранного партнёра и текущего пользователя из ZSET (`ZREM`) и возвращает `partnerId`.
+  - Если подходящий партнер не найден, скрипт атомарно добавляет текущего пользователя (`ZADD queueKey nowScore userId`), обновляет TTL ключа (`EXPIRE queueKey ttlSeconds`) и возвращает `nil`.
 * **Очистка устаревших заявок (Time-based Pruning):**
-  - Перед операцией спаривания сервис выполняет удаление заявок старше 120 секунд: `ZREMRANGEBYSCORE queueKey -inf (now - 120000)`.
+  - Внутри Lua-скрипта (а также предварительно в сервисе) выполняется удаление заявок старше 5 минут: `ZREMRANGEBYSCORE queueKey -inf (now - 300000)`.
   - При ручной отмене поиска (`isSearching: false`) пользователь удаляется из очереди через `ZREM queueKey userId`.
 * **Событие спаривания и прогрев сессии:**
   - При нахождении партнера создается сессия в БД через транзакцию `prisma.$transaction` со статусом `ACTIVE` (инициатор — `CANDIDATE`, партнер — `INTERVIEWER`).
@@ -464,7 +464,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 | `cache:dashboard:recent:{userId}:{limit}` | String (JSON) | 60 сек | Создание сессии, закрытие сессии |
 | `cache:dashboard:insights:{userId}` | String (JSON) | 30 мин | Добавление фидбека по сессии |
 | `cache:dashboard:showcase:{userId}` | String (JSON) | 60 сек | Обновление анкеты, нажатие `bump` |
-| `live_match:queue:{spec}:{level}` | Sorted Set (ZSET: userId, score=ms) | 120 сек (sliding TTL) | Отмена поиска, нахождение пары, таймаут (`zremrangebyscore`) |
+| `live_queue:{spec}:{level}` | Sorted Set (ZSET: userId, score=ms) | 600 сек (ключ), 5 мин (активность заявки) | Отмена поиска, нахождение пары, таймаут (`zremrangebyscore`) |
 | `live_match:notify:{userId}` | Pub/Sub Channel | — | Уведомление партнера о создании сессии при Live Match |
 
 
@@ -538,7 +538,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 
 1. Все 9 эндпоинтов работают независимо. Отказ или таймаут одного эндпоинта не влияет на ответы остальных.
 2. Ручки `/upcoming`, `/readiness`, `/daily-challenge` отвечают быстрее 25 мс из кэша Redis.
-3. Время жизни заявки в очереди Live Match в Redis составляет 120 секунд, исключая накопление офлайн-пользователей.
+3. Время жизни заявки в очереди Live Match в Redis составляет 5 минут (TTL ключа очереди 600 секунд), исключая накопление офлайн-пользователей.
 4. Решение задачи дня сразу засчитывается в текущий стрик активности кандидата.
 5. Неавторизованные запросы блокируются на уровне `JwtAuthGuard` с кодом 401.
 6. В ответах API полностью отсутствуют конфиденциальные данные пользователей (`passwordHash`, `telegramChatId`).

@@ -341,7 +341,7 @@ export interface DashboardHeroProps {
 - [ ] **TASK-FRONT-23**: Реализовать виджет `DashboardShowcaseBanner` с кнопкой bump.
 
 ### Этап 5: Сборка страницы, скелетоны и тестирование
-- [ ] **TASK-FRONT-24**: Собрать страницу [apps/web/src/app/(protected)/dashboard/page.tsx](../apps/web/src/app/%28protected%29/dashboard/page.tsx) с адаптивной сеткой (Grid).
+- [ ] **TASK-FRONT-24**: Собрать страницу [apps/web/src/app/(protected)/dashboard/page.tsx](../../apps/web/src/app/%28protected%29/dashboard/page.tsx) с адаптивной сеткой (Grid).
 - [ ] **TASK-FRONT-25**: Реализовать корневой `loading.tsx` со скелетонами всех блоков и `error.tsx` с кнопкой повтора.
 - [ ] **TASK-FRONT-26**: Написать юнит-тесты на Vitest для:
   - `DashboardReadinessChecklist` (рендеринг шагов и расчет прогресса).

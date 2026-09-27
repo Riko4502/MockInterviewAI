@@ -78,14 +78,16 @@ async function main(): Promise<void> {
         const redisToken = await redis.get(key);
 
         if (redisToken && redisToken.trim().length > 0) {
-          await prisma.interviewSession.update({
-            where: { id: session.id },
+          const result = await prisma.interviewSession.updateMany({
+            where: { id: session.id, inviteToken: null },
             data: { inviteToken: redisToken.trim() },
           });
-          updated++;
-          console.log(
-            `[backfill-tokens] Сессия ${session.id}: legacy-токен сохранён в Postgres.`,
-          );
+          if (result.count > 0) {
+            updated++;
+            console.log(
+              `[backfill-tokens] Сессия ${session.id}: legacy-токен сохранён в Postgres.`,
+            );
+          }
         } else {
           expired++;
           console.warn(
