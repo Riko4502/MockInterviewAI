@@ -70,12 +70,10 @@ export type WebRTCSignal =
     };
 
 export type SandboxRealtimeMessageType =
-  | "code-update"
   | "task-change"
   | "webrtc-signal"
   | "presence-ping"
   | "presence-leave"
-  | "cursor-move"
   | "run-result";
 
 export interface SandboxRealtimeMessagePayload {

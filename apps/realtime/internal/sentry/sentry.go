@@ -26,8 +26,8 @@ func Init(opts Options, logger *slog.Logger) error {
 	}
 
 	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              opts.DSN,
-		Environment:      opts.Environment,
+		Dsn:         opts.DSN,
+		Environment: opts.Environment,
 		// Без EnableTracing sample() всегда возвращает SampledFalse
 		// (sentry-go v0.49 rule #1), и TracesSampleRate не применяется.
 		EnableTracing:    opts.TracesSampleRate > 0,

@@ -40,6 +40,8 @@ services:
         value: "3001"
       - key: API_PORT
         value: "3001"
+      - key: INTERNAL_SERVICE_KEY
+        sync: false # Секрет для X-Internal-Service-Key; должен совпадать с devsync-telegram-bot
       - key: API_DATABASE_URL
         fromDatabase:
           name: devsync-db
@@ -97,11 +99,17 @@ services:
       - key: S3_FORCE_PATH_STYLE
         value: "true"
       - key: LIVEKIT_URL
-        sync: false # e.g. wss://your-project.livekit.cloud
+        sync: false # e.g. wss://devsync-livekit.onrender.com или wss://your-project.livekit.cloud
       - key: LIVEKIT_API_KEY
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_KEY
       - key: LIVEKIT_API_SECRET
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_SECRET
 
   # -------------------------------------------------------------
   # Realtime WebSocket & SSE Server (Go)
@@ -143,9 +151,74 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: LIVEKIT_WEBHOOK_API_KEY
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_KEY
       - key: LIVEKIT_WEBHOOK_API_SECRET
-        sync: false
+        fromService:
+          type: web
+          name: devsync-livekit
+          envVarKey: LIVEKIT_API_SECRET
+
+  # -------------------------------------------------------------
+  # LiveKit SFU (WebRTC Audio/Video/Screenshare)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-livekit
+    runtime: docker
+    dockerfilePath: ./apps/livekit/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "7880"
+      - key: LIVEKIT_CONFIG
+        value: |
+          port: 7880
+          bind_addresses:
+            - ""
+          rtc:
+            use_external_ip: true
+      - key: LIVEKIT_API_KEY
+        value: devsync_key
+      - key: LIVEKIT_API_SECRET
+        generateValue: true
+
+  # -------------------------------------------------------------
+  # Telegram Bot
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-telegram-bot
+    runtime: docker
+    dockerfilePath: ./apps/telegram-bot/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_BOT_USERNAME
+        value: MockInterviewBot
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false # От @BotFather (get-token), никогда не коммитить
+      - key: API_INTERNAL_URL
+        sync: false # https://devsync-api.onrender.com/api/v1
+      - key: INTERNAL_SERVICE_KEY
+        fromService:
+          type: web
+          name: devsync-api
+          envVarKey: INTERNAL_SERVICE_KEY
+      - key: WEB_APP_URL
+        sync: false # https://devsync-web.onrender.com (ссылки join на сессии)
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false # https://devsync-telegram-bot.onrender.com/telegram/webhook
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false # Произвольная строка, проверяется в X-Telegram-Bot-Api-Secret-Token
+      # TELEGRAM_WEBHOOK_PORT не задаём: в проде подхватывается $PORT (config.ts)
 
   # -------------------------------------------------------------
   # Web Frontend (Next.js)
@@ -162,10 +235,16 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false # e.g. https://devsync-web.onrender.com
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false # e.g. https://devsync-landing.onrender.com
       - key: NEXT_PUBLIC_API_URL
         sync: false # e.g. https://devsync-api.onrender.com
       - key: NEXT_PUBLIC_REALTIME_URL
         sync: false # e.g. wss://devsync-realtime.onrender.com
+      - key: NEXT_PUBLIC_API_PROXY
+        value: "true"
 
   # -------------------------------------------------------------
   # Landing Page (Nginx Static Export)
@@ -205,3 +284,25 @@ services:
       - key: PORT
         value: "8080"
 
+  # -------------------------------------------------------------
+  # Grafana (Metrics & Monitoring Dashboards)
+  # -------------------------------------------------------------
+  - type: web
+    name: devsync-grafana
+    runtime: image
+    image:
+      url: grafana/grafana:latest
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: GF_SERVER_HTTP_PORT
+        value: "3000"
+      - key: GF_SECURITY_ADMIN_USER
+        value: admin
+      - key: GF_SECURITY_ADMIN_PASSWORD
+        sync: false # Задайте надежный пароль администратора Grafana
+      - key: GF_USERS_ALLOW_SIGN_UP
+        value: "false"

@@ -68,9 +68,13 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
 
   // Медиа и устройства
   CameraIcon: ICON_CATEGORIES.MEDIA,
+  HeadphonesIcon: ICON_CATEGORIES.MEDIA,
   MicIcon: ICON_CATEGORIES.MEDIA,
   PhotoCameraIcon: ICON_CATEGORIES.MEDIA,
   ScreenIcon: ICON_CATEGORIES.MEDIA,
+  Volume1Icon: ICON_CATEGORIES.MEDIA,
+  Volume2Icon: ICON_CATEGORIES.MEDIA,
+  VolumeXIcon: ICON_CATEGORIES.MEDIA,
 
   // Интерфейс и действия
   AlertCircleIcon: ICON_CATEGORIES.UI,

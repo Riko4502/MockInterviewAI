@@ -14,6 +14,7 @@
     "./locales/*": "./src/locales/*"
   },
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "biome check --no-errors-on-unmatched",
     "format": "biome format --write --no-errors-on-unmatched"

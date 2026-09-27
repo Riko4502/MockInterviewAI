@@ -1,7 +1,84 @@
+import { z } from "zod";
+
 /**
- * DTO-схемы и интерфейсы протокола WebSocket комнаты интервью/песочницы.
- * Согласовано с бэкендом apps/realtime (internal/ws/message.go).
+ * Максимальная длина Base64-строки для 64 КБ бинарных данных:
+ * Math.ceil(65536 / 3) * 4 = 87384 символов.
  */
+export const YJS_MAX_BASE64_LENGTH = 87384;
+
+/**
+ * Регулярное выражение для валидации Base64 строки.
+ */
+export const BASE64_REGEX = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Zod-схема бинарных данных Yjs (Base64 с лимитом 64 КБ).
+ */
+export const yjsDataSchema = z
+  .string()
+  .min(1, "Данные Yjs не могут быть пустыми")
+  .max(YJS_MAX_BASE64_LENGTH, "Превышен максимальный размер дельты (64 КБ)")
+  .regex(BASE64_REGEX, "Некорректный формат Base64");
+
+/**
+ * Zod-схема ключа задачи taskKey (например, '<taskId>:<lang>').
+ */
+export const yjsTaskKeySchema = z
+  .string()
+  .min(1, "taskKey обязателен и не может быть пустым");
+
+export const yjsUpdatePayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  updateId: z.string().min(1, "updateId обязателен"),
+  data: yjsDataSchema,
+});
+export type YjsUpdatePayload = z.infer<typeof yjsUpdatePayloadSchema>;
+
+export const yjsAckPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  updateId: z.string().min(1, "updateId обязателен"),
+});
+export type YjsAckPayload = z.infer<typeof yjsAckPayloadSchema>;
+
+export const yjsInitPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  updates: z.array(yjsDataSchema),
+});
+export type YjsInitPayload = z.infer<typeof yjsInitPayloadSchema>;
+
+/**
+ * Максимальная длина Base64-строки для 16 КБ бинарных данных Awareness:
+ * Math.ceil(16384 / 3) * 4 = 21848 символов.
+ */
+export const YJS_AWARENESS_MAX_BASE64_LENGTH = 21848;
+
+/**
+ * Zod-схема бинарных данных Yjs Awareness (Base64 с лимитом 16 КБ).
+ */
+export const yjsAwarenessDataSchema = z
+  .string()
+  .min(1, "Данные Awareness не могут быть пустыми")
+  .max(
+    YJS_AWARENESS_MAX_BASE64_LENGTH,
+    "Превышен максимальный размер awareness (16 КБ)",
+  )
+  .regex(BASE64_REGEX, "Некорректный формат Base64");
+
+export const yjsAwarenessPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  data: yjsAwarenessDataSchema,
+});
+export type YjsAwarenessPayload = z.infer<typeof yjsAwarenessPayloadSchema>;
+
+export const taskSwitchPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+});
+export type TaskSwitchPayload = z.infer<typeof taskSwitchPayloadSchema>;
+
+export const taskSwitchedPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+});
+export type TaskSwitchedPayload = z.infer<typeof taskSwitchedPayloadSchema>;
 
 export type ParticipantRole = "candidate" | "interviewer" | "observer" | "ai";
 
@@ -41,6 +118,9 @@ export type SupportedLanguage =
   | "cpp"
   | "java";
 
+/**
+ * @deprecated Устарело. Заменено на протокол Yjs CRDT ('yjs.update', 'yjs.init').
+ */
 export interface CodeUpdatePayload {
   filePath: string;
   language: SupportedLanguage | string;
@@ -49,6 +129,9 @@ export interface CodeUpdatePayload {
   version: number;
 }
 
+/**
+ * @deprecated Устарело. Заменено на протокол присутствия Yjs ('yjs.awareness').
+ */
 export interface CursorPayload {
   userId: string;
   username: string;
@@ -112,13 +195,116 @@ export interface BaseWebSocketEnvelope<TType extends string, TPayload> {
   payload: TPayload;
 }
 
+export const baseWebSocketEnvelopeSchema = <
+  TType extends z.ZodLiteral<string>,
+  TPayload extends z.ZodTypeAny,
+>(
+  typeSchema: TType,
+  payloadSchema: TPayload,
+) =>
+  z.object({
+    type: typeSchema,
+    version: z.number().int().default(1),
+    sessionId: z.string().min(1, "sessionId обязателен"),
+    requestId: z.string().min(1, "requestId обязателен"),
+    timestamp: z.string().min(1, "timestamp обязателен"),
+    payload: payloadSchema,
+  });
+
+export const yjsUpdateEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.update"),
+  yjsUpdatePayloadSchema,
+);
+export type YjsUpdateEnvelope = z.infer<typeof yjsUpdateEnvelopeSchema>;
+
+export const yjsAckEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.ack"),
+  yjsAckPayloadSchema,
+);
+export type YjsAckEnvelope = z.infer<typeof yjsAckEnvelopeSchema>;
+
+export const yjsInitEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.init"),
+  yjsInitPayloadSchema,
+);
+export type YjsInitEnvelope = z.infer<typeof yjsInitEnvelopeSchema>;
+
+export const yjsAwarenessEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.awareness"),
+  yjsAwarenessPayloadSchema,
+);
+export type YjsAwarenessEnvelope = z.infer<typeof yjsAwarenessEnvelopeSchema>;
+
+/**
+ * Максимальная длина Base64-строки для 256 КБ бинарных данных снимка:
+ * Math.ceil(262144 / 3) * 4 = 349528 символов.
+ */
+export const YJS_SNAPSHOT_MAX_BASE64_LENGTH = 349528;
+
+/**
+ * Zod-схема бинарных данных снимка Yjs (Base64 с лимитом 256 КБ).
+ */
+export const yjsSnapshotDataSchema = z
+  .string()
+  .min(1, "Снимок Yjs не может быть пустым")
+  .max(
+    YJS_SNAPSHOT_MAX_BASE64_LENGTH,
+    "Превышен максимальный размер снимка (256 КБ)",
+  )
+  .regex(BASE64_REGEX, "Некорректный формат Base64");
+
+export const yjsSnapshotPayloadSchema = z.object({
+  taskKey: yjsTaskKeySchema,
+  snapshot: yjsSnapshotDataSchema,
+});
+export type YjsSnapshotPayload = z.infer<typeof yjsSnapshotPayloadSchema>;
+
+export const yjsSnapshotEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("yjs.snapshot"),
+  yjsSnapshotPayloadSchema,
+);
+export type YjsSnapshotEnvelope = z.infer<typeof yjsSnapshotEnvelopeSchema>;
+
+export const taskSwitchEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("task.switch"),
+  taskSwitchPayloadSchema,
+);
+export type TaskSwitchEnvelope = z.infer<typeof taskSwitchEnvelopeSchema>;
+
+export const taskSwitchedEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("task.switched"),
+  taskSwitchedPayloadSchema,
+);
+export type TaskSwitchedEnvelope = z.infer<typeof taskSwitchedEnvelopeSchema>;
+
+export const roomErrorPayloadSchema = z.object({
+  code: z.string().min(1, "code обязателен"),
+  message: z.string().min(1, "message обязателен"),
+  taskKey: z.string().optional(),
+});
+export type RoomErrorPayload = z.infer<typeof roomErrorPayloadSchema>;
+
+export const roomErrorEnvelopeSchema = baseWebSocketEnvelopeSchema(
+  z.literal("room.error"),
+  roomErrorPayloadSchema,
+);
+export type RoomErrorEnvelope = z.infer<typeof roomErrorEnvelopeSchema>;
+
 /**
  * Дискриминированное объединение всех входящих и исходящих WebSocket-событий.
  */
 export type AnyWebSocketEnvelope =
   | BaseWebSocketEnvelope<"room.sync", RoomSyncPayload>
+  | BaseWebSocketEnvelope<"room.error", RoomErrorPayload>
   | BaseWebSocketEnvelope<"presence.join", PresenceJoinPayload>
   | BaseWebSocketEnvelope<"presence.leave", PresenceLeavePayload>
+  | BaseWebSocketEnvelope<"yjs.update", YjsUpdatePayload>
+  | BaseWebSocketEnvelope<"yjs.ack", YjsAckPayload>
+  | BaseWebSocketEnvelope<"yjs.init", YjsInitPayload>
+  | BaseWebSocketEnvelope<"yjs.awareness", YjsAwarenessPayload>
+  | BaseWebSocketEnvelope<"yjs.snapshot", YjsSnapshotPayload>
+  | BaseWebSocketEnvelope<"task.switch", TaskSwitchPayload>
+  | BaseWebSocketEnvelope<"task.switched", TaskSwitchedPayload>
   | BaseWebSocketEnvelope<"code.update", CodeUpdatePayload>
   | BaseWebSocketEnvelope<"cursor.move", CursorPayload>
   | BaseWebSocketEnvelope<"chat.message", ChatMessagePayload>

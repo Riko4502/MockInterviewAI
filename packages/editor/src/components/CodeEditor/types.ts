@@ -1,5 +1,7 @@
 import type { Theme } from "@packages/types";
 import type { editor } from "monaco-editor";
+import type { Awareness } from "y-protocols/awareness";
+import type * as Y from "yjs";
 import type { LanguageId } from "@/languages/config";
 
 /**
@@ -18,16 +20,6 @@ export interface CursorPosition {
 }
 
 /**
- * Участник комнаты для отображения его курсора
- */
-export interface Collaborator {
-  id: string;
-  name: string;
-  color: string;
-  cursor?: CursorPosition;
-}
-
-/**
  * Пропсы главного компонента редактора
  */
 export interface CodeEditorProps {
@@ -42,10 +34,6 @@ export interface CodeEditorProps {
   /** Режим только для чтения */
   readOnly?: boolean;
   /**
-   * Массив других участников для отображения их курсоров.
-   */
-  collaborators?: Collaborator[];
-  /**
    * Коллбэк при перемещении курсора нашим пользователем.
    * Срабатывает с ограничением частоты (throttle).
    */
@@ -57,4 +45,12 @@ export interface CodeEditorProps {
   cursorThrottleMs?: number;
   /** Дополнительные опции Monaco Editor */
   options?: editor.IStandaloneEditorConstructionOptions;
+  /** Yjs Text для совместного редактирования через CRDT (Phase 3) */
+  yText?: Y.Text;
+  /** Инстанс Awareness для совместных курсоров и выделений (Phase 4: T021) */
+  awareness?: Awareness;
+  /** Опциональный внешний Y.UndoManager */
+  undoManager?: Y.UndoManager;
+  /** Коллбэк при инициализации Y.UndoManager */
+  onUndoManagerInit?: (undoManager: Y.UndoManager) => void;
 }

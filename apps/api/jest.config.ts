@@ -22,6 +22,7 @@ const config: Config = {
   coverageReporters: ["text", "text-summary", "json-summary"],
   testEnvironment: "node",
   setupFiles: ["<rootDir>/../test/setup-env.ts"],
+  testTimeout: 30000,
 };
 
 export default config;

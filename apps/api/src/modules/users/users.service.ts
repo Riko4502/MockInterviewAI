@@ -1,5 +1,6 @@
 import "multer";
 import {
+  BadRequestException,
   ConflictException,
   forwardRef,
   GoneException,
@@ -10,13 +11,22 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  DeviceSettingsDto,
+  Locale,
   PublicUserProfileDto,
+  ThemeMode,
+  UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
-import type { Prisma, Role, User } from "../../generated/prisma/client";
+import {
+  type Prisma,
+  type Role,
+  ThemePreference,
+  type User,
+} from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
@@ -44,6 +54,8 @@ const USER_PROFILE_SELECT = {
   avatarUrl: true,
   telegramUsername: true,
   gitUrl: true,
+  theme: true,
+  locale: true,
   role: {
     select: {
       slug: true,
@@ -141,6 +153,33 @@ export class UsersService {
   }
 
   /**
+   * Ищет пользователя по telegramId.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя или `null`, если не найден.
+   */
+  async findByTelegramId(telegramId: bigint): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { telegramId } });
+  }
+
+  /**
+   * Ищет пользователя по telegramId с подгрузкой роли и прав.
+   *
+   * @param telegramId - BigInt ID пользователя в Telegram.
+   * @returns Объект пользователя с ролью и правами или `null`.
+   */
+  async findUserWithRoleByTelegramId(
+    telegramId: bigint,
+  ): Promise<UserWithRoleAndPermissions | null> {
+    return this.prisma.user.findUnique({
+      where: { telegramId },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  /**
    * Ищет пользователя по username.
    *
    * @param username - Уникальный username.
@@ -180,6 +219,125 @@ export class UsersService {
         ...(data.githubId ? { githubId: data.githubId } : {}),
         roleId: defaultRole.id,
       },
+    });
+  }
+
+  /**
+   * Привязывает Telegram-аккаунт к пользователю.
+   *
+   * @param userId - UUID пользователя.
+   * @param data - Telegram данные: `telegramId` и опционально `telegramUsername`.
+   * @returns Сообщение об успешной привязке.
+   * @throws {NotFoundException} Если пользователь не найден (или P2025).
+   * @throws {ConflictException} Если у пользователя уже привязан иной Telegram аккаунт или этот TelegramId занят другим пользователем (или P2002).
+   */
+  async linkTelegram(
+    userId: string,
+    data: { telegramId: bigint; telegramUsername?: string | null },
+  ): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (user.telegramId !== null) {
+      if (user.telegramId === data.telegramId && !user.telegramLinkVerified) {
+        throw new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        );
+      }
+      throw new ConflictException(
+        "Telegram account is already linked to this user",
+      );
+    }
+
+    const existingTgUser = await this.findByTelegramId(data.telegramId);
+    if (existingTgUser && existingTgUser.id !== userId) {
+      throw new ConflictException(
+        "Telegram account is already linked to another user",
+      );
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error) {
+        if (error.code === "P2002") {
+          throw new ConflictException(
+            "Telegram account is already linked to another user",
+          );
+        }
+        if (error.code === "P2025") {
+          throw new NotFoundException("User not found");
+        }
+      }
+      throw error;
+    }
+
+    return { message: "Telegram account linked successfully" };
+  }
+
+  /**
+   * Создаёт нового пользователя через Telegram с назначением дефолтной роли USER.
+   *
+   * @param data - Данные Telegram регистрации: `email`, `passwordHash`, `telegramId`, `telegramUsername`, `displayName`, `avatarUrl`.
+   * @returns Созданный объект пользователя.
+   */
+  async createTelegramUser(data: {
+    email: string;
+    passwordHash: string;
+    telegramId: bigint;
+    telegramUsername?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    roleSlug?: string;
+    telegramLinkVerified?: boolean;
+  }): Promise<User> {
+    const roleSlug = data.roleSlug ?? SystemRole.USER;
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { slug: roleSlug },
+    });
+
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Default role '${roleSlug}' not found in database.`,
+      );
+    }
+
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        telegramId: data.telegramId,
+        telegramUsername: data.telegramUsername ?? null,
+        telegramLinkVerified: data.telegramLinkVerified ?? false,
+        displayName: data.displayName ?? null,
+        avatarUrl: data.avatarUrl ?? null,
+        username: null,
+        roleId: defaultRole.id,
+      },
+    });
+  }
+
+  /**
+   * Обновляет хеш пароля пользователя (§67 SPEC.md).
+   *
+   * @param id - UUID пользователя.
+   * @param passwordHash - Новый Argon2id хеш пароля.
+   * @returns Обновлённый объект пользователя.
+   * @throws {Prisma.PrismaClientKnownRequestError} Если пользователь не найден (P2025).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
     });
   }
 
@@ -240,11 +398,166 @@ export class UsersService {
           telegramUsername: dto.telegramUsername,
         }),
         ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+        ...(dto.theme !== undefined && {
+          theme: dto.theme.toUpperCase() as ThemePreference,
+        }),
+        ...(dto.locale !== undefined && { locale: dto.locale }),
       },
       select: USER_PROFILE_SELECT,
     });
 
     return this.mapToUserProfile(updated);
+  }
+
+  /**
+   * Получает настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Если для данного clientId настроек еще нет в таблице user_device_settings, возвращает значения по умолчанию.
+   */
+  async getDeviceSettings(
+    userId: string,
+    clientId: string,
+  ): Promise<DeviceSettingsDto> {
+    const existing = await this.prisma.userDeviceSettings.findUnique({
+      where: {
+        userId_clientId: {
+          userId,
+          clientId,
+        },
+      },
+    });
+
+    if (existing) {
+      return {
+        clientId: existing.clientId,
+        deviceName: existing.deviceName,
+        audioVolume: existing.audioVolume,
+        speechVolume: existing.speechVolume,
+        micGain: existing.micGain,
+        preferredAudioInputLabel: existing.preferredAudioInputLabel,
+        preferredAudioOutputLabel: existing.preferredAudioOutputLabel,
+        preferredVideoInputLabel: existing.preferredVideoInputLabel,
+        isPersisted: true,
+      };
+    }
+
+    return {
+      clientId,
+      deviceName: null,
+      audioVolume: 80,
+      speechVolume: 80,
+      micGain: 100,
+      preferredAudioInputLabel: null,
+      preferredAudioOutputLabel: null,
+      preferredVideoInputLabel: null,
+      isPersisted: false,
+    };
+  }
+
+  /**
+   * Сохраняет (upsert) настройки медиа/устройств пользователя для конкретного клиентского устройства.
+   * Операция сериализуется в транзакции с блокировкой строки пользователя (FOR UPDATE),
+   * что исключает гонки при одновременных запросах и гарантирует жесткий лимит в 10 устройств.
+   */
+  async upsertDeviceSettings(
+    userId: string,
+    dto: UpdateDeviceSettingsDto,
+  ): Promise<DeviceSettingsDto> {
+    if (!UUID_REGEX.test(userId)) {
+      throw new BadRequestException("Invalid user ID");
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "users" WHERE id = ${userId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("User not found");
+      }
+
+      const existing = await tx.userDeviceSettings.findUnique({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+      });
+
+      const record = await tx.userDeviceSettings.upsert({
+        where: {
+          userId_clientId: {
+            userId,
+            clientId: dto.clientId,
+          },
+        },
+        create: {
+          userId,
+          clientId: dto.clientId,
+          deviceName: dto.deviceName ?? null,
+          audioVolume: dto.audioVolume ?? existing?.audioVolume ?? 80,
+          speechVolume: dto.speechVolume ?? existing?.speechVolume ?? 80,
+          micGain: dto.micGain ?? existing?.micGain ?? 100,
+          preferredAudioInputLabel:
+            dto.preferredAudioInputLabel !== undefined
+              ? dto.preferredAudioInputLabel
+              : (existing?.preferredAudioInputLabel ?? null),
+          preferredAudioOutputLabel:
+            dto.preferredAudioOutputLabel !== undefined
+              ? dto.preferredAudioOutputLabel
+              : (existing?.preferredAudioOutputLabel ?? null),
+          preferredVideoInputLabel:
+            dto.preferredVideoInputLabel !== undefined
+              ? dto.preferredVideoInputLabel
+              : (existing?.preferredVideoInputLabel ?? null),
+        },
+        update: {
+          ...(dto.deviceName !== undefined && { deviceName: dto.deviceName }),
+          ...(dto.audioVolume !== undefined && {
+            audioVolume: dto.audioVolume,
+          }),
+          ...(dto.speechVolume !== undefined && {
+            speechVolume: dto.speechVolume,
+          }),
+          ...(dto.micGain !== undefined && { micGain: dto.micGain }),
+          ...(dto.preferredAudioInputLabel !== undefined && {
+            preferredAudioInputLabel: dto.preferredAudioInputLabel,
+          }),
+          ...(dto.preferredAudioOutputLabel !== undefined && {
+            preferredAudioOutputLabel: dto.preferredAudioOutputLabel,
+          }),
+          ...(dto.preferredVideoInputLabel !== undefined && {
+            preferredVideoInputLabel: dto.preferredVideoInputLabel,
+          }),
+        },
+      });
+
+      // Ограничиваем количество сохраненных устройств пользователя до 10 (удаляем самые старые)
+      const userDevices = await tx.userDeviceSettings.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      });
+
+      if (userDevices.length > 10) {
+        const toDelete = userDevices.slice(10).map((d) => d.id);
+        await tx.userDeviceSettings.deleteMany({
+          where: { id: { in: toDelete } },
+        });
+      }
+
+      return {
+        clientId: record.clientId,
+        deviceName: record.deviceName,
+        audioVolume: record.audioVolume,
+        speechVolume: record.speechVolume,
+        micGain: record.micGain,
+        preferredAudioInputLabel: record.preferredAudioInputLabel,
+        preferredAudioOutputLabel: record.preferredAudioOutputLabel,
+        preferredVideoInputLabel: record.preferredVideoInputLabel,
+        isPersisted: true,
+      };
+    });
   }
 
   /**
@@ -460,6 +773,8 @@ export class UsersService {
       avatarUrl: profile.avatarUrl,
       telegramUsername: profile.telegramUsername,
       gitUrl: profile.gitUrl,
+      theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
+      locale: (profile.locale === "en" ? "en" : "ru") as Locale,
       createdAt:
         typeof profile.createdAt === "string"
           ? profile.createdAt

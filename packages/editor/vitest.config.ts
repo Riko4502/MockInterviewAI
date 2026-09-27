@@ -3,11 +3,27 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
+    alias: [
+      { find: "@", replacement: path.resolve(import.meta.dirname, "./src") },
+      {
+        find: /^monaco-editor$/,
+        replacement: "monaco-editor/esm/vs/editor/editor.api.js",
+      },
+    ],
+  },
+  server: {
+    deps: {
+      inline: ["monaco-editor"],
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    css: true,
+    server: {
+      deps: {
+        inline: [/monaco-editor/],
+      },
+    },
   },
 });

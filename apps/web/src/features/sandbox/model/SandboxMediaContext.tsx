@@ -11,6 +11,10 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  MediaSettingsDialog,
+  useMediaSettings,
+} from "@/features/media-settings";
 import { useLiveKitRoom } from "@/features/realtime";
 import { buildAppUrlWithOptions } from "@/shared/lib/url";
 import type { useSandboxRealtime } from "../lib/useSandboxRealtime";
@@ -33,6 +37,22 @@ export interface SandboxMediaContextValue {
   hasPeerOnline: boolean;
   peerCount: number;
   isInviteCopied: boolean;
+  // Настройки устройств и громкости
+  audioVolume: number;
+  speechVolume: number;
+  micGain: number;
+  selectedAudioInputId: string;
+  selectedAudioOutputId: string;
+  selectedVideoInputId: string;
+  isSettingsOpen: boolean;
+  setIsSettingsOpen: (open: boolean) => void;
+  setAudioVolume: (vol: number) => void;
+  setSpeechVolume: (vol: number) => void;
+  setMicGain: (gain: number) => void;
+  onSwitchAudioDevice: (id: string) => void;
+  onSwitchVideoDevice: (id: string) => void;
+  onSwitchAudioOutput: (id: string) => void;
+  // Действия звонка
   onCopyInvite: () => void;
   onStartCall: () => Promise<void>;
   onEndCall: () => void;
@@ -133,18 +153,46 @@ export function SandboxMediaProvider({
       });
   }, [pathname, roomId, inviteToken, toast]);
 
+  const mediaSettings = useMediaSettings();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // WebRTC P2P видео/аудио звонок
   const webrtc = useWebRTC({
     userId: realtime.userId,
     onSendSignal: (signal) => {
       realtime.broadcastWebRTCSignal(signal);
     },
+    audioDeviceId: mediaSettings.audioInputId,
+    videoDeviceId: mediaSettings.videoInputId,
   });
 
   // LiveKit SFU видео/аудио интеграция
   const livekit = useLiveKitRoom({
     sessionId: roomId,
   });
+
+  const handleSwitchAudioDevice = useCallback(
+    (deviceId: string) => {
+      mediaSettings.setAudioInputId(deviceId);
+      void webrtc.switchAudioDevice(deviceId);
+    },
+    [mediaSettings, webrtc],
+  );
+
+  const handleSwitchVideoDevice = useCallback(
+    (deviceId: string) => {
+      mediaSettings.setVideoInputId(deviceId);
+      void webrtc.switchVideoDevice(deviceId);
+    },
+    [mediaSettings, webrtc],
+  );
+
+  const handleSwitchAudioOutput = useCallback(
+    (deviceId: string) => {
+      mediaSettings.setAudioOutputId(deviceId);
+    },
+    [mediaSettings],
+  );
 
   // Связываем сигналы из realtime со звонками
   useEffect(() => {
@@ -270,6 +318,20 @@ export function SandboxMediaProvider({
       hasPeerOnline,
       peerCount: realtime.peerCount,
       isInviteCopied,
+      audioVolume: mediaSettings.audioVolume,
+      speechVolume: mediaSettings.speechVolume,
+      micGain: mediaSettings.micGain,
+      selectedAudioInputId: mediaSettings.audioInputId,
+      selectedAudioOutputId: mediaSettings.audioOutputId,
+      selectedVideoInputId: mediaSettings.videoInputId,
+      isSettingsOpen,
+      setIsSettingsOpen,
+      setAudioVolume: mediaSettings.setAudioVolume,
+      setSpeechVolume: mediaSettings.setSpeechVolume,
+      setMicGain: mediaSettings.setMicGain,
+      onSwitchAudioDevice: handleSwitchAudioDevice,
+      onSwitchVideoDevice: handleSwitchVideoDevice,
+      onSwitchAudioOutput: handleSwitchAudioOutput,
       onCopyInvite: handleCopyInvite,
       onStartCall: handleStartCall,
       onEndCall: handleEndCall,
@@ -293,6 +355,19 @@ export function SandboxMediaProvider({
       hasPeerOnline,
       realtime.peerCount,
       isInviteCopied,
+      mediaSettings.audioVolume,
+      mediaSettings.speechVolume,
+      mediaSettings.micGain,
+      mediaSettings.audioInputId,
+      mediaSettings.audioOutputId,
+      mediaSettings.videoInputId,
+      mediaSettings.setAudioVolume,
+      mediaSettings.setSpeechVolume,
+      mediaSettings.setMicGain,
+      isSettingsOpen,
+      handleSwitchAudioDevice,
+      handleSwitchVideoDevice,
+      handleSwitchAudioOutput,
       handleCopyInvite,
       handleStartCall,
       handleEndCall,
@@ -305,6 +380,13 @@ export function SandboxMediaProvider({
   return (
     <SandboxMediaContext.Provider value={value}>
       {children}
+      <MediaSettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        onAudioDeviceChange={handleSwitchAudioDevice}
+        onVideoDeviceChange={handleSwitchVideoDevice}
+        onAudioOutputChange={handleSwitchAudioOutput}
+      />
     </SandboxMediaContext.Provider>
   );
 }
