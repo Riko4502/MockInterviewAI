@@ -37,6 +37,7 @@ export function usePreferences() {
   const queryClient = useQueryClient();
   const updateProfileMutation = useProfileControllerUpdateMyProfile({
     mutation: {
+      scope: { id: "profile-preferences" },
       onSuccess: (updated) => {
         queryClient.setQueryData(
           getProfileControllerGetMyProfileQueryKey(),

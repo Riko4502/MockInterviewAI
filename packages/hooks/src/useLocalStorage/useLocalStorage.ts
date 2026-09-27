@@ -109,6 +109,7 @@ export function useLocalStorage<T>(
     try {
       window.localStorage.removeItem(key);
       const fallbackValue = getInitialValue();
+      storedValueRef.current = fallbackValue;
       setStoredValue(fallbackValue);
 
       window.dispatchEvent(

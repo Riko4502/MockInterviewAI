@@ -123,4 +123,21 @@ describe("useLocalStorage", () => {
     expect(result.current[0]).toBe("initial");
     setItemSpy.mockRestore();
   });
+
+  it("поддерживает функциональное обновление сразу после removeValue в одном act", () => {
+    const { result } = renderHook(() => useLocalStorage("counter-key", 0));
+
+    act(() => {
+      result.current[1](1);
+    });
+    expect(result.current[0]).toBe(1);
+
+    act(() => {
+      result.current[2]();
+      result.current[1]((prev) => prev + 1);
+    });
+
+    expect(result.current[0]).toBe(1);
+    expect(window.localStorage.getItem("counter-key")).toBe("1");
+  });
 });
