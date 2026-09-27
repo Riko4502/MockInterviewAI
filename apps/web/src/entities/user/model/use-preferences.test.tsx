@@ -62,6 +62,9 @@ describe("usePreferences", () => {
         <QueryClientProvider client={queryClient}>
           <SessionContext.Provider
             value={{
+              userId: isAuthenticated ? "user-1" : null,
+              role: null,
+              permissions: 0n,
               isAuthenticated,
               status: isAuthenticated ? "authenticated" : "unauthenticated",
               startSession: vi.fn(),

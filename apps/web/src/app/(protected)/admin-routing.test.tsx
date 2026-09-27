@@ -62,6 +62,8 @@ function profileResponse(role: SystemRole) {
     id: "user-1",
     role,
     permissions: "0",
+    theme: "system",
+    locale: "ru",
     email: "test@example.com",
     displayName: null,
     username: null,

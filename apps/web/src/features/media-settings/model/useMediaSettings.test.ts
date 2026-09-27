@@ -74,6 +74,9 @@ function createAuthenticatedWrapper() {
         SessionContext.Provider,
         {
           value: {
+            userId: "user-1",
+            role: null,
+            permissions: 0n,
             isAuthenticated: true,
             status: "authenticated",
             startSession: vi.fn(),

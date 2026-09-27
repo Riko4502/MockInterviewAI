@@ -23,6 +23,8 @@ function profile(role: string, id = "user-1"): UserProfileDto {
     id,
     role,
     permissions: "0",
+    theme: "system",
+    locale: "ru",
     email: "test@example.com",
     displayName: null,
     username: null,
