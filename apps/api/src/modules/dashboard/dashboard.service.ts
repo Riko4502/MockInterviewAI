@@ -172,7 +172,7 @@ export class DashboardService {
       },
     });
 
-    const items = sessions.map((s, idx) => {
+    const items = sessions.map((s) => {
       const durationMinutes =
         s.startedAt && s.endedAt
           ? Math.max(
@@ -186,11 +186,11 @@ export class DashboardService {
         title: `Mock Session #${s.id.slice(0, 6)}`,
         completedAt: (s.endedAt ?? s.createdAt).toISOString(),
         durationMinutes,
-        score: Number((8.0 + (idx % 3) * 0.5).toFixed(1)),
+        score: null,
         specialization: null,
         level: null,
         role: s.participants[0]?.role ?? InterviewParticipantRole.CANDIDATE,
-        hasFeedbackReport: true,
+        hasFeedbackReport: false,
       };
     });
 

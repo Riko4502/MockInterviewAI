@@ -46,7 +46,7 @@ export type UpcomingSessionResponseDto = z.infer<
 // --- 2. Readiness Checklist DTOs ---
 
 export const readinessStepKeyEnum = z.enum([
-  "EMAIL_CONFIRMED",
+  "EMAIL_PROVIDED",
   "MEDIA_CONFIGURED",
   "TELEGRAM_LINKED",
   "SHOWCASE_CREATED",

@@ -6,6 +6,7 @@ import type { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import {
   FALLBACK_SEED_TASK_DOC_LUA,
+  LiveMatchPostCommitError,
   REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
   SEED_TASK_DOC_LUA,
   SessionsService,
@@ -210,6 +211,30 @@ describe("SessionsService", () => {
       expect(redisMock.delete).toHaveBeenCalledWith(
         `cache:dashboard:upcoming:${partnerId}`,
       );
+    });
+
+    it("выбрасывает LiveMatchPostCommitError с sessionId и inviteToken, если post-commit операция в Redis завершилась ошибкой", async () => {
+      const partnerId = "33333333-3333-4333-c333-333333333333";
+      prismaMock.interviewSession.create.mockResolvedValue({
+        id: sessionId,
+        userId: ownerId,
+      });
+      redisMock.set.mockRejectedValueOnce(new Error("Redis connection lost"));
+
+      await expect(
+        service.createLiveMatchSession(ownerId, partnerId),
+      ).rejects.toThrow(LiveMatchPostCommitError);
+
+      try {
+        await service.createLiveMatchSession(ownerId, partnerId);
+      } catch (err) {
+        expect(err).toBeInstanceOf(LiveMatchPostCommitError);
+        if (err instanceof LiveMatchPostCommitError) {
+          expect(err.sessionId).toBe(sessionId);
+          expect(err.inviteToken).toHaveLength(64);
+          expect(err.cause).toBeInstanceOf(Error);
+        }
+      }
     });
   });
 
@@ -524,6 +549,79 @@ describe("SessionsService", () => {
       await service.joinSession(sessionId, "cand-1", validToken);
 
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
+    });
+
+    it("сохраняет legacy-токен из Redis в Postgres, если в Postgres он отсутствует (null)", async () => {
+      const legacyToken = service.generateInviteToken(sessionId);
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === `session:${sessionId}:invite`) return legacyToken;
+        return null;
+      });
+
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        inviteToken: null,
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+      prismaMock.interviewParticipant.upsert.mockResolvedValue({
+        sessionId,
+        userId: "candidate-legacy",
+        role: "CANDIDATE",
+      });
+
+      const result = await service.joinSession(
+        sessionId,
+        "candidate-legacy",
+        legacyToken,
+      );
+
+      expect(result.inviteToken).toBe(legacyToken);
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: sessionId },
+        data: { inviteToken: legacyToken },
+      });
+    });
+
+    it("при истёкшем ключе Redis и отсутствии токена в Postgres генерирует fallback и сохраняет в Postgres и Redis", async () => {
+      redisMock.get.mockResolvedValue(null);
+
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        inviteToken: null,
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+
+      // Владелец подключается к legacy-сессии с остывшим ключом
+      const result = await service.joinSession(sessionId, ownerId);
+
+      expect(result.role).toBe("INTERVIEWER");
+      expect(result.inviteToken).toHaveLength(64);
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: sessionId },
+        data: { inviteToken: result.inviteToken },
+      });
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `session:${sessionId}:invite`,
+        result.inviteToken,
+        7200,
+      );
+    });
+
+    it("отклоняет нового участника со старым токеном при истёкшем ключе Redis и inviteToken: null в Postgres", async () => {
+      redisMock.get.mockResolvedValue(null);
+
+      prismaMock.interviewSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        status: "ACTIVE",
+        inviteToken: null,
+        participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+      });
+
+      await expect(
+        service.joinSession(sessionId, "new-candidate", "some-old-token"),
+      ).rejects.toThrow("User is not invited to this interview session");
     });
   });
 
@@ -1024,34 +1122,156 @@ describe("SessionsService", () => {
         expect.any(String),
       );
     });
+
+    it("сохраняет фактически выбранный существующий токен из Redis в Postgres при inviteToken: null", async () => {
+      const existingRedisToken = "a".repeat(64);
+      prismaMock.interviewSession.findMany.mockResolvedValue([
+        {
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          inviteToken: null,
+          participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+        },
+      ]);
+
+      redisMock.eval.mockResolvedValue([1, existingRedisToken]);
+
+      await service.reconcileMirrors();
+
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: sessionId },
+        data: { inviteToken: existingRedisToken },
+      });
+    });
+
+    it("сохраняет fallback токен в Postgres при inviteToken: null и отсутствии ключа в Redis", async () => {
+      const fallbackToken = "b".repeat(64);
+      prismaMock.interviewSession.findMany.mockResolvedValue([
+        {
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          inviteToken: null,
+          participants: [{ userId: ownerId, role: "INTERVIEWER" }],
+        },
+      ]);
+
+      redisMock.eval.mockResolvedValue([1, fallbackToken]);
+
+      await service.reconcileMirrors();
+
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: sessionId },
+        data: { inviteToken: fallbackToken },
+      });
+    });
+  });
+
+  describe("backfillActiveInviteTokens", () => {
+    it("читает токен из sessionInviteKey в Redis и записывает его в Postgres для ACTIVE-сессий", async () => {
+      const legacyToken1 = "1".repeat(64);
+      const legacyToken2 = "2".repeat(64);
+
+      prismaMock.interviewSession.findMany.mockResolvedValue([
+        { id: "session-1", inviteToken: null },
+        { id: "session-2", inviteToken: null },
+      ]);
+
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "session:session-1:invite") return legacyToken1;
+        if (key === "session:session-2:invite") return legacyToken2;
+        return null;
+      });
+
+      const stats = await service.backfillActiveInviteTokens();
+
+      expect(stats).toEqual({ total: 2, updated: 2, expired: 0 });
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: "session-1" },
+        data: { inviteToken: legacyToken1 },
+      });
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: "session-2" },
+        data: { inviteToken: legacyToken2 },
+      });
+    });
+
+    it("учитывает истёкшие ключи Redis и не обновляет для них Postgres", async () => {
+      const legacyToken = "3".repeat(64);
+
+      prismaMock.interviewSession.findMany.mockResolvedValue([
+        { id: "session-live", inviteToken: null },
+        { id: "session-expired", inviteToken: null },
+      ]);
+
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "session:session-live:invite") return legacyToken;
+        return null; // session-expired
+      });
+
+      const stats = await service.backfillActiveInviteTokens();
+
+      expect(stats).toEqual({ total: 2, updated: 1, expired: 1 });
+      expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+        where: { id: "session-live" },
+        data: { inviteToken: legacyToken },
+      });
+      expect(prismaMock.interviewSession.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "session-expired" },
+        }),
+      );
+    });
+
+    it("корректно обрабатывает пагинацию батчами", async () => {
+      const batch1 = Array.from({ length: 50 }, (_, i) => ({
+        id: `s-${i}`,
+        inviteToken: null,
+      }));
+      const batch2 = [{ id: "s-50", inviteToken: null }];
+
+      prismaMock.interviewSession.findMany
+        .mockResolvedValueOnce(batch1)
+        .mockResolvedValueOnce(batch2);
+
+      redisMock.get.mockResolvedValue(`${"tok".repeat(21)}1`);
+
+      const stats = await service.backfillActiveInviteTokens();
+
+      expect(stats.total).toBe(51);
+      expect(stats.updated).toBe(51);
+      expect(prismaMock.interviewSession.findMany).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("SEED_TASK_DOC_LUA contract with apps/realtime", () => {
-    it("соответствует seed_task_doc.lua из apps/realtime (Docker/CI safe, TASK-BACK-41)", () => {
-      const realtimeScriptPath = path.resolve(
-        __dirname,
-        REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
-      );
-      if (!fs.existsSync(realtimeScriptPath)) {
-        return;
-      }
+    const realtimeScriptPath = path.resolve(
+      __dirname,
+      REALTIME_SEED_TASK_DOC_LUA_RELATIVE_PATH,
+    );
+    const contractTest = fs.existsSync(realtimeScriptPath) ? it : it.skip;
 
-      const realtimeContent = fs.readFileSync(realtimeScriptPath, "utf-8");
+    contractTest(
+      "соответствует seed_task_doc.lua из apps/realtime (Docker/CI safe, TASK-BACK-41)",
+      () => {
+        const realtimeContent = fs.readFileSync(realtimeScriptPath, "utf-8");
 
-      const normalize = (script: string) =>
-        script
-          .replace(/\r\n/g, "\n")
-          .replace(/--[^\n]*/g, "") // Удаляем однострочные комментарии Lua
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .join("\n");
+        const normalize = (script: string) =>
+          script
+            .replace(/\r\n/g, "\n")
+            .replace(/--[^\n]*/g, "") // Удаляем однострочные комментарии Lua
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join("\n");
 
-      // Резервная копия должна совпадать с источником истины
-      expect(normalize(FALLBACK_SEED_TASK_DOC_LUA)).toBe(
-        normalize(realtimeContent),
-      );
-      expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
-    });
+        // Резервная копия должна совпадать с источником истины
+        expect(normalize(FALLBACK_SEED_TASK_DOC_LUA)).toBe(
+          normalize(realtimeContent),
+        );
+        expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
+      },
+    );
   });
 });

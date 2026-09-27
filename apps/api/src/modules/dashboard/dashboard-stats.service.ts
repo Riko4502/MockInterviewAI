@@ -14,60 +14,102 @@ export class DashboardStatsService {
    * решенные задачи и среднюю оценку.
    */
   async getStats(userId: string): Promise<DashboardStatsResponseDto> {
-    // 1. Поиск всех сессий, где пользователь был создателем или участником
-    const sessions = await this.prisma.interviewSession.findMany({
-      where: {
-        OR: [{ userId }, { participants: { some: { userId } } }],
-      },
-      select: {
-        id: true,
-        status: true,
-        startedAt: true,
-        endedAt: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
+    const userSessionsFilter = {
+      OR: [{ userId }, { participants: { some: { userId } } }],
+    };
+
+    // 1. Подсчет итогов через count в БД (без загрузки массива сессий в память)
+    const totalInterviewsPromise = this.prisma.interviewSession.count({
+      where: userSessionsFilter,
     });
 
-    const totalInterviews = sessions.length;
-    const completedSessions = sessions.filter(
-      (s) => s.status === InterviewSessionStatus.CLOSED,
-    );
-    const completedInterviews = completedSessions.length;
+    const completedInterviewsPromise = this.prisma.interviewSession.count({
+      where: {
+        ...userSessionsFilter,
+        status: InterviewSessionStatus.CLOSED,
+      },
+    });
 
-    // 2. Расчет общего времени практики в минутах
-    let totalPracticeTimeMinutes = 0;
-    for (const session of completedSessions) {
-      if (session.startedAt && session.endedAt) {
-        const diffMs = session.endedAt.getTime() - session.startedAt.getTime();
-        totalPracticeTimeMinutes += Math.max(0, Math.round(diffMs / 60000));
-      } else {
-        totalPracticeTimeMinutes += 45; // Базовое расчетное время сессии
+    // 2. Для streak загружаем только уникальные даты закрытых сессий, сгруппированные по дню (UTC)
+    const distinctDatesPromise = this.prisma.$queryRaw<
+      Array<{ activityDate: string | Date }>
+    >`
+      SELECT DISTINCT
+        TO_CHAR(COALESCE(s.started_at, s.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS "activityDate"
+      FROM "interview_sessions" s
+      WHERE s.status::text = 'CLOSED'
+        AND (
+          s.user_id = ${userId}::uuid
+          OR EXISTS (
+            SELECT 1
+            FROM "interview_participants" p
+            WHERE p.session_id = s.id AND p.user_id = ${userId}::uuid
+          )
+        )
+      ORDER BY "activityDate" DESC
+    `;
+
+    // 3. Расчет общего времени практики в минутах на уровне БД (агрегация вместо загрузки в память)
+    const practiceTimePromise = this.prisma.$queryRaw<
+      Array<{ totalMinutes: number | string | null }>
+    >`
+      SELECT
+        COALESCE(
+          SUM(
+            CASE
+              WHEN s.started_at IS NOT NULL AND s.ended_at IS NOT NULL THEN
+                GREATEST(0, ROUND(EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 60))
+              ELSE 45
+            END
+          ),
+          0
+        )::int AS "totalMinutes"
+      FROM "interview_sessions" s
+      WHERE s.status::text = 'CLOSED'
+        AND (
+          s.user_id = ${userId}::uuid
+          OR EXISTS (
+            SELECT 1
+            FROM "interview_participants" p
+            WHERE p.session_id = s.id AND p.user_id = ${userId}::uuid
+          )
+        )
+    `;
+
+    const [
+      totalInterviews,
+      completedInterviews,
+      distinctDateRows,
+      practiceTimeRows,
+    ] = await Promise.all([
+      totalInterviewsPromise,
+      completedInterviewsPromise,
+      distinctDatesPromise,
+      practiceTimePromise,
+    ]);
+
+    const totalPracticeTimeMinutes = Number(
+      practiceTimeRows[0]?.totalMinutes ?? 0,
+    );
+
+    const activityDates = distinctDateRows.map((r) => {
+      if (r.activityDate instanceof Date) {
+        return r.activityDate;
       }
-    }
-
-    // 3. Расчет стрика непрерывной активности по дням (UTC)
-    const activityDates = completedSessions.map(
-      (s) => s.startedAt ?? s.createdAt,
-    );
+      const str = String(r.activityDate);
+      return str.includes("T")
+        ? new Date(str)
+        : new Date(`${str}T00:00:00.000Z`);
+    });
     const { currentStreak, maxStreak } = this.calculateStreak(activityDates);
 
-    // 4. Решенные задачи и средний балл (на основе завершенных сессий)
-    // В будущих итерациях привязывается к таблице submissions/problems
-    const solvedTotal = Math.min(completedInterviews * 2, 50);
-    const solvedEasy = Math.round(solvedTotal * 0.45);
-    const solvedMedium = Math.round(solvedTotal * 0.4);
-    const solvedHard = Math.max(0, solvedTotal - solvedEasy - solvedMedium);
-
-    const averageScore =
-      completedInterviews > 0
-        ? Math.min(
-            10,
-            Number(
-              (7.0 + Math.min(completedInterviews * 0.25, 2.5)).toFixed(1),
-            ),
-          )
-        : null;
+    // 4. Решенные задачи и средний балл:
+    // До появления источника данных (связи с submissions/problems) возвращаем нулевую разбивку и averageScore: null
+    const solvedTotal = 0;
+    const solvedEasy = 0;
+    const solvedMedium = 0;
+    const solvedHard = 0;
+    const averageScore = null;
 
     return {
       totalInterviews,

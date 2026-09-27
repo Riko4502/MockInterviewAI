@@ -38,7 +38,7 @@ export class DashboardReadinessService {
       throw new NotFoundException("Пользователь не найден");
     }
 
-    const emailConfirmed = Boolean(user.email);
+    const emailProvided = Boolean(user.email);
     const mediaConfigured =
       user.deviceSettings.length > 0 &&
       Boolean(
@@ -54,11 +54,11 @@ export class DashboardReadinessService {
 
     const steps: ReadinessStepDto[] = [
       {
-        key: "EMAIL_CONFIRMED",
-        title: "Подтвердить адрес электронной почты",
+        key: "EMAIL_PROVIDED",
+        title: "Указать адрес электронной почты",
         description:
           "Необходимо для восстановления доступа и важных системных уведомлений",
-        isCompleted: emailConfirmed,
+        isCompleted: emailProvided,
         actionUrl: "/dashboard/profile",
       },
       {

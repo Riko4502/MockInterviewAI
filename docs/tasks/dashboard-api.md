@@ -12,8 +12,8 @@
 1. **Изоляция сбоев (Failure Isolation):** Каждый блок дашборда обслуживается собственной изолированной ручкой. Сбой в расчете AI-инсайтов или статистики не должен блокировать выдачу информации о ближайшем интервью.
 2. **Мгновенный TTI (<25 мс):** Критичные данные (`upcoming`, `readiness`, `showcase-status`) кэшируются в Redis или выбираются по индексам.
 3. **Безопасность данных (Zero Data Leak):** В селекторах Prisma строго исключаются чувствительные данные (`passwordHash`, сервисные токены, системные метаданные).
-4. **Масштабируемость матчмейкинга:** Режим живого поиска (`Live Match`) реализован на базе Redis Sets с автоматическим TTL, исключающим утечки зависших пользователей.
-5. **Строгая типизация:** Все DTO описаны с валидацией `class-validator` и Swagger-декораторами для Orval автогенерации клиента в `@packages/api`.
+4. **Масштабируемость матчмейкинга:** Режим живого поиска (`Live Match`) реализован на базе Redis Sorted Sets (`ZSET`) с атомарным Lua-скриптом (`MATCH_OR_ENQUEUE_LUA`) и time-based очисткой устаревших заявок (120 секунд), исключающим утечки зависших пользователей.
+5. **Строгая типизация:** Все DTO описаны через схемы Zod в пакете `packages/dto` и валидируются в NestJS через `ZodValidationPipe`, регистрируясь в OpenAPI/Swagger для Orval-автогенерации клиента в `@packages/api`.
 
 ---
 
@@ -44,7 +44,7 @@
       ┌─────────────────────────┐       ┌─────────────────────────┐
       │     ⚡ Redis Cache      │       │   🐘 PostgreSQL DB      │
       │  cache:dashboard:*      │       │     Prisma Client       │
-      │  live_queue:*           │       │  Sessions, Users, Cards │
+      │  live_match:queue:*     │       │  Sessions, Users, Cards │
       └─────────────────────────┘       └─────────────────────────┘
 ```
 
@@ -107,25 +107,27 @@ sequenceDiagram
     actor CandidateA as 👨‍💻 Кандидат А (Middle Go)
     actor CandidateB as 👩‍💻 Кандидат Б (Middle Go)
     participant Ctrl as 🎮 DashboardController
-    participant LMSvc as ⚡ LiveMatchService
-    participant Redis as ⚡ Redis
+    participant LMSvc as ⚡ DashboardLiveMatchService
+    participant Redis as ⚡ Redis (ZSET & Pub/Sub)
     participant DB as 🐘 PostgreSQL
 
-    CandidateA->>Ctrl: POST /dashboard/live-match/toggle { isSearching: true, spec: "BACKEND", level: "MIDDLE" }
-    Ctrl->>LMSvc: toggleSearch(userA)
-    LMSvc->>Redis: SPOP live_queue:BACKEND:MIDDLE
-    alt Очередь пуста
-        LMSvc->>Redis: SADD live_queue:BACKEND:MIDDLE userA (TTL: 5 min)
-        LMSvc-->>Ctrl: { status: 'SEARCHING' }
+    CandidateA->>Ctrl: POST /dashboard/live-match/toggle { isSearching: true, specialization: "BACKEND", level: "MIDDLE" }
+    Ctrl->>LMSvc: toggleLiveMatch(userA, dto)
+    LMSvc->>Redis: ZREMRANGEBYSCORE live_match:queue:BACKEND:MIDDLE (очистка stale > 120s)
+    LMSvc->>Redis: EVAL MATCH_OR_ENQUEUE_LUA (ZRANGE + ZREM partner либо ZADD userA)
+    alt Очередь пуста (напарник не найден)
+        Redis-->>LMSvc: null (userA добавлен в ZSET)
+        LMSvc-->>Ctrl: { status: 'SEARCHING', estimatedWaitSeconds: 45 }
         Ctrl-->>CandidateA: 200 OK (Ожидание напарника...)
     else В очереди уже есть Кандидат Б
         Redis-->>LMSvc: userB
-        LMSvc->>DB: Создание InterviewSession (status: WAITING, participants: [userA, userB])
-        DB-->>LMSvc: session created
+        LMSvc->>DB: Создание InterviewSession (status: ACTIVE, participants: [userA, userB])
+        DB-->>LMSvc: session created (id, inviteToken)
+        LMSvc->>Redis: Разогрев зеркала (session:{id}:active, members, invite)
         LMSvc->>Redis: PUBLISH live_match:notify:userB { sessionId }
         LMSvc-->>Ctrl: { status: 'MATCHED', sessionId }
         Ctrl-->>CandidateA: 200 OK { status: 'MATCHED', sessionId }
-        Note over CandidateA, CandidateB: Оба получают мгновенное перенаправление в лобби
+        Note over CandidateA, CandidateB: Оба получают переход в активную сессию интервью
     end
 ```
 
@@ -133,379 +135,254 @@ sequenceDiagram
 
 ## 3. Спецификация контрактов и DTO (`packages/dto`)
 
-Все DTO размещаются в `packages/dto/src/dashboard/` и строго экспортируются в корень пакета.
+Все контракты и схемы валидации размещаются в `packages/dto/src/dashboard/dashboard.dto.ts` на базе **Zod** (`z.object`, `z.enum`, `z.infer`), а TypeScript-типы выводятся напрямую из схем. В NestJS спецификация OpenAPI автоматически формируется через helper `registerSchema` (`zod-openapi`), что гарантирует синхронизацию контрактов валидации и документации Swagger.
 
 ### 3.1 Ближайшая сессия (`upcoming-session.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { InterviewParticipantRole, InterviewSessionStatus, Specialization, ExperienceLevel } from '@packages/types';
+import { z } from "zod";
+import { interviewParticipantRoleSchema } from "../sessions/participant.dto";
+import {
+  type InterviewSessionStatus,
+  interviewSessionStatusSchema,
+} from "../sessions/session-status.dto";
+import {
+  experienceLevelEnum,
+  specializationEnum,
+} from "../showcase/showcase.enums";
 
-export class UpcomingPartnerDto {
-  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
-  id: string;
+export { interviewSessionStatusSchema, type InterviewSessionStatus };
 
-  @ApiProperty({ example: 'Алексей Смирнов' })
-  displayName: string;
+export const upcomingPartnerSchema = z.object({
+  id: z.string().uuid(),
+  displayName: z.string().nullable(),
+  username: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  specialization: specializationEnum.nullable().optional(),
+  level: experienceLevelEnum.nullable().optional(),
+});
+export type UpcomingPartnerDto = z.infer<typeof upcomingPartnerSchema>;
 
-  @ApiPropertyOptional({ example: 'https://cdn.example.com/avatar.png' })
-  avatarUrl?: string;
+export const upcomingSessionSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  status: interviewSessionStatusSchema, // CREATED | ACTIVE | CLOSED
+  scheduledAt: z.string(),
+  role: interviewParticipantRoleSchema,
+  partner: upcomingPartnerSchema.nullable().optional(),
+  isReadyToJoin: z.boolean(), // true, если сессия уже ACTIVE или до старта <= 10 минут
+  secondsUntilStart: z.number().int(),
+});
+export type UpcomingSessionDto = z.infer<typeof upcomingSessionSchema>;
 
-  @ApiPropertyOptional({ enum: Specialization, example: Specialization.BACKEND })
-  specialization?: Specialization;
-
-  @ApiPropertyOptional({ enum: ExperienceLevel, example: ExperienceLevel.MIDDLE })
-  level?: ExperienceLevel;
-}
-
-export class UpcomingSessionDto {
-  @ApiProperty({ example: 'b2c3d4e5-f6a7-8901-bcde-f12345678901' })
-  id: string;
-
-  @ApiProperty({ example: 'Mock по System Design и Concurrency' })
-  title: string;
-
-  @ApiProperty({ enum: InterviewSessionStatus, example: InterviewSessionStatus.SCHEDULED })
-  status: InterviewSessionStatus;
-
-  @ApiProperty({ example: '2026-09-28T16:00:00.000Z' })
-  scheduledAt: string;
-
-  @ApiProperty({ enum: InterviewParticipantRole, example: InterviewParticipantRole.CANDIDATE })
-  role: InterviewParticipantRole;
-
-  @ApiPropertyOptional({ type: UpcomingPartnerDto })
-  partner?: UpcomingPartnerDto;
-
-  @ApiProperty({ 
-    description: 'Флаг готовности к входу. true, если до старта <= 10 минут или статус WAITING/ACTIVE',
-    example: true 
-  })
-  isReadyToJoin: boolean;
-
-  @ApiProperty({ description: 'Осталось секунд до старта', example: 450 })
-  secondsUntilStart: number;
-}
-
-export class UpcomingSessionResponseDto {
-  @ApiProperty({ example: true })
-  hasUpcoming: boolean;
-
-  @ApiPropertyOptional({ type: UpcomingSessionDto })
-  session?: UpcomingSessionDto;
-}
+export const upcomingSessionResponseSchema = z.object({
+  hasUpcoming: z.boolean(),
+  session: upcomingSessionSchema.nullable().optional(),
+});
+export type UpcomingSessionResponseDto = z.infer<
+  typeof upcomingSessionResponseSchema
+>;
 ```
 
 ### 3.2 Чек-лист готовности профиля (`dashboard-readiness.dto.ts`)
 ```typescript
-import { ApiProperty } from '@nestjs/swagger';
+export const readinessStepKeyEnum = z.enum([
+  "EMAIL_PROVIDED",
+  "MEDIA_CONFIGURED",
+  "TELEGRAM_LINKED",
+  "SHOWCASE_CREATED",
+  "FIRST_MOCK_COMPLETED",
+]);
+export type ReadinessStepKey = z.infer<typeof readinessStepKeyEnum>;
 
-export enum ReadinessStepKey {
-  EMAIL_CONFIRMED = 'EMAIL_CONFIRMED',
-  MEDIA_CONFIGURED = 'MEDIA_CONFIGURED',
-  TELEGRAM_LINKED = 'TELEGRAM_LINKED',
-  SHOWCASE_CREATED = 'SHOWCASE_CREATED',
-  FIRST_MOCK_COMPLETED = 'FIRST_MOCK_COMPLETED',
-}
+export const readinessStepSchema = z.object({
+  key: readinessStepKeyEnum,
+  title: z.string(),
+  description: z.string(),
+  isCompleted: z.boolean(),
+  actionUrl: z.string(),
+});
+export type ReadinessStepDto = z.infer<typeof readinessStepSchema>;
 
-export class ReadinessStepDto {
-  @ApiProperty({ enum: ReadinessStepKey, example: ReadinessStepKey.TELEGRAM_LINKED })
-  key: ReadinessStepKey;
-
-  @ApiProperty({ example: 'Привязать Telegram для звонков и пушей' })
-  title: string;
-
-  @ApiProperty({ example: 'Получайте уведомления о матчах прямо в мессенджер' })
-  description: string;
-
-  @ApiProperty({ example: false })
-  isCompleted: boolean;
-
-  @ApiProperty({ example: '/dashboard/profile#telegram' })
-  actionUrl: string;
-}
-
-export class DashboardReadinessResponseDto {
-  @ApiProperty({ description: 'Процент готовности профиля от 0 до 100', example: 80 })
-  totalPercentage: number;
-
-  @ApiProperty({ example: false })
-  isFullyReady: boolean;
-
-  @ApiProperty({ type: [ReadinessStepDto] })
-  steps: ReadinessStepDto[];
-}
+export const dashboardReadinessResponseSchema = z.object({
+  totalPercentage: z.number().int().min(0).max(100),
+  isFullyReady: z.boolean(),
+  steps: z.array(readinessStepSchema),
+});
+export type DashboardReadinessResponseDto = z.infer<
+  typeof dashboardReadinessResponseSchema
+>;
 ```
 
 ### 3.3 Задача дня (`daily-challenge.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+export const challengeDifficultyEnum = z.enum(["EASY", "MEDIUM", "HARD"]);
+export type ChallengeDifficulty = z.infer<typeof challengeDifficultyEnum>;
 
-export class DailyChallengeResponseDto {
-  @ApiProperty({ example: 'problem-lru-cache' })
-  problemId: string;
-
-  @ApiProperty({ example: '146. LRU Cache' })
-  title: string;
-
-  @ApiProperty({ enum: ['EASY', 'MEDIUM', 'HARD'], example: 'MEDIUM' })
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-
-  @ApiProperty({ example: ['Hash Table', 'Linked List', 'Design'] })
-  tags: string[];
-
-  @ApiProperty({ description: 'Секунд до смены задачи дня (до 00:00 UTC)', example: 42100 })
-  timeUntilResetSeconds: number;
-
-  @ApiProperty({ example: false })
-  isSolvedToday: boolean;
-
-  @ApiPropertyOptional({ example: '2026-09-27T08:30:00.000Z' })
-  solvedAt?: string;
-
-  @ApiProperty({ description: 'Опыт за решение', example: 50 })
-  pointsReward: number;
-}
+export const dailyChallengeResponseSchema = z.object({
+  problemId: z.string(),
+  title: z.string(),
+  difficulty: challengeDifficultyEnum,
+  tags: z.array(z.string()),
+  timeUntilResetSeconds: z.number().int().nonnegative(),
+  isSolvedToday: z.boolean(),
+  solvedAt: z.string().nullable().optional(),
+  pointsReward: z.number().int().positive(),
+});
+export type DailyChallengeResponseDto = z.infer<
+  typeof dailyChallengeResponseSchema
+>;
 ```
 
 ### 3.4 Режим Live Match (`live-match.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
-import { Specialization, ExperienceLevel } from '@packages/types';
+export const liveMatchToggleSchema = z.object({
+  isSearching: z.boolean(),
+  specialization: specializationEnum,
+  level: experienceLevelEnum,
+});
+export type LiveMatchToggleDto = z.infer<typeof liveMatchToggleSchema>;
 
-export class LiveMatchToggleDto {
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  isSearching: boolean;
+export const liveMatchStatusEnum = z.enum(["IDLE", "SEARCHING", "MATCHED"]);
+export type LiveMatchStatus = z.infer<typeof liveMatchStatusEnum>;
 
-  @ApiPropertyOptional({ enum: Specialization })
-  @IsOptional()
-  @IsEnum(Specialization)
-  specialization?: Specialization;
-
-  @ApiPropertyOptional({ enum: ExperienceLevel })
-  @IsOptional()
-  @IsEnum(ExperienceLevel)
-  level?: ExperienceLevel;
-}
-
-export enum LiveMatchStatus {
-  IDLE = 'IDLE',
-  SEARCHING = 'SEARCHING',
-  MATCHED = 'MATCHED',
-}
-
-export class LiveMatchStatusResponseDto {
-  @ApiProperty({ enum: LiveMatchStatus, example: LiveMatchStatus.SEARCHING })
-  status: LiveMatchStatus;
-
-  @ApiPropertyOptional({ example: 'c3d4e5f6-a7b8-9012-cdef-123456789012' })
-  sessionId?: string;
-
-  @ApiPropertyOptional({ description: 'Примерное время поиска в секундах', example: 45 })
-  estimatedWaitSeconds?: number;
-}
+export const liveMatchStatusResponseSchema = z.object({
+  status: liveMatchStatusEnum,
+  sessionId: z.string().uuid().nullable().optional(),
+  estimatedWaitSeconds: z.number().int().optional(),
+});
+export type LiveMatchStatusResponseDto = z.infer<
+  typeof liveMatchStatusResponseSchema
+>;
 ```
 
 ### 3.5 Сводка показателей и стрик (`dashboard-stats.dto.ts`)
 ```typescript
-import { ApiProperty } from '@nestjs/swagger';
+export const solvedTasksBreakdownSchema = z.object({
+  total: z.number().int().nonnegative(),
+  easy: z.number().int().nonnegative(),
+  medium: z.number().int().nonnegative(),
+  hard: z.number().int().nonnegative(),
+});
+export type SolvedTasksBreakdownDto = z.infer<
+  typeof solvedTasksBreakdownSchema
+>;
 
-export class SolvedTasksBreakdownDto {
-  @ApiProperty({ example: 42 })
-  total: number;
-
-  @ApiProperty({ example: 20 })
-  easy: number;
-
-  @ApiProperty({ example: 18 })
-  medium: number;
-
-  @ApiProperty({ example: 4 })
-  hard: number;
-}
-
-export class DashboardStatsResponseDto {
-  @ApiProperty({ example: 15 })
-  totalInterviews: number;
-
-  @ApiProperty({ example: 12 })
-  completedInterviews: number;
-
-  @ApiProperty({ description: 'Средний балл от 0.0 до 10.0', example: 8.6, nullable: true })
-  averageScore: number | null;
-
-  @ApiProperty({ description: 'Текущий стрик дней непрерывной активности', example: 5 })
-  currentStreakDays: number;
-
-  @ApiProperty({ example: 14 })
-  maxStreakDays: number;
-
-  @ApiProperty({ type: SolvedTasksBreakdownDto })
-  solvedTasks: SolvedTasksBreakdownDto;
-
-  @ApiProperty({ description: 'Общее время практики в минутах', example: 780 })
-  totalPracticeTimeMinutes: number;
-}
+export const dashboardStatsResponseSchema = z.object({
+  totalInterviews: z.number().int().nonnegative(),
+  completedInterviews: z.number().int().nonnegative(),
+  averageScore: z.number().nullable(),
+  currentStreakDays: z.number().int().nonnegative(),
+  maxStreakDays: z.number().int().nonnegative(),
+  solvedTasks: solvedTasksBreakdownSchema,
+  totalPracticeTimeMinutes: z.number().int().nonnegative(),
+});
+export type DashboardStatsResponseDto = z.infer<
+  typeof dashboardStatsResponseSchema
+>;
 ```
 
 ### 3.6 Входящие заявки на матч (`match-requests.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Specialization, ExperienceLevel } from '@packages/types';
+export const dashboardMatchRequestItemSchema = z.object({
+  id: z.string().uuid(),
+  senderId: z.string().uuid(),
+  senderName: z.string().nullable(),
+  senderAvatarUrl: z.string().nullable().optional(),
+  specialization: specializationEnum.nullable().optional(),
+  level: experienceLevelEnum.nullable().optional(),
+  skills: z.array(z.string()),
+  createdAt: z.string(),
+  message: z.string().nullable().optional(),
+});
+export type DashboardMatchRequestItemDto = z.infer<
+  typeof dashboardMatchRequestItemSchema
+>;
 
-export class DashboardMatchRequestItemDto {
-  @ApiProperty({ example: 'req-uuid-1234' })
-  id: string;
-
-  @ApiProperty({ example: 'usr-uuid-5678' })
-  senderId: string;
-
-  @ApiProperty({ example: 'Иван Петров' })
-  senderName: string;
-
-  @ApiPropertyOptional({ example: 'https://cdn.example.com/avatar.jpg' })
-  senderAvatarUrl?: string;
-
-  @ApiProperty({ enum: Specialization, example: Specialization.BACKEND })
-  specialization: Specialization;
-
-  @ApiProperty({ enum: ExperienceLevel, example: ExperienceLevel.MIDDLE })
-  level: ExperienceLevel;
-
-  @ApiProperty({ example: ['Golang', 'PostgreSQL', 'Docker'] })
-  skills: string[];
-
-  @ApiProperty({ example: '2026-09-27T07:15:00.000Z' })
-  createdAt: string;
-
-  @ApiPropertyOptional({ example: 'Привет! Хочу потренировать алгоритмы и concurrency на Go.' })
-  message?: string;
-}
-
-export class DashboardMatchRequestsResponseDto {
-  @ApiProperty({ type: [DashboardMatchRequestItemDto] })
-  items: DashboardMatchRequestItemDto[];
-
-  @ApiProperty({ example: 3 })
-  totalPendingCount: number;
-}
+export const dashboardMatchRequestsResponseSchema = z.object({
+  items: z.array(dashboardMatchRequestItemSchema),
+  totalPendingCount: z.number().int().nonnegative(),
+});
+export type DashboardMatchRequestsResponseDto = z.infer<
+  typeof dashboardMatchRequestsResponseSchema
+>;
 ```
 
 ### 3.7 Завершенные сессии (`recent-sessions.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { InterviewParticipantRole, Specialization, ExperienceLevel } from '@packages/types';
+export const recentSessionItemSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  completedAt: z.string(),
+  durationMinutes: z.number().int().nonnegative(),
+  score: z.number().nullable().optional(),
+  specialization: specializationEnum.nullable().optional(),
+  level: experienceLevelEnum.nullable().optional(),
+  role: interviewParticipantRoleSchema,
+  hasFeedbackReport: z.boolean(),
+});
+export type RecentSessionItemDto = z.infer<typeof recentSessionItemSchema>;
 
-export class RecentSessionItemDto {
-  @ApiProperty({ example: 'sess-uuid-001' })
-  id: string;
-
-  @ApiProperty({ example: 'Mock: System Design Мессенджера' })
-  title: string;
-
-  @ApiProperty({ example: '2026-09-26T18:45:00.000Z' })
-  completedAt: string;
-
-  @ApiProperty({ example: 60 })
-  durationMinutes: number;
-
-  @ApiPropertyOptional({ example: 8.5 })
-  score?: number;
-
-  @ApiPropertyOptional({ enum: Specialization, example: Specialization.BACKEND })
-  specialization?: Specialization;
-
-  @ApiPropertyOptional({ enum: ExperienceLevel, example: ExperienceLevel.SENIOR })
-  level?: ExperienceLevel;
-
-  @ApiProperty({ enum: InterviewParticipantRole, example: InterviewParticipantRole.CANDIDATE })
-  role: InterviewParticipantRole;
-
-  @ApiProperty({ example: true })
-  hasFeedbackReport: boolean;
-}
-
-export class RecentSessionsResponseDto {
-  @ApiProperty({ type: [RecentSessionItemDto] })
-  items: RecentSessionItemDto[];
-}
+export const recentSessionsResponseSchema = z.object({
+  items: z.array(recentSessionItemSchema),
+});
+export type RecentSessionsResponseDto = z.infer<
+  typeof recentSessionsResponseSchema
+>;
 ```
 
 ### 3.8 AI-Инсайты (`dashboard-insights.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+export const aiInsightCategoryEnum = z.enum([
+  "ALGORITHMS",
+  "SYSTEM_DESIGN",
+  "COMMUNICATION",
+  "CODE_QUALITY",
+]);
+export type AiInsightCategory = z.infer<typeof aiInsightCategoryEnum>;
 
-export class AiInsightItemDto {
-  @ApiProperty({ example: 'ins-1' })
-  id: string;
+export const aiInsightItemSchema = z.object({
+  id: z.string(),
+  category: aiInsightCategoryEnum,
+  headline: z.string(),
+  recommendation: z.string(),
+  practiceUrl: z.string().optional(),
+});
+export type AiInsightItemDto = z.infer<typeof aiInsightItemSchema>;
 
-  @ApiProperty({ enum: ['ALGORITHMS', 'SYSTEM_DESIGN', 'COMMUNICATION', 'CODE_QUALITY'], example: 'ALGORITHMS' })
-  category: 'ALGORITHMS' | 'SYSTEM_DESIGN' | 'COMMUNICATION' | 'CODE_QUALITY';
-
-  @ApiProperty({ example: 'Оценка пространственной сложности (Space Complexity)' })
-  headline: string;
-
-  @ApiProperty({ example: 'В последних сессиях вы забывали учесть стек вызовов при рекурсии в графах. Рекомендуем повторить DFS.' })
-  recommendation: string;
-
-  @ApiPropertyOptional({ example: '/dashboard/sandbox?topic=graphs' })
-  practiceUrl?: string;
-}
-
-export class DashboardInsightsResponseDto {
-  @ApiProperty({ type: [AiInsightItemDto] })
-  insights: AiInsightItemDto[];
-
-  @ApiPropertyOptional({ example: 'Ваш сильный навык — построение архитектуры БД (9.2/10). Фокус недели: алгоритмы.' })
-  overallSummary?: string;
-}
+export const dashboardInsightsResponseSchema = z.object({
+  insights: z.array(aiInsightItemSchema),
+  overallSummary: z.string().nullable().optional(),
+});
+export type DashboardInsightsResponseDto = z.infer<
+  typeof dashboardInsightsResponseSchema
+>;
 ```
 
 ### 3.9 Статус анкеты на витрине (`showcase-status.dto.ts`)
 ```typescript
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Specialization, ExperienceLevel } from '@packages/types';
+export const activeShowcaseCardDetailsSchema = z.object({
+  id: z.string().uuid(),
+  specialization: specializationEnum,
+  level: experienceLevelEnum,
+  isUrgent: z.boolean(),
+  expiresAt: z.string(),
+  daysLeft: z.number().int().nonnegative(),
+  canBump: z.boolean(),
+  lastBumpedAt: z.string(),
+  viewsCount: z.number().int().nonnegative(),
+  incomingRequestsCount: z.number().int().nonnegative(),
+});
+export type ActiveShowcaseCardDetailsDto = z.infer<
+  typeof activeShowcaseCardDetailsSchema
+>;
 
-export class ActiveShowcaseCardDetailsDto {
-  @ApiProperty({ example: 'card-uuid-999' })
-  id: string;
-
-  @ApiProperty({ enum: Specialization, example: Specialization.FRONTEND })
-  specialization: Specialization;
-
-  @ApiProperty({ enum: ExperienceLevel, example: ExperienceLevel.MIDDLE })
-  level: ExperienceLevel;
-
-  @ApiProperty({ example: true })
-  isUrgent: boolean;
-
-  @ApiProperty({ example: '2026-10-10T12:00:00.000Z' })
-  expiresAt: string;
-
-  @ApiProperty({ example: 13 })
-  daysLeft: number;
-
-  @ApiProperty({ description: 'Можно ли поднять в топ (прошло >= 24ч с последнего bump)', example: true })
-  canBump: boolean;
-
-  @ApiProperty({ example: '2026-09-25T10:00:00.000Z' })
-  lastBumpedAt: string;
-
-  @ApiProperty({ example: 28 })
-  viewsCount: number;
-
-  @ApiProperty({ example: 4 })
-  incomingRequestsCount: number;
-}
-
-export class ShowcaseStatusResponseDto {
-  @ApiProperty({ example: true })
-  hasActiveCard: boolean;
-
-  @ApiPropertyOptional({ type: ActiveShowcaseCardDetailsDto })
-  card?: ActiveShowcaseCardDetailsDto;
-}
+export const showcaseStatusResponseSchema = z.object({
+  hasActiveCard: z.boolean(),
+  card: activeShowcaseCardDetailsSchema.nullable().optional(),
+});
+export type ShowcaseStatusResponseDto = z.infer<
+  typeof showcaseStatusResponseSchema
+>;
 ```
 
 ---
@@ -514,7 +391,7 @@ export class ShowcaseStatusResponseDto {
 
 ### 4.1 Алгоритм подсчета непрерывного стрика (`calculateStreak`)
 Стрик считается по дням активности. Активностью считается:
-* Прохождение интервью (`InterviewSession.status = COMPLETED`);
+* Прохождение интервью (`InterviewSession.status = CLOSED`);
 * Решение задачи дня (`DailyChallenge` решена);
 * Успешная сдача задачи в песочнице (`ExecutionSubmission` с прохождением всех тестов).
 
@@ -555,10 +432,18 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 ```
 
 ### 4.2 Алгоритм Live Match (Быстрый поиск)
-* **Структура ключа:** `live_queue:{specialization}:{level}`.
-* **Использование `Redis SPOP`:** Атомарное извлечение случайного участника из очереди.
-* **Защита от зависших заявок:** Пользователь пишет свой `userId` с timestamp. Воркер или cron проверяет heartbeat (5 мин) и удаляет просроченные заявки.
-* **Событие спаривания:** Создается сессия в БД через транзакцию `prisma.$transaction`, обоим пользователям через Redis Pub/Sub и WebSocket (`apps/realtime`) шлется событие `MATCH_FOUND` с ID созданной комнаты.
+* **Структура ключа очереди:** `live_match:queue:{specialization}:{level}` (Redis Sorted Set / ZSET).
+* **Атомарный поиск и постановка в очередь (`MATCH_OR_ENQUEUE_LUA`):**
+  - Очередь хранит `userId` со скором `score = Date.now()` (время постановки в очередь).
+  - Атомарный Lua-скрипт извлекает первого доступного партнера (`ZRANGE queueKey 0 0`), удаляет его из ZSET (`ZREM queueKey partnerId`) и возвращает `partnerId`.
+  - Если очередь пуста, скрипт атомарно добавляет текущего пользователя (`ZADD queueKey now userId`) и возвращает `nil`.
+* **Очистка устаревших заявок (Time-based Pruning):**
+  - Перед операцией спаривания сервис выполняет удаление заявок старше 120 секунд: `ZREMRANGEBYSCORE queueKey -inf (now - 120000)`.
+  - При ручной отмене поиска (`isSearching: false`) пользователь удаляется из очереди через `ZREM queueKey userId`.
+* **Событие спаривания и прогрев сессии:**
+  - При нахождении партнера создается сессия в БД через транзакцию `prisma.$transaction` со статусом `ACTIVE` (инициатор — `CANDIDATE`, партнер — `INTERVIEWER`).
+  - Сервис прогревает зеркало сессии в Redis для Go realtime service (`session:{id}:active = true`, `session:{id}:members`, `session:{id}:invite`).
+  - Партнеру отправляется Pub/Sub уведомление через Redis-канал `PUBLISH live_match:notify:{partnerId} {sessionId}`.
 
 ### 4.3 Алгоритм выбора задачи дня (`DailyChallenge`)
 * На входе: системный список алгоритмических задач из базы.
@@ -572,14 +457,16 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 
 | Ключ | Тип | TTL | Событие инвалидации |
 | :--- | :--- | :--- | :--- |
-| `cache:dashboard:upcoming:{userId}` | String (JSON) | 15 сек | Создание сессии, отмена, завершение |
-| `cache:dashboard:readiness:{userId}` | String (JSON) | 5 мин | Привязка Telegram, сохранение настроек медиа |
+| `cache:dashboard:upcoming:{userId}` | String (JSON) | 15 сек | Создание сессии, закрытие сессии, join/leave участника |
+| `cache:dashboard:readiness:{userId}` | String (JSON) | 5 мин | Привязка Telegram, сохранение настроек медиа, обновление профиля |
 | `cache:daily-challenge:today` | String (JSON) | До 00:00 UTC | Автоматическая ротация суток |
-| `cache:dashboard:stats:{userId}` | String (JSON) | 10 мин | Завершение сессии, решение задачи |
-| `cache:dashboard:recent:{userId}` | String (JSON) | 60 сек | Завершение сессии |
+| `cache:dashboard:stats:{userId}` | String (JSON) | 10 мин | Закрытие сессии, решение задачи |
+| `cache:dashboard:recent:{userId}:{limit}` | String (JSON) | 60 сек | Создание сессии, закрытие сессии |
 | `cache:dashboard:insights:{userId}` | String (JSON) | 30 мин | Добавление фидбека по сессии |
 | `cache:dashboard:showcase:{userId}` | String (JSON) | 60 сек | Обновление анкеты, нажатие `bump` |
-| `live_queue:{spec}:{level}` | Set (userIds) | 5 мин | Выход из поиска, нахождение пары |
+| `live_match:queue:{spec}:{level}` | Sorted Set (ZSET: userId, score=ms) | 120 сек (sliding TTL) | Отмена поиска, нахождение пары, таймаут (`zremrangebyscore`) |
+| `live_match:notify:{userId}` | Pub/Sub Channel | — | Уведомление партнера о создании сессии при Live Match |
+
 
 ---
 
@@ -612,7 +499,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 
 ### Этап 3: Сервисный слой и логика запросов
 - [x] **TASK-BACK-13**: Реализовать `DashboardService.getUpcomingSession(userId)`:
-  - Выборка ближайшей сессии (`SCHEDULED`, `WAITING`, `ACTIVE`).
+  - Выборка ближайшей сессии (`CREATED`, `ACTIVE`).
   - Вычисление `isReadyToJoin` (до старта <= 10 мин или уже активна).
   - Подгрузка данных собеседника (без паролей и лишних полей).
 - [x] **TASK-BACK-14**: Реализовать `DashboardReadinessService.getReadiness(userId)`:
@@ -622,8 +509,8 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
   - Детерминированный выбор задачи по хэшу даты.
   - Проверка сабмита пользователя за текущие сутки.
 - [x] **TASK-BACK-16**: Реализовать `DashboardLiveMatchService.toggleLiveMatch(userId, dto)`:
-  - Атомарное добавление/удаление из Redis Set.
-  - Создание комнаты при спаривании и отправка события.
+  - Атомарное спаривание или постановка в очередь Redis Sorted Set (ZSET) через Lua-скрипт (`MATCH_OR_ENQUEUE_LUA`).
+  - Создание ACTIVE-сессии при спаривании, прогрев Redis-зеркала и отправка Pub/Sub события.
 - [x] **TASK-BACK-17**: Реализовать `DashboardStatsService.getStats(userId)`:
   - Выборка уникальных дней активности и вызов `calculateStreakFromDates`.
   - Подсчет решенных задач (Easy, Med, Hard).
@@ -651,7 +538,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 
 1. Все 9 эндпоинтов работают независимо. Отказ или таймаут одного эндпоинта не влияет на ответы остальных.
 2. Ручки `/upcoming`, `/readiness`, `/daily-challenge` отвечают быстрее 25 мс из кэша Redis.
-3. Время жизни очереди Live Match в Redis составляет 5 минут, исключая накопление офлайн-пользователей.
+3. Время жизни заявки в очереди Live Match в Redis составляет 120 секунд, исключая накопление офлайн-пользователей.
 4. Решение задачи дня сразу засчитывается в текущий стрик активности кандидата.
 5. Неавторизованные запросы блокируются на уровне `JwtAuthGuard` с кодом 401.
 6. В ответах API полностью отсутствуют конфиденциальные данные пользователей (`passwordHash`, `telegramChatId`).

@@ -241,14 +241,11 @@ export class DashboardController {
     @CurrentUser("sub") userId: string,
     @Query("limit", new DefaultValuePipe(5), new ParseIntPipe()) limit: number,
   ): Promise<RecentSessionsResponseDto> {
+    const effectiveLimit = Math.min(10, Math.max(1, limit));
     return this.cacheService.getOrSet(
-      `cache:dashboard:recent:${userId}:${limit}`,
+      `cache:dashboard:recent:${userId}:${effectiveLimit}`,
       60,
-      () =>
-        this.dashboardService.getRecentSessions(
-          userId,
-          Math.min(10, Math.max(1, limit)),
-        ),
+      () => this.dashboardService.getRecentSessions(userId, effectiveLimit),
     );
   }
 

@@ -144,10 +144,44 @@ describe("DashboardController", () => {
     );
   });
 
-  it("should return recent sessions", async () => {
+  it("should return recent sessions with clamped limit in cache key and service call", async () => {
     const res = await controller.getRecentSessions(userId, 5);
     expect(res).toEqual({ items: [] });
-    expect(cacheServiceMock.getOrSet).toHaveBeenCalled();
+    expect(cacheServiceMock.getOrSet).toHaveBeenCalledWith(
+      `cache:dashboard:recent:${userId}:5`,
+      60,
+      expect.any(Function),
+    );
+    expect(dashboardServiceMock.getRecentSessions).toHaveBeenCalledWith(
+      userId,
+      5,
+    );
+  });
+
+  it("should clamp limit > 10 to 10 in cache key and service call", async () => {
+    await controller.getRecentSessions(userId, 1000);
+    expect(cacheServiceMock.getOrSet).toHaveBeenCalledWith(
+      `cache:dashboard:recent:${userId}:10`,
+      60,
+      expect.any(Function),
+    );
+    expect(dashboardServiceMock.getRecentSessions).toHaveBeenCalledWith(
+      userId,
+      10,
+    );
+  });
+
+  it("should clamp limit < 1 to 1 in cache key and service call", async () => {
+    await controller.getRecentSessions(userId, -5);
+    expect(cacheServiceMock.getOrSet).toHaveBeenCalledWith(
+      `cache:dashboard:recent:${userId}:1`,
+      60,
+      expect.any(Function),
+    );
+    expect(dashboardServiceMock.getRecentSessions).toHaveBeenCalledWith(
+      userId,
+      1,
+    );
   });
 
   it("should return insights", async () => {

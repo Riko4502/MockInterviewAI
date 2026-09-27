@@ -187,7 +187,7 @@ return 1
 export const RECONCILE_SESSION_MIRROR_LUA = `
 local activeVal = redis.call('GET', KEYS[1])
 if activeVal == ARGV[2] then
-  return 0
+  return { 0, '' }
 end
 
 redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
@@ -202,13 +202,15 @@ if numArgs >= 6 then
 end
 
 local existingInvite = redis.call('GET', KEYS[3])
-if existingInvite then
+local chosenInvite = existingInvite
+if chosenInvite and chosenInvite ~= '' then
   redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
 else
-  redis.call('SET', KEYS[3], ARGV[4], 'EX', tonumber(ARGV[3]))
+  chosenInvite = ARGV[4]
+  redis.call('SET', KEYS[3], chosenInvite, 'EX', tonumber(ARGV[3]))
 end
 
-return 1
+return { 1, chosenInvite }
 `;
 
 /** Участник интервью-сессии для синхронизации зеркала в Redis. */
@@ -222,6 +224,24 @@ export interface SessionMirrorData {
   id: string;
   inviteToken?: string | null;
   participants: SessionMirrorParticipant[];
+}
+
+/**
+ * Ошибка выполнения post-commit операций (Redis, Pub/Sub, кэш) при создании live-match сессии.
+ * Сигнализирует о том, что сессия успешно закоммичена в PostgreSQL (ACTIVE),
+ * поэтому участников нельзя возвращать в очередь, а сессию нельзя удалять.
+ */
+export class LiveMatchPostCommitError extends Error {
+  constructor(
+    public readonly sessionId: string,
+    public readonly inviteToken: string,
+    public readonly cause: unknown,
+  ) {
+    super(
+      `Live match session ${sessionId} committed, but post-commit operations failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    this.name = "LiveMatchPostCommitError";
+  }
 }
 
 /**
@@ -375,8 +395,50 @@ export class SessionsService {
   }
 
   /**
+   * Идемпотентно прогревает Redis-зеркало для участников сессии мгновенного матча.
+   */
+  async warmLiveMatchMirror(
+    sessionId: string,
+    firstUserId: string,
+    secondUserId: string,
+    inviteToken: string,
+  ): Promise<void> {
+    await this.redis.set(
+      sessionActiveKey(sessionId),
+      ACTIVE_VALUE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      firstUserId,
+      InterviewParticipantRole.CANDIDATE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      secondUserId,
+      InterviewParticipantRole.INTERVIEWER,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.set(
+      sessionInviteKey(sessionId),
+      inviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    try {
+      await this.seedTaskDoc(sessionId, DEFAULT_TASK_KEY, "");
+    } catch (error) {
+      this.logger.warn(
+        `failed to seed initial task doc for live match session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
    * Создает сессию мгновенного матча для двоих участников со статусом ACTIVE,
    * сохраняет inviteToken в Postgres и прогревает Redis-зеркало для обоих участников (CWE-613).
+   * При post-commit ошибках оборачивает исключение в LiveMatchPostCommitError с sessionId.
    */
   async createLiveMatchSession(
     firstUserId: string,
@@ -404,44 +466,29 @@ export class SessionsService {
       },
     });
 
-    await this.redis.set(
-      sessionActiveKey(session.id),
-      ACTIVE_VALUE,
-      this.mirrorTtlSeconds,
-    );
-    await this.redis.hset(
-      sessionMembersKey(session.id),
-      firstUserId,
-      InterviewParticipantRole.CANDIDATE,
-      this.mirrorTtlSeconds,
-    );
-    await this.redis.hset(
-      sessionMembersKey(session.id),
-      secondUserId,
-      InterviewParticipantRole.INTERVIEWER,
-      this.mirrorTtlSeconds,
-    );
-    await this.redis.set(
-      sessionInviteKey(session.id),
-      inviteToken,
-      this.mirrorTtlSeconds,
-    );
-
     try {
-      await this.seedTaskDoc(session.id, DEFAULT_TASK_KEY, "");
-    } catch (error) {
-      this.logger.warn(
-        `failed to seed initial task doc for live match session ${session.id}: ${error instanceof Error ? error.message : String(error)}`,
+      await this.warmLiveMatchMirror(
+        session.id,
+        firstUserId,
+        secondUserId,
+        inviteToken,
+      );
+
+      this.logger.log(
+        `created live match session ${session.id} for users ${firstUserId} & ${secondUserId}`,
+      );
+      await Promise.all([
+        this.invalidateUserDashboard(firstUserId),
+        this.invalidateUserDashboard(secondUserId),
+      ]);
+    } catch (postCommitError) {
+      throw new LiveMatchPostCommitError(
+        session.id,
+        inviteToken,
+        postCommitError,
       );
     }
 
-    this.logger.log(
-      `created live match session ${session.id} for users ${firstUserId} & ${secondUserId}`,
-    );
-    await Promise.all([
-      this.invalidateUserDashboard(firstUserId),
-      this.invalidateUserDashboard(secondUserId),
-    ]);
     return { sessionId: session.id, inviteToken };
   }
 
@@ -517,6 +564,39 @@ export class SessionsService {
         throw new ForbiddenException("Session is closed");
       }
 
+      // Синхронизация и сохранение фактически выбранного токена до валидации:
+      // 1. Если токен есть в Redis, но отсутствует в Postgres (legacy-сессия) — сохраняем фактически выбранный токен в Postgres
+      if (activeInviteToken && !fresh.inviteToken) {
+        await tx.interviewSession.update({
+          where: { id: sessionId },
+          data: { inviteToken: activeInviteToken },
+        });
+        fresh.inviteToken = activeInviteToken;
+      } else if (!activeInviteToken && fresh.inviteToken) {
+        // 2. Если зеркало токена в Redis остыло (null), восстанавливаем из БД (TASK-BACK-37)
+        activeInviteToken = fresh.inviteToken;
+        await this.redis.set(
+          sessionInviteKey(sessionId),
+          activeInviteToken,
+          this.mirrorTtlSeconds,
+        );
+      } else if (!activeInviteToken && !fresh.inviteToken) {
+        // 3. Fallback: в legacy-сессии с истёкшим Redis-ключом токен отсутствует везде.
+        // Генерируем fallback-токен и сохраняем согласованно в Postgres и Redis до проверок доступа.
+        const fallbackToken = this.generateInviteToken(sessionId);
+        activeInviteToken = fallbackToken;
+        fresh.inviteToken = fallbackToken;
+        await tx.interviewSession.update({
+          where: { id: sessionId },
+          data: { inviteToken: fallbackToken },
+        });
+        await this.redis.set(
+          sessionInviteKey(sessionId),
+          fallbackToken,
+          this.mirrorTtlSeconds,
+        );
+      }
+
       const existingParticipant = fresh.participants.find(
         (p) => p.userId === userId,
       );
@@ -526,16 +606,6 @@ export class SessionsService {
 
       if (fresh.participants.length >= this.maxSessionParticipants) {
         throw new ForbiddenException("Interview session is full");
-      }
-
-      // TASK-BACK-37: Если зеркало токена в Redis остыло (null), восстанавливаем из БД
-      if (!activeInviteToken && fresh.inviteToken) {
-        activeInviteToken = fresh.inviteToken;
-        await this.redis.set(
-          sessionInviteKey(sessionId),
-          activeInviteToken,
-          this.mirrorTtlSeconds,
-        );
       }
 
       const isInviteValid = this.validateInviteToken(
@@ -577,18 +647,6 @@ export class SessionsService {
       throw new ForbiddenException("Session is closed");
     }
 
-    // Если токен в Redis отсутствовал (холодное зеркало), гарантируем его наличие
-    let effectiveInviteToken: string | null = activeInviteToken;
-    if (!effectiveInviteToken) {
-      const generatedToken = this.generateInviteToken(sessionId);
-      await this.redis.set(
-        sessionInviteKey(sessionId),
-        generatedToken,
-        this.mirrorTtlSeconds,
-      );
-      effectiveInviteToken = generatedToken;
-    }
-
     this.logger.log(
       `user ${userId} joined session ${sessionId} as ${participant.role}`,
     );
@@ -597,7 +655,7 @@ export class SessionsService {
 
     return {
       role: participant.role as InterviewParticipantRole,
-      inviteToken: effectiveInviteToken,
+      inviteToken: activeInviteToken ?? "",
     };
   }
 
@@ -976,7 +1034,7 @@ export class SessionsService {
       membersArgs.push(p.userId, p.role.toString());
     }
 
-    const result = await this.redis.eval<number>(
+    const result = await this.redis.eval<[number, string] | number>(
       RECONCILE_SESSION_MIRROR_LUA,
       3,
       activeKey,
@@ -989,7 +1047,124 @@ export class SessionsService {
       ...membersArgs,
     );
 
-    return result === 1 ? 1 : 0;
+    let status = 0;
+    let chosenToken: string | null = null;
+    if (Array.isArray(result)) {
+      status = Number(result[0]);
+      chosenToken =
+        typeof result[1] === "string" && result[1].length > 0
+          ? result[1]
+          : null;
+    } else if (typeof result === "number") {
+      status = result;
+      chosenToken = fallbackToken;
+    }
+
+    if (status !== 1) {
+      return 0;
+    }
+
+    // Сохраняем в Postgres именно фактически выбранный токен (существующий из Redis или сгенерированный fallback)
+    if (!session.inviteToken && chosenToken) {
+      try {
+        await this.prisma.interviewSession.update({
+          where: { id: session.id },
+          data: { inviteToken: chosenToken },
+        });
+        session.inviteToken = chosenToken;
+      } catch (dbError) {
+        this.logger.error(
+          `reconcileSessionMirror: failed to update inviteToken in Postgres for session ${session.id}`,
+          dbError instanceof Error ? dbError.stack : String(dbError),
+        );
+      }
+    }
+
+    return 1;
+  }
+
+  /**
+   * Application-level backfill для сохранения legacy-токенов ACTIVE-сессий в Postgres.
+   *
+   * Считывает текущий токен из sessionInviteKey в Redis и записывает его в Postgres.
+   * Для уже истёкших Redis-ключей старый токен восстановить нельзя (пропускаются,
+   * для таких сессий потребуется новая ссылка при подключении).
+   */
+  async backfillActiveInviteTokens(): Promise<{
+    total: number;
+    updated: number;
+    expired: number;
+  }> {
+    let total = 0;
+    let updated = 0;
+    let expired = 0;
+    const BATCH_SIZE = 50;
+    let cursor: string | undefined;
+    let hasMore = true;
+
+    while (hasMore) {
+      let sessions: Array<{ id: string; inviteToken: string | null }> = [];
+      try {
+        sessions = await this.prisma.interviewSession.findMany({
+          where: {
+            status: InterviewSessionStatus.ACTIVE,
+            inviteToken: null,
+          },
+          select: { id: true, inviteToken: true },
+          take: BATCH_SIZE,
+          skip: cursor ? 1 : 0,
+          cursor: cursor ? { id: cursor } : undefined,
+          orderBy: { id: "asc" },
+        });
+      } catch (dbError) {
+        this.logger.error(
+          "backfillActiveInviteTokens: failed to fetch active sessions from Postgres",
+          dbError instanceof Error ? dbError.stack : String(dbError),
+        );
+        break;
+      }
+
+      if (sessions.length === 0) {
+        break;
+      }
+
+      cursor = sessions[sessions.length - 1].id;
+      if (sessions.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+
+      for (const session of sessions) {
+        total++;
+        try {
+          const redisToken = await this.redis.get(sessionInviteKey(session.id));
+          if (redisToken && redisToken.trim().length > 0) {
+            await this.prisma.interviewSession.update({
+              where: { id: session.id },
+              data: { inviteToken: redisToken.trim() },
+            });
+            updated++;
+          } else {
+            expired++;
+            this.logger.warn(
+              `backfillActiveInviteTokens: Redis key expired for session ${session.id}; cannot restore legacy token, new link will be required`,
+            );
+          }
+        } catch (sessionError) {
+          this.logger.error(
+            `backfillActiveInviteTokens: error processing session ${session.id}`,
+            sessionError instanceof Error
+              ? sessionError.stack
+              : String(sessionError),
+          );
+        }
+      }
+    }
+
+    this.logger.log(
+      `backfillActiveInviteTokens completed: total=${total}, updated=${updated}, expired=${expired}`,
+    );
+
+    return { total, updated, expired };
   }
 
   /**

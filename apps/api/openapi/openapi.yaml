@@ -2784,7 +2784,7 @@ components:
               key:
                 type: string
                 enum:
-                  - EMAIL_CONFIRMED
+                  - EMAIL_PROVIDED
                   - MEDIA_CONFIGURED
                   - TELEGRAM_LINKED
                   - SHOWCASE_CREATED

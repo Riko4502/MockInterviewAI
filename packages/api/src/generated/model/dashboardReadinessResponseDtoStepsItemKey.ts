@@ -14,7 +14,7 @@ export type DashboardReadinessResponseDtoStepsItemKey = typeof DashboardReadines
 
 
 export const DashboardReadinessResponseDtoStepsItemKey = {
-  EMAIL_CONFIRMED: 'EMAIL_CONFIRMED',
+  EMAIL_PROVIDED: 'EMAIL_PROVIDED',
   MEDIA_CONFIGURED: 'MEDIA_CONFIGURED',
   TELEGRAM_LINKED: 'TELEGRAM_LINKED',
   SHOWCASE_CREATED: 'SHOWCASE_CREATED',

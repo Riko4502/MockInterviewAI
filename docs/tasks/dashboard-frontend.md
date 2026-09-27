@@ -169,7 +169,7 @@ export interface DashboardHeroProps {
   * Заголовок: «Готовность профиля к интервью: {percentage}%».
   * Прогресс-бар `Progress value={percentage}` с плавным переходом.
   * Интерактивный список шагов с чекбоксами:
-    * `EMAIL_CONFIRMED`: если не подтвержден — кнопка «Подтвердить».
+    * `EMAIL_PROVIDED`: если не указан — кнопка «Указать».
     * `MEDIA_CONFIGURED`: кнопка «Проверить камеру и звук» (открывает `QuickMediaCheckDialog`).
     * `TELEGRAM_LINKED`: кнопка «Привязать Telegram» (открывает модалку с QR-кодом и deep-link на бота).
     * `SHOWCASE_CREATED`: кнопка «Создать анкету на витрине».
@@ -341,7 +341,7 @@ export interface DashboardHeroProps {
 - [ ] **TASK-FRONT-23**: Реализовать виджет `DashboardShowcaseBanner` с кнопкой bump.
 
 ### Этап 5: Сборка страницы, скелетоны и тестирование
-- [ ] **TASK-FRONT-24**: Собрать страницу [apps/web/src/app/(protected)/dashboard/page.tsx](file:///d:/%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D1%8B/MockInterviewAI/apps/web/src/app/%28protected%29/dashboard/page.tsx) с адаптивной сеткой (Grid).
+- [ ] **TASK-FRONT-24**: Собрать страницу [apps/web/src/app/(protected)/dashboard/page.tsx](../apps/web/src/app/%28protected%29/dashboard/page.tsx) с адаптивной сеткой (Grid).
 - [ ] **TASK-FRONT-25**: Реализовать корневой `loading.tsx` со скелетонами всех блоков и `error.tsx` с кнопкой повтора.
 - [ ] **TASK-FRONT-26**: Написать юнит-тесты на Vitest для:
   - `DashboardReadinessChecklist` (рендеринг шагов и расчет прогресса).
