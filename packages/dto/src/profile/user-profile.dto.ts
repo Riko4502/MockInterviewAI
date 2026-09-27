@@ -1,3 +1,5 @@
+import { locales } from "@packages/i18n";
+import { THEME_MODES } from "@packages/types";
 import { z } from "zod";
 
 /**
@@ -22,6 +24,8 @@ export const userProfileSchema = publicUserProfileSchema.extend({
   email: z.string().email(),
   role: z.string(),
   permissions: z.string(),
+  theme: z.enum(THEME_MODES),
+  locale: z.enum(locales),
   updatedAt: z.iso.datetime(),
 });
 

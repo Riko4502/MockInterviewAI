@@ -217,4 +217,3 @@ func TestTokenVerificationGeneration(t *testing.T) {
 		t.Errorf("expected generation 42, got %v", verified.Generation)
 	}
 }
-

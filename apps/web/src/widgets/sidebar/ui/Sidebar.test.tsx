@@ -1,13 +1,36 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { PropsWithChildren, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { paths } from "@/shared/config";
 import { Sidebar } from "./Sidebar";
 
 const isAdminMock = vi.hoisted(() => vi.fn(() => false));
-vi.mock("@/entities/session", () => ({ useIsAdmin: isAdminMock }));
+vi.mock("@/entities/session", () => ({
+  useIsAdmin: isAdminMock,
+  useSession: () => null,
+}));
 afterEach(cleanup);
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
+}
+
+function renderSidebar(children: ReactNode) {
+  return render(<Sidebar>{children}</Sidebar>, { wrapper: createWrapper() });
+}
 
 const usePathnameMock = vi.fn(() => paths.dashboard);
 
@@ -58,11 +81,7 @@ describe("Sidebar", () => {
   });
 
   it("рендерит навигацию дашборда и контент страницы", () => {
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     expect(
       screen.getByRole("link", { name: "Панель управления" }),
@@ -87,11 +106,7 @@ describe("Sidebar", () => {
   it("в свёрнутом режиме показывает только иконку логотипа", async () => {
     const user = userEvent.setup();
 
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     expect(screen.getByText("DEVSYNC")).toBeInTheDocument();
 
@@ -105,14 +120,10 @@ describe("Sidebar", () => {
     ).toHaveAttribute("href", paths.dashboard);
   });
 
-  it("открывает меню пользователя с профилем и выходом", async () => {
+  it("открывает меню пользователя с профилем, настройками медиа и выходом", async () => {
     const user = userEvent.setup();
 
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     await user.click(screen.getByRole("button", { name: /Sarah Jenkins/i }));
 
@@ -120,14 +131,18 @@ describe("Sidebar", () => {
       "href",
       paths.profile,
     );
+    expect(
+      screen.getByRole("menuitem", { name: "Настройки звука и видео" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Выйти" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("menuitem", { name: "Выйти" }));
     expect(logoutMock).toHaveBeenCalledTimes(1);
   });
+
   it("показывает администратору весь раздел администрирования", () => {
     isAdminMock.mockReturnValue(true);
-    render(<Sidebar>Content</Sidebar>);
+    renderSidebar("Content");
     expect(screen.getByRole("link", { name: "Пользователи" })).toHaveAttribute(
       "href",
       paths.adminUsers,
@@ -137,9 +152,22 @@ describe("Sidebar", () => {
 
   it("скрывает раздел администрирования и пустые обёртки у обычного пользователя, в том числе после изменения доступа", () => {
     isAdminMock.mockReturnValue(true);
-    const view = render(<Sidebar>Content</Sidebar>);
+    const view = renderSidebar("Content");
     isAdminMock.mockReturnValue(false);
-    view.rerender(<Sidebar>Content</Sidebar>);
+    view.rerender(
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: { retry: false },
+              mutations: { retry: false },
+            },
+          })
+        }
+      >
+        <Sidebar>Content</Sidebar>
+      </QueryClientProvider>,
+    );
     expect(
       screen.queryByRole("link", { name: "Пользователи" }),
     ).not.toBeInTheDocument();
@@ -152,7 +180,7 @@ describe("Sidebar", () => {
 
   it("показывает локализованный значок администратора в меню пользователя", () => {
     isAdminMock.mockReturnValue(true);
-    render(<Sidebar>Content</Sidebar>);
+    renderSidebar("Content");
     expect(screen.getByText("Администратор")).toHaveAttribute(
       "data-slot",
       "badge",
@@ -161,7 +189,7 @@ describe("Sidebar", () => {
   });
 
   it("не показывает значок администратора у обычного пользователя", () => {
-    render(<Sidebar>Content</Sidebar>);
+    renderSidebar("Content");
     expect(screen.queryByText("Администратор")).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="badge"]')).toBeNull();
   });

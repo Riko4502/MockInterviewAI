@@ -112,7 +112,7 @@ func (f *fakeStore) GetSessionUserRole(context.Context, string, string) (string,
 }
 
 func (f *fakeStore) NextCodeVersion(context.Context, string) (int64, error) { return 0, nil }
-func (f *fakeStore) SaveCodeState(context.Context, string, []byte) error { return nil }
+func (f *fakeStore) SaveCodeState(context.Context, string, []byte) error    { return nil }
 
 func (f *fakeStore) GetCodeState(context.Context, string) ([]byte, error) { return nil, nil }
 

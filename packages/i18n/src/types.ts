@@ -2,6 +2,7 @@ import type auth from "./locales/ru/auth.json";
 import type common from "./locales/ru/common.json";
 import type interview from "./locales/ru/interview.json";
 import type landing from "./locales/ru/landing.json";
+import type telegram from "./locales/ru/telegram.json";
 
 /**
  * Типы словарей активных пространств имен
@@ -10,6 +11,7 @@ export type CommonMessages = typeof common;
 export type LandingMessages = typeof landing;
 export type AuthMessages = typeof auth;
 export type InterviewMessages = typeof interview;
+export type TelegramMessages = typeof telegram;
 
 /**
  * Зарезервированные типы для будущих разделов (FR-014)
@@ -43,6 +45,7 @@ export interface Messages {
   landing: LandingMessages;
   auth: AuthMessages;
   interview: InterviewMessages;
+  telegram: TelegramMessages;
   blog?: BlogMessages;
   roadmap?: RoadmapMessages;
   knowledge?: KnowledgeMessages;

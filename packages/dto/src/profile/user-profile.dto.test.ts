@@ -13,6 +13,8 @@ describe("userProfileSchema and publicUserProfileSchema", () => {
     email: "john@example.com",
     role: "USER",
     permissions: "0",
+    theme: "dark",
+    locale: "ru",
     updatedAt: "2026-08-02T00:00:00.000Z",
   };
 

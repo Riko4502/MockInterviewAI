@@ -1,13 +1,28 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionContext } from "@/entities/session/model/context";
 import i18n from "@/shared/lib/i18n";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxHeader } from "./SandboxHeader";
 
-const { onCopyInviteMock } = vi.hoisted(() => ({
+const { onCopyInviteMock, setAppThemeMock } = vi.hoisted(() => ({
   onCopyInviteMock: vi.fn(),
+  setAppThemeMock: vi.fn(),
 }));
+
+vi.mock("@packages/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/ui")>();
+  return {
+    ...actual,
+    useTheme: () => ({
+      theme: "dark",
+      resolvedTheme: "dark",
+      setTheme: setAppThemeMock,
+    }),
+  };
+});
 
 vi.mock("../model/SandboxMediaContext", () => ({
   useSandboxMedia: () => ({
@@ -19,6 +34,26 @@ vi.mock("../model/SandboxMediaContext", () => ({
   }),
 }));
 
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <SessionContext.Provider
+        value={{
+          isAuthenticated: false,
+          status: "unauthenticated",
+          startSession: vi.fn(),
+          clearSession: vi.fn(),
+        }}
+      >
+        {ui}
+      </SessionContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("SandboxHeader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,7 +62,7 @@ describe("SandboxHeader", () => {
   });
 
   it("should render task selector, difficulty badge, invite button and timer in Russian", () => {
-    render(<SandboxHeader />);
+    renderWithProviders(<SandboxHeader />);
 
     const firstTask = useSandboxStore.getState().tasks[0];
     expect(screen.getByText("Задача:")).toBeInTheDocument();
@@ -59,7 +94,7 @@ describe("SandboxHeader", () => {
 
   it("should render localized elements in English when locale is en", () => {
     i18n.changeLanguage("en");
-    render(<SandboxHeader />);
+    renderWithProviders(<SandboxHeader />);
 
     expect(screen.getByText("Task:")).toBeInTheDocument();
     expect(screen.getByText("Online: 2")).toBeInTheDocument();
@@ -76,5 +111,44 @@ describe("SandboxHeader", () => {
       screen.getByRole("button", { name: /Video call/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Run Code/i })).toBeDisabled();
+  });
+
+  it("should trigger onRunCode when button is clicked and not running", () => {
+    const handleRunCodeMock = vi.fn();
+    renderWithProviders(<SandboxHeader onRunCode={handleRunCodeMock} />);
+
+    const runBtn = screen.getByRole("button", { name: /Запуск кода/i });
+    expect(runBtn).not.toBeDisabled();
+
+    fireEvent.click(runBtn);
+    expect(handleRunCodeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("should disable run button and display spinner when isRunning is true", () => {
+    const handleRunCodeMock = vi.fn();
+    useSandboxStore.setState({ isRunning: true });
+
+    renderWithProviders(<SandboxHeader onRunCode={handleRunCodeMock} />);
+
+    const runBtn = screen.getByRole("button", { name: /Выполнение/i });
+    expect(runBtn).toBeDisabled();
+    expect(screen.getByTestId("run-code-spinner")).toBeInTheDocument();
+
+    fireEvent.click(runBtn);
+    expect(handleRunCodeMock).not.toHaveBeenCalled();
+  });
+
+  it("should toggle editor theme when theme switch button is clicked", () => {
+    useSandboxStore.setState({ theme: "dark" });
+    renderWithProviders(<SandboxHeader />);
+
+    const themeBtn = screen.getByRole("button", {
+      name: /Текущая тема редактора: dark/i,
+    });
+    expect(themeBtn).toBeInTheDocument();
+
+    fireEvent.click(themeBtn);
+    expect(useSandboxStore.getState().theme).toBe("light");
+    expect(setAppThemeMock).toHaveBeenCalledWith("light");
   });
 });

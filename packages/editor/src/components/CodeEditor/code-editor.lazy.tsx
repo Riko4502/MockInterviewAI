@@ -16,6 +16,9 @@ const LazyEditor = lazy(() =>
 );
 
 export const CodeEditorLazy = (props: CodeEditorLazyProps) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
   return (
     <Suspense>
       <LazyEditor {...props} />

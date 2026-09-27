@@ -13,6 +13,9 @@ import (
 // Redis Pub/Sub в секундах. Типичные значения — единицы миллисекунд.
 var pubsubLagBuckets = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1}
 
+// yjsInitStreamLengthBuckets — границы гистограммы количества дельт в стриме Redis при yjs.init.
+var yjsInitStreamLengthBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000}
+
 // Metrics агрегирует SRE-метрики WebSocket-подсистемы (PLAN шаг 9).
 //
 // Счетчики реализованы без клиентской библиотеки Prometheus: экспорт выполняется
@@ -22,6 +25,7 @@ type Metrics struct {
 
 	pubsubLag           *histogram
 	codeVersionFallback atomic.Int64
+	yjsInitStreamLength *histogram
 }
 
 // NewMetrics создает набор метрик, помеченных идентификатором текущей ноды.
@@ -31,8 +35,9 @@ func NewMetrics(nodeID string) *Metrics {
 	}
 
 	return &Metrics{
-		nodeID:    nodeID,
-		pubsubLag: newHistogram(pubsubLagBuckets),
+		nodeID:              nodeID,
+		pubsubLag:           newHistogram(pubsubLagBuckets),
+		yjsInitStreamLength: newHistogram(yjsInitStreamLengthBuckets),
 	}
 }
 
@@ -40,6 +45,15 @@ func NewMetrics(nodeID string) *Metrics {
 // и его получением другой репликой ноды.
 func (m *Metrics) ObservePubSubLag(seconds float64) {
 	m.pubsubLag.observe(seconds)
+}
+
+// ObserveYjsInitStreamLength фиксирует количество сохраненных дельт в Redis Stream,
+// вычитанных для первичной синхронизации yjs.init.
+func (m *Metrics) ObserveYjsInitStreamLength(length int) {
+	if length < 0 {
+		return
+	}
+	m.yjsInitStreamLength.observe(float64(length))
 }
 
 // IncCodeVersionFallback увеличивает счетчик сбоев выделения глобальной версии кода в Redis
@@ -71,6 +85,10 @@ func (m *Metrics) WritePrometheus(w io.Writer) {
 	buf.WriteString("# HELP realtime_ws_code_version_fallback_total Total times code version allocation from Redis failed and fell back to local counter\n")
 	buf.WriteString("# TYPE realtime_ws_code_version_fallback_total counter\n")
 	fmt.Fprintf(&buf, "realtime_ws_code_version_fallback_total{node_id=\"%s\"} %d\n", node, fallbackCount)
+
+	m.yjsInitStreamLength.write(&buf, "realtime_ws_yjs_init_stream_length",
+		"Distribution of Redis Stream length (stored delta updates) loaded during yjs.init",
+		`node_id="`+node+`"`)
 
 	_, _ = io.WriteString(w, buf.String())
 }

@@ -6,8 +6,7 @@ import type {
 } from "../model/types";
 
 export interface SandboxCallbacks {
-  onRemoteCodeUpdate?: (code: string, language?: LanguageId) => void;
-  onRemoteTaskChange?: (taskId: string) => void;
+  onRemoteTaskChange?: (taskId: string, language?: LanguageId) => void;
   onRemoteWebRTCSignal?: (signal: WebRTCSignal) => void;
   onRemoteRunResult?: (result: RunResult) => void;
   onPeerJoined?: (peerId: string) => void;
@@ -21,15 +20,16 @@ export function dispatchSandboxMessage(
   callbacks: SandboxCallbacks,
 ): void {
   switch (msg.type) {
-    case "code-update":
-      if (msg.payload.code !== undefined) {
-        callbacks.onRemoteCodeUpdate?.(msg.payload.code, msg.payload.language);
-      }
-      break;
-
     case "task-change":
       if (msg.payload.taskId) {
-        callbacks.onRemoteTaskChange?.(msg.payload.taskId);
+        if (msg.payload.language) {
+          callbacks.onRemoteTaskChange?.(
+            msg.payload.taskId,
+            msg.payload.language,
+          );
+        } else {
+          callbacks.onRemoteTaskChange?.(msg.payload.taskId);
+        }
       }
       break;
 

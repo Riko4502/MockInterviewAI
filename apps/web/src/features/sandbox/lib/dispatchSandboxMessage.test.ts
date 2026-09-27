@@ -6,30 +6,6 @@ import {
 } from "./dispatchSandboxMessage";
 
 describe("dispatchSandboxMessage", () => {
-  it("should dispatch 'code-update' to onRemoteCodeUpdate callback", () => {
-    const callbacks: SandboxCallbacks = {
-      onRemoteCodeUpdate: vi.fn(),
-    };
-
-    const msg: SandboxRealtimeMessage = {
-      type: "code-update",
-      roomId: "room-1",
-      senderId: "user-1",
-      senderName: "Alice",
-      payload: {
-        code: "function solve() {}",
-        language: "javascript",
-      },
-    };
-
-    dispatchSandboxMessage(msg, callbacks);
-
-    expect(callbacks.onRemoteCodeUpdate).toHaveBeenCalledWith(
-      "function solve() {}",
-      "javascript",
-    );
-  });
-
   it("should dispatch 'task-change' to onRemoteTaskChange callback", () => {
     const callbacks: SandboxCallbacks = {
       onRemoteTaskChange: vi.fn(),
