@@ -2,28 +2,23 @@
 
 import { DynamicBackground } from "@components/Background/DynamicBackground";
 import { Logo } from "@components/Logo";
+import { CheckIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import * as React from "react";
 import type { LoadingScreenProps } from "./types";
 
-const DEFAULT_STEPS = [
-  "Проверка окружения",
-  "Синхронизация сессии",
-  "Подготовка компонентов",
-];
-
 export function LoadingScreen({
-  title = "MockInterview AI",
-  description = "Подготовка рабочего пространства...",
-  steps = DEFAULT_STEPS,
-  badgeText = "ПОДГОТОВКА СИСТЕМЫ",
+  title,
+  description,
+  steps = [],
+  badgeText,
   showBackground = true,
   showLogo = true,
   showProgress = true,
   variant = "fullscreen",
   className,
-  systemActiveText = "AI ENGINE ACTIVE",
-  brandLabel = "MOCK INTERVIEW AI",
+  systemActiveText,
+  brandLabel,
   "data-testid": testId = "loading-screen",
 }: LoadingScreenProps) {
   const [progress, setProgress] = React.useState(18);
@@ -155,20 +150,7 @@ export function LoadingScreen({
               >
                 {isCompleted ? (
                   <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
-                    <svg
-                      className="w-2 h-2 text-emerald-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={3}
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                    <CheckIcon className="size-2 text-emerald-500 stroke-[3]" />
                   </div>
                 ) : isCurrent ? (
                   <div className="w-3.5 h-3.5 rounded-full bg-violet-500/20 border border-violet-500/60 flex items-center justify-center shrink-0">
@@ -185,13 +167,19 @@ export function LoadingScreen({
       )}
 
       {/* Футер сервисов */}
-      <div className="mt-4 pt-2.5 border-t border-border/30 w-full flex items-center justify-between text-[10px] font-mono text-muted-foreground/60">
-        <span className="flex items-center gap-1">
-          <span className="w-1 h-1 rounded-full bg-emerald-500 inline-block" />
-          {systemActiveText}
-        </span>
-        <span>{brandLabel}</span>
-      </div>
+      {(systemActiveText || brandLabel) && (
+        <div className="mt-4 pt-2.5 border-t border-border/30 w-full flex items-center justify-between text-[10px] font-mono text-muted-foreground/60">
+          {systemActiveText ? (
+            <span className="flex items-center gap-1">
+              <span className="w-1 h-1 rounded-full bg-emerald-500 inline-block" />
+              {systemActiveText}
+            </span>
+          ) : (
+            <span />
+          )}
+          {brandLabel ? <span>{brandLabel}</span> : <span />}
+        </div>
+      )}
     </div>
   );
 

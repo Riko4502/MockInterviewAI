@@ -102,7 +102,7 @@ export function AppPreloader({
 
   return (
     <>
-      {children}
+      <div inert={shouldRender}>{children}</div>
       {shouldRender && (
         <div
           aria-hidden={isFading}

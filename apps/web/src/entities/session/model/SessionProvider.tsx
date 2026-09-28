@@ -13,7 +13,18 @@ import {
 import { SESSION_STATUS, type SessionStatus } from "./constants";
 import { SessionContext } from "./context";
 
-export function SessionProvider({ children }: PropsWithChildren) {
+export interface SessionProviderProps extends PropsWithChildren {
+  minDuration?: number;
+  fadeDuration?: number;
+  oncePerSession?: boolean;
+}
+
+export function SessionProvider({
+  children,
+  minDuration: customMinDuration,
+  fadeDuration: customFadeDuration,
+  oncePerSession: customOncePerSession,
+}: SessionProviderProps) {
   const [status, setStatus] = useState<SessionStatus>(
     SESSION_STATUS.INITIALIZING,
   );
@@ -56,8 +67,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const isReady = status !== SESSION_STATUS.INITIALIZING;
   const isTest = process.env.NODE_ENV === "test";
-  const minDuration = isTest ? 0 : 2200;
-  const fadeDuration = isTest ? 0 : 600;
+  const minDuration = customMinDuration ?? (isTest ? 0 : 400);
+  const fadeDuration = customFadeDuration ?? (isTest ? 0 : 300);
+  const shouldBeOncePerSession = customOncePerSession ?? !isTest;
 
   return (
     <SessionContext.Provider
@@ -72,6 +84,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         isReady={isReady}
         minDuration={minDuration}
         fadeDuration={fadeDuration}
+        oncePerSession={shouldBeOncePerSession}
         title={t.title}
         badgeText={t.badges.sync}
         description={t.descriptions.sessionRestore}

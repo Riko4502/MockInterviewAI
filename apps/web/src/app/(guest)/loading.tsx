@@ -1,5 +1,3 @@
-"use client";
-
 import {
   defaultLocale,
   getMessages,
@@ -7,22 +5,14 @@ import {
   locales,
 } from "@packages/i18n";
 import { LoadingScreen } from "@packages/ui";
+import { cookies } from "next/headers";
 
-function getClientLocale(): Locale {
-  if (typeof document !== "undefined") {
-    const match = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/);
-    if (match) {
-      const cookieLocale = decodeURIComponent(match[1]) as Locale;
-      if (locales.includes(cookieLocale)) {
-        return cookieLocale;
-      }
-    }
-  }
-  return defaultLocale;
-}
-
-export default function GuestLoading() {
-  const locale = getClientLocale();
+export default async function GuestLoading() {
+  const cookieStore = await cookies();
+  const rawLocale = cookieStore.get("locale")?.value;
+  const locale: Locale = locales.includes(rawLocale as Locale)
+    ? (rawLocale as Locale)
+    : defaultLocale;
   const t = getMessages(locale).common.loading;
 
   return (

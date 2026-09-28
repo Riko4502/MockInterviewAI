@@ -1,10 +1,10 @@
 import type React from "react";
 
 export interface LoadingScreenProps {
-  /** Главный заголовок экрана загрузки (по умолчанию 'MockInterview AI') */
-  title?: React.ReactNode;
+  /** Главный заголовок экрана загрузки */
+  title: React.ReactNode;
   /** Подзаголовок или описание текущего действия */
-  description?: React.ReactNode;
+  description: React.ReactNode;
   /** Список этапов загрузки для визуального отображения процесса */
   steps?: string[];
   /** Текст статус-бейджа (например, 'ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ') */

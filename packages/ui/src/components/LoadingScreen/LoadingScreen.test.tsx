@@ -7,17 +7,23 @@ import { LoadingScreen } from "./LoadingScreen";
 describe("LoadingScreen Component", () => {
   afterEach(cleanup);
 
-  it("renders with default props and accessible role status", () => {
-    render(<LoadingScreen />);
+  it("renders with required props and accessible role status", () => {
+    render(
+      <LoadingScreen
+        title="MockInterview AI"
+        description="Initializing workspace..."
+        badgeText="SYSTEM READY"
+      />,
+    );
 
     const status = screen.getByRole("status");
     expect(status).toBeDefined();
     expect(status.getAttribute("aria-live")).toBe("polite");
     expect(screen.getByText("MockInterview AI")).toBeDefined();
     expect(
-      screen.getByText("Подготовка рабочего пространства..."),
-    ).toBeDefined();
-    expect(screen.getByText("ПОДГОТОВКА СИСТЕМЫ")).toBeDefined();
+      screen.getAllByText("Initializing workspace...").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("SYSTEM READY")).toBeDefined();
   });
 
   it("renders custom title, description and steps", () => {
@@ -42,7 +48,12 @@ describe("LoadingScreen Component", () => {
 
   it("supports contained variant", () => {
     const { container } = render(
-      <LoadingScreen variant="contained" className="custom-contained" />,
+      <LoadingScreen
+        title="Contained Loading"
+        description="Please wait..."
+        variant="contained"
+        className="custom-contained"
+      />,
     );
 
     const outer = container.firstChild as HTMLElement;

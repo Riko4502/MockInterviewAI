@@ -19,7 +19,12 @@ describe("AppPreloader Component", () => {
 
   it("renders loader initially and children in background", () => {
     render(
-      <AppPreloader minDuration={1000} fadeDuration={500}>
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        minDuration={1000}
+        fadeDuration={500}
+      >
         <div data-testid="page-content">Landing Content</div>
       </AppPreloader>,
     );
@@ -33,6 +38,8 @@ describe("AppPreloader Component", () => {
 
     render(
       <AppPreloader
+        title="Loading"
+        description="Please wait..."
         isReady={true}
         minDuration={1000}
         fadeDuration={500}
@@ -64,7 +71,13 @@ describe("AppPreloader Component", () => {
 
   it("does not unmount if isReady is false even after minDuration", () => {
     const { rerender } = render(
-      <AppPreloader isReady={false} minDuration={1000} fadeDuration={500}>
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={false}
+        minDuration={1000}
+        fadeDuration={500}
+      >
         <div data-testid="page-content">Content</div>
       </AppPreloader>,
     );
@@ -79,7 +92,13 @@ describe("AppPreloader Component", () => {
 
     // Now chunks become ready
     rerender(
-      <AppPreloader isReady={true} minDuration={1000} fadeDuration={500}>
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={true}
+        minDuration={1000}
+        fadeDuration={500}
+      >
         <div data-testid="page-content">Content</div>
       </AppPreloader>,
     );
@@ -93,5 +112,34 @@ describe("AppPreloader Component", () => {
       vi.advanceTimersByTime(501);
     });
     expect(screen.queryByTestId("app-preloader")).toBeNull();
+  });
+
+  it("blocks user interaction on children using inert until unmounted", () => {
+    render(
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={true}
+        minDuration={500}
+        fadeDuration={200}
+      >
+        <button type="button" data-testid="action-btn">
+          Action
+        </button>
+      </AppPreloader>,
+    );
+
+    const btn = screen.getByTestId("action-btn");
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(501);
+    });
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(201);
+    });
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(false);
   });
 });

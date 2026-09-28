@@ -1,7 +1,7 @@
 import type React from "react";
 import type { LoadingScreenProps } from "../LoadingScreen/types";
 
-export interface AppPreloaderProps extends Partial<LoadingScreenProps> {
+export interface AppPreloaderProps extends LoadingScreenProps {
   children?: React.ReactNode;
   /** Флаг готовности приложения/чанков/сессии. Пока false — лоадер гарантированно не исчезнет */
   isReady?: boolean;
