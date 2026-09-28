@@ -194,6 +194,8 @@ export class NotificationsService {
       message: notification.message,
       category: notification.category,
       actionUrl: notification.actionUrl,
+      createdAt: notification.createdAt.toISOString(),
+      read: notification.readAt !== null,
     });
 
     await this.publishUnreadCount(params.userId);
@@ -260,6 +262,7 @@ export class NotificationsService {
       data,
       this.notificationStreamMaxLength,
       this.notificationStreamTtlSeconds,
+      new Date().toISOString(),
     );
   }
 

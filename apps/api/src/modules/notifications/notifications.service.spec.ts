@@ -537,9 +537,43 @@ describe("NotificationsService", () => {
           message: "Тестовое уведомление",
           category: NotificationType.INTERVIEW,
           actionUrl: "/interviews/123",
+          createdAt: mockNotification.createdAt.toISOString(),
+          read: false,
         },
         100,
         604800,
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      );
+    });
+
+    it("публикует notification.new с read: true для прочитанного уведомления", async () => {
+      prismaMock.notification.create.mockResolvedValue({
+        ...mockNotification,
+        readAt: new Date(),
+      });
+
+      redisMock.scanKeys.mockResolvedValue([]);
+      redisMock.delete.mockResolvedValue(undefined);
+      redisMock.get.mockResolvedValue(null);
+      redisMock.set.mockResolvedValue(undefined);
+      redisMock.xadd.mockResolvedValue("1724500000000-0");
+
+      prismaMock.notification.count.mockResolvedValue(0);
+
+      await service.createNotification({
+        userId,
+        category: NotificationType.INTERVIEW,
+        title: "Прочитанное уведомление",
+        message: "Тестовое уведомление",
+      });
+
+      expect(redisMock.xadd).toHaveBeenCalledWith(
+        notificationStreamKey,
+        "notification.new",
+        expect.objectContaining({ read: true }),
+        100,
+        604800,
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       );
     });
 
@@ -570,6 +604,7 @@ describe("NotificationsService", () => {
         },
         100,
         604800,
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       );
 
       expect(redisMock.xadd).toHaveBeenCalledTimes(2);
