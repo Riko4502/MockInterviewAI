@@ -29,12 +29,12 @@ describe("NotificationCategoryIcon", () => {
     expect(icon?.getAttribute("data-category")).toBe("MESSAGE");
   });
 
-  it("forwards the class name", () => {
+  it("overrides the default size instead of stacking both", () => {
     const { container } = render(
       <NotificationCategoryIcon category="SYSTEM" className="size-4" />,
     );
-    expect(container.querySelector("svg")?.getAttribute("class")).toContain(
-      "size-4",
-    );
+    const className = container.querySelector("svg")?.getAttribute("class");
+    expect(className).toContain("size-4");
+    expect(className).not.toContain("size-5");
   });
 });
