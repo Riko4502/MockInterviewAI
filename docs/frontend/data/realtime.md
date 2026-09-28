@@ -311,6 +311,14 @@ export type NotificationCategory = "SYSTEM" | "INTERVIEW" | "MESSAGE";
 /** Событие "notification.new": тосты и список колокольчика */
 export interface NotificationNewPayload {
   id: string;
+  /**
+   * Доменный словарь, см. NotificationCategory. Вручную отправленное
+   * значение ему не гарантировано: scripts/send-sse.mjs приводит
+   * --category к верхнему регистру без проверки, поэтому может
+   * записать в стрим значение вне словаря. Поле не декодируется ни
+   * apps/realtime, ни Zod-схемой фронта, так что сверять его нужно
+   * на стороне producer'а, не на клиенте.
+   */
   category: NotificationCategory;
   title: string;
   message: string;
@@ -318,10 +326,10 @@ export interface NotificationNewPayload {
   createdAt: string;
   read: boolean;
   /**
-   * Необязательное. apps/realtime не валидирует это поле, а
-   * scripts/send-sse.mjs приводит --category к верхнему регистру без
-   * проверки, поэтому фактическое значение может оказаться вне
-   * словаря. Трактовать как advisory, не как валидацию.
+   * Визуальная severity по ADR-004:79. Целевое состояние: сейчас
+   * поле не отправляет ни один producer — ни apps/api, ни
+   * apps/realtime, ни scripts/send-sse.mjs. Объявлено здесь, чтобы
+   * словарь разведения категорий был виден в одном месте.
    */
   severity?: "info" | "success" | "warning" | "error";
 }

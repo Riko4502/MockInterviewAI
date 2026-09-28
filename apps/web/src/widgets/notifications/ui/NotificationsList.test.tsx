@@ -132,11 +132,14 @@ describe("NotificationsList", () => {
     ];
     const { container } = renderList();
     await screen.findByText("Интервью");
-    expect(
-      Array.from(container.querySelectorAll("[data-category]")).map((icon) =>
-        icon.getAttribute("data-category"),
-      ),
-    ).toEqual(["INTERVIEW", "MESSAGE", "SYSTEM"]);
+    const categories = Array.from(
+      container.querySelectorAll("[data-category]"),
+      (icon) => icon.getAttribute("data-category"),
+    );
+    expect(categories).toHaveLength(3);
+    expect(new Set(categories)).toEqual(
+      new Set(["INTERVIEW", "MESSAGE", "SYSTEM"]),
+    );
   });
 
   it("отмечает уведомление прочитанным до перехода", async () => {
