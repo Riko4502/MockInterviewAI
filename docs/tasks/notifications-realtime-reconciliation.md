@@ -15,21 +15,28 @@
 и покрыт тестами. Чеклист `notifications-realtime.md:86-100` не отмечен,
 но фактическое состояние кода:
 
-| Пункт чеклиста | Факт | Файлы |
-| --- | --- | --- |
-| CRUD + 5 endpoints | выполнено | `apps/api/openapi/openapi.yaml:1084-1199`, `apps/api/src/modules/notifications/notifications.controller.ts` |
-| SSE + обработка 401/429/503 | выполнено | `apps/web/src/shared/api/realtime/notification-stream.ts:22-58` (401 → refresh, 429/503 → `Retry-After`); авто-реконнект даёт дефолт библиотеки `eventsource`, а не этот код |
-| Инвалидация + `+1` + Toast | выполнено | `apps/web/src/features/notification-realtime/ui/NotificationRealtime.tsx:97-114` |
-| Нативные уведомления ОС | выполнено | `apps/web/src/shared/lib/notifications/browser-notifications.ts:56-92` |
-| Локализация (`@packages/i18n`) | выполнено | `packages/i18n/src/locales/ru/common.json`, `packages/i18n/src/locales/en/common.json` — блок `notifications.*` симметричен в обеих локалях |
-| `NotificationBell` + popover | выполнено | `apps/web/src/widgets/notifications/ui/NotificationBell.tsx` |
-| Страница + табы + пусто + пагинация | выполнено | `apps/web/src/widgets/notifications/ui/NotificationsList.tsx:77,87,153-162` |
-| Иконки категорий | **не выполнено** | отсутствует `NotificationCategoryIcon` |
-| Переход по `actionUrl` | выполнено; доменных producer'ов нет | `browser-notifications.ts:34-54`; единственный рабочий продюсер — CLI, см. 2.2 |
+| Пункт | Источник | Факт | Файлы |
+| --- | --- | --- | --- |
+| CRUD + 5 endpoints | чеклист | выполнено | `apps/api/openapi/openapi.yaml:1084-1199`, `apps/api/src/modules/notifications/notifications.controller.ts` |
+| SSE + обработка 401/429/503 | чеклист | выполнено | `apps/web/src/shared/api/realtime/notification-stream.ts:22-58` (401 → refresh, 429/503 → `Retry-After`); авто-реконнект даёт дефолт библиотеки `eventsource`, а не этот код |
+| Инвалидация + `+1` + Toast | чеклист | выполнено | `apps/web/src/features/notification-realtime/ui/NotificationRealtime.tsx:97-114` |
+| Нативные уведомления ОС | чеклист | выполнено | `apps/web/src/shared/lib/notifications/browser-notifications.ts:56-92` |
+| Локализация (`@packages/i18n`) | чеклист | выполнено | `packages/i18n/src/locales/ru/common.json`, `packages/i18n/src/locales/en/common.json` — блок `notifications.*` симметричен в обеих локалях |
+| `NotificationBell` + popover | чеклист | выполнено | `apps/web/src/widgets/notifications/ui/NotificationBell.tsx` |
+| Страница + табы + пусто + пагинация | чеклист | выполнено | `apps/web/src/widgets/notifications/ui/NotificationsList.tsx:77,87,153-162` |
+| Иконки категорий | дерево файлов раздела 2 | **не выполнено** | отсутствует `NotificationCategoryIcon` |
+| Переход по `actionUrl` | диаграмма раздела 1, шаг 3 | выполнено; доменных producer'ов нет | `browser-notifications.ts:34-54`; единственный рабочий продюсер — CLI, см. 2.2 |
 
-Итог: остался один незакрытый пункт чеклиста (иконки категорий) и
-пять расхождений контрактов с ADR (2.1, 2.3, 2.4, 2.5, 2.7 — из них
-2.3 и 2.4 закрываются Фазой 1).
+Источники строк различаются. Чеклист `notifications-realtime.md:86-100`
+содержит ровно пять пунктов, и все пять фактически закрыты. Иконки
+категорий в чеклисте не значились — они пришли из дерева файлов
+(`notifications-realtime.md:76`), а переход по `actionUrl` — из
+диаграммы раздела 1 (`:24`). Поэтому иконки — долг по дереву файлов, а
+не незакрытый пункт чеклиста, и в чеклисте отмечать нечего.
+
+Итог: чеклист закрыт полностью. Остаются пять расхождений контрактов
+с ADR (2.1, 2.3, 2.4, 2.5, 2.7 — из них 2.3 и 2.4 закрываются Фазой 1)
+и незакрытая работа 4.5.
 
 ---
 
@@ -80,9 +87,16 @@ ADR-003 это уже фиксирует в строке 11.
 (`apps/web/src/features/notification-realtime/model/schemas.ts:3-11`) их
 не требует → расхождение не диагностируется.
 
-Следствие для Фазы 1: требование сделать `createdAt` и `read`
-обязательными в Zod-схеме **безопасно** — единственный работающий
-продюсер их уже шлёт, а `apps/api` после 4.2 начнёт.
+Следствие для Фазы 1: поля обязательны в контракте, но на клиенте
+принимаются терпимо (см. 4.2). Строгая Zod-схема была бы небезопасна:
+`apps/realtime` отдаёт историю стрима по `Last-Event-ID`
+(`apps/realtime/internal/handler/sse.go:211-215, 254-257, 272-306`),
+клиент `eventsource` заголовок переотправляет сам, стрим живёт 7 суток
+при `MAXLEN ~ 100` (`notifications.service.ts:13,15`), а невалидное
+событие дропается молча — `reportInvalidEvent` пишет только в
+`NODE_ENV=development` (`NotificationRealtime.tsx:26-33`). Значит все
+записи, написанные `apps/api` до выкатки, отыгрались бы как
+невалидные: ни тоста, ни ОС-пуша, ни `+1`, ни записи в лог.
 
 Отсутствие `read` приводит к тому, что `updateCount(count => count + 1)`
 (`NotificationRealtime.tsx:97`) инкрементит счётчик вслепую. Фактический
@@ -109,6 +123,14 @@ ADR-004:77 требует, чтобы `timestamp` писали оба произ
   payload>`, тогда как код пишет `"payload"` (`:383`) — ADR-004:77 требует
   привести описание в соответствие.
 
+Рантайм-эффекта при этом нет: `parseTimestamp`
+(`apps/realtime/internal/sse/hub.go:613-627`) восстанавливает время
+события по трём уровням — поле продюсера, затем миллисекундная часть
+Redis Stream ID, иначе текущее время. Поэтому `timestamp` в
+SSE-конверте для событий, опубликованных `apps/api`, корректен уже
+сегодня, а ADR-004:44 верно только про `StreamEvent.Timestamp`, а не
+про провод.
+
 Это не техдолг, а правка в той же функции, которую Фаза 1 уже трогает
 (`publishNotificationEvent`, `notifications.service.ts:252-264`), поэтому
 входит в объём плана. Объём: сигнатура и docstring `redis.service.ts`,
@@ -117,13 +139,27 @@ ADR-004:77 требует, чтобы `timestamp` писали оба произ
 
 ### 2.5. ADR-004:50, :79 — коллизия `category` (техдолг, по решению не чинится)
 
-Словарей не два, а три — и третий закреплён как валидный ввод:
+Словарей не два, а три — и третий, CLI, не только смешивает два, но и
+допускает выход за оба:
 
 | Слой | Словарь | Источник |
 | --- | --- | --- |
 | Go, визуальная severity | `info` \| `success` \| `warning` \| `error` | `apps/realtime/internal/sse/event.go:47-61` |
 | БД, доменная категория | `SYSTEM` \| `INTERVIEW` \| `MESSAGE` | `apps/api/prisma/schema.prisma:135-139` |
-| CLI, оба сразу | `SYSTEM`, `INTERVIEW`, `MESSAGE`, `info`, `warning`, `error`, `success` | `docs/backend/development/sse-notifications-cli.md:72` |
+| CLI, оба сразу | `SYSTEM`, `INTERVIEW`, `MESSAGE`, `INFO`, `WARNING`, `ERROR`, `SUCCESS` | `scripts/send-sse.mjs:176` (`.toUpperCase()`), `docs/backend/development/sse-notifications-cli.md:72` |
+
+Словарь CLI фактически не тот, что задокументирован: `--category`
+приводится к верхнему регистру безусловно (`send-sse.mjs:176`) и никак
+не валидируется, поэтому документированные в
+`docs/backend/development/sse-notifications-cli.md:72` значения `info`,
+`warning`, `error`, `success` в стрим не попадают — туда уходят
+`INFO`, `WARNING`, `ERROR`, `SUCCESS`, которых нет ни в одном словаре.
+Значит CLI способен записать в `category` значение вне доменного
+словаря. Сегодня это безвредно: поле не декодируется ни в
+`apps/realtime`, ни в Zod-схеме фронта, — но после 3.3, где доменный
+словарь закрепляется в источнике правды, это остаётся непроверенным
+входом. Валидация `--category` в `scripts/` в объём Фазы 1 не входит
+(§4).
 
 `apps/api` кладёт в это поле доменную категорию:
 `notifications.service.ts:195` → `category: notification.category`.
@@ -134,7 +170,11 @@ ADR-004:77 требует, чтобы `timestamp` писали оба произ
 
 ADR-004:79 требует развести понятия: severity остаётся в payload,
 `NotificationType` переезжает в `category`. Решение по этому пункту —
-**оставить как есть**, зафиксировать расхождение как техдолг.
+**оставить как есть** на уровне рантайма и Go-типов, зафиксировав
+расхождение как техдолг. Исключение — объявление типа во фронтовой
+спецификации: оно не является частью рантайма, ничего не импортируется
+и исправляется в Фазе 0 (3.3), потому что ADR-004:80 назначает
+спецификацию источником правды.
 
 Обоснование, по которому откладывание безопасно: `apps/realtime` не
 декодирует payload при доставке — он передаётся как `json.RawMessage`
@@ -216,8 +256,9 @@ apps/web/src/
 ```
 
 - В диаграмме (раздел 1) заменить `/notifications` на `/dashboard/notifications`.
-- Отметить выполненные пункты чеклиста, оставить незакрытым только
-  «иконки категорий» до завершения Фазы 1.
+- Отметить все пять пунктов чеклиста — все они выполнены. Иконки
+  категорий в чеклисте не значились, отмечать нечего; до завершения
+  Фазы 1 они идут отдельной строкой техдолга.
 - Добавить раздел «Техдолг» с пунктами 2.1, 2.2, 2.5, 2.6, 2.7.
 - Добавить в этот же раздел производителя из 2.2: `pnpm sse:send` — ручной,
   не заменяет доменные вызовы `createNotification`.
@@ -243,24 +284,38 @@ ADR-004:77 и :80 требуют обновлять спецификацию к�
 поэтому Фаза 0 обязана трогать и её — иначе новизна 4.2 добавляется в
 заведомо неверный контракт.
 
-- `docs/frontend/data/realtime.md:305-316` — не править значения, а
-  пометить расхождение: `NotificationCategory` (`:305`) объявлен как
-  severity, тогда как фактический `apps/api` присылает доменную категорию
-  (см. 2.5). Рядом с полем — примечание, что фактическое значение
-  `SYSTEM` | `INTERVIEW` | `MESSAGE`, что `severity` в payload пока
-  отсутствует, и что CLI принимает оба словаря (см. 2.5).
+- `docs/frontend/data/realtime.md:305-316` — **исправить** объявление.
+  `NotificationCategory` (`:305`) объявляет `category` как severity,
+  тогда как единственный реально работающий продюсер шлёт доменную
+  категорию. ADR-004:80 назначает спецификацию источником правды, а
+  пометка расхождения документировала бы её как неверную, не обновив.
+  Значит `category` меняется на `SYSTEM` | `INTERVIEW` | `MESSAGE`, а
+  рядом добавляется необязательное
+  `severity?: "info" | "success" | "warning" | "error"` — это конечное
+  состояние ADR-004:79 для самого объявления, и оно не требует правок
+  ни в `apps/realtime`, ни в `apps/api`, потому что payload там не
+  декодируется (`json.RawMessage`). Правка нулевого риска: тип живёт в
+  fenced-блоке `typescript` и нигде не импортируется. Рядом —
+  примечание, что `apps/realtime` пока типизирует `category` как
+  severity, и что CLI способен записать в это поле значение вне
+  доменного словаря (см. 2.5).
 - `apps/realtime/SSE_SPEC.md:151-160` — правок по `notification.new` не
   требует: таблица уже перечисляет `createdAt` и `read`. Привести ссылку
   «раздел 4.2» в согласованность с `docs/frontend/data/realtime.md`.
   Таблицу по `timestamp` (ADR-004:77, расхождение 2.4) не править: поле
   уже заявлено как обязательное, недостаёт именно реализации в `apps/api`.
-- `docs/backend/development/sse-notifications-cli.md:72` — отметить, что
-  перечисление `--category` смешивает доменную категорию и severity, и
-  что это следствие коллизии 2.5, а не поддерживаемый контракт.
+- `docs/backend/development/sse-notifications-cli.md:72` — исправить
+  перечисление `--category`: задокументированные `info`, `warning`,
+  `error`, `success` в стрим не попадают, потому что CLI приводит
+  значение к верхнему регистру (`send-sse.mjs:176`) без валидации.
+  Фактический набор — `SYSTEM` | `INTERVIEW` | `MESSAGE` | `INFO` |
+  `WARNING` | `ERROR` | `SUCCESS`, то есть перечисление смешивает
+  доменную категорию, severity и значения вне обоих словарей
+  (см. 2.5).
 
-Оба файла контрактов остаются в статусе «долг» до полной реализации
-ADR-004:79 (разведение `severity` и `category`), которая вынесена в
-раздел 6.
+Тип `category` в `apps/realtime/internal/sse/payload.go:12` остаётся
+severity до полной реализации ADR-004:79 (разведение `severity` и
+`category`), которая вынесена в раздел 6.
 
 ---
 
@@ -294,8 +349,8 @@ read: notification.readAt !== null,
 добавить в `newNotificationSchema.payload`:
 
 ```ts
-createdAt: z.iso.datetime(),
-read: z.boolean(),
+createdAt: z.iso.datetime().nullish(),
+read: z.boolean().nullish(),
 ```
 
 Используется `z.iso.datetime()`, а не `z.string().datetime()`: в
@@ -304,30 +359,37 @@ deprecated, а по всему репозиторию уже принят `z.iso
 (`packages/dto/src/notifications/notification.dto.ts:16-19`,
 `packages/dto/src/profile/user-profile.dto.ts:15,29`).
 
+Поля объявляются терпимыми, а не обязательными — по причине из 2.3:
+строгая схема отбросила бы записи, написанные `apps/api` до выкатки.
+`.nullish()`, а не `.optional()`, — совместимо и с отсутствующим полем, и
+с явным `null`; стиль совпадает с `actionUrl: z.string().nullish()` в
+этом же файле. Терпимость касается только двух новых полей: `id`,
+`title` и `message` остаются строгими. `createdAt` клиент сегодня не
+читает вовсе, а `read` после правки ниже не читается тоже, поэтому
+терпимое объявление ничего не стоит. Ужесточение — см. раздел 6.
+
 Поле `category` не добавляется — см. 2.5.
 
-`apps/web/src/features/notification-realtime/ui/NotificationRealtime.tsx:97` —
-инкрементировать счётчик только для непрочитанных:
-
-```ts
-updateCount((count) => (notification.read ? count : count + 1));
-```
-
-Ожидаемый эффект — полнота контракта, а не поведение. На текущий момент
-`read` всегда `false`: `createNotification` не принимает `readAt`
-(`notifications.service.ts:172-178`), поэтому Prisma создаёт запись с
-`readAt: null` и ветка `notification.read` недостижима. Кроме того,
-инкремент оптимистичный и в том же burst перезатирается каноническим
+`apps/web/src/features/notification-realtime/ui/NotificationRealtime.tsx:97`
+**не меняется.** Правка на `read` даёт нулевой эффект: `read` всегда
+`false`, потому что `createNotification` не принимает `readAt`
+(`notifications.service.ts:172-178`) и Prisma создаёт запись с
+`readAt: null`, то есть ветка недостижима. Кроме того, инкремент
+оптимистичный и в том же burst перезатирается каноническим
 `notification.badge` — `createNotification` публикует его сразу после
 `notification.new` (`notifications.service.ts:199`), а обработчик
 `NotificationRealtime.tsx:133` присваивает `unreadCount` абсолютным
-значением. Поле `read` начнёт влиять на поведение только вместе с
-ADR-003 (см. раздел 6).
+значением. Добавлять недостижимую ветку и тест, охраняющий невозможное
+состояние, незачем: чтение `read` появляется вместе с событием
+изменения read-состояния по ADR-003 (см. раздел 6).
 
 ### 4.3. Дописать `timestamp` в запись стрима (ADR-004:44, :77)
 
 Расхождение 2.4. Правится в той же функции `publishNotificationEvent`,
-что и 4.2.
+что и 4.2. Ожидаемый эффект — единообразие записи с продюсером CLI, а
+не починка: `parseTimestamp` уже восстанавливает корректное время из
+ID стрима (см. 2.4), поэтому пользовательского поведения правка не
+меняет.
 
 - `apps/api/src/redis/redis.service.ts:368-374` — добавить в `xadd`
   необязательный параметр `timestamp?: string` и писать его в тело вызова
@@ -364,13 +426,16 @@ ADR-003 (см. раздел 6).
 - `apps/api/src/redis/redis.service.spec.ts:215` — обновить под новую
   сигнатуру `xadd` и проверить, что запись содержит `timestamp`.
 - `apps/web/src/features/notification-realtime/ui/NotificationRealtime.test.tsx` —
-  **обязательно** дополнить общий фикстур `newNotification` (`:58-62`)
-  полями `createdAt` и `read`. Он используется в 15 вызовах `emit(...)`
-  по файлу, и без этого все они начнут отбрасываться `safeParse` как
-  невалидные. После правки фикстура — кейс «`read: true` → счётчик не
-  растёт».
+  общий фикстур `newNotification` (`:58-62`) остаётся без полей:
+  схема терпимая, поэтому все существующие вызовы `emit(...)` по файлу
+  остаются валидными и правок в них не требуется. Добавить два кейса:
+  (а) payload **нового** формата — с `createdAt` и `read` — парсится и
+  инкрементит счётчик; (б) payload **старого** формата — без `createdAt`
+  и `read` — то же самое и без вызова `reportInvalidEvent`. Кейс (б) —
+  регрессия против дропа старого формата при реплее (см. 2.3). Кейс
+  «`read: true` → счётчик не растёт» не добавляется — см. 4.2.
 
-### 4.5. Иконка категории (незакрытый пункт чеклиста)
+### 4.5. Иконка категории (долг по дереву файлов, не по чеклисту)
 
 Новый файл `apps/web/src/entities/notification/ui/NotificationCategoryIcon.tsx`:
 маппинг `SYSTEM → InfoIcon`, `INTERVIEW → CalendarIcon`,
@@ -406,6 +471,19 @@ pnpm build:web
 pnpm build:api
 ```
 
+Ручная проверка round-trip обязательна: юнит-тесты доказывают только то,
+что `apps/api` пишет поля и что Zod-схема их принимает, но не то, что
+`apps/realtime` их пересылает и браузер принимает событие.
+
+```bash
+pnpm sse:send --user <userId> --category INTERVIEW --title "Проверка" --message "Проверка"
+```
+
+Ожидания: событие `notification.new` приходит, счётчик непрочитанных
+растёт, toast показывается, а в консоли нет
+`[NotificationRealtime] Invalid SSE event`. Это единственная проверка,
+которая ловит дроп записей старого формата при реплее (см. 2.3).
+
 `pnpm test:api` обязателен и покрывает обе правки в `apps/api` — 4.2
 (спека `notifications.service.spec.ts:531-543`) и 4.3
 (`redis.service.spec.ts:215`, `notifications.service.spec.ts:565-573`).
@@ -422,6 +500,11 @@ pnpm build:api
 
 - реализация ADR-003 (`type` + `payload` + `rendered*` + `dedupKey`, outbox,
   `NotificationDispatcher`, словарь событий в `packages/types`);
+- ужесточение `createdAt` и `read` в `newNotificationSchema.payload` с
+  `nullish()` до обязательных — вместе с первым доменным продюсером,
+  когда в стриме не останется записей старого формата;
+- чтение `read` в `NotificationRealtime.tsx:97` — вместе с событием
+  изменения read-состояния по ADR-003;
 - разведение `category` и `severity` по ADR-004:79;
 - `SecurityEvent` и правило «не пушить немедленно» по ADR-005;
 - вызовы `createNotification` из доменных сервисов;
@@ -435,5 +518,6 @@ pnpm build:api
 имеют смысл уже сейчас: они выравнивают `apps/api` с продюсером, который
 реально работает, и с контрактом, который уже объявлен в
 `SSE_SPEC.md` и `payload.go`. Единственное видимое изменение — иконки в
-списке и в колокольчике. Ветка `notification.read` в 4.2 в рантайме не
-проявится (см. 4.2), её эффект начнёт проявляться вместе с ADR-003.
+списке и в колокольчике. Правок поведения в 4.2 и 4.3 нет вовсе: обе
+меняют только форму записи, а чтение `read` вынесено в раздел 6 вместе
+с ADR-003.
