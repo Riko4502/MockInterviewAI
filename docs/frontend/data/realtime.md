@@ -302,7 +302,11 @@ export interface SystemAckPayload {
 ## 4. Справочник контрактов SSE (Глобальные уведомления)
 
 ```typescript
-export type NotificationCategory = "info" | "success" | "warning" | "error";
+/**
+ * Категория уведомления — доменный словарь, совпадает с
+ * NotificationType в БД и с категорией фильтра в центре уведомлений.
+ */
+export type NotificationCategory = "SYSTEM" | "INTERVIEW" | "MESSAGE";
 
 /** Событие "notification.new": тосты и список колокольчика */
 export interface NotificationNewPayload {
@@ -313,6 +317,13 @@ export interface NotificationNewPayload {
   actionUrl?: string;
   createdAt: string;
   read: boolean;
+  /**
+   * Необязательное. apps/realtime не валидирует это поле, а
+   * scripts/send-sse.mjs приводит --category к верхнему регистру без
+   * проверки, поэтому фактическое значение может оказаться вне
+   * словаря. Трактовать как advisory, не как валидацию.
+   */
+  severity?: "info" | "success" | "warning" | "error";
 }
 
 /** Событие "notification.badge": число непрочитанных */
