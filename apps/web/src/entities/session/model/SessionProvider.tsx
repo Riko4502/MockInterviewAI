@@ -1,6 +1,10 @@
 "use client";
 
+import { defaultLocale, getMessages, type Locale } from "@packages/i18n";
+import { AppPreloader } from "@packages/ui";
+import "@/shared/lib/i18n";
 import { type PropsWithChildren, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   authToken,
   RefreshSessionError,
@@ -46,9 +50,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setStatus(SESSION_STATUS.UNAUTHENTICATED);
   };
 
-  if (status === SESSION_STATUS.INITIALIZING) {
-    return null;
-  }
+  const { i18n } = useTranslation();
+  const currentLocale = (i18n.language as Locale) || defaultLocale;
+  const t = getMessages(currentLocale).common.loading;
+
+  const isReady = status !== SESSION_STATUS.INITIALIZING;
+  const isTest = process.env.NODE_ENV === "test";
+  const minDuration = isTest ? 0 : 2200;
+  const fadeDuration = isTest ? 0 : 600;
 
   return (
     <SessionContext.Provider
@@ -59,7 +68,19 @@ export function SessionProvider({ children }: PropsWithChildren) {
         clearSession,
       }}
     >
-      {children}
+      <AppPreloader
+        isReady={isReady}
+        minDuration={minDuration}
+        fadeDuration={fadeDuration}
+        title={t.title}
+        badgeText={t.badges.sync}
+        description={t.descriptions.sessionRestore}
+        steps={t.steps.sessionRestore}
+        systemActiveText={t.systemActive}
+        brandLabel={t.brandLabel}
+      >
+        {isReady ? children : null}
+      </AppPreloader>
     </SessionContext.Provider>
   );
 }
