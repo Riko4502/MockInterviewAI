@@ -61,6 +61,7 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  deviceSettings        UserDeviceSettings[]
   notifications         Notification[]
   sessions              InterviewSession[]
   participations        InterviewParticipant[]
@@ -277,3 +278,24 @@ model MatchRequest {
   @@index([status, expiresAt])
   @@map("match_requests")
 }
+
+model UserDeviceSettings {
+  id                        String   @id @default(uuid()) @db.Uuid
+  userId                    String   @map("user_id") @db.Uuid
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId                  String   @map("client_id") @db.VarChar(128)
+  deviceName                String?  @map("device_name") @db.VarChar(128)
+  audioVolume               Int      @default(80) @map("audio_volume")
+  speechVolume              Int      @default(80) @map("speech_volume")
+  micGain                   Int      @default(100) @map("mic_gain")
+  preferredAudioInputLabel  String?  @map("preferred_audio_input_label") @db.VarChar(255)
+  preferredAudioOutputLabel String?  @map("preferred_audio_output_label") @db.VarChar(255)
+  preferredVideoInputLabel  String?  @map("preferred_video_input_label") @db.VarChar(255)
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@map("user_device_settings")
+}
+

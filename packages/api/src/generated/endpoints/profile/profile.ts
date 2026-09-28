@@ -31,9 +31,12 @@ import type {
 import type {
   AvatarDeleteResponseDto,
   AvatarUploadResponseDto,
+  DeviceSettingsDto,
   MessageResponseDto,
+  ProfileControllerGetDeviceSettingsParams,
   ProfileControllerUploadAvatarBody,
   RestoreProfileResponseDto,
+  UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto
 } from '../../model';
@@ -315,6 +318,192 @@ export const useProfileControllerDeleteMyProfile = <TError = void,
         TContext
       > => {
       return useMutation(getProfileControllerDeleteMyProfileMutationOptions(options), queryClient);
+    }
+    export const getProfileControllerGetDeviceSettingsUrl = (params: ProfileControllerGetDeviceSettingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/profile/device-settings?${stringifiedParams}` : `/api/v1/profile/device-settings`
+}
+
+/**
+ * @summary Получить настройки медиа и устройств для клиентского устройства
+ */
+export const profileControllerGetDeviceSettings = async (params: ProfileControllerGetDeviceSettingsParams, options?: Parameters<typeof customInstance>[1]): Promise<DeviceSettingsDto> => {
+
+  return customInstance<DeviceSettingsDto>(getProfileControllerGetDeviceSettingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getProfileControllerGetDeviceSettingsQueryKey = (params?: ProfileControllerGetDeviceSettingsParams,) => {
+    return [
+    `/api/v1/profile/device-settings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getProfileControllerGetDeviceSettingsQueryOptions = <TData = Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError = void>(params: ProfileControllerGetDeviceSettingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getProfileControllerGetDeviceSettingsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>> = ({ signal }) => profileControllerGetDeviceSettings(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ProfileControllerGetDeviceSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>>
+export type ProfileControllerGetDeviceSettingsQueryError = void
+
+
+export function useProfileControllerGetDeviceSettings<TData = Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError = void>(
+ params: ProfileControllerGetDeviceSettingsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>,
+          TError,
+          Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useProfileControllerGetDeviceSettings<TData = Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError = void>(
+ params: ProfileControllerGetDeviceSettingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>,
+          TError,
+          Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useProfileControllerGetDeviceSettings<TData = Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError = void>(
+ params: ProfileControllerGetDeviceSettingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Получить настройки медиа и устройств для клиентского устройства
+ */
+
+export function useProfileControllerGetDeviceSettings<TData = Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError = void>(
+ params: ProfileControllerGetDeviceSettingsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof profileControllerGetDeviceSettings>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getProfileControllerGetDeviceSettingsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getProfileControllerUpdateDeviceSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/profile/device-settings`
+}
+
+/**
+ * @summary Сохранить настройки медиа и устройств для клиентского устройства
+ */
+export const profileControllerUpdateDeviceSettings = async (updateDeviceSettingsDto: UpdateDeviceSettingsDto, options?: Parameters<typeof customInstance>[1]): Promise<DeviceSettingsDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<DeviceSettingsDto>(getProfileControllerUpdateDeviceSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateDeviceSettingsDto)
+  }
+);}
+
+
+
+
+
+export const getProfileControllerUpdateDeviceSettingsMutationKey = () => ['profileControllerUpdateDeviceSettings'] as const;
+
+export const getProfileControllerUpdateDeviceSettingsMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>, TError,ProfileControllerUpdateDeviceSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>, TError,ProfileControllerUpdateDeviceSettingsMutationVariables, TContext> => {
+
+const mutationKey = getProfileControllerUpdateDeviceSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>, ProfileControllerUpdateDeviceSettingsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  profileControllerUpdateDeviceSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProfileControllerUpdateDeviceSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>>
+    export type ProfileControllerUpdateDeviceSettingsMutationBody = UpdateDeviceSettingsDto
+    export type ProfileControllerUpdateDeviceSettingsMutationError = void
+    export type ProfileControllerUpdateDeviceSettingsMutationVariables = {data: UpdateDeviceSettingsDto}
+
+    /**
+ * @summary Сохранить настройки медиа и устройств для клиентского устройства
+ */
+export const useProfileControllerUpdateDeviceSettings = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>, TError,ProfileControllerUpdateDeviceSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof profileControllerUpdateDeviceSettings>>,
+        TError,
+        ProfileControllerUpdateDeviceSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getProfileControllerUpdateDeviceSettingsMutationOptions(options), queryClient);
     }
     export const getProfileControllerUploadAvatarUrl = () => {
 

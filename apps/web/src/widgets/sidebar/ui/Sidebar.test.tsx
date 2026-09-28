@@ -1,9 +1,24 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { paths } from "@/shared/config";
 import { Sidebar } from "./Sidebar";
+
+const renderSidebar = (children: React.ReactNode) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Sidebar>{children}</Sidebar>
+    </QueryClientProvider>,
+  );
+};
 
 const usePathnameMock = vi.fn(() => paths.dashboard);
 
@@ -53,11 +68,7 @@ describe("Sidebar", () => {
   });
 
   it("рендерит навигацию дашборда и контент страницы", () => {
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     expect(
       screen.getByRole("link", { name: "Панель управления" }),
@@ -82,11 +93,7 @@ describe("Sidebar", () => {
   it("в свёрнутом режиме показывает только иконку логотипа", async () => {
     const user = userEvent.setup();
 
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     expect(screen.getByText("DEVSYNC")).toBeInTheDocument();
 
@@ -103,11 +110,7 @@ describe("Sidebar", () => {
   it("открывает меню пользователя с профилем и выходом", async () => {
     const user = userEvent.setup();
 
-    render(
-      <Sidebar>
-        <h1>Контент дашборда</h1>
-      </Sidebar>,
-    );
+    renderSidebar(<h1>Контент дашборда</h1>);
 
     await user.click(screen.getByRole("button", { name: /Sarah Jenkins/i }));
 

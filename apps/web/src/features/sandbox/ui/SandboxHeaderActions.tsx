@@ -5,6 +5,7 @@ import {
   CameraIcon,
   MoonIcon,
   PlayIcon,
+  SlidersIcon,
   SunIcon,
   UndoIcon,
 } from "@packages/icons";
@@ -36,7 +37,7 @@ export function SandboxHeaderActions({
   onRunCode,
 }: SandboxHeaderActionsProps) {
   const { t } = useTranslation("interview");
-  const { isCallConnected: isInCall } = useSandboxMedia();
+  const { isCallConnected: isInCall, setIsSettingsOpen } = useSandboxMedia();
   const isRunning = useSandboxStore((s) => s.isRunning);
   const language = useSandboxStore((s) => s.language);
   const setLanguage = useSandboxStore((s) => s.setLanguage);
@@ -127,6 +128,18 @@ export function SandboxHeaderActions({
         ) : (
           <MoonIcon className="size-4" />
         )}
+      </Button>
+
+      {/* Настройки звука, речи и устройств */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setIsSettingsOpen(true)}
+        className="size-9 text-muted-foreground hover:text-foreground cursor-pointer"
+        title={t("sandbox.videoWidget.controls.settingsTooltip")}
+        aria-label={t("sandbox.videoWidget.controls.settingsTooltip")}
+      >
+        <SlidersIcon className="size-4" />
       </Button>
 
       {/* Сброс кода */}
