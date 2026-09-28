@@ -221,7 +221,8 @@ export const OncePerSessionMode: Story = {
 
     const handleClearStorage = () => {
       try {
-        sessionStorage.removeItem("storybook_demo_once_key");
+        const activeKey = args.sessionKey ?? "storybook_demo_once_key";
+        sessionStorage.removeItem(activeKey);
         setKey((k) => k + 1);
       } catch {
         // ignore

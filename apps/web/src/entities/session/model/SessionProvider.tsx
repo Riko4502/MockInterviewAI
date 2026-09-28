@@ -84,7 +84,7 @@ export function SessionProvider({
         isReady={isReady}
         minDuration={minDuration}
         fadeDuration={fadeDuration}
-        oncePerSession={shouldBeOncePerSession}
+        oncePerSession={shouldBeOncePerSession && isReady}
         title={t.title}
         badgeText={t.badges.sync}
         description={t.descriptions.sessionRestore}

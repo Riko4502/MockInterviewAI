@@ -69,28 +69,42 @@ export function AppPreloader({
 
     hasStartedFadeRef.current = true;
 
-    if (oncePerSession && typeof window !== "undefined") {
-      try {
-        sessionStorage.setItem(sessionKey, "true");
-      } catch {
-        // Игнорируем ошибки sessionStorage
-      }
-    }
-
     if (fadeDuration === 0) {
+      if (oncePerSession && typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(sessionKey, "true");
+        } catch {
+          // Игнорируем ошибки sessionStorage
+        }
+      }
       setShouldRender(false);
       onCompleteRef.current?.();
       return;
     }
 
+    let isCompleted = false;
     setIsFading(true);
 
     const unmountTimer = setTimeout(() => {
+      isCompleted = true;
+      if (oncePerSession && typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(sessionKey, "true");
+        } catch {
+          // Игнорируем ошибки sessionStorage
+        }
+      }
       setShouldRender(false);
       onCompleteRef.current?.();
     }, fadeDuration);
 
-    return () => clearTimeout(unmountTimer);
+    return () => {
+      clearTimeout(unmountTimer);
+      if (!isCompleted) {
+        setIsFading(false);
+        hasStartedFadeRef.current = false;
+      }
+    };
   }, [
     minTimeElapsed,
     isReady,

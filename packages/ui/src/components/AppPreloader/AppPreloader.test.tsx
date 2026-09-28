@@ -142,4 +142,88 @@ describe("AppPreloader Component", () => {
     });
     expect(btn.parentElement?.hasAttribute("inert")).toBe(false);
   });
+
+  it("recovers from interrupted fade if isReady becomes false during fading", () => {
+    const { rerender } = render(
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={true}
+        minDuration={1000}
+        fadeDuration={500}
+      >
+        <button type="button" data-testid="action-btn">
+          Action
+        </button>
+      </AppPreloader>,
+    );
+
+    const btn = screen.getByTestId("action-btn");
+    const preloader = screen.getByTestId("app-preloader");
+
+    // Advance past minDuration to start fading
+    act(() => {
+      vi.advanceTimersByTime(1001);
+    });
+
+    expect(preloader.className).toContain("opacity-0");
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(true);
+
+    // Interrupt fade midway (e.g. 200ms into 500ms fadeDuration) by setting isReady = false
+    rerender(
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={false}
+        minDuration={1000}
+        fadeDuration={500}
+      >
+        <button type="button" data-testid="action-btn">
+          Action
+        </button>
+      </AppPreloader>,
+    );
+
+    // Fade state should be reset: preloader is visible again, not stuck in opacity-0
+    expect(preloader.className).toContain("opacity-100");
+    expect(screen.queryByTestId("app-preloader")).not.toBeNull();
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(true);
+
+    // Advance time while still not ready - should stay visible
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByTestId("app-preloader")).not.toBeNull();
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(true);
+
+    // Now become ready again
+    rerender(
+      <AppPreloader
+        title="Loading"
+        description="Please wait..."
+        isReady={true}
+        minDuration={1000}
+        fadeDuration={500}
+      >
+        <button type="button" data-testid="action-btn">
+          Action
+        </button>
+      </AppPreloader>,
+    );
+
+    // Should restart fade
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(preloader.className).toContain("opacity-0");
+
+    // Complete the full fadeDuration
+    act(() => {
+      vi.advanceTimersByTime(501);
+    });
+
+    // Successfully unmounted and inert removed from children
+    expect(screen.queryByTestId("app-preloader")).toBeNull();
+    expect(btn.parentElement?.hasAttribute("inert")).toBe(false);
+  });
 });
