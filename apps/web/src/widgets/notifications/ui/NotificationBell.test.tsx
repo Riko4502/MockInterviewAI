@@ -191,6 +191,17 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("У вас пока нет уведомлений")).toBeTruthy();
   });
 
+  it("marks each preview item with its category icon", async () => {
+    const user = renderBell();
+    await openBell(user);
+    await screen.findByText("Уведомление 0");
+    const icons = document.querySelectorAll("[data-category]");
+    expect(icons).toHaveLength(5);
+    for (const icon of icons) {
+      expect(icon.getAttribute("data-category")).toBe("SYSTEM");
+    }
+  });
+
   it("blocks repeated mark-all requests and refreshes the unread count", async () => {
     const pending = deferred();
     readResponse = pending.promise;

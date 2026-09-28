@@ -124,6 +124,21 @@ describe("NotificationsList", () => {
     ).toBeTruthy();
   });
 
+  it("отображает иконку категории каждого уведомления", async () => {
+    items = [
+      notification("Интервью", "INTERVIEW"),
+      notification("Сообщение", "MESSAGE"),
+      notification("Системное", "SYSTEM"),
+    ];
+    const { container } = renderList();
+    await screen.findByText("Интервью");
+    expect(
+      Array.from(container.querySelectorAll("[data-category]")).map((icon) =>
+        icon.getAttribute("data-category"),
+      ),
+    ).toEqual(["INTERVIEW", "MESSAGE", "SYSTEM"]);
+  });
+
   it("отмечает уведомление прочитанным до перехода", async () => {
     let resolveRead!: () => void;
     readResponse = new Promise<void>((resolve) => {
