@@ -141,7 +141,9 @@ test.describe("Контроль доступа", () => {
     ).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /Тестовый пользователь/ }).click();
-    await expect(page.getByRole("menuitem", { name: "Профиль" })).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Настройки", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Выйти" })).toBeVisible();
     expect(pageErrors).toEqual([]);
   });

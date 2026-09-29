@@ -19,12 +19,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
-import {
-  localeLabels,
-  locales,
-  THEME_MODES,
-  type ThemeMode,
-} from "@packages/dto";
+import { localeLabels, locales, THEME_MODES } from "@packages/dto";
 import {
   createProfileFormSchema,
   type ProfileFormValues,
