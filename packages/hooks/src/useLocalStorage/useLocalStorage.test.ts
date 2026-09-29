@@ -140,4 +140,31 @@ describe("useLocalStorage", () => {
     expect(result.current[0]).toBe(1);
     expect(window.localStorage.getItem("counter-key")).toBe("1");
   });
+
+  it("не вызывает бесконечный цикл рендеров и сохраняет стабильность при inline deserializer и serializer", () => {
+    window.localStorage.setItem(
+      "object-key",
+      JSON.stringify({ message: "hello" }),
+    );
+
+    const { result, rerender } = renderHook(() =>
+      useLocalStorage(
+        "object-key",
+        { message: "initial" },
+        {
+          deserializer: (s) => JSON.parse(s),
+          serializer: (val) => JSON.stringify(val),
+        },
+      ),
+    );
+
+    const initialSetValue = result.current[1];
+    expect(result.current[0]).toEqual({ message: "hello" });
+
+    // Повторный рендер с новыми ссылками на inline-функции
+    rerender();
+
+    expect(result.current[0]).toEqual({ message: "hello" });
+    expect(result.current[1]).toBe(initialSetValue);
+  });
 });

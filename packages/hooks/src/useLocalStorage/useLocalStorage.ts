@@ -44,6 +44,12 @@ export function useLocalStorage<T>(
   const initialValueRef = useRef(initialValue);
   initialValueRef.current = initialValue;
 
+  const deserializerRef = useRef(deserializer);
+  deserializerRef.current = deserializer;
+
+  const serializerRef = useRef(serializer);
+  serializerRef.current = serializer;
+
   const getInitialValue = useCallback((): T => {
     return initialValueRef.current instanceof Function
       ? initialValueRef.current()
@@ -58,14 +64,14 @@ export function useLocalStorage<T>(
     try {
       const item = window.localStorage.getItem(key);
       if (item !== null) {
-        return deserializer(item);
+        return deserializerRef.current(item);
       }
     } catch (error) {
       console.warn(`[useLocalStorage] Ошибка чтения ключа "${key}":`, error);
     }
 
     return getInitialValue();
-  }, [key, deserializer, getInitialValue]);
+  }, [key, getInitialValue]);
 
   const [storedValue, setStoredValue] = useState<T>(getInitialValue);
 
@@ -87,7 +93,7 @@ export function useLocalStorage<T>(
             ? (value as (prev: T) => T)(storedValueRef.current)
             : value;
 
-        window.localStorage.setItem(key, serializer(valueToStore));
+        window.localStorage.setItem(key, serializerRef.current(valueToStore));
         storedValueRef.current = valueToStore;
         setStoredValue(valueToStore);
 
@@ -100,7 +106,7 @@ export function useLocalStorage<T>(
         console.warn(`[useLocalStorage] Ошибка записи ключа "${key}":`, error);
       }
     },
-    [key, serializer],
+    [key],
   );
 
   const removeValue = useCallback(() => {
