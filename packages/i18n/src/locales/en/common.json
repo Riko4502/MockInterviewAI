@@ -26,9 +26,12 @@
     "findPartners": "Find Partners",
     "statistics": "Statistics",
     "resources": "Resources",
-    "sandbox": "Practice Sandbox",
+    "sandbox": "Sandbox",
+    "workspace": "Workspace",
+    "analytics": "Learning & Analytics",
     "settings": "Settings",
     "mediaSettings": "Audio & Video Settings",
+    "theme": "Theme",
     "profile": "Profile",
     "login": "Log in",
     "register": "Sign up",
@@ -95,5 +98,73 @@
     "open": "Open notifications",
     "deleteAria": "Delete notification: {{title}}",
     "updateError": "Could not update the notification. Please try again."
+  },
+  "loading": {
+    "title": "MockInterview AI",
+    "landingTitle": "DEVSYNC",
+    "badges": {
+      "system": "SYSTEM INITIALIZATION",
+      "auth": "AUTHENTICATION",
+      "workspace": "WORKSPACE",
+      "redirect": "REDIRECTING",
+      "sync": "SYNCHRONIZATION",
+      "access": "ACCESS VERIFICATION"
+    },
+    "descriptions": {
+      "default": "Preparing workspace...",
+      "landing": "Loading technical AI interview platform...",
+      "auth": "Loading account services...",
+      "workspace": "Loading protected workspace...",
+      "sessionRestore": "Restoring secure session...",
+      "accessCheck": "Verifying page access permissions...",
+      "redirectLogin": "Redirecting to login page...",
+      "redirectDashboard": "Redirecting to dashboard..."
+    },
+    "steps": {
+      "landing": [
+        "Initializing platform services",
+        "Preparing interactive components",
+        "Launching live platform overview"
+      ],
+      "root": [
+        "Checking system environment",
+        "Synchronizing platform services",
+        "Loading user interface",
+        "Launching workspace"
+      ],
+      "guest": [
+        "Connecting to authentication gateway",
+        "Verifying secure connection",
+        "Preparing login form"
+      ],
+      "protected": [
+        "Verifying workspace access rights",
+        "Synchronizing profile and active sessions",
+        "Initializing AI interviewer and sandbox",
+        "Ready to practice"
+      ],
+      "sessionRestore": [
+        "Verifying authentication parameters",
+        "Synchronizing developer profile",
+        "Preparing workspace"
+      ],
+      "accessCheck": [
+        "Checking session status",
+        "Routing request",
+        "Preparing interface"
+      ],
+      "redirectLogin": [
+        "Session not authorized",
+        "Preparing authentication form",
+        "Navigating to login page"
+      ],
+      "redirectDashboard": [
+        "Session confirmed",
+        "Loading developer profile",
+        "Navigating to workspace"
+      ]
+    },
+    "systemActive": "AI SYSTEM ACTIVE",
+    "brandLabel": "MOCK INTERVIEW AI"
   }
 }

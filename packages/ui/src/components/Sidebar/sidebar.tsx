@@ -6,7 +6,7 @@ import { Separator } from "@components/Separator";
 import { Sheet } from "@components/Sheet";
 import { Skeleton } from "@components/Skeleton";
 import { Tooltip } from "@components/Tooltip";
-import { useIsMobile } from "@hooks/use-is-mobile";
+import { useIsMobile, useLocalStorage } from "@packages/hooks";
 import { MenuIcon } from "@packages/icons";
 import { cn } from "@packages/utils";
 import { Slot } from "radix-ui";
@@ -55,9 +55,18 @@ const SidebarContext = React.createContext<SidebarContextValue | null>(null);
  * Хук доступа к состоянию боковой панели.
  * Должен вызываться внутри `Sidebar.Provider`.
  */
-export function useSidebar() {
+export function useSidebar(options: {
+  optional: true;
+}): SidebarContextValue | null;
+export function useSidebar(options?: { optional?: false }): SidebarContextValue;
+export function useSidebar(options?: {
+  optional?: boolean;
+}): SidebarContextValue | null {
   const context = React.useContext(SidebarContext);
   if (!context) {
+    if (options?.optional) {
+      return null;
+    }
     throw new Error("useSidebar должен использоваться внутри Sidebar.Provider");
   }
 
@@ -76,7 +85,10 @@ function SidebarProvider({
 }: SidebarProviderProps) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useLocalStorage<boolean>(
+    SIDEBAR_COOKIE_NAME,
+    defaultOpen,
+  );
   const open = openProp ?? uncontrolledOpen;
 
   const setOpen = React.useCallback<SidebarContextValue["setOpen"]>(
@@ -88,10 +100,12 @@ function SidebarProvider({
         setUncontrolledOpen(openState);
       }
 
-      // biome-ignore lint/suspicious/noDocumentCookie: persist sidebar open state on the client
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      if (typeof document !== "undefined") {
+        // biome-ignore lint/suspicious/noDocumentCookie: persist sidebar open state on the client
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      }
     },
-    [open, setOpenProp],
+    [open, setOpenProp, setUncontrolledOpen],
   );
 
   const toggleSidebar = React.useCallback(() => {
