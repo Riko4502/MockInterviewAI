@@ -42,8 +42,12 @@ function renderWithProviders(ui: React.ReactElement) {
     <QueryClientProvider client={queryClient}>
       <SessionContext.Provider
         value={{
+          userId: null,
+          role: null,
+          permissions: 0n,
           isAuthenticated: false,
           status: "unauthenticated",
+          isProfileLoading: false,
           startSession: vi.fn(),
           clearSession: vi.fn(),
         }}

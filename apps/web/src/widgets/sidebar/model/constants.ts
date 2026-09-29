@@ -43,3 +43,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: BookIcon,
   },
 ];
+
+export const ADMIN_NAV_ITEMS: NavItem[] = [
+  {
+    labelKey: "navigation.adminUsers",
+    href: paths.adminUsers,
+    icon: UsersIcon,
+  },
+];

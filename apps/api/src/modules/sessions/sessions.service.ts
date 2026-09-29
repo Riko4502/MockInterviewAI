@@ -166,6 +166,85 @@ return 1
 `;
 
 /**
+ * Lua-скрипт для атомарной сверки зеркала сессии в Redis.
+ *
+ * Гарантирует:
+ * 1. Защиту от race conditions с closeSession: если статус в Redis уже "closed",
+ *    сессия не воскрешается (возвращает 0).
+ * 2. Атомарную очистку и полную замену участников (session:<id>:members) для исключения зомби-доступа.
+ * 3. Продление TTL существующего инвайт-токена или установку fallback-токена, исключая поломку валидных ссылок.
+ * 4. Батчинг всех Redis-операций в 1 сетевой roundtrip.
+ *
+ * KEYS[1]: sessionActiveKey (session:<id>:active)
+ * KEYS[2]: sessionMembersKey (session:<id>:members)
+ * KEYS[3]: sessionInviteKey (session:<id>:invite)
+ * ARGV[1]: activeValue ("true")
+ * ARGV[2]: closedValue ("closed")
+ * ARGV[3]: ttlSeconds
+ * ARGV[4]: fallbackInviteToken
+ * ARGV[5..]: userId1, role1, userId2, role2...
+ */
+export const RECONCILE_SESSION_MIRROR_LUA = `
+local activeVal = redis.call('GET', KEYS[1])
+if activeVal == ARGV[2] then
+  return { 0, '' }
+end
+
+redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
+
+redis.call('DEL', KEYS[2])
+local numArgs = #ARGV
+if numArgs >= 6 then
+  for i = 5, numArgs, 2 do
+    redis.call('HSET', KEYS[2], ARGV[i], ARGV[i + 1])
+  end
+  redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+end
+
+local existingInvite = redis.call('GET', KEYS[3])
+local chosenInvite = existingInvite
+if chosenInvite and chosenInvite ~= '' then
+  redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
+else
+  chosenInvite = ARGV[4]
+  redis.call('SET', KEYS[3], chosenInvite, 'EX', tonumber(ARGV[3]))
+end
+
+return { 1, chosenInvite }
+`;
+
+/** Участник интервью-сессии для синхронизации зеркала в Redis. */
+export interface SessionMirrorParticipant {
+  userId: string;
+  role: InterviewParticipantRole;
+}
+
+/** Данные интервью-сессии для сверки и прогрева зеркала в Redis. */
+export interface SessionMirrorData {
+  id: string;
+  inviteToken?: string | null;
+  participants: SessionMirrorParticipant[];
+}
+
+/**
+ * Ошибка выполнения post-commit операций (Redis, Pub/Sub, кэш) при создании live-match сессии.
+ * Сигнализирует о том, что сессия успешно закоммичена в PostgreSQL (ACTIVE),
+ * поэтому участников нельзя возвращать в очередь, а сессию нельзя удалять.
+ */
+export class LiveMatchPostCommitError extends Error {
+  constructor(
+    public readonly sessionId: string,
+    public readonly inviteToken: string,
+    public readonly cause: unknown,
+  ) {
+    super(
+      `Live match session ${sessionId} committed, but post-commit operations failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    this.name = "LiveMatchPostCommitError";
+  }
+}
+
+/**
  * Управляет интервью-сессиями и их Redis-зеркалом (источник правды о членстве).
  *
  * Postgres (Prisma) — синхронная правда; Redis-зеркало (
@@ -234,9 +313,11 @@ export class SessionsService {
   async createSession(
     creatorUserId: string,
   ): Promise<{ sessionId: string; inviteToken: string }> {
+    const inviteToken = this.generateInviteToken();
     const session = await this.prisma.interviewSession.create({
       data: {
         userId: creatorUserId,
+        inviteToken,
         participants: {
           create: {
             userId: creatorUserId,
@@ -258,7 +339,6 @@ export class SessionsService {
       this.mirrorTtlSeconds,
     );
 
-    const inviteToken = this.generateInviteToken(session.id);
     await this.redis.set(
       sessionInviteKey(session.id),
       inviteToken,
@@ -286,6 +366,129 @@ export class SessionsService {
     this.logger.log(
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
     );
+    await this.invalidateUserDashboard(creatorUserId);
+    return { sessionId: session.id, inviteToken };
+  }
+
+  /**
+   * Инвалидирует кэш дашборда пользователя (upcoming, stats, readiness, recent).
+   * Вызывается при создании, изменении состава и закрытии сессий (TASK-BACK-45).
+   */
+  private async invalidateUserDashboard(userId: string): Promise<void> {
+    try {
+      await Promise.all([
+        this.redis.delete(`cache:dashboard:upcoming:${userId}`),
+        this.redis.delete(`cache:dashboard:stats:${userId}`),
+        this.redis.delete(`cache:dashboard:readiness:${userId}`),
+      ]);
+      const recentKeys = await this.redis.scanKeys(
+        `cache:dashboard:recent:${userId}:*`,
+      );
+      if (recentKeys.length > 0) {
+        await Promise.all(recentKeys.map((k) => this.redis.delete(k)));
+      }
+    } catch (err) {
+      this.logger.warn(
+        `failed to invalidate dashboard cache for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Идемпотентно прогревает Redis-зеркало для участников сессии мгновенного матча.
+   */
+  async warmLiveMatchMirror(
+    sessionId: string,
+    firstUserId: string,
+    secondUserId: string,
+    inviteToken: string,
+  ): Promise<void> {
+    await this.redis.set(
+      sessionActiveKey(sessionId),
+      ACTIVE_VALUE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      firstUserId,
+      InterviewParticipantRole.CANDIDATE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      secondUserId,
+      InterviewParticipantRole.INTERVIEWER,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.set(
+      sessionInviteKey(sessionId),
+      inviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    try {
+      await this.seedTaskDoc(sessionId, DEFAULT_TASK_KEY, "");
+    } catch (error) {
+      this.logger.warn(
+        `failed to seed initial task doc for live match session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Создает сессию мгновенного матча для двоих участников со статусом ACTIVE,
+   * сохраняет inviteToken в Postgres и прогревает Redis-зеркало для обоих участников (CWE-613).
+   * При post-commit ошибках оборачивает исключение в LiveMatchPostCommitError с sessionId.
+   */
+  async createLiveMatchSession(
+    firstUserId: string,
+    secondUserId: string,
+  ): Promise<{ sessionId: string; inviteToken: string }> {
+    const inviteToken = this.generateInviteToken();
+    const session = await this.prisma.interviewSession.create({
+      data: {
+        userId: firstUserId,
+        status: InterviewSessionStatus.ACTIVE,
+        inviteToken,
+        startedAt: new Date(),
+        participants: {
+          create: [
+            {
+              userId: firstUserId,
+              role: InterviewParticipantRole.CANDIDATE,
+            },
+            {
+              userId: secondUserId,
+              role: InterviewParticipantRole.INTERVIEWER,
+            },
+          ],
+        },
+      },
+    });
+
+    try {
+      await this.warmLiveMatchMirror(
+        session.id,
+        firstUserId,
+        secondUserId,
+        inviteToken,
+      );
+
+      this.logger.log(
+        `created live match session ${session.id} for users ${firstUserId} & ${secondUserId}`,
+      );
+      await Promise.all([
+        this.invalidateUserDashboard(firstUserId),
+        this.invalidateUserDashboard(secondUserId),
+      ]);
+    } catch (postCommitError) {
+      throw new LiveMatchPostCommitError(
+        session.id,
+        inviteToken,
+        postCommitError,
+      );
+    }
+
     return { sessionId: session.id, inviteToken };
   }
 
@@ -361,6 +564,39 @@ export class SessionsService {
         throw new ForbiddenException("Session is closed");
       }
 
+      // Синхронизация и сохранение фактически выбранного токена до валидации:
+      // 1. Если токен есть в Redis, но отсутствует в Postgres (legacy-сессия) — сохраняем фактически выбранный токен в Postgres
+      if (activeInviteToken && !fresh.inviteToken) {
+        await tx.interviewSession.update({
+          where: { id: sessionId },
+          data: { inviteToken: activeInviteToken },
+        });
+        fresh.inviteToken = activeInviteToken;
+      } else if (!activeInviteToken && fresh.inviteToken) {
+        // 2. Если зеркало токена в Redis остыло (null), восстанавливаем из БД (TASK-BACK-37)
+        activeInviteToken = fresh.inviteToken;
+        await this.redis.set(
+          sessionInviteKey(sessionId),
+          activeInviteToken,
+          this.mirrorTtlSeconds,
+        );
+      } else if (!activeInviteToken && !fresh.inviteToken) {
+        // 3. Fallback: в legacy-сессии с истёкшим Redis-ключом токен отсутствует везде.
+        // Генерируем fallback-токен и сохраняем согласованно в Postgres и Redis до проверок доступа.
+        const fallbackToken = this.generateInviteToken(sessionId);
+        activeInviteToken = fallbackToken;
+        fresh.inviteToken = fallbackToken;
+        await tx.interviewSession.update({
+          where: { id: sessionId },
+          data: { inviteToken: fallbackToken },
+        });
+        await this.redis.set(
+          sessionInviteKey(sessionId),
+          fallbackToken,
+          this.mirrorTtlSeconds,
+        );
+      }
+
       const existingParticipant = fresh.participants.find(
         (p) => p.userId === userId,
       );
@@ -376,6 +612,7 @@ export class SessionsService {
         activeInviteToken,
         inviteToken,
       );
+
       if (!isInviteValid) {
         throw new ForbiddenException(
           "User is not invited to this interview session",
@@ -410,34 +647,27 @@ export class SessionsService {
       throw new ForbiddenException("Session is closed");
     }
 
-    // Если токен в Redis отсутствовал (холодное зеркало), гарантируем его наличие
-    let effectiveInviteToken: string | null = activeInviteToken;
-    if (!effectiveInviteToken) {
-      const generatedToken = this.generateInviteToken(sessionId);
-      await this.redis.set(
-        sessionInviteKey(sessionId),
-        generatedToken,
-        this.mirrorTtlSeconds,
-      );
-      effectiveInviteToken = generatedToken;
-    }
-
     this.logger.log(
       `user ${userId} joined session ${sessionId} as ${participant.role}`,
     );
 
+    await this.invalidateUserDashboard(userId);
+
     return {
       role: participant.role as InterviewParticipantRole,
-      inviteToken: effectiveInviteToken,
+      inviteToken: activeInviteToken ?? "",
     };
   }
 
   /**
    * Ротирует invite-токен сессии: генерирует новый криптографически стойкий токен,
-   * сохраняет его в Redis с обновлением TTL и возвращает `{ inviteToken }`.
+   * сохраняет его в Postgres и Redis с обновлением TTL и возвращает `{ inviteToken }`.
    * Старый токен мгновенно становится невалидным (CWE-613).
    */
-  async rotateInviteToken(sessionId: string): Promise<{ inviteToken: string }> {
+  async rotateInviteToken(
+    sessionId: string,
+    callerUserId?: string,
+  ): Promise<{ inviteToken: string }> {
     if (!UUID_REGEX.test(sessionId)) {
       throw new NotFoundException("Session not found");
     }
@@ -448,11 +678,20 @@ export class SessionsService {
     if (!session) {
       throw new NotFoundException("Session not found");
     }
+    if (callerUserId && session.userId !== callerUserId) {
+      throw new ForbiddenException(
+        "Only the session owner can perform this action",
+      );
+    }
     if (session.status === InterviewSessionStatus.CLOSED) {
       throw new ForbiddenException("Session is closed");
     }
 
     const newInviteToken = this.generateInviteToken(sessionId);
+    await this.prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { inviteToken: newInviteToken },
+    });
     await this.redis.set(
       sessionInviteKey(sessionId),
       newInviteToken,
@@ -464,37 +703,17 @@ export class SessionsService {
   }
 
   /**
-   * Добавляет участника в сессию (только владелец): запись в Postgres +
+   * Добавляет участника в сессию (только владелец): валидация UUID, проверка
+   * статуса (не CLOSED) и лимита участников под FOR UPDATE, запись в Postgres +
    * HSET в зеркало с продлением TTL.
    */
   async addParticipant(
     sessionId: string,
     userId: string,
     role: InterviewParticipantRole,
+    callerUserId?: string,
   ): Promise<void> {
-    await this.prisma.interviewParticipant.upsert({
-      where: { sessionId_userId: { sessionId, userId } },
-      create: { sessionId, userId, role },
-      update: { role },
-    });
-
-    await this.redis.hset(
-      sessionMembersKey(sessionId),
-      userId,
-      role,
-      this.mirrorTtlSeconds,
-    );
-  }
-
-  /**
-   * Удаляет участника из сессии:
-   * 1. В транзакции блокирует строку сессии (FOR UPDATE), ротирует invite-токен
-   *    в Redis и удаляет участника из Postgres под тем же замком, исключая race condition с joinSession (CWE-613).
-   * 2. После завершения транзакции выполняет HDEL из зеркала и публикует
-   *    room-scoped ревокацию в realtime (WS 1008).
-   */
-  async removeParticipant(sessionId: string, userId: string): Promise<void> {
-    if (!UUID_REGEX.test(sessionId)) {
+    if (!UUID_REGEX.test(sessionId) || !UUID_REGEX.test(userId)) {
       throw new NotFoundException("Session not found");
     }
 
@@ -507,8 +726,108 @@ export class SessionsService {
         throw new NotFoundException("Session not found");
       }
 
+      const session = await tx.interviewSession.findUnique({
+        where: { id: sessionId },
+        include: { participants: true },
+      });
+
+      if (!session) {
+        throw new NotFoundException("Session not found");
+      }
+
+      if (callerUserId && session.userId !== callerUserId) {
+        throw new ForbiddenException(
+          "Only the session owner can perform this action",
+        );
+      }
+
+      if (session.status === InterviewSessionStatus.CLOSED) {
+        throw new ForbiddenException("Session is closed");
+      }
+
+      const isExisting = session.participants.some((p) => p.userId === userId);
+      if (
+        !isExisting &&
+        session.participants.length >= this.maxSessionParticipants
+      ) {
+        throw new ForbiddenException("Interview session is full");
+      }
+
+      await tx.interviewParticipant.upsert({
+        where: { sessionId_userId: { sessionId, userId } },
+        create: { sessionId, userId, role },
+        update: { role },
+      });
+    });
+
+    await this.redis.hset(
+      sessionMembersKey(sessionId),
+      userId,
+      role,
+      this.mirrorTtlSeconds,
+    );
+    await this.invalidateUserDashboard(userId);
+  }
+
+  /**
+   * Удаляет участника из сессии:
+   * 1. В транзакции блокирует строку сессии (FOR UPDATE), ротирует invite-токен
+   *    в Postgres и Redis и удаляет участника из Postgres под тем же замком, исключая race condition с joinSession (CWE-613).
+   * 2. После завершения транзакции выполняет HDEL из зеркала и публикует
+   *    room-scoped ревокацию в realtime (WS 1008).
+   */
+  async removeParticipant(
+    sessionId: string,
+    userId: string,
+    callerUserId?: string,
+  ): Promise<void> {
+    if (!UUID_REGEX.test(sessionId) || !UUID_REGEX.test(userId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "interview_sessions" WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+
+      if (!locked.length) {
+        throw new NotFoundException("Session not found");
+      }
+
+      const session = await tx.interviewSession.findUnique({
+        where: { id: sessionId },
+        include: { participants: true },
+      });
+
+      if (!session) {
+        throw new NotFoundException("Session not found");
+      }
+
+      if (callerUserId && session.userId !== callerUserId) {
+        throw new ForbiddenException(
+          "Only the session owner can perform this action",
+        );
+      }
+
+      if (session.status === InterviewSessionStatus.CLOSED) {
+        throw new ForbiddenException("Session is closed");
+      }
+
+      if (session.userId === userId) {
+        throw new ForbiddenException("Cannot remove session owner");
+      }
+
+      const participant = session.participants.find((p) => p.userId === userId);
+      if (!participant) {
+        throw new NotFoundException("Participant not found in session");
+      }
+
       // Инвалидируем старый инвайт-токен путём ротации нового под тем же lock
       const newInviteToken = this.generateInviteToken(sessionId);
+      await tx.interviewSession.update({
+        where: { id: sessionId },
+        data: { inviteToken: newInviteToken },
+      });
       await this.redis.set(
         sessionInviteKey(sessionId),
         newInviteToken,
@@ -530,6 +849,8 @@ export class SessionsService {
     // Выселяем участника из активного realtime WS (1008)
     await publishUserRevocation(this.redis, userId, sessionId);
 
+    await this.invalidateUserDashboard(userId);
+
     this.logger.log(
       `removed user ${userId} from session ${sessionId} and rotated invite token`,
     );
@@ -541,7 +862,11 @@ export class SessionsService {
    * (room-scoped evict в realtime). Ревокации публикуются по участникам ДО
    * удаления зеркала, чтобы закрывающийся не переподключался (P2).
    */
-  async closeSession(sessionId: string): Promise<void> {
+  async closeSession(sessionId: string, callerUserId?: string): Promise<void> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { participants: true },
@@ -550,11 +875,22 @@ export class SessionsService {
       throw new NotFoundException("Session not found");
     }
 
+    if (callerUserId && session.userId !== callerUserId) {
+      throw new ForbiddenException(
+        "Only the session owner can perform this action",
+      );
+    }
+
+    // TASK-BACK-39: Если сессия уже закрыта, не перезаписываем endedAt
+    if (session.status === InterviewSessionStatus.CLOSED) {
+      return;
+    }
+
     const participants = session.participants;
 
     await this.prisma.interviewSession.update({
       where: { id: sessionId },
-      data: { status: "CLOSED", endedAt: new Date() },
+      data: { status: InterviewSessionStatus.CLOSED, endedAt: new Date() },
     });
 
     // Room-scoped evict: публикуем ревокацию по каждому участнику с sessionId.
@@ -573,58 +909,103 @@ export class SessionsService {
       this.mirrorTtlSeconds,
     );
 
-    // Удаляем инвайт-токен закрытой сессии
+    // TASK-BACK-38: Удаляем инвайт-токен и хэш участников закрытой сессии
     await this.redis.delete(sessionInviteKey(sessionId));
+    await this.redis.delete(sessionMembersKey(sessionId));
+
+    // TASK-BACK-45: Инвалидируем кэш дашборда для всех участников завершенной сессии
+    await Promise.all(
+      participants.map((p) => this.invalidateUserDashboard(p.userId)),
+    );
   }
 
   /**
    * Восстанавливает зеркало ACTIVE-сессий из Postgres после потери/flush Redis
-   * (P3). Интервал захардкожен (`EVERY_HOUR`): `@nestjs/schedule` не позволяет
-   * вычислить выражение декоратора динамически из `ConfigService`.
-   * Если нужен другой интервал — замените `CronExpression` ниже.
+   * с защитой от race conditions, зомби-участников и N+1 через атомарный Lua-скрипт.
+   *
+   * Использует распределенный замок (`RedisService.setNx`), курсорную пагинацию
+   * и изолированный try-catch для каждой сессии.
    */
   @Cron(CronExpression.EVERY_HOUR, { name: "session-mirror-reconcile" })
   async reconcileMirrors(): Promise<void> {
-    let restored = 0;
+    const lockKey = "lock:cron:session-mirror-reconcile";
+    const lockToken = randomBytes(16).toString("hex");
+    const lockTtlSeconds = 300;
 
+    let acquired = false;
     try {
-      const sessions = await this.prisma.interviewSession.findMany({
-        where: { status: "ACTIVE" },
-        include: { participants: true },
-      });
-
-      for (const session of sessions) {
-        const activeKey = sessionActiveKey(session.id);
-        const membersKey = sessionMembersKey(session.id);
-        const inviteKey = sessionInviteKey(session.id);
-
-        const exists = await this.redis.exists(activeKey);
-        await this.redis.set(activeKey, ACTIVE_VALUE, this.mirrorTtlSeconds);
-        if (!exists) {
-          restored++;
-        }
-
-        for (const participant of session.participants) {
-          await this.redis.hset(
-            membersKey,
-            participant.userId,
-            participant.role.toString(),
-            this.mirrorTtlSeconds,
-          );
-        }
-
-        const existingInvite = await this.redis.get(inviteKey);
-        if (!existingInvite) {
-          const token = this.generateInviteToken(session.id);
-          await this.redis.set(inviteKey, token, this.mirrorTtlSeconds);
-        }
-      }
-    } catch (error) {
-      this.logger.error(
-        "reconcileMirrors: failed to reconcile mirror",
-        error instanceof Error ? error.stack : String(error),
+      acquired = await this.redis.setNx(lockKey, lockToken, lockTtlSeconds);
+    } catch (err) {
+      this.logger.warn(
+        `reconcileMirrors: failed to acquire lock due to Redis error: ${err instanceof Error ? err.message : String(err)}`,
       );
       return;
+    }
+
+    if (!acquired) {
+      this.logger.debug(
+        "reconcileMirrors: lock already held by another replica, skipping run",
+      );
+      return;
+    }
+
+    let restored = 0;
+    const BATCH_SIZE = 50;
+    let cursor: string | undefined;
+    let hasMore = true;
+
+    try {
+      while (hasMore) {
+        let sessions: SessionMirrorData[] = [];
+
+        try {
+          sessions = await this.prisma.interviewSession.findMany({
+            where: { status: InterviewSessionStatus.ACTIVE },
+            include: { participants: true },
+            take: BATCH_SIZE,
+            skip: cursor ? 1 : 0,
+            cursor: cursor ? { id: cursor } : undefined,
+            orderBy: { id: "asc" },
+          });
+        } catch (dbError) {
+          this.logger.error(
+            "reconcileMirrors: failed to fetch active sessions from Postgres",
+            dbError instanceof Error ? dbError.stack : String(dbError),
+          );
+          break;
+        }
+
+        if (sessions.length === 0) {
+          break;
+        }
+
+        cursor = sessions[sessions.length - 1].id;
+        if (sessions.length < BATCH_SIZE) {
+          hasMore = false;
+        }
+
+        for (const session of sessions) {
+          try {
+            const restoredCount = await this.reconcileSessionMirror(session);
+            restored += restoredCount;
+          } catch (sessionError) {
+            this.logger.error(
+              `reconcileMirrors: failed to reconcile session ${session.id}`,
+              sessionError instanceof Error
+                ? sessionError.stack
+                : String(sessionError),
+            );
+          }
+        }
+      }
+    } finally {
+      try {
+        await this.redis.compareAndDelete(lockKey, lockToken);
+      } catch (unlockError) {
+        this.logger.warn(
+          `reconcileMirrors: failed to release lock: ${unlockError instanceof Error ? unlockError.message : String(unlockError)}`,
+        );
+      }
     }
 
     if (restored > 0) {
@@ -635,11 +1016,167 @@ export class SessionsService {
   }
 
   /**
+   * Атомарно синхронизирует зеркало одной сессии в Redis через Lua-скрипт.
+   *
+   * @returns 1, если зеркало было успешно восстановлено/обновлено; 0, если сессия уже закрыта в Redis.
+   */
+  private async reconcileSessionMirror(
+    session: SessionMirrorData,
+  ): Promise<number> {
+    const activeKey = sessionActiveKey(session.id);
+    const membersKey = sessionMembersKey(session.id);
+    const inviteKey = sessionInviteKey(session.id);
+    const fallbackToken =
+      session.inviteToken ?? this.generateInviteToken(session.id);
+
+    const membersArgs: string[] = [];
+    for (const p of session.participants) {
+      membersArgs.push(p.userId, p.role.toString());
+    }
+
+    const result = await this.redis.eval<[number, string] | number>(
+      RECONCILE_SESSION_MIRROR_LUA,
+      3,
+      activeKey,
+      membersKey,
+      inviteKey,
+      ACTIVE_VALUE,
+      CLOSED_VALUE,
+      this.mirrorTtlSeconds,
+      fallbackToken,
+      ...membersArgs,
+    );
+
+    let status = 0;
+    let chosenToken: string | null = null;
+    if (Array.isArray(result)) {
+      status = Number(result[0]);
+      chosenToken =
+        typeof result[1] === "string" && result[1].length > 0
+          ? result[1]
+          : null;
+    } else if (typeof result === "number") {
+      status = result;
+      chosenToken = fallbackToken;
+    }
+
+    if (status !== 1) {
+      return 0;
+    }
+
+    // Сохраняем в Postgres именно фактически выбранный токен (существующий из Redis или сгенерированный fallback)
+    if (!session.inviteToken && chosenToken) {
+      try {
+        await this.prisma.interviewSession.update({
+          where: { id: session.id },
+          data: { inviteToken: chosenToken },
+        });
+        session.inviteToken = chosenToken;
+      } catch (dbError) {
+        this.logger.error(
+          `reconcileSessionMirror: failed to update inviteToken in Postgres for session ${session.id}`,
+          dbError instanceof Error ? dbError.stack : String(dbError),
+        );
+      }
+    }
+
+    return 1;
+  }
+
+  /**
+   * Application-level backfill для сохранения legacy-токенов ACTIVE-сессий в Postgres.
+   *
+   * Считывает текущий токен из sessionInviteKey в Redis и записывает его в Postgres.
+   * Для уже истёкших Redis-ключей старый токен восстановить нельзя (пропускаются,
+   * для таких сессий потребуется новая ссылка при подключении).
+   */
+  async backfillActiveInviteTokens(): Promise<{
+    total: number;
+    updated: number;
+    expired: number;
+  }> {
+    let total = 0;
+    let updated = 0;
+    let expired = 0;
+    const BATCH_SIZE = 50;
+    let cursor: string | undefined;
+    let hasMore = true;
+
+    while (hasMore) {
+      let sessions: Array<{ id: string; inviteToken: string | null }> = [];
+      try {
+        sessions = await this.prisma.interviewSession.findMany({
+          where: {
+            status: InterviewSessionStatus.ACTIVE,
+            inviteToken: null,
+          },
+          select: { id: true, inviteToken: true },
+          take: BATCH_SIZE,
+          skip: cursor ? 1 : 0,
+          cursor: cursor ? { id: cursor } : undefined,
+          orderBy: { id: "asc" },
+        });
+      } catch (dbError) {
+        this.logger.error(
+          "backfillActiveInviteTokens: failed to fetch active sessions from Postgres",
+          dbError instanceof Error ? dbError.stack : String(dbError),
+        );
+        break;
+      }
+
+      if (sessions.length === 0) {
+        break;
+      }
+
+      cursor = sessions[sessions.length - 1].id;
+      if (sessions.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+
+      for (const session of sessions) {
+        total++;
+        try {
+          const redisToken = await this.redis.get(sessionInviteKey(session.id));
+          if (redisToken && redisToken.trim().length > 0) {
+            await this.prisma.interviewSession.update({
+              where: { id: session.id },
+              data: { inviteToken: redisToken.trim() },
+            });
+            updated++;
+          } else {
+            expired++;
+            this.logger.warn(
+              `backfillActiveInviteTokens: Redis key expired for session ${session.id}; cannot restore legacy token, new link will be required`,
+            );
+          }
+        } catch (sessionError) {
+          this.logger.error(
+            `backfillActiveInviteTokens: error processing session ${session.id}`,
+            sessionError instanceof Error
+              ? sessionError.stack
+              : String(sessionError),
+          );
+        }
+      }
+    }
+
+    this.logger.log(
+      `backfillActiveInviteTokens completed: total=${total}, updated=${updated}, expired=${expired}`,
+    );
+
+    return { total, updated, expired };
+  }
+
+  /**
    * Возвращает владельца сессии (для авторизации владельцев).
    *
    * @throws {NotFoundException} Если сессия не существует (404).
    */
   async getOwner(sessionId: string): Promise<string> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       select: { userId: true },
