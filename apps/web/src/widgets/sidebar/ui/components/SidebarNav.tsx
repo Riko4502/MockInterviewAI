@@ -4,7 +4,7 @@ import { ChevronRightIcon } from "@packages/icons";
 import { Collapsible, Sidebar as UiSidebar, useSidebar } from "@packages/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNavItemActive } from "../../model/is-nav-item-active";
 import type { NavGroup, NavItem } from "../../model/types";
@@ -15,7 +15,7 @@ export interface SidebarNavProps {
   groups?: NavGroup[];
 }
 
-export function SidebarNav({ items, groups }: SidebarNavProps) {
+function SidebarNavBase({ items, groups }: SidebarNavProps) {
   const pathname = usePathname();
   const { t } = useTranslation("common");
   const sidebar = useSidebar({ optional: true });
@@ -119,3 +119,5 @@ export function SidebarNav({ items, groups }: SidebarNavProps) {
     </div>
   );
 }
+
+export const SidebarNav = memo(SidebarNavBase);
