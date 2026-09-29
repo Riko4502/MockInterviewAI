@@ -17,6 +17,7 @@ export { RefreshSessionError, refreshAccessToken } from "./auth/auth-session";
 export { authToken } from "./auth/auth-token";
 export { getApiUrl, realtimeWsUrl } from "./config/endpoints";
 export { baseFetch, HttpError } from "./http/base";
+export { subscribeToForbidden } from "./http/forbidden";
 export {
   createBaseFetchTransport,
   initApiTransport,

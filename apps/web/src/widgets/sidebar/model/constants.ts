@@ -59,3 +59,11 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
+
+export const ADMIN_NAV_ITEMS: NavItem[] = [
+  {
+    labelKey: "navigation.adminUsers",
+    href: paths.adminUsers,
+    icon: UsersIcon,
+  },
+];

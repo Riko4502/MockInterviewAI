@@ -1,4 +1,9 @@
 {
+  "roles": { "administrator": "Администратор" },
+  "errors": {
+    "forbiddenTitle": "Недостаточно прав",
+    "forbiddenDescription": "У вас нет прав для выполнения этого действия."
+  },
   "appName": "Mock Interview AI",
   "actions": {
     "save": "Сохранить",
@@ -12,6 +17,8 @@
     "switchLanguage": "Сменить язык"
   },
   "navigation": {
+    "administration": "Администрирование",
+    "adminUsers": "Пользователи",
     "home": "Главная",
     "dashboard": "Панель управления",
     "notifications": "Уведомления",

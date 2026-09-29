@@ -16,6 +16,7 @@ import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
 import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
@@ -66,6 +67,7 @@ import { RedisModule } from "./redis/redis.module";
     UsersModule,
     AuthModule,
     AdminModule,
+    DashboardModule,
     MailModule,
     StorageModule,
     SessionsModule,

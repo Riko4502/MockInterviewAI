@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RefreshSessionError, refreshAccessToken } from "../auth/auth-session";
 import { authToken } from "../auth/auth-token";
 import { baseFetch, HttpError } from "./base";
+import { subscribeToForbidden } from "./forbidden";
 
 vi.mock("../auth/auth-session", () => ({
   refreshAccessToken: vi.fn(),
@@ -18,13 +19,18 @@ vi.mock("../auth/auth-session", () => ({
 
 describe("baseFetch API Error Handling & Payload Preservation (CRIT-06)", () => {
   const originalFetch = globalThis.fetch;
+  const forbidden = vi.fn();
+  let unsubscribe: () => void;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    unsubscribe = subscribeToForbidden(forbidden);
     authToken.clear();
   });
 
   afterEach(() => {
+    unsubscribe();
+    vi.restoreAllMocks();
     globalThis.fetch = originalFetch;
     authToken.clear();
   });
@@ -300,5 +306,55 @@ describe("baseFetch API Error Handling & Payload Preservation (CRIT-06)", () => 
     await expect(baseFetch("/protected")).rejects.toBeInstanceOf(
       RefreshSessionError,
     );
+  });
+  it("200: returns the response without authorization side effects", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    await expect(baseFetch("/success")).resolves.toEqual({ ok: true });
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(forbidden).not.toHaveBeenCalled();
+  });
+
+  it("403: notifies and preserves the original error, token and location without refresh or logout", async () => {
+    authToken.set("valid-token");
+    const clear = vi.spyOn(authToken, "clear");
+    const location = window.location.href;
+    const payload = {
+      message: "Operation denied",
+      code: "INSUFFICIENT_PERMISSIONS",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json(payload, { status: 403 }));
+    globalThis.fetch = fetchMock;
+    await expect(baseFetch("/restricted")).rejects.toMatchObject({
+      name: "HttpError",
+      status: 403,
+      message: payload.message,
+      data: payload,
+    });
+    expect(forbidden).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(authToken.get()).toBe("valid-token");
+    expect(window.location.href).toBe(location);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a notification listener failure cannot replace the HTTP error", async () => {
+    const stop = subscribeToForbidden(() => {
+      throw new Error("notification failure");
+    });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(Response.json({ message: "Denied" }, { status: 403 }));
+    try {
+      await expect(baseFetch("/restricted")).rejects.toMatchObject({
+        name: "HttpError",
+        status: 403,
+        message: "Denied",
+      });
+    } finally {
+      stop();
+    }
   });
 });

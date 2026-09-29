@@ -67,6 +67,14 @@ on:
         type: string
         required: false
         default: ''
+      code_runner_result:
+        type: string
+        required: false
+        default: 'skipped'
+      code_runner_coverage:
+        type: string
+        required: false
+        default: ''
     secrets:
       TELEGRAM_BOT_TOKEN:
         required: false
@@ -100,6 +108,8 @@ jobs:
           ED_COV: ${{ inputs.editor_coverage }}
           TB_RES: ${{ inputs.telegram_bot_result }}
           TB_COV: ${{ inputs.telegram_bot_coverage }}
+          CR_RES: ${{ inputs.code_runner_result }}
+          CR_COV: ${{ inputs.code_runner_coverage }}
           SEC_RES: ${{ inputs.security_result }}
           RAW_COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
@@ -111,9 +121,9 @@ jobs:
             exit 0
           fi
 
-          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$LANDING_RES" = "failure" ] || [ "$API_RES" = "failure" ] || [ "$SB_RES" = "failure" ] || [ "$ED_RES" = "failure" ] || [ "$TB_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
+          if [ "$RT_RES" = "failure" ] || [ "$WEB_RES" = "failure" ] || [ "$LANDING_RES" = "failure" ] || [ "$API_RES" = "failure" ] || [ "$SB_RES" = "failure" ] || [ "$ED_RES" = "failure" ] ||[ "$TB_RES" = "failure" ] || [ "$CR_RES" = "failure" ] || [ "$SEC_RES" = "failure" ]; then
             STATUS_HEADER="❌ <b>CI: Найдены ошибки</b>"
-          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$LANDING_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SB_RES" = "cancelled" ] || [ "$ED_RES" = "cancelled" ] || [ "$TB_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
+          elif [ "$RT_RES" = "cancelled" ] || [ "$WEB_RES" = "cancelled" ] || [ "$LANDING_RES" = "cancelled" ] || [ "$API_RES" = "cancelled" ] || [ "$SB_RES" = "cancelled" ] || [ "$ED_RES" = "cancelled" ] || [ "$TB_RES" = "cancelled" ] || [ "$CR_RES" = "cancelled" ] || [ "$SEC_RES" = "cancelled" ]; then
             STATUS_HEADER="⚠️ <b>CI: Отменено</b>"
           else
             STATUS_HEADER="✅ <b>CI: Проверки успешно пройдены</b>"
@@ -149,6 +159,7 @@ jobs:
           STATUS_SB=$(format_status "$SB_RES" "$SB_COV")
           STATUS_ED=$(format_status "$ED_RES" "$ED_COV")
           STATUS_TB=$(format_status "$TB_RES" "$TB_COV")
+          STATUS_CR=$(format_status "$CR_RES" "$CR_COV")
           STATUS_SEC=$(format_status "$SEC_RES" "")
 
           DURATION_STR=""
@@ -208,7 +219,7 @@ jobs:
               const avg = (sum / count).toFixed(1);
               console.log(avg + "%");
             }
-          ' "$RT_COV" "$WEB_COV" "$LANDING_COV" "$API_COV" "$SB_COV" "$ED_COV" "$TB_COV")
+          ' "$RT_COV" "$WEB_COV" "$LANDING_COV" "$API_COV" "$SB_COV" "$ED_COV" "$TB_COV" "$CR_COV")
 
           MESSAGE=$(
             echo "$STATUS_HEADER"
@@ -231,6 +242,7 @@ jobs:
             echo "• Storybook (UI): $STATUS_SB"
             echo "• Editor (UI): $STATUS_ED"
             echo "• Telegram Bot (TS): $STATUS_TB"
+            echo "• Code Runner (Go): $STATUS_CR"
             echo "• Безопасность (TruffleHog): $STATUS_SEC"
           )
 

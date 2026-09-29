@@ -109,6 +109,7 @@ model InterviewSession {
   userId       String                 @db.Uuid // владелец (создатель) сессии
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   status       InterviewSessionStatus @default(ACTIVE)
+  inviteToken  String?                @map("invite_token") @db.VarChar(128)
   startedAt    DateTime?
   endedAt      DateTime?
   createdAt    DateTime               @default(now())

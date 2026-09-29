@@ -1,4 +1,9 @@
 {
+  "roles": { "administrator": "Administrator" },
+  "errors": {
+    "forbiddenTitle": "Insufficient permissions",
+    "forbiddenDescription": "You do not have permission to perform this action."
+  },
   "appName": "Mock Interview AI",
   "actions": {
     "save": "Save",
@@ -12,6 +17,8 @@
     "switchLanguage": "Switch language"
   },
   "navigation": {
+    "administration": "Administration",
+    "adminUsers": "Users",
     "home": "Home",
     "dashboard": "Dashboard",
     "notifications": "Notifications",
