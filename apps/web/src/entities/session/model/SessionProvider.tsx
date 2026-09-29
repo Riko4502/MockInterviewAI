@@ -4,7 +4,9 @@ import {
   getProfileControllerGetMyProfileQueryKey,
   useProfileControllerGetMyProfile,
 } from "@packages/api";
+import { defaultLocale, getMessages, type Locale } from "@packages/i18n";
 import { SystemPermission } from "@packages/types";
+import { AppPreloader } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   type PropsWithChildren,
@@ -14,6 +16,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useTranslation } from "react-i18next";
+import "@/shared/lib/i18n";
 import {
   authToken,
   RefreshSessionError,
@@ -23,7 +27,18 @@ import { decodeJwtPayload } from "../lib/decodeJwtPayload";
 import { SESSION_STATUS, type SessionStatus } from "./constants";
 import { SessionContext } from "./context";
 
-export function SessionProvider({ children }: PropsWithChildren) {
+export interface SessionProviderProps extends PropsWithChildren {
+  minDuration?: number;
+  fadeDuration?: number;
+  oncePerSession?: boolean;
+}
+
+export function SessionProvider({
+  children,
+  minDuration: customMinDuration,
+  fadeDuration: customFadeDuration,
+  oncePerSession: customOncePerSession,
+}: SessionProviderProps) {
   const [status, setStatus] = useState<SessionStatus>(
     SESSION_STATUS.INITIALIZING,
   );
@@ -113,9 +128,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setStatus(SESSION_STATUS.UNAUTHENTICATED);
   };
 
-  if (status === SESSION_STATUS.INITIALIZING) {
-    return null;
-  }
+  const { i18n } = useTranslation();
+  const currentLocale = (i18n.language as Locale) || defaultLocale;
+  const t = getMessages(currentLocale).common.loading;
+
+  const isReady = status !== SESSION_STATUS.INITIALIZING;
+  const isTest = process.env.NODE_ENV === "test";
+  const minDuration = customMinDuration ?? (isTest ? 0 : 400);
+  const fadeDuration = customFadeDuration ?? (isTest ? 0 : 300);
+  const shouldBeOncePerSession = customOncePerSession ?? !isTest;
 
   return (
     <SessionContext.Provider
@@ -136,7 +157,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
         clearSession,
       }}
     >
-      {children}
+      <AppPreloader
+        isReady={isReady}
+        minDuration={minDuration}
+        fadeDuration={fadeDuration}
+        oncePerSession={shouldBeOncePerSession && isReady}
+        title={t.title}
+        badgeText={t.badges.sync}
+        description={t.descriptions.sessionRestore}
+        steps={t.steps.sessionRestore}
+        systemActiveText={t.systemActive}
+        brandLabel={t.brandLabel}
+      >
+        {isReady ? children : null}
+      </AppPreloader>
     </SessionContext.Provider>
   );
 }

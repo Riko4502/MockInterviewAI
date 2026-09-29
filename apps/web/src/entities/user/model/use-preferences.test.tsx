@@ -19,14 +19,18 @@ vi.mock("@packages/ui", () => ({
   }),
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    i18n: {
-      language: "ru",
-      changeLanguage: changeLanguageMock,
-    },
-  }),
-}));
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: () => ({
+      i18n: {
+        language: "ru",
+        changeLanguage: changeLanguageMock,
+      },
+    }),
+  };
+});
 
 vi.mock("@packages/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@packages/api")>();
