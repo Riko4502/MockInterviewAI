@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import {
   CreateShowcaseCardDto,
@@ -18,11 +19,30 @@ import {
 } from "@packages/dto";
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { PUBLIC_USER_SELECT, SHOWCASE_LIMITS } from "./showcase.constants";
 
 @Injectable()
 export class ShowcaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly redisService?: RedisService,
+  ) {}
+
+  /**
+   * Инвалидирует кэш витрины и готовности пользователя на дашборде (TASK-BACK-45).
+   */
+  private async invalidateShowcaseCache(userId: string): Promise<void> {
+    if (!this.redisService) return;
+    try {
+      await Promise.all([
+        this.redisService.delete(`cache:dashboard:showcase:${userId}`),
+        this.redisService.delete(`cache:dashboard:readiness:${userId}`),
+      ]);
+    } catch {
+      // Игнорируем сетевые сбои кэша
+    }
+  }
 
   /**
    * Публикация новой анкеты на витрине.
@@ -95,7 +115,7 @@ export class ShowcaseService {
 
     // 5. Сохраняем новую анкету в базе данных с публичными данными автора
     try {
-      return await this.prisma.showcaseCard.create({
+      const created = await this.prisma.showcaseCard.create({
         data: {
           userId,
           title: dto.title,
@@ -115,6 +135,9 @@ export class ShowcaseService {
           },
         },
       });
+
+      await this.invalidateShowcaseCache(userId);
+      return created;
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -416,7 +439,7 @@ export class ShowcaseService {
 
     // 5. Применяем только переданные поля и сохраняем обновления
     try {
-      return await this.prisma.showcaseCard.update({
+      const updated = await this.prisma.showcaseCard.update({
         where: { id },
         data: {
           ...(dto.title !== undefined && { title: dto.title }),
@@ -437,6 +460,9 @@ export class ShowcaseService {
           user: { select: PUBLIC_USER_SELECT },
         },
       });
+
+      await this.invalidateShowcaseCache(userId);
+      return updated;
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -504,13 +530,16 @@ export class ShowcaseService {
 
     // 5. Обновляем статус в базе данных
     try {
-      return await this.prisma.showcaseCard.update({
+      const updated = await this.prisma.showcaseCard.update({
         where: { id },
         data: { status: dto.status },
         include: {
           user: { select: PUBLIC_USER_SELECT },
         },
       });
+
+      await this.invalidateShowcaseCache(userId);
+      return updated;
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -571,13 +600,16 @@ export class ShowcaseService {
     }
 
     // 5. Обновляем время bumpedAt на текущее
-    return this.prisma.showcaseCard.update({
+    const updated = await this.prisma.showcaseCard.update({
       where: { id },
       data: { bumpedAt: new Date() },
       include: {
         user: { select: PUBLIC_USER_SELECT },
       },
     });
+
+    await this.invalidateShowcaseCache(userId);
+    return updated;
   }
 
   /**
@@ -634,7 +666,7 @@ export class ShowcaseService {
 
     // 5. Переводим в ACTIVE, продлеваем срок и поднимаем в топ
     try {
-      return await this.prisma.showcaseCard.update({
+      const renewed = await this.prisma.showcaseCard.update({
         where: { id },
         data: {
           status: "ACTIVE",
@@ -645,6 +677,9 @@ export class ShowcaseService {
           user: { select: PUBLIC_USER_SELECT },
         },
       });
+
+      await this.invalidateShowcaseCache(userId);
+      return renewed;
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -684,6 +719,8 @@ export class ShowcaseService {
     await this.prisma.showcaseCard.delete({
       where: { id },
     });
+
+    await this.invalidateShowcaseCache(userId);
   }
 
   /**
