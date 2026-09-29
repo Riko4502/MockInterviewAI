@@ -25,7 +25,7 @@ export function RoleBoundary({
   redirectTo,
   onDenied,
 }: RoleBoundaryProps) {
-  const { status, isAuthenticated, role } = useSession();
+  const { status, isAuthenticated, role, isProfileLoading } = useSession();
   const hasRole = useHasRole(allowedRoles);
   const router = useRouter();
   const pathname = usePathname();
@@ -33,7 +33,7 @@ export function RoleBoundary({
   // Authentication completes before the profile query supplies the role.
   const pending =
     status === SESSION_STATUS.INITIALIZING ||
-    (isAuthenticated && role === null);
+    (isAuthenticated && role === null && isProfileLoading);
   const allowed =
     status === SESSION_STATUS.AUTHENTICATED && isAuthenticated && hasRole;
   const hasFallback = fallback !== undefined;

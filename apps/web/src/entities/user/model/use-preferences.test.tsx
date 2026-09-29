@@ -67,6 +67,7 @@ describe("usePreferences", () => {
               permissions: 0n,
               isAuthenticated,
               status: isAuthenticated ? "authenticated" : "unauthenticated",
+              isProfileLoading: false,
               startSession: vi.fn(),
               clearSession: vi.fn(),
             }}

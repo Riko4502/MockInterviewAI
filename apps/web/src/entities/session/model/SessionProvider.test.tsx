@@ -95,8 +95,48 @@ describe("SessionProvider RBAC", () => {
       role: null,
       permissions: 0n,
       isAuthenticated: false,
+      isProfileLoading: false,
       status: "unauthenticated",
     });
+  });
+  it.each([
+    200, 500,
+  ])("withholds the same user's cached role after token rotation (HTTP %s)", async (status) => {
+    http
+      .mockResolvedValueOnce(
+        Response.json({ accessToken: createAccessToken() }),
+      )
+      .mockResolvedValueOnce(Response.json(profile(SystemRole.ADMIN)));
+    const { result } = mount();
+    await waitFor(() => expect(result.current?.role).toBe(SystemRole.ADMIN));
+
+    let completeProfile!: (response: Response) => void;
+    http.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        completeProfile = resolve;
+      }),
+    );
+    act(() => authToken.set(createAccessToken({ iat: 1_800_000_001 })));
+    expect(result.current.role).toBeNull();
+    expect(result.current.isProfileLoading).toBe(true);
+    await waitFor(() => expect(http).toHaveBeenCalledTimes(3));
+    expect(result.current.role).toBeNull();
+
+    await act(async () => {
+      completeProfile(Response.json(profile(SystemRole.USER), { status }));
+    });
+    await waitFor(() =>
+      expect(
+        client.getQueryState(getProfileControllerGetMyProfileQueryKey())
+          ?.status,
+      ).toBe(status === 200 ? "success" : "error"),
+    );
+    await waitFor(() =>
+      expect(result.current).toMatchObject({
+        role: status === 200 ? SystemRole.USER : null,
+        isProfileLoading: false,
+      }),
+    );
   });
   it("rejects invalid restored and login tokens, then accepts a valid login", async () => {
     http.mockResolvedValueOnce(Response.json({ accessToken: "invalid" }));
@@ -130,6 +170,7 @@ describe("SessionProvider RBAC", () => {
       ).toBeDefined(),
     );
     expect(result.current.role).toBeNull();
+    await waitFor(() => expect(result.current.isProfileLoading).toBe(false));
   });
   it("keeps permissions empty on a profile error and retains restored identity", async () => {
     http
@@ -146,6 +187,7 @@ describe("SessionProvider RBAC", () => {
     );
     expect(result.current).toMatchObject({
       isAuthenticated: true,
+      isProfileLoading: false,
       role: null,
       permissions: 0n,
     });
@@ -156,6 +198,7 @@ describe("SessionProvider RBAC", () => {
     await waitFor(() => expect(result.current?.status).toBe("error"));
     expect(result.current).toMatchObject({
       isAuthenticated: false,
+      isProfileLoading: false,
       userId: null,
       role: null,
       permissions: 0n,

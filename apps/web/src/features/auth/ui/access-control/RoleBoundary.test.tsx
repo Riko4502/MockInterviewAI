@@ -39,6 +39,7 @@ beforeEach(async () => {
     role: SystemRole.USER,
     permissions: SystemPermission.NONE,
     userId: "user-1",
+    isProfileLoading: false,
     startSession: vi.fn(),
     clearSession: vi.fn(),
   };
@@ -53,6 +54,35 @@ function expectHidden() {
 }
 
 describe("RoleBoundary", () => {
+  it.each([
+    true,
+    false,
+  ])("denies access when profile loading ends without a role (fallback: %s)", (withFallback) => {
+    session.role = null;
+    session.isProfileLoading = true;
+    const ui = (
+      <RoleBoundary
+        allowedRoles={[SystemRole.ADMIN]}
+        fallback={withFallback ? denied : undefined}
+      >
+        {secret}
+      </RoleBoundary>
+    );
+    const view = mount(ui);
+    expectHidden();
+    expect(screen.queryByText("Fallback content")).not.toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+
+    session = { ...session, isProfileLoading: false };
+    view.rerender(ui);
+    expectHidden();
+    if (withFallback) {
+      expect(screen.getByText("Fallback content")).toBeInTheDocument();
+      expect(router.replace).not.toHaveBeenCalled();
+    } else {
+      expect(router.replace).toHaveBeenCalledExactlyOnceWith(paths.dashboard);
+    }
+  });
   it("Не монтирует содержимое и fallback и не перенаправляет при инициализации", () => {
     session.status = SESSION_STATUS.INITIALIZING;
     const child = vi.fn(() => secret);
@@ -144,13 +174,14 @@ describe("RoleBoundary", () => {
   });
   it("Ожидает загрузки роли и обновляет доступ при её изменении", () => {
     session.role = null;
+    session.isProfileLoading = true;
     const ui = (
       <RoleBoundary allowedRoles={[SystemRole.ADMIN]}>{secret}</RoleBoundary>
     );
     const view = mount(ui);
     expectHidden();
     expect(router.replace).not.toHaveBeenCalled();
-    session = { ...session, role: SystemRole.ADMIN };
+    session = { ...session, role: SystemRole.ADMIN, isProfileLoading: false };
     view.rerender(ui);
     expect(screen.getByText("Protected content")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalled();
@@ -228,7 +259,7 @@ describe("RoleBoundary", () => {
     expectHidden();
     expect(router.replace).toHaveBeenCalledExactlyOnceWith(paths.dashboard);
 
-    session = { ...session, role: SystemRole.ADMIN };
+    session = { ...session, role: SystemRole.ADMIN, isProfileLoading: false };
     view.rerender(ui);
     expect(screen.getByText("Protected content")).toBeInTheDocument();
     expect(router.replace).toHaveBeenCalledTimes(1);

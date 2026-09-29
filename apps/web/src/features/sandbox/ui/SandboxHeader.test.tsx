@@ -47,6 +47,7 @@ function renderWithProviders(ui: React.ReactElement) {
           permissions: 0n,
           isAuthenticated: false,
           status: "unauthenticated",
+          isProfileLoading: false,
           startSession: vi.fn(),
           clearSession: vi.fn(),
         }}

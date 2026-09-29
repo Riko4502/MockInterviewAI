@@ -1,9 +1,14 @@
 "use client";
 
-import { useProfileControllerGetMyProfile } from "@packages/api";
+import {
+  getProfileControllerGetMyProfileQueryKey,
+  useProfileControllerGetMyProfile,
+} from "@packages/api";
 import { SystemPermission } from "@packages/types";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   type PropsWithChildren,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -23,8 +28,27 @@ export function SessionProvider({ children }: PropsWithChildren) {
     SESSION_STATUS.INITIALIZING,
   );
 
+  const queryClient = useQueryClient();
+  const subscribeToToken = useCallback(
+    (onStoreChange: () => void) => {
+      let previousToken = authToken.get();
+      return authToken.subscribe(() => {
+        const nextToken = authToken.get();
+        if (nextToken !== previousToken && nextToken !== null) {
+          // Discard the old session's profile before rendering the new token.
+          queryClient.removeQueries({
+            queryKey: getProfileControllerGetMyProfileQueryKey(),
+            exact: true,
+          });
+        }
+        previousToken = nextToken;
+        onStoreChange();
+      });
+    },
+    [queryClient],
+  );
   const token = useSyncExternalStore(
-    authToken.subscribe,
+    subscribeToToken,
     authToken.get,
     () => null,
   );
@@ -101,6 +125,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
             ? SESSION_STATUS.UNAUTHENTICATED
             : status,
         isAuthenticated,
+        isProfileLoading:
+          isAuthenticated && profile.isPending && !profile.isError,
         userId: isAuthenticated ? payload.sub : null,
         role,
         permissions: isAuthenticated

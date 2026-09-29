@@ -8,6 +8,7 @@ export interface SessionContextValue {
   permissions: bigint;
   status: SessionStatus;
   isAuthenticated: boolean;
+  isProfileLoading: boolean;
   startSession: (accessToken: string) => void;
   clearSession: () => void;
 }

@@ -79,6 +79,7 @@ function createAuthenticatedWrapper() {
             permissions: 0n,
             isAuthenticated: true,
             status: "authenticated",
+            isProfileLoading: false,
             startSession: vi.fn(),
             clearSession: vi.fn(),
           },

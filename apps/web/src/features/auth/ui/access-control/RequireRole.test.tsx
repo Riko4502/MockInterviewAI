@@ -37,6 +37,7 @@ beforeEach(() => {
     role: SystemRole.USER,
     permissions: SystemPermission.NONE,
     userId: "user-1",
+    isProfileLoading: false,
     startSession: vi.fn(),
     clearSession: vi.fn(),
   };

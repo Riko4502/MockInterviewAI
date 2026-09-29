@@ -22,6 +22,7 @@ function check(
     isAuthenticated,
     userId: isAuthenticated ? "user-1" : null,
     status: isAuthenticated ? "authenticated" : "unauthenticated",
+    isProfileLoading: false,
     startSession: vi.fn(),
     clearSession: vi.fn(),
   };
