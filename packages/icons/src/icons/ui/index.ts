@@ -28,6 +28,7 @@ export { GripVerticalIcon } from "./grip-vertical-icon";
 export { HelpIcon } from "./help-icon";
 export { HubConnectionIcon } from "./hub-connection-icon";
 export { InfoIcon } from "./info-icon";
+export { LayoutDashboardIcon } from "./layout-dashboard-icon";
 export { LoginIcon } from "./login-icon";
 export { LogOutIcon } from "./logout-icon";
 export { MaximizeIcon } from "./maximize-icon";

@@ -26,6 +26,10 @@ export default defineConfig({
         import.meta.dirname,
         "../../packages/dto/src",
       ),
+      "@packages/hooks": path.resolve(
+        import.meta.dirname,
+        "../../packages/hooks/src",
+      ),
       "@packages/utils": path.resolve(
         import.meta.dirname,
         "../../packages/utils/src",

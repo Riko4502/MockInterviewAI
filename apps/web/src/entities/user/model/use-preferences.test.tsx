@@ -117,6 +117,25 @@ describe("usePreferences", () => {
     expect(cachedData?.theme).toBe("light");
   });
 
+  it("не должен создавать неполный профиль в кэше при отсутствии прежнего профиля у авторизованного пользователя", () => {
+    const { result } = renderHook(() => usePreferences(), {
+      wrapper: createWrapper(true),
+    });
+
+    act(() => {
+      result.current.changeTheme("light");
+    });
+
+    expect(setThemeMock).toHaveBeenCalledWith("light");
+    expect(document.cookie).toContain("theme=light");
+    expect(mutateMock).toHaveBeenCalledWith({ data: { theme: "light" } });
+
+    const cachedData = queryClient.getQueryData(
+      getProfileControllerGetMyProfileQueryKey(),
+    );
+    expect(cachedData).toBeUndefined();
+  });
+
   it("должен переключать язык для гостя без вызова API мутации, но с установкой куки", () => {
     const { result } = renderHook(() => usePreferences(), {
       wrapper: createWrapper(false),

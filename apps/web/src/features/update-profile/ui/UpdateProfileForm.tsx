@@ -10,6 +10,7 @@ import {
   Input,
   Select,
   Skeleton,
+  useTheme,
   useToast,
 } from "@packages/ui";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
-import { localeLabels, locales } from "@packages/dto";
+import { localeLabels, locales, THEME_MODES } from "@packages/dto";
 import {
   createProfileFormSchema,
   type ProfileFormValues,
@@ -29,6 +30,7 @@ import { AvatarUploadField } from "./AvatarUploadField";
 
 function ProfileFields({ user }: { user: UserProfileDto }) {
   const { t, i18n } = useTranslation("common");
+  const { setTheme } = useTheme();
   const router = useRouter();
   const updateProfile = useUpdateProfile();
   const toast = useToast();
@@ -76,14 +78,18 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
       { data },
       {
         onSuccess: (updatedUser) => {
+          if (updatedUser.theme) {
+            setTheme(updatedUser.theme);
+            setPreferenceCookies({ theme: updatedUser.theme });
+          }
           if (updatedUser.locale) {
             void i18n.changeLanguage(updatedUser.locale);
             setPreferenceCookies({ locale: updatedUser.locale });
             if (typeof document !== "undefined") {
               document.documentElement.lang = updatedUser.locale;
             }
-            router.refresh();
           }
+          router.refresh();
           reset({
             displayName: updatedUser.displayName ?? "",
             username: updatedUser.username ?? "",
@@ -205,7 +211,14 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   control={control}
                   name="theme"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(val: string) => {
+                        const theme = THEME_MODES.find((mode) => mode === val);
+                        if (!theme) return;
+                        field.onChange(theme);
+                      }}
+                    >
                       <Select.Trigger className="w-full">
                         <Select.Value />
                       </Select.Trigger>
