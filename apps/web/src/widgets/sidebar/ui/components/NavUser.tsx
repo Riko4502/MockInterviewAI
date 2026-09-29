@@ -6,10 +6,16 @@ import {
   SlidersIcon,
   UserIcon,
 } from "@packages/icons";
-import { DropdownMenu, Skeleton, Sidebar as UiSidebar } from "@packages/ui";
+import {
+  Badge,
+  DropdownMenu,
+  Skeleton,
+  Sidebar as UiSidebar,
+} from "@packages/ui";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useIsAdmin } from "@/entities/session";
 import { UserAvatar, useCurrentUser } from "@/entities/user";
 import { useLogout } from "@/features/auth";
 import { MediaSettingsDialog } from "@/features/media-settings";
@@ -17,6 +23,7 @@ import { paths } from "@/shared/config";
 
 export function NavUser() {
   const { t } = useTranslation("common");
+  const isAdmin = useIsAdmin();
   const { data: user, isLoading } = useCurrentUser();
   const { logout, isPending } = useLogout();
   const [isMediaSettingsOpen, setIsMediaSettingsOpen] = useState(false);
@@ -55,6 +62,11 @@ export function NavUser() {
               />
               <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{displayName}</span>
+                {isAdmin && (
+                  <Badge variant="statusInfo" className="w-fit">
+                    {t("roles.administrator")}
+                  </Badge>
+                )}
                 {email ? (
                   <span className="truncate text-xs text-muted-foreground">
                     {email}
