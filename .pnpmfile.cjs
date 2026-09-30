@@ -12,11 +12,23 @@ function readPackage(pkg) {
   }
 
   if (pkg.dependencies?.["fast-uri"]) {
-    pkg.dependencies["fast-uri"] = "^3.1.6";
+    pkg.dependencies["fast-uri"] = "^3.1.8";
   }
 
   if (pkg.dependencies?.multer) {
-    pkg.dependencies.multer = "^2.3.0";
+    pkg.dependencies.multer = "^2.4.0";
+  }
+
+  if (pkg.dependencies?.uuid) {
+    const version = pkg.dependencies.uuid;
+    // Если версия 8.x
+    if (
+      version.startsWith("^8") ||
+      version.startsWith("~8") ||
+      version.startsWith("8")
+    ) {
+      pkg.dependencies.uuid = "^11.1.1";
+    }
   }
 
   // Исправление уязвимостей js-yaml
@@ -37,6 +49,14 @@ function readPackage(pkg) {
       version.startsWith("4")
     ) {
       pkg.dependencies["js-yaml"] = "^4.3.2";
+    }
+    // Если версия 5.x
+    if (
+      version.startsWith("^5") ||
+      version.startsWith("~5") ||
+      version.startsWith("5")
+    ) {
+      pkg.dependencies["js-yaml"] = "^5.4.2";
     }
   }
 
