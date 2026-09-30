@@ -45,6 +45,7 @@ model User {
   role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive         Boolean   @default(true)
   deactivatedAt    DateTime?
+  firstLoginAt     DateTime?
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
@@ -56,6 +57,7 @@ model User {
   gitUrl           String?
   theme            ThemePreference @default(DARK)
   locale           String          @default("ru")
+  timezone         String          @default("Europe/Moscow")
   deletedAt        DateTime?
   generation       Int       @default(1)
   createdAt        DateTime  @default(now())

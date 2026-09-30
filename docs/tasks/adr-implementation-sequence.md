@@ -12,7 +12,16 @@
 
 ## Статус исполнения
 
-**Фаза 0 (ADR-006, Node 24) — выполнена 30.09.2026.** Фазы 1-6 не начаты.
+**Фаза 0 (ADR-006, Node 24) — выполнена 30.09.2026.** **Фаза 1 (ADR-002 + ADR-005,
+единая миграция `User`) — выполнена 30.09.2026.** Фазы 2-6 не начаты.
+
+Фаза 1 закрыта миграцией
+`apps/api/prisma/migrations/20260930122237_add_user_timezone_and_first_login_at/`.
+Обе колонки применены одной миграцией, как требуют ADR-002:135 и ADR-005:167.
+Проверка критерия завершения и её доказательства — в п. 5. Найденный при этом
+дрейф между миграционными файлами и `schema.prisma` вынесен в п. 8.10: он не
+блокирует фазу 1, но удаляет три поисковых индекса при первом же
+`prisma migrate dev`, поэтому фаза 2 обязана начаться с его разбора.
 
 Проверено на 30.09.2026, локальный рантайм `node v26.8.2`, `pnpm 9.15.9`,
 Docker 29.8.0:
@@ -275,6 +284,37 @@ Node собираются с полным ICU (ADR-006:46).
 бэкфилла; `prisma migrate diff` для этой миграции не содержит переписывания
 таблицы, не вызванного `NOT NULL` без значения по умолчанию.
 
+**Выполнена 30.09.2026.** Миграция содержит ровно две строки `ADD COLUMN` и
+ничего больше:
+
+```sql
+ALTER TABLE "users" ADD COLUMN "timezone" TEXT NOT NULL DEFAULT 'Europe/Moscow';
+ALTER TABLE "users" ADD COLUMN "firstLoginAt" TIMESTAMP(3);
+```
+
+Критерий проверен на отдельной базе `phase1_check`: 19 миграций применены,
+в `users` вставлено 25 строк, затем применена эта миграция.
+
+* `relfilenode` таблицы `users` — `18124` до и после, то есть переписывания не
+  было. Для `ADD COLUMN ... NOT NULL DEFAULT` в PostgreSQL 11+ этого и ожидаемо:
+  значение вычисляется на чтении, а не переписыванием таблицы.
+* Все 25 строк получили `timezone = 'Europe/Moscow'` и `firstLoginAt IS NULL` —
+  бэкфилл не потребовался, приветственное уведомление существующим пользователям
+  не будет отправлено (ADR-005:173).
+* Вставка без `timezone` подставляет дефолт, явный `NULL` отвергается
+  ограничением NOT NULL, произвольная IANA-зона принимается — валидация зоны
+  остаётся в фазе 4.
+* `prisma migrate diff` от состояния 19 к новой схеме показывает по `users`
+  только `ADD COLUMN` без `USING` и `SET DATA TYPE`. Остальное в его выводе —
+  дрейф из п. 8.10, в миграцию он намеренно не включён.
+
+Верификация не изменилась относительно базовой линии п. 9: `prisma validate`
+валиден, `tsc --noEmit` в `apps/api` чист, `codegen:check` чист (контракт OpenAPI
+не затронут, `User.timezone` в DTO не выводится до фазы 4), `pnpm test:api` —
+49 наборов / 803 теста, `pnpm lint` — 1092 файла, `apps/web` — 60 файлов /
+491 тест, e2e — 20/21 наборов и 83/84 теста, то есть ровно известное падение
+`E2E-04` из п. 9.
+
 ---
 
 ## 6. Фаза 2 — ADR-003 целиком
@@ -534,6 +574,51 @@ Telegram требует фазы 5. Дробить фазу на два PR ст�
    **Первым шагом верификации всегда идёт `pnpm install --frozen-lockfile`,
    затем сборка пакетов.** Без этого остальные команды п. 9 дают ложные
    результаты, и ошибку легко приписать текущей фазе.
+10. **Дрейф между миграционными файлами и `schema.prisma`: следующий
+    `prisma migrate dev` удалит поисковые индексы.** Обнаружено 30.09.2026 при
+    создании миграции фазы 1. `prisma migrate dev --create-only` сгенерировал
+    не два `ADD COLUMN`, а попутно:
+
+    ```sql
+    DROP INDEX "users_display_name_trgm_idx";
+    DROP INDEX "users_email_trgm_idx";
+    DROP INDEX "users_username_trgm_idx";
+    ALTER TABLE "permissions" ALTER COLUMN "id" DROP DEFAULT,
+      ALTER COLUMN "slug" SET DATA TYPE TEXT, ALTER COLUMN "name" SET DATA TYPE TEXT;
+    ALTER TABLE "roles" ALTER COLUMN "id" DROP DEFAULT,
+      ALTER COLUMN "slug" SET DATA TYPE TEXT, ALTER COLUMN "name" SET DATA TYPE TEXT,
+      ALTER COLUMN "updatedAt" DROP DEFAULT;
+    ALTER TABLE "auth_revocation_tasks" ALTER COLUMN "id" DROP DEFAULT;
+    CREATE INDEX "users_telegramId_idx" ON "users"("telegramId");
+    ```
+
+    Дрейф не локальный, а закоммиченный. `20260914120000_add_dynamic_rbac_roles_permissions`
+    написан руками и создаёт `slug VARCHAR(64)`, `name VARCHAR(255)`, `id UUID NOT
+    NULL DEFAULT gen_random_uuid()` и `roles.updatedAt ... DEFAULT CURRENT_TIMESTAMP`,
+    тогда как `schema.prisma` объявляет `String` (то есть `TEXT`) и не ждёт
+    DB-дефолтов: UUID выдаёт клиент Prisma, `updatedAt` ведёт `@updatedAt`.
+    Тригемм-индексы созданы вне Prisma и в `schema.prisma` не описаны — Prisma не
+    умеет описать `gin_trgm_ops`, поэтому они всегда будут выглядеть для неё
+    лишними. `@@index([telegramId])` в схеме есть, а в БД индекса нет.
+
+    **Почему это опасно.** Такой SQL, попав в коммит, удаляет три индекса полнотекстового
+    поиска по пользователям и переписывает таблицы `permissions` и `roles` — то
+    есть тихо расширяет DB-фазу за пределы её объявленного объёма. Ровно то, от
+    чего предостерегает п. 8.1.
+
+    **Что сделано в фазе 1.** Миграция записана вручную ровно двумя строками
+    `ADD COLUMN`; посторонний SQL из сгенерированного файла удалён. Правку
+    `20260914120000` сделать нельзя — миграция уже применена во всех
+    окружениях, Prisma хранит её хеш и ручная правка даст «migration modified
+    after applying».
+
+    **Что требуется перед фазой 2.** Разбор отдельной задачей, потому что
+    вариантов несколько и они не равнозначны по риску: перенести ожидаемые
+    DB-дефолты в `schema.prisma` через `@default(dbgenerated(...))`; завести
+    тригемм-индексы отдельной миграцией с `CREATE INDEX`; или принять дрейф и
+    зафиксировать его как намеренный, добавив в CI проверку, что
+    `migrate diff` не содержит `DROP INDEX`. Выбор не относится к фазам 1-6
+    плана и должен быть сделан осознанно.
 
 ---
 
@@ -554,12 +639,12 @@ pnpm --filter api exec jest --config ./test/jest-e2e.json
 pnpm run codegen:check
 ```
 
-Зелёная база на 30.09.2026, пересобрана после слияния `origin/dev` и починки
-lockfile: `pnpm lint` — 1092 файла чисто, `pnpm test:api` — 49 наборов /
-803 теста, `pnpm --filter web exec vitest run` — 60 файлов / 491 тест,
-`pnpm --filter api exec tsc --noEmit -p tsconfig.json` — **чисто**,
-`typecheck` во всех воркспейсах, где скрипт определён, — чисто,
-`pnpm audit` — без уязвимостей, `prisma migrate deploy` — 19 миграций.
+Зелёная база на 30.09.2026, пересобрана после слияния `origin/dev`, починки
+lockfile и **закрытия фазы 1**: `pnpm lint` — 1092 файла чисто, `pnpm test:api` —
+49 наборов / 803 теста, `pnpm --filter web exec vitest run` — 60 файлов /
+491 тест, `pnpm --filter api exec tsc --noEmit -p tsconfig.json` — **чисто**,
+`typecheck` во всех воркспейсах, где скрипт определён, — чисто, `prisma validate` —
+валиден, `pnpm audit` — без уязвимостей, `prisma migrate deploy` — 20 миграций.
 
 Красным до начала фаз остаётся одно: `pnpm --filter web exec vitest run
 src/features/media-settings` (падения на локальном Node 25/26, см. ниже) — на
