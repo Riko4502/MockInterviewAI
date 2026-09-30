@@ -226,13 +226,10 @@ describe("Sidebar", () => {
     ).toBeNull();
   });
 
-  it("показывает локализованный значок администратора в меню пользователя", () => {
+  it("не показывает значок роли в меню пользователя у администратора", () => {
     isAdminMock.mockReturnValue(true);
     renderSidebar("Content");
-    expect(screen.getByText("Администратор")).toHaveAttribute(
-      "data-slot",
-      "badge",
-    );
+    expect(screen.queryByText("Администратор")).not.toBeInTheDocument();
     expect(screen.queryByText("ADMIN")).not.toBeInTheDocument();
   });
 
