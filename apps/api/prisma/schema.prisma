@@ -149,6 +149,8 @@ model Notification {
   payload         Json
   renderedTitle   String?
   renderedMessage String?
+  renderedLocale  String?
+  renderedTimezone String?
   dedupKey        String?          @unique
   actionUrl       String?
   readAt          DateTime?

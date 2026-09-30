@@ -16,12 +16,24 @@ BEGIN
 END $$;
 
 -- AlterTable
+-- renderedLocale and renderedTimezone identify the render that produced
+-- renderedTitle/renderedMessage. ADR-003:88 recomputes the cache lazily at read
+-- time by comparing them with the reader's current settings, and the timezone
+-- has to be part of that comparison because the same UTC instant is formatted
+-- differently in different zones.
+--
+-- All four stay nullable, as specified in ADR-003:58: they are a denormalized
+-- cache, and a NULL is the honest marker of "not rendered yet". The lazy
+-- re-read treats NULL as stale and fills it in, so the columns never expose an
+-- empty title to the client.
 ALTER TABLE "notifications" DROP COLUMN "message",
 DROP COLUMN "title",
 ADD COLUMN     "dedupKey" TEXT,
 ADD COLUMN     "payload" JSONB NOT NULL,
 ADD COLUMN     "renderedMessage" TEXT,
+ADD COLUMN     "renderedTimezone" TEXT,
 ADD COLUMN     "renderedTitle" TEXT,
+ADD COLUMN     "renderedLocale" TEXT,
 ADD COLUMN     "type" TEXT NOT NULL;
 
 -- CreateTable
