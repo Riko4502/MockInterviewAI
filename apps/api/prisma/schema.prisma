@@ -142,23 +142,52 @@ enum NotificationType {
 }
 
 model Notification {
-  id        String           @id @default(uuid()) @db.Uuid
-  userId    String           @db.Uuid
-  category  NotificationType
-  title     String
-  message   String
-  actionUrl String?
-  readAt    DateTime?
-  deletedAt DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  category        NotificationType
+  type            String
+  payload         Json
+  renderedTitle   String?
+  renderedMessage String?
+  dedupKey        String?          @unique
+  actionUrl       String?
+  readAt          DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
   @@index([userId])
   @@index([readAt])
   @@index([deletedAt])
   @@map("notifications")
+}
+
+enum NotificationOutboxStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+/// Запись outbox: событие, ожидающее доставки по каналам (ADR-003:70).
+model NotificationOutbox {
+  id            String                    @id @default(uuid()) @db.Uuid
+  type          String
+  payload       Json
+  recipientId   String                    @db.Uuid
+  category      NotificationType
+  actionUrl     String?
+  status        NotificationOutboxStatus  @default(PENDING)
+  attempts      Int                       @default(0)
+  nextAttemptAt DateTime                  @default(now())
+  processedAt   DateTime?
+  lastError     String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("notification_outbox")
 }
 
 enum ThemePreference {
