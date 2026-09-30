@@ -2,7 +2,7 @@
   "events": {
     "system.welcome": {
       "title": "Welcome",
-      "message": "Nice to meet you, {{displayName}}. Complete your profile to start matching interviews."
+      "message": "Complete your profile to start matching interviews."
     },
     "interview.match_proposed": {
       "title": "Slot proposed",

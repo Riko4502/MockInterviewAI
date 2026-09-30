@@ -24,10 +24,15 @@ import { z } from "zod";
  * `githubId`, ip и user-agent (ADR-003:83).
  */
 
-/** Payload приветствия. Без идентификаторов сущностей: событие о самом факте. */
-export const systemWelcomePayloadSchema = z.object({
-  displayName: z.string().min(1),
-});
+/**
+ * Payload приветствия. Без идентификаторов сущностей: событие о самом факте.
+ *
+ * Пустой не из-за недосмотра, а по двум причинам. Приветствие пишется в той же
+ * транзакции, что и регистрация, когда у пользователя ещё нет `displayName`, а
+ * подставить email нельзя: ADR-003:83 запрещает контактные данные в payload.
+ * Поэтому текст общий, без обращения по имени.
+ */
+export const systemWelcomePayloadSchema = z.object({});
 
 /**
  * Payload предложения слота (ADR-003:57).

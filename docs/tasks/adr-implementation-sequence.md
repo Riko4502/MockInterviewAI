@@ -362,6 +362,40 @@ backfill готовых текстов в `type`/`payload`, а ADR-003:96 обя
 `$transaction` → outbox → релей → канал; при падении релея событие
 переживает перезапуск; повторная доставка не создаёт дубль в колокольчике.
 
+### 6.1. Статус на 30.09.2026
+
+Пункты 1-7 выполнены:
+
+* Словарь — `packages/dto/src/notifications/notification-event.ts`, три события
+  (`system.welcome`, `interview.match_proposed`, `interview.slot_booked`).
+  Общий пакет выбран потому, что `@packages/dto` уже зависит от
+  `@packages/i18n`; новый пакет не создавался.
+* Миграция `20260930131500_notification_event_payload_and_outbox` с
+  SQL-гвардом непустой `notifications`. Колонки рендера nullable, как в
+  ADR-003:58: NULL — честный маркер «ещё не отрендерено», его чинит
+  ленивый пересчёт при чтении.
+* `NotificationDispatcher` (`dispatch` с обязательным транзакционным
+  клиентом и `deliver` по каналам), интерфейс канала, in-app адаптер,
+  `NotificationOutboxRelay` с backoff и `FAILED`.
+* Продюсер: `system.welcome` в `UsersService.create()` и
+  `createTelegramUser()` в одной `$transaction` с созданием пользователя.
+* Рендер — `renderNotification` в `@packages/i18n`. Пакет переведён на
+  `rslib` с dual ESM/CJS-выводом, иначе `apps/api` (CJS) не мог его
+  импортировать: `generate:openapi` падал с `ERR_REQUIRE_ESM`.
+* HTTP-контракт списка уведомлений: `type` + `payload` добавлены, `title`
+  и `message` сохранены и отдают отрендеренный текст — от них зависит
+  существующий SSE-клиент. `dedupKey` и поля рендера наружу не отдаются.
+
+Побочный пункт про пять схем витрины и матчмейкинга **не выполнен**.
+Причина не в объёме: это TypeScript-интерфейсы, а не Zod-схемы, а
+`registerSchema` по принципу из `zod-openapi.ts` («ручного дублирования
+нет») требует Zod-описания в `@packages/dto`. Смотримый ниже блокер для
+фаз 3-4 сохраняется.
+
+Побочно зафиксировано: релей не работает при `NODE_ENV=test`. Сьюты e2e
+делят одну БД, и фоновая доставка конкурировала бы за строки outbox с
+другими Nest-инстансами.
+
 ---
 
 ## 7. Фазы 3-6

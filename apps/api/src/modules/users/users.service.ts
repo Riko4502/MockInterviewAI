@@ -31,6 +31,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthSessionService } from "../auth/services/auth-session.service";
+import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -96,6 +97,7 @@ export class UsersService {
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => AuthSessionService))
     private readonly authSessionService: AuthSessionService,
+    private readonly notificationDispatcher: NotificationDispatcher,
   ) {}
 
   /**
@@ -225,13 +227,27 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash: data.passwordHash,
-        ...(data.githubId ? { githubId: data.githubId } : {}),
-        roleId: defaultRole.id,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash: data.passwordHash,
+          ...(data.githubId ? { githubId: data.githubId } : {}),
+          roleId: defaultRole.id,
+        },
+      });
+
+      // Строка outbox пишется в той же транзакции, что и пользователь
+      // (ADR-003:65-68). Эмит после commit терял бы событие при падении
+      // процесса между ними, а эмит внутри отдельной транзакции показал бы
+      // фантом пользователю, для которого транзакция откатилась.
+      await this.notificationDispatcher.dispatch(
+        { type: "system.welcome", payload: {} },
+        user.id,
+        tx,
+      );
+
+      return user;
     });
   }
 
@@ -326,18 +342,31 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash: data.passwordHash,
-        telegramId: data.telegramId,
-        telegramUsername: data.telegramUsername ?? null,
-        telegramLinkVerified: data.telegramLinkVerified ?? false,
-        displayName: data.displayName ?? null,
-        avatarUrl: data.avatarUrl ?? null,
-        username: null,
-        roleId: defaultRole.id,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash: data.passwordHash,
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: data.telegramLinkVerified ?? false,
+          displayName: data.displayName ?? null,
+          avatarUrl: data.avatarUrl ?? null,
+          username: null,
+          roleId: defaultRole.id,
+        },
+      });
+
+      // Приветствие шлётся наравне с email-регистрацией: точка входа другая,
+      // а инвариант «у созданного пользователя есть приветственное уведомление»
+      // должен выполняться всегда.
+      await this.notificationDispatcher.dispatch(
+        { type: "system.welcome", payload: {} },
+        user.id,
+        tx,
+      );
+
+      return user;
     });
   }
 

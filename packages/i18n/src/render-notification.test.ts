@@ -96,9 +96,16 @@ describe("renderNotification", () => {
   });
 
   it("оставляет не-дату в шаблоне как есть", () => {
+    // Проверяется на событии, которое действительно интерполирует: шаблон
+    // system.welcome не подставляет ничего, и на нём проверка была бы пустой.
     const rendered = renderNotification(
-      "system.welcome",
-      { displayName: "2026-10-01" },
+      "interview.match_proposed",
+      {
+        sessionId: "s",
+        proposedSlotId: "sl",
+        proposedStartUtc: "2026-10-01T09:00:00.000Z",
+        senderName: "2026-10-01",
+      },
       { locale: "ru" },
     );
     expect(rendered.message).toContain("2026-10-01");
