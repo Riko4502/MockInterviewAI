@@ -12,6 +12,11 @@ describe("NotificationsService", () => {
       count: jest.Mock;
       updateMany: jest.Mock;
       create: jest.Mock;
+      upsert: jest.Mock;
+      update: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
     };
   };
 
@@ -44,13 +49,49 @@ describe("NotificationsService", () => {
     id: notificationId,
     userId,
     category: NotificationType.INTERVIEW,
-    title: "Новое уведомление",
-    message: "Тестовое уведомление",
+    type: "interview.match_proposed",
+    payload: {
+      sessionId: "33333333-3333-4333-a333-333333333333",
+      proposedSlotId: "44444444-4444-4444-a444-444444444444",
+      proposedStartUtc: "2026-10-01T09:00:00.000Z",
+      senderName: "Иван",
+    },
+    renderedTitle: "Предложен слот",
+    renderedMessage: "Иван предлагает провести интервью.",
+    renderedLocale: "ru",
+    renderedTimezone: "Europe/Moscow",
+    dedupKey: `interview.match_proposed:${userId}:session=33333333-3333-4333-a333-333333333333&slot=44444444-4444-4444-a444-444444444444&start=2026-10-01T09:00:00.000Z`,
     actionUrl: "/interviews/123",
     readAt: null,
     deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+
+  /** То, что реально уходит клиенту: без dedupKey и полей рендера. */
+  const mockWireNotification = {
+    id: notificationId,
+    userId,
+    category: NotificationType.INTERVIEW,
+    type: "interview.match_proposed",
+    payload: mockNotification.payload,
+    title: mockNotification.renderedTitle,
+    message: mockNotification.renderedMessage,
+    actionUrl: "/interviews/123",
+    readAt: null,
+    deletedAt: null,
+    createdAt: mockNotification.createdAt,
+    updatedAt: mockNotification.updatedAt,
+  };
+
+  const matchProposedEvent = {
+    type: "interview.match_proposed" as const,
+    payload: {
+      sessionId: "33333333-3333-4333-a333-333333333333",
+      proposedSlotId: "44444444-4444-4444-a444-444444444444",
+      proposedStartUtc: "2026-10-01T09:00:00.000Z",
+      senderName: "Иван",
+    },
   };
 
   beforeEach(() => {
@@ -60,6 +101,14 @@ describe("NotificationsService", () => {
         count: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          locale: "ru",
+          timezone: "Europe/Moscow",
+        }),
       },
     };
 
@@ -121,12 +170,51 @@ describe("NotificationsService", () => {
       );
 
       expect(result).toEqual({
-        items: [mockNotification],
+        items: [mockWireNotification],
         page: 1,
         limit: 20,
         total: 1,
         totalPages: 1,
       });
+    });
+
+    it("не отдаёт наружу dedupKey и поля рендера", async () => {
+      redisMock.get.mockResolvedValue(null);
+      prismaMock.notification.findMany.mockResolvedValue([mockNotification]);
+      prismaMock.notification.count.mockResolvedValue(1);
+      redisMock.scanKeys.mockResolvedValue([]);
+
+      const result = await service.getNotifications(userId, page, limit);
+
+      const [item] = result.items as unknown as Record<string, unknown>[];
+
+      expect(item).not.toHaveProperty("dedupKey");
+      expect(item).not.toHaveProperty("renderedTitle");
+      expect(item).not.toHaveProperty("renderedTimezone");
+    });
+
+    it("дорисовывает текст, если отрендеренные колонки NULL", async () => {
+      const notRendered = {
+        ...mockNotification,
+        renderedTitle: null,
+        renderedMessage: null,
+        renderedLocale: null,
+        renderedTimezone: null,
+      };
+
+      prismaMock.notification.update.mockResolvedValue(notRendered);
+      prismaMock.notification.findMany.mockResolvedValue([notRendered]);
+      prismaMock.notification.count.mockResolvedValue(1);
+      redisMock.get.mockResolvedValue(null);
+      redisMock.scanKeys.mockResolvedValue([]);
+
+      const result = await service.getNotifications(userId, page, limit);
+
+      const [item] = result.items as unknown as Record<string, string>[];
+
+      expect(item.title).not.toBe("");
+      expect(item.message).not.toBe("");
+      expect(item.message).toContain("Иван");
     });
 
     it("возвращает страницу уведомлений из Redis и не обращается к БД при наличии кэша", async () => {
@@ -156,7 +244,16 @@ describe("NotificationsService", () => {
 
       expect(redisMock.set).not.toHaveBeenCalled();
 
-      expect(result).toEqual(cachedResult);
+      expect(result).toEqual({
+        ...cachedResult,
+        items: [
+          {
+            ...mockWireNotification,
+            createdAt: mockNotification.createdAt.toISOString(),
+            updatedAt: mockNotification.updatedAt.toISOString(),
+          },
+        ],
+      });
     });
 
     it("правильно рассчитывает skip для запрошенной страницы", async () => {
@@ -442,89 +539,49 @@ describe("NotificationsService", () => {
   });
 
   describe("createNotification", () => {
-    it("создает уведомление с category и actionUrl", async () => {
-      prismaMock.notification.create.mockResolvedValue(mockNotification);
-
+    const arrange = () => {
       redisMock.scanKeys.mockResolvedValue([]);
       redisMock.delete.mockResolvedValue(undefined);
       redisMock.get.mockResolvedValue(null);
       redisMock.set.mockResolvedValue(undefined);
       redisMock.xadd.mockResolvedValue("1724500000000-0");
-
       prismaMock.notification.count.mockResolvedValue(1);
+      prismaMock.notification.upsert.mockResolvedValue(mockNotification);
+    };
+
+    it("рендерит текст из типа события и payload, а не из готовых строк", async () => {
+      arrange();
 
       const result = await service.createNotification({
         userId,
-        category: NotificationType.INTERVIEW,
-        title: "Новое уведомление",
-        message: "Тестовое уведомление",
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
         actionUrl: "/interviews/123",
       });
 
-      expect(prismaMock.notification.create).toHaveBeenCalledWith({
-        data: {
+      expect(prismaMock.notification.upsert).toHaveBeenCalledWith({
+        where: { dedupKey: mockNotification.dedupKey },
+        create: expect.objectContaining({
           userId,
           category: NotificationType.INTERVIEW,
-          title: "Новое уведомление",
-          message: "Тестовое уведомление",
+          type: "interview.match_proposed",
+          payload: matchProposedEvent.payload,
           actionUrl: "/interviews/123",
-        },
+        }),
+        // Повторная доставка не должна двигать createdAt и менять текст.
+        update: {},
       });
 
       expect(result).toEqual(mockNotification);
     });
 
-    it("инвалидирует все закэшированные страницы уведомлений", async () => {
-      const firstPageKey = `notifications:${userId}:page:1:limit:20`;
-
-      const secondPageKey = `notifications:${userId}:page:2:limit:20`;
-
-      redisMock.scanKeys.mockResolvedValue([firstPageKey, secondPageKey]);
-
-      prismaMock.notification.create.mockResolvedValue(mockNotification);
-
-      redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
-      redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(1);
+    it("отдаёт в SSE кэш рендера под прежними ключами title и message", async () => {
+      arrange();
 
       await service.createNotification({
         userId,
-        category: NotificationType.INTERVIEW,
-        title: "Новое уведомление",
-        message: "Тестовое уведомление",
-        actionUrl: "/interviews/123",
-      });
-
-      expect(redisMock.scanKeys).toHaveBeenCalledWith(
-        notificationsCachePattern,
-      );
-
-      expect(redisMock.delete).toHaveBeenCalledWith(firstPageKey);
-
-      expect(redisMock.delete).toHaveBeenCalledWith(secondPageKey);
-
-      expect(redisMock.delete).toHaveBeenCalledWith(unreadCountCacheKey);
-    });
-
-    it("публикует notification.new в Redis Stream", async () => {
-      prismaMock.notification.create.mockResolvedValue(mockNotification);
-
-      redisMock.scanKeys.mockResolvedValue([]);
-      redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
-      redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(1);
-
-      await service.createNotification({
-        userId,
-        category: NotificationType.INTERVIEW,
-        title: "Новое уведомление",
-        message: "Тестовое уведомление",
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
         actionUrl: "/interviews/123",
       });
 
@@ -533,8 +590,8 @@ describe("NotificationsService", () => {
         "notification.new",
         {
           id: notificationId,
-          title: "Новое уведомление",
-          message: "Тестовое уведомление",
+          title: mockNotification.renderedTitle,
+          message: mockNotification.renderedMessage,
           category: NotificationType.INTERVIEW,
           actionUrl: "/interviews/123",
           createdAt: mockNotification.createdAt.toISOString(),
@@ -546,25 +603,75 @@ describe("NotificationsService", () => {
       );
     });
 
-    it("публикует notification.new с read: true для прочитанного уведомления", async () => {
-      prismaMock.notification.create.mockResolvedValue({
+    it("выводит время в таймзоне читателя", async () => {
+      arrange();
+      prismaMock.notification.upsert.mockResolvedValue(mockNotification);
+
+      await service.createNotification({
+        userId,
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
+      });
+
+      expect(prismaMock.notification.upsert).toHaveBeenCalledWith({
+        where: { dedupKey: mockNotification.dedupKey },
+        create: expect.objectContaining({
+          renderedTimezone: "Europe/Moscow",
+          renderedLocale: "ru",
+        }),
+        update: {},
+      });
+    });
+
+    it("не доверяет лишним полям payload", async () => {
+      arrange();
+
+      await service.createNotification({
+        userId,
+        type: matchProposedEvent.type,
+        payload: {
+          ...matchProposedEvent.payload,
+          email: "leak@example.com",
+        } as typeof matchProposedEvent.payload,
+      });
+
+      const call = prismaMock.notification.upsert.mock.calls[0][0];
+
+      expect(call.create.payload).not.toHaveProperty("email");
+    });
+
+    it("инвалидирует все закэшированные страницы уведомлений", async () => {
+      const firstPageKey = `notifications:${userId}:page:1:limit:20`;
+      const secondPageKey = `notifications:${userId}:page:2:limit:20`;
+      arrange();
+      redisMock.scanKeys.mockResolvedValue([firstPageKey, secondPageKey]);
+
+      await service.createNotification({
+        userId,
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
+        actionUrl: "/interviews/123",
+      });
+
+      expect(redisMock.scanKeys).toHaveBeenCalledWith(
+        notificationsCachePattern,
+      );
+      expect(redisMock.delete).toHaveBeenCalledWith(firstPageKey);
+      expect(redisMock.delete).toHaveBeenCalledWith(secondPageKey);
+      expect(redisMock.delete).toHaveBeenCalledWith(unreadCountCacheKey);
+    });
+
+    it("публикует notification.new с read: true для прочитанного", async () => {
+      arrange();
+      prismaMock.notification.upsert.mockResolvedValue({
         ...mockNotification,
         readAt: new Date(),
       });
 
-      redisMock.scanKeys.mockResolvedValue([]);
-      redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
-      redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(0);
-
       await service.createNotification({
         userId,
-        category: NotificationType.INTERVIEW,
-        title: "Прочитанное уведомление",
-        message: "Тестовое уведомление",
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
       });
 
       expect(redisMock.xadd).toHaveBeenCalledWith(
@@ -577,36 +684,24 @@ describe("NotificationsService", () => {
       );
     });
 
-    it("публикует актуальный unread badge после создания уведомления", async () => {
-      prismaMock.notification.create.mockResolvedValue(mockNotification);
-
-      redisMock.scanKeys.mockResolvedValue([]);
-      redisMock.delete.mockResolvedValue(undefined);
-      redisMock.get.mockResolvedValue(null);
-      redisMock.set.mockResolvedValue(undefined);
-      redisMock.xadd.mockResolvedValue("1724500000000-0");
-
-      prismaMock.notification.count.mockResolvedValue(1);
+    it("публикует актуальный unread badge", async () => {
+      arrange();
 
       await service.createNotification({
         userId,
-        category: NotificationType.INTERVIEW,
-        title: "Новое уведомление",
-        message: "Тестовое уведомление",
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
         actionUrl: "/interviews/123",
       });
 
       expect(redisMock.xadd).toHaveBeenCalledWith(
         notificationStreamKey,
         "notification.badge",
-        {
-          unreadCount: 1,
-        },
+        { unreadCount: 1 },
         100,
         604800,
         expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       );
-
       expect(redisMock.xadd).toHaveBeenCalledTimes(2);
     });
   });

@@ -30,6 +30,7 @@
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.5.0",
     "@packages/dto": "workspace:^",
+    "@packages/i18n": "workspace:^",
     "@packages/observability": "workspace:^",
     "@packages/types": "workspace:^",
     "@packages/utils": "workspace:^",
