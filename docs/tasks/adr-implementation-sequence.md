@@ -12,7 +12,35 @@
 
 ## Статус исполнения
 
-Не начато. Документ подготовлен 28.09.2026; фазы 0-6 не реализованы.
+**Фаза 0 (ADR-006, Node 24) — выполнена 30.09.2026.** Фазы 1-6 не начаты.
+
+Проверено на 30.09.2026, локальный рантайм `node v26.8.2`, `pnpm 9.15.9`,
+Docker 29.8.0:
+
+| Критерий завершения фазы 0 | Результат |
+|---|---|
+| `node -v` в контейнере, все пять образов | `v24.21.0` во всех пяти, `docker build` успешен для `apps/api`, `apps/telegram-bot`, `apps/web`, `apps/landing`, `apps/ui-docs` |
+| `git grep -nE '^[[:space:]]*node-version:[[:space:]]*[^[:space:]]' .github/workflows` | Пусто. Простой `git grep "node-version:"` даёт три совпадения, и все они ложные: ключ job `node-version:` в самом `ci-security.yml` и две строки текста самой проверки — значения после двоеточия у них нет |
+| Новый job в `ci-security` | Выполнен дословно из workflow, результат «согласованы». Проверены четыре отрицательных сценария: литерал без кавычек, литерал в кавычках, расхождение `engines.node`, отсутствие `engines` |
+| `engines` предупреждает на неподдерживаемой версии | `WARN Unsupported engine: wanted: {"node":"24.x"} (current: {"node":"v26.8.2"})` |
+| ICU и таймзоны (ADR-002:95) | `icu 78.3`, `Intl.supportedValuesOf('timeZone')` доступен. Переходы 2026 проверены и верны: `Europe/Berlin` CEST/CET, `Europe/Moscow` GMT+3 без перехода, `America/New_York` EST/EDT, `Australia/Sydney` AEDT/AEST. Это и есть предусловие ADR-002 |
+| Нативные модули под musl (ADR-006:52) | `argon2` — prebuild `linux-x64/argon2.musl.node`, hash/verify round trip проходит; `sharp` — libvips 8.18.6, PNG кодируется; Prisma-клиент генерируется, `PrismaClient` — функция |
+
+Зелёная база после фазы 0: `pnpm lint` — 1023 файла чисто, `pnpm test:api` —
+44 набора / 738 тестов, `tsc --noEmit` в `apps/api` и `apps/web` — чисто,
+`typecheck` во всех 15 воркспейсах, где скрипт определён, — чисто; у
+`apps/code-runner` и `apps/realtime` скрипта `typecheck` нет. Единственное
+красное — 13 тестов `useMediaSettings.test.ts` на локальном Node 26, см. п. 4.
+
+Отдельно зафиксировано, что фаза 0 **не** чинит эти 13 тестов: `engines` лишь
+предупреждает. Локальный прогон `apps/web` станет зелёным только на Node 24.
+
+Документ подготовлен 28.09.2026 и повторно сверен с кодом 30.09.2026.
+Расхождений, требующих правки кода, не найдено, но семь утверждений документа
+оказались неточными — все исправлены 30.09.2026, см. п. 1.1. Изменения в
+`docs/adr/ADR-006.md` внесены одновременно: ADR содержал неверные счётчики
+(девять пакетов вместо десяти, восемь workflow вместо девяти) и предписывал
+оставить литерал версии в двух workflow.
 
 ---
 
@@ -31,15 +59,43 @@
 
 Два уточнения к фактам ADR:
 
-* ADR-006:25 говорит «в девяти пакетах» и перечисляет десять. В репозитории
+* ADR-006:25 и ADR-006:57 говорили «в девяти пакетах» и перечисляли десять, а
+  ADR-006:42 — «в восьми workflow» при фактических девяти. В репозитории
   `@types/node` зафиксирован на `^20` в 10 пакетах: `apps/api`,
   `apps/landing`, `apps/telegram-bot`, `apps/ui-docs`, `apps/web`,
   `packages/dto` (`^20.19.43`), `packages/editor`, `packages/tailwind-config`,
-  `packages/ui`, `packages/utils`.
+  `packages/ui`, `packages/utils`. Счётчики в самом ADR-006 исправлены
+  30.09.2026, иначе фаза 0 закрывалась бы по противоречивому тексту.
 * ADR-003:94 утверждает, что таблица `notifications` пуста. Подтверждено:
   единственные вызовы `createNotification` — в
   `apps/api/src/modules/notifications/notifications.service.spec.ts:456,493,523,563,591`.
   Это делает разрушительную миграцию ADR-003 бесплатной именно сейчас.
+
+### 1.1. Что исправлено при сверке 30.09.2026
+
+Проверяемые утверждения документа сверены с кодом и командами; расхождения
+оказались в формулировках диагнозов, а не в выводах фаз. План требовал
+исправлений в семи местах:
+
+1. **Ошибка `localStorage` названа неверно** (п. 4). Утверждение
+   «`localStorage.clear is not a function`»: в Node 25 `localStorage` —
+   глобальный объект без метода `clear`» не подтверждается. Фактическая
+   ошибка — `TypeError: Cannot read properties of undefined (reading 'clear')`.
+2. **Локальная версия Node — 26, а не 25** (п. 4, п. 9). Проверено:
+   `v26.8.2`, `pnpm 9.15.9`.
+3. **«Фаза 0 устраняет» падение `useMediaSettings`** (п. 9) — неверно: фаза 0
+   не трогает этот тест.
+4. **Строки падения `tsc` — четыре, а не три** (п. 9): `127, 136, 150, 159`.
+5. **Порядок верификации не зафиксирован** (п. 8.8, п. 9): без
+   `pnpm install --frozen-lockfile` и сборки пакетов остальные команды дают
+   ложные результаты. Наблюдалось: `node_modules` был рассинхронизирован с
+   lockfile (`@rslib/core` объявлен в `package.json` и `pnpm-lock.yaml`, но
+   отсутствовал в `node_modules`).
+6. **Список «stale dist» неполон** (п. 8.8): страдает не только `dist`
+   пакетов, но и сгенерированный Prisma-клиент `apps/api/src/generated/prisma`.
+7. **Расхождение с ADR-006 по числу workflow** (п. 4, шаг 3): 9, а не 7;
+   `release.yml` и `e2e-smoke.yml` тоже переводятся на `node-version-file`,
+   иначе возвращается дублирование литерала, которое ADR-006:42 запрещает.
 
 ---
 
@@ -105,38 +161,72 @@ ADR-003 (события + outbox) ─────► ADR-004 (транспорт
 `e2e-smoke.yml` собирают релизные артефакты на Node 20, а тесты гоняются на
 24 — то есть в прод попадает сборка, проверяемая слабее, чем обычный PR
 (ADR-006:21). Второй эффект: расхождение рантайма с `engines` ловит дефекты
-локально. Например, на Node 25 падают 13 тестов
-`apps/web/src/features/media-settings/model/useMediaSettings.test.ts` с
-`localStorage.clear is not a function`: в Node 25 `localStorage` — глобальный
-объект без метода `clear` и перебивает jsdom-реализацию в vitest. В CI это
-не воспроизводится (Node 24), но `engines` превратило бы это в ошибку при
-установке зависимостей.
+локально. Например, на Node 25 и новее падают 13 тестов
+`apps/web/src/features/media-settings/model/useMediaSettings.test.ts`:
+в `beforeEach` вызывается `localStorage.clear()`, а в Node 25+ `localStorage`
+объявлен как **собственное свойство `globalThis`** (`enumerable: false`,
+`configurable: true`) со значением `undefined`, потому что не передан
+`--localstorage-file`; Node печатает `ExperimentalWarning: localStorage is not
+available because --localstorage-file was not provided`. Именно наличием
+свойства, а не его значением, оно перебивает jsdom-реализацию, поэтому падение
+выглядит как `TypeError: Cannot read properties of undefined (reading 'clear')`,
+а не как `localStorage.clear is not a function`. В CI это не воспроизводится
+(Node 24), но `engines` превратило бы это в ошибку при установке зависимостей.
+Проверено 30.09.2026 на локальном Node `v26.8.2`; на Node 24 падения нет,
+что подтверждает расхождение как с Node 25, а не с рантаймом в целом.
+
+**Что это даёт и чего не даёт.** `engines` — предупреждение, а не запрет
+(ADR-006:43, п. 8.5 этого документа). Фаза 0 делает расхождение явным, но
+**не чинит эти 13 тестов**: на Node 25/26 локальный прогон `apps/web` останется
+красным до перехода на Node 24. Утверждать обратное в критериях завершения
+нельзя.
 
 Порядок работ внутри фазы задан ADR-006:47 и соблюдается буквально:
 
-1. `release.yml:58` и `e2e-smoke.yml:30` — Node 20 → 24.
-2. Образы: `apps/api/Dockerfile:1`, `apps/telegram-bot/Dockerfile:1`,
+0. Отдельно, до всех пунктов ниже: починить мок `UsersService` в
+   `apps/api/src/modules/users/profile.controller.spec.ts` (строки 127, 136,
+   150, 159 — тип перечисляет методы явно, спека добавляет
+   `getDeviceSettings`/`upsertDeviceSettings`). Свой коммит, к Node 24
+   отношения не имеет. Без него `tsc --noEmit` нельзя использовать как
+   критерий завершения ни одной фазы, а фаза 0 меняет `@types/node`, то есть
+   добавит к этому списку ещё и свои ошибки.
+1. `.node-version` со значением `24` в корне репозитория — первым, потому что
+   на него ссылаются остальные шаги.
+2. Все девять workflow переходят с литерала `node-version` на
+   `node-version-file: .node-version`: семь (`ci-api`, `ci-editor`,
+   `ci-landing`, `ci-security`, `ci-storybook`, `ci-telegram-bot`, `ci-web`)
+   — с `node-version: 24`, и `release.yml:58`, `e2e-smoke.yml:30` — с
+   Node 20. `release.yml` и `e2e-smoke.yml` **тоже** переводятся на
+   `node-version-file`, а не получают литерал `24`: иначе возвращается
+   дублирование, которое ADR-006:42 называет источником разнобоя.
+3. Образы: `apps/api/Dockerfile:1`, `apps/telegram-bot/Dockerfile:1`,
    `apps/web/Dockerfile:1` — `node:20-alpine` → `node:24-alpine`;
    `apps/landing/Dockerfile:1`, `apps/ui-docs/Dockerfile:1` —
    `node:22-alpine` → `node:24-alpine`.
-3. `.node-version` со значением `24` в корне репозитория; семь workflow
-   (`ci-api`, `ci-editor`, `ci-landing`, `ci-security`, `ci-storybook`,
-   `ci-telegram-bot`, `ci-web`) переходят с `node-version: 24` на
-   `node-version-file: .node-version`.
 4. `engines.node: "24.x"` в корневом `package.json` и в
    `apps/landing/vercel.json`, `apps/ui-docs/vercel.json`.
 5. `@types/node` `^20` → `^24` в 10 пакетах — **отдельным последним
    коммитом**, иначе поломки от смены типов не отличить от поломок от смены
    рантайма (ADR-006:47).
 6. CI-проверка соответствия `node-version-file` значению в `.node-version` и
-   в `engines.node` (ADR-006:56).
+   в `engines.node` (ADR-006:56) — **отдельным job в `ci-security.yml`**.
+   Выбран этот workflow, а не отдельный файл-скрипт: `ci-security` уже несёт
+   инфраструктурные проверки, не привязан к приложению, а проверке нужны
+   только чтение трёх файлов и `grep` по workflow. Тот же job запрещает
+   литерал `node-version:` в workflow — иначе версия снова начнёт
+   дублироваться в обход `.node-version`. Проверка приводит код в соответствие
+   с `.node-version`, а не наоборот, поэтому в `lint` она не помещается.
 
 **Отдельно проверить** нативные модули под musl: `argon2`, `sharp`, движок
 Prisma (ADR-006:52). `full-icu` не переключается — официальные alpine-образы
 Node собираются с полным ICU (ADR-006:46).
 
 **Критерий завершения.** `node -v` в контейнере даёт 24 во всех пяти
-образах; после деплоя `Intl.DateTimeFormat().resolvedOptions().timeZone` и
+образах; `git grep -nE '^[[:space:]]*node-version:[[:space:]]*[^[:space:]]'
+.github/workflows` пуст; новый job в
+`ci-security` зелёный; `engines` даёт предупреждение на Node 20/22/25/26 и не
+даёт его на 24; после деплоя
+`Intl.DateTimeFormat().resolvedOptions().timeZone` и
 `new Intl.DateTimeFormat('en', { timeZone: 'Europe/Moscow' }).format(new Date())`
 дают ожидаемое (ADR-002:95) — это же проверка повторяется после фазы 4.
 
@@ -406,28 +496,61 @@ Telegram требует фазы 5. Дробить фазу на два PR ст�
    `Volume1Icon`, `Slider`, `DeviceSettingsDto` не находились до
    `pnpm --filter @packages/... build`. Сборка пакетов — часть верификации
    фаз 2 и 4, а не отдельная забота.
+9. **Расхождение `node_modules` с `pnpm-lock.yaml` ломает всю верификацию.**
+   Наблюдалось 30.09.2026: `@rslib/core` был объявлен в `package.json` и
+   `pnpm-lock.yaml`, но отсутствовал в `node_modules`. Последствия неочевидны
+   и выглядят как регрессии фазы, которой ещё нет:
+   * `pnpm --filter @packages/dto run build` падал с `rslib is not recognized`;
+   * `dist` в `packages/dto` оставался без `media-settings.dto`, и
+     `tsc --noEmit` в `apps/api` выдавал ~40 ложных ошибок в
+     `users.service.ts` — `DeviceSettingsDto`, `Locale`, `ThemeMode`,
+     `ThemePreference`, `telegramId`, `telegramLinkVerified`,
+     `userDeviceSettings` «не существуют»;
+   * `vitest` в `apps/web/src/features/media-settings` давал 17 падений вместо
+     13: к 13 падениям `useMediaSettings` добавлялись 4 падения
+     `MediaSettingsDialog.test.tsx` с `Element type is invalid: got: undefined`
+     — то есть компонент не находился в устаревшем `dist` `@packages/ui`
+     и `@packages/icons`.
+   Затронут и сгенерированный Prisma-клиент `apps/api/src/generated/prisma`:
+   его генерирует `postinstall`, поэтому без `pnpm install` он тоже устаревает.
+   **Первым шагом верификации всегда идёт `pnpm install --frozen-lockfile`,
+   затем сборка пакетов.** Без этого остальные команды п. 9 дают ложные
+   результаты, и ошибку легко приписать текущей фазе.
 
 ---
 
 ## 9. Верификация
 
-Общая для всех фаз:
+Общая для всех фаз. **Порядок обязателен** (п. 8.9): без установки зависимостей
+и сборки пакетов остальные команды дают ложные результаты.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm --filter @packages/icons --filter @packages/ui --filter @packages/dto run build
 pnpm lint
 pnpm --filter @packages/icons --filter @packages/ui --filter @packages/dto run typecheck
 pnpm --filter web exec tsc --noEmit
 pnpm --filter web exec vitest run
-pnpm --filter api test
+pnpm test:api
 pnpm --filter api exec jest --config ./test/jest-e2e.json
+pnpm run codegen:check
 ```
+
+Зелёная база на 30.09.2026: `pnpm lint` — чисто, `pnpm test:api` — 44 набора /
+738 тестов. Две команды выше дают красный результат **до** начала фаз:
+`pnpm --filter api exec tsc --noEmit -p tsconfig.json` (4 ошибки в
+`profile.controller.spec.ts`, чинится шагом 0 фазы 0) и
+`pnpm --filter web exec vitest run src/features/media-settings`
+(13 падений на локальном Node 26, см. ниже). Отличать их от регрессий фазы —
+единственная причина, по которой база зафиксирована.
 
 Отдельно по фазам:
 
 * **Фаза 0:** `node -v` в контейнере каждого образа; `docker build` для
-  `apps/api` с проверкой нативных модулей; после деплоя — проверка ICU и
-  таймзон (ADR-002:95).
+  `apps/api` с проверкой нативных модулей; `git grep -n "node-version:"
+  .github/workflows` пуст; новый job `node-version` в `ci-security` зелёный;
+  после деплоя — проверка ICU и таймзон (ADR-002:95). Локальный прогон
+  `apps/web` на Node 26 остаётся красным и критерием не является.
 * **Фаза 2:** тест на потерю события при падении релея; тест на дедупликацию
   по `dedupKey`; тест на отбрасывание лишних полей payload'а.
 * **Фаза 3:** CI-проверка актуальности сгенерированного Go-файла; после
@@ -447,17 +570,28 @@ pnpm --filter api exec jest --config ./test/jest-e2e.json
   через turbo или `pnpm typecheck` не сработает.
 * `pnpm test` вызывает `turbo test` и прогоняет **все** воркспейсы, поэтому
   для точечной проверки используются `test:web` и `test:api`.
-* `pnpm --filter api exec tsc --noEmit -p tsconfig.json` сейчас падает на
-  `apps/api/src/modules/users/profile.controller.spec.ts:136,150,159` — тип
-  мока `UsersService` перечисляет методы явно, а спека добавляет
-  `getDeviceSettings`/`upsertDeviceSettings`. Дефект привезён из `origin/dev`,
-  к фазам этого плана отношения не имеет и CI не ломает:
+* `pnpm --filter api exec tsc --noEmit -p tsconfig.json` сейчас падает в
+  **четырёх** местах одного файла:
+  `apps/api/src/modules/users/profile.controller.spec.ts:127,136,150,159`
+  (все — TS2339). Тип мока `UsersService` перечисляет методы явно, а спека
+  добавляет `getDeviceSettings`/`upsertDeviceSettings`. Дефект привезён из
+  `origin/dev`, к фазам этого плана отношения не имеет и CI не ломает:
   `apps/api/tsconfig.build.json` исключает `**/*spec.ts`, а в
-  `.github/workflows/ci-api.yml` нет `tsc --noEmit`. Чинить отдельным
-  коммитом.
-* Локальный Node 25 расходится с CI (Node 24). Расхождение проявляется
-  тестом `useMediaSettings.test.ts`; фаза 0 его устраняет. До фазы 0
-  локальный полный прогон `apps/web` даёт 13 ложных падений.
+  `.github/workflows/ci-api.yml` нет `tsc --noEmit`. По решению от 30.09.2026
+  чинится **отдельным коммитом до фазы 0** (шаг 0 в п. 4) — иначе
+  `tsc --noEmit` непригоден как критерий завершения, а фаза 0 добавит к
+  списку ещё и свои ошибки от смены `@types/node`.
+* Локальный Node **26** расходится с CI (Node 24). Проверено 30.09.2026:
+  `node v26.8.2`, `pnpm 9.15.9`. Расхождение проявляется 13 тестами
+  `useMediaSettings.test.ts` и механизм разобран в п. 4. **Фаза 0 этого не
+  чинит**: она добавляет `engines`, который лишь предупреждает. На Node 25/26
+  локальный прогон `apps/web` останется красным; лечится только переходом на
+  Node 24. Считать эти 13 падений регрессией фазы нельзя.
+* Полный прогон `apps/web` в п. 9 не прогонялся целиком: он выполняется
+  медленно (десятки минут на прогрев окружения). Утверждение прежней
+  редакции документа «локальный полный прогон `apps/web` даёт 13 ложных
+  падений» относится к каталогу `src/features/media-settings`, а не ко всему
+  `apps/web`; на полный прогон это обобщение не распространяется.
 
 ---
 

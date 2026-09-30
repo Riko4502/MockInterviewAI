@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "engines": {
+    "node": "24.x"
+  },
   "buildCommand": "pnpm turbo build --filter=ui-docs",
   "outputDirectory": "storybook-static",
   "installCommand": "pnpm install",

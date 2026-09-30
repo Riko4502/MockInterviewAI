@@ -31,6 +31,52 @@ jobs:
           recursive: true
           failure-threshold: error
 
+  node-version:
+    name: "Единый источник версии Node.js"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: "Проверка соответствия .node-version, engines.node и node-version-file"
+        run: |
+          set -euo pipefail
+
+          file_version="$(tr -d '[:space:]' < .node-version)"
+          expected="${file_version}.x"
+
+          # ?.engines?.node: отсутствие engines должно давать внятное MISMATCH,
+          # а не TypeError из node -p.
+          declare -A declared=(
+            [package.json]="$(node -p "require('./package.json')?.engines?.node ?? 'MISSING'")"
+            [apps/landing/vercel.json]="$(node -p "require('./apps/landing/vercel.json')?.engines?.node ?? 'MISSING'")"
+            [apps/ui-docs/vercel.json]="$(node -p "require('./apps/ui-docs/vercel.json')?.engines?.node ?? 'MISSING'")"
+          )
+
+          echo ".node-version = ${file_version}"
+          for manifest in "${!declared[@]}"; do
+            value="${declared[$manifest]}"
+            echo "${manifest} engines.node = ${value}"
+            if [ "${value}" != "${expected}" ]; then
+              echo "::error file=${manifest}::engines.node (${value}) does not match .node-version (${file_version})"
+              exit 1
+            fi
+          done
+
+          # Требуется значение после двоеточия, иначе под шаблон попадает сам
+          # ключ job `node-version:` в этом же файле и текст самой проверки.
+          if grep -rnE '^[[:space:]]*node-version:[[:space:]]*[^[:space:]]' .github/workflows/; then
+            echo "::error::В workflow найден литерал версии Node. Версия читается только из .node-version, иначе разнобой вернётся (ADR-006)."
+            exit 1
+          fi
+
+          echo "Версия Node задана в одном месте: .node-version, engines.node и node-version-file согласованы"
+
   dependency-audit:
     name: "Аудит безопасности зависимостей (pnpm audit)"
     runs-on: ubuntu-latest
@@ -44,7 +90,7 @@ jobs:
       - name: "Установка Node.js"
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .node-version
 
       - name: "Проверка уязвимостей в пакетах (pnpm audit)"
         run: pnpm audit --audit-level=high
