@@ -11,6 +11,8 @@ describe("ProfileController", () => {
     deleteAvatar: jest.Mock;
     deactivateAccount: jest.Mock;
     restoreAccount: jest.Mock;
+    getDeviceSettings: jest.Mock;
+    upsertDeviceSettings: jest.Mock;
   };
   let configServiceMock: jest.Mocked<Partial<ConfigService>>;
   let responseMock: { clearCookie: jest.Mock };
@@ -41,6 +43,8 @@ describe("ProfileController", () => {
       deleteAvatar: jest.fn().mockResolvedValue(undefined),
       deactivateAccount: jest.fn().mockResolvedValue(undefined),
       restoreAccount: jest.fn().mockResolvedValue(mockProfile),
+      getDeviceSettings: jest.fn().mockResolvedValue(undefined),
+      upsertDeviceSettings: jest.fn().mockResolvedValue(undefined),
     };
     configServiceMock = {
       get: jest.fn().mockImplementation((key: string) => {
