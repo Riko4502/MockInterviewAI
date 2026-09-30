@@ -1,0 +1,20 @@
+{
+  "events": {
+    "system.welcome": {
+      "title": "Добро пожаловать",
+      "message": "Рады видеть вас, {{displayName}}. Заполните профиль, чтобы начать подбор интервью."
+    },
+    "interview.match_proposed": {
+      "title": "Предложен слот",
+      "message": "{{senderName}} предлагает провести интервью {{proposedStartUtc}}."
+    },
+    "interview.slot_booked": {
+      "title": "Слот подтверждён",
+      "message": "{{otherParticipantName}} подтвердил интервью на {{startUtc}}."
+    }
+  },
+  "fallback": {
+    "title": "Уведомление",
+    "message": "Произошло обновление"
+  }
+}
