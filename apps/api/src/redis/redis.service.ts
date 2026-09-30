@@ -223,8 +223,8 @@ end
    * @param ttlSeconds - Время жизни в секундах.
    * @throws {Error} При ошибке Redis.
    */
-  async expire(key: string, ttlSeconds: number): Promise<void> {
-    await this.client.expire(key, ttlSeconds);
+  async expire(key: string, ttlSeconds: number): Promise<number> {
+    return this.client.expire(key, ttlSeconds);
   }
 
   /**
@@ -283,6 +283,83 @@ end
     if (ttlSeconds !== undefined) {
       await this.client.expire(key, ttlSeconds);
     }
+  }
+
+  /**
+   * Добавляет элемент в Set (SADD).
+   */
+  async sadd(key: string, member: string): Promise<number> {
+    return this.client.sadd(key, member);
+  }
+
+  /**
+   * Извлекает случайный элемент из Set (SPOP).
+   */
+  async spop(key: string): Promise<string | null> {
+    return this.client.spop(key);
+  }
+
+  /**
+   * Удаляет элемент из Set (SREM).
+   */
+  async srem(key: string, member: string): Promise<number> {
+    return this.client.srem(key, member);
+  }
+
+  /**
+   * Возвращает количество элементов в Set (SCARD).
+   */
+  async scard(key: string): Promise<number> {
+    return this.client.scard(key);
+  }
+
+  /**
+   * Добавляет элемент в Sorted Set со score (ZADD).
+   */
+  async zadd(key: string, score: number, member: string): Promise<number> {
+    return this.client.zadd(key, score, member);
+  }
+
+  /**
+   * Удаляет элемент из Sorted Set (ZREM).
+   */
+  async zrem(key: string, member: string): Promise<number> {
+    return this.client.zrem(key, member);
+  }
+
+  /**
+   * Получает диапазон элементов из Sorted Set по рангу (ZRANGE).
+   */
+  async zrange(
+    key: string,
+    start: number | string,
+    stop: number | string,
+  ): Promise<string[]> {
+    return (
+      this.client.zrange as (
+        k: string,
+        s: number | string,
+        e: number | string,
+      ) => Promise<string[]>
+    )(key, start, stop);
+  }
+
+  /**
+   * Удаляет элементы из Sorted Set по диапазону score (ZREMRANGEBYSCORE).
+   */
+  async zremrangebyscore(
+    key: string,
+    min: number | string,
+    max: number | string,
+  ): Promise<number> {
+    return this.client.zremrangebyscore(key, min, max);
+  }
+
+  /**
+   * Возвращает количество элементов в Sorted Set (ZCARD).
+   */
+  async zcard(key: string): Promise<number> {
+    return this.client.zcard(key);
   }
 
   /**

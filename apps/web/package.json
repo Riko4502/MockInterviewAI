@@ -21,6 +21,7 @@
     "@packages/api": "workspace:*",
     "@packages/dto": "workspace:*",
     "@packages/editor": "workspace:*",
+    "@packages/hooks": "workspace:*",
     "@packages/i18n": "workspace:^",
     "@packages/icons": "workspace:*",
     "@packages/observability": "workspace:^",

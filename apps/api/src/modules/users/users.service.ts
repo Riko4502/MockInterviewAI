@@ -99,6 +99,19 @@ export class UsersService {
   ) {}
 
   /**
+   * Инвалидирует кэш готовности профиля для дашборда (TASK-BACK-45).
+   */
+  private async invalidateReadinessCache(userId: string): Promise<void> {
+    try {
+      await this.redisService.delete(`cache:dashboard:readiness:${userId}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to invalidate readiness cache for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
    * Ищет пользователя по ID.
    *
    * @param id - UUID пользователя.
@@ -281,6 +294,8 @@ export class UsersService {
       throw error;
     }
 
+    await this.invalidateReadinessCache(userId);
+
     return { message: "Telegram account linked successfully" };
   }
 
@@ -406,6 +421,8 @@ export class UsersService {
       select: USER_PROFILE_SELECT,
     });
 
+    await this.invalidateReadinessCache(userId);
+
     return this.mapToUserProfile(updated);
   }
 
@@ -466,7 +483,7 @@ export class UsersService {
       throw new BadRequestException("Invalid user ID");
     }
 
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM "users" WHERE id = ${userId}::uuid FOR UPDATE
       `;
@@ -558,6 +575,10 @@ export class UsersService {
         isPersisted: true,
       };
     });
+
+    await this.invalidateReadinessCache(userId);
+
+    return result;
   }
 
   /**
@@ -589,6 +610,8 @@ export class UsersService {
       await this.storageService.deleteFile(oldAvatarUrl);
     }
 
+    await this.invalidateReadinessCache(userId);
+
     return { avatarUrl: newAvatarUrl };
   }
 
@@ -609,6 +632,7 @@ export class UsersService {
         where: { id: userId },
         data: { avatarUrl: null },
       });
+      await this.invalidateReadinessCache(userId);
     }
   }
 

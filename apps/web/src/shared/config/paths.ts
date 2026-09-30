@@ -2,6 +2,8 @@ export const paths = {
   login: "/login",
   register: "/register",
   dashboard: "/dashboard",
+  adminUsers: "/admin/users",
+  forbidden: "/forbidden",
   sandbox: "/dashboard/sandbox",
   notifications: "/dashboard/notifications",
   interviews: "/dashboard/interviews",

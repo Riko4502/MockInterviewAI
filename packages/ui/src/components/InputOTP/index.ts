@@ -1,3 +1,5 @@
+"use client";
+
 export {
   REGEXP_ONLY_CHARS,
   REGEXP_ONLY_DIGITS,
