@@ -61,6 +61,9 @@ importers:
       '@packages/dto':
         specifier: workspace:^
         version: link:../../packages/dto
+      '@packages/i18n':
+        specifier: workspace:^
+        version: link:../../packages/i18n
       '@packages/observability':
         specifier: workspace:^
         version: link:../../packages/observability
@@ -673,6 +676,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.4.2
         version: 2.4.2
+      '@rslib/core':
+        specifier: ^0.23.2
+        version: 0.23.2(core-js@3.47.0)(typescript@5.9.3)
       typescript:
         specifier: ^5
         version: 5.9.3
