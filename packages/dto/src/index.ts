@@ -63,6 +63,25 @@ export {
   unreadNotificationsCountSchema,
 } from "./notifications/notification.dto";
 export {
+  buildDedupKey,
+  type InterviewMatchProposedEvent,
+  type InterviewSlotBookedEvent,
+  interviewMatchProposedEventSchema,
+  interviewMatchProposedPayloadSchema,
+  interviewSlotBookedEventSchema,
+  interviewSlotBookedPayloadSchema,
+  type NotificationEvent,
+  type NotificationEventCategory,
+  type NotificationEventPayloads,
+  type NotificationEventType,
+  notificationEventCategory,
+  notificationEventSchema,
+  parseNotificationEvent,
+  type SystemWelcomeEvent,
+  systemWelcomeEventSchema,
+  systemWelcomePayloadSchema,
+} from "./notifications/notification-event";
+export {
   clientIdSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
