@@ -50,23 +50,25 @@ jobs:
           file_version="$(tr -d '[:space:]' < .node-version)"
           expected="${file_version}.x"
 
+          # Vercel берёт версию из engines.node корневого package.json, а в
+          # vercel.json такого поля нет: схема openapi.vercel.sh/vercel.json
+          # задаёт additionalProperties: false, и его нарушение валит деплой.
           # ?.engines?.node: отсутствие engines должно давать внятное MISMATCH,
           # а не TypeError из node -p.
-          declare -A declared=(
-            [package.json]="$(node -p "require('./package.json')?.engines?.node ?? 'MISSING'")"
-            [apps/landing/vercel.json]="$(node -p "require('./apps/landing/vercel.json')?.engines?.node ?? 'MISSING'")"
-            [apps/ui-docs/vercel.json]="$(node -p "require('./apps/ui-docs/vercel.json')?.engines?.node ?? 'MISSING'")"
-          )
+          value="$(node -p "require('./package.json')?.engines?.node ?? 'MISSING'")"
 
           echo ".node-version = ${file_version}"
-          for manifest in "${!declared[@]}"; do
-            value="${declared[$manifest]}"
-            echo "${manifest} engines.node = ${value}"
-            if [ "${value}" != "${expected}" ]; then
-              echo "::error file=${manifest}::engines.node (${value}) does not match .node-version (${file_version})"
-              exit 1
-            fi
-          done
+          echo "package.json engines.node = ${value}"
+          if [ "${value}" != "${expected}" ]; then
+            echo "::error file=package.json::engines.node (${value}) does not match .node-version (${file_version})"
+            exit 1
+          fi
+
+          if grep -rnE '"engines"[[:space:]]*:' --include=vercel.json \
+            --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "::error::В vercel.json найдено поле engines. Его нет в схеме Vercel (additionalProperties: false), поэтому деплой падает. Версия Node задаётся в engines.node корневого package.json."
+            exit 1
+          fi
 
           # Требуется значение после двоеточия, иначе под шаблон попадает сам
           # ключ job `node-version:` в этом же файле и текст самой проверки.
@@ -75,7 +77,7 @@ jobs:
             exit 1
           fi
 
-          echo "Версия Node задана в одном месте: .node-version, engines.node и node-version-file согласованы"
+          echo "Версия Node задана в одном месте: .node-version, engines.node и node-version-file согласованы, vercel.json не переопределяет версию"
 
   dependency-audit:
     name: "Аудит безопасности зависимостей (pnpm audit)"

@@ -203,8 +203,10 @@ available because --localstorage-file was not provided`. Именно налич
    `apps/web/Dockerfile:1` — `node:20-alpine` → `node:24-alpine`;
    `apps/landing/Dockerfile:1`, `apps/ui-docs/Dockerfile:1` —
    `node:22-alpine` → `node:24-alpine`.
-4. `engines.node: "24.x"` в корневом `package.json` и в
-   `apps/landing/vercel.json`, `apps/ui-docs/vercel.json`.
+4. `engines.node: "24.x"` в корневом `package.json`. В
+   `apps/landing/vercel.json` и `apps/ui-docs/vercel.json` версия не
+   дублируется: поля `engines` в схеме Vercel нет, а `additionalProperties:
+   false` валит деплой при его появлении.
 5. `@types/node` `^20` → `^24` в 10 пакетах — **отдельным последним
    коммитом**, иначе поломки от смены типов не отличить от поломок от смены
    рантайма (ADR-006:47).
@@ -212,9 +214,10 @@ available because --localstorage-file was not provided`. Именно налич
    в `engines.node` (ADR-006:56) — **отдельным job в `ci-security.yml`**.
    Выбран этот workflow, а не отдельный файл-скрипт: `ci-security` уже несёт
    инфраструктурные проверки, не привязан к приложению, а проверке нужны
-   только чтение трёх файлов и `grep` по workflow. Тот же job запрещает
+   только чтение двух файлов и `grep` по workflow. Тот же job запрещает
    литерал `node-version:` в workflow — иначе версия снова начнёт
-   дублироваться в обход `.node-version`. Проверка приводит код в соответствие
+   дублироваться в обход `.node-version` — и поле `engines` в любом
+   `vercel.json`, поскольку оно невалидно по схеме Vercel. Проверка приводит код в соответствие
    с `.node-version`, а не наоборот, поэтому в `lint` она не помещается.
 
 **Отдельно проверить** нативные модули под musl: `argon2`, `sharp`, движок
