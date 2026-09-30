@@ -10,8 +10,8 @@ datasource db {
 
 model Role {
   id          String   @id @default(uuid()) @db.Uuid
-  slug        String   @unique
-  name        String
+  slug        String   @unique @db.VarChar(64)
+  name        String   @db.VarChar(255)
   description String?
   permissions BigInt   @default(0)
   isSystem    Boolean  @default(false)
@@ -26,8 +26,8 @@ model Role {
 
 model Permission {
   id          String   @id @default(uuid()) @db.Uuid
-  slug        String   @unique
-  name        String
+  slug        String   @unique @db.VarChar(64)
+  name        String   @db.VarChar(255)
   description String?
   bitValue    BigInt
   createdAt   DateTime @default(now())
@@ -77,7 +77,6 @@ model User {
   @@index([roleId])
   @@index([isActive])
   @@index([deletedAt])
-  @@index([telegramId])
   @@index([createdAt])
   @@map("users")
 }
