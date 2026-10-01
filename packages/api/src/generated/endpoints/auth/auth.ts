@@ -31,6 +31,7 @@ import type {
 import type {
   AccessTokenResponseDto,
   AuthControllerGithubCallbackParams,
+  AuthControllerGithubParams,
   ChangePasswordDto,
   ErrorResponseDto,
   ForgotPasswordDto,
@@ -786,20 +787,27 @@ export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeo
 
 
 
-export const getAuthControllerGithubUrl = () => {
+export const getAuthControllerGithubUrl = (params?: AuthControllerGithubParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/auth/github`
+  return stringifiedParams.length > 0 ? `/api/v1/auth/github?${stringifiedParams}` : `/api/v1/auth/github`
 }
 
 /**
- * @summary Start GitHub OAuth login
+ * @summary Start GitHub OAuth login or account linking
  */
-export const authControllerGithub = async ( options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
+export const authControllerGithub = async (params?: AuthControllerGithubParams, options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
 
-  return customInstance<unknown>(getAuthControllerGithubUrl(),
+  return customInstance<unknown>(getAuthControllerGithubUrl(params),
   {
     ...options,
     method: 'GET'
@@ -812,23 +820,23 @@ export const authControllerGithub = async ( options?: Parameters<typeof customIn
 
 
 
-export const getAuthControllerGithubQueryKey = () => {
+export const getAuthControllerGithubQueryKey = (params?: AuthControllerGithubParams,) => {
     return [
-    `/api/v1/auth/github`
+    `/api/v1/auth/github`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getAuthControllerGithubQueryOptions = <TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getAuthControllerGithubQueryOptions = <TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getAuthControllerGithubQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getAuthControllerGithubQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof authControllerGithub>>> = ({ signal }) => authControllerGithub({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authControllerGithub>>> = ({ signal }) => authControllerGithub(params, { signal, ...requestOptions });
 
 
 
@@ -842,7 +850,7 @@ export type AuthControllerGithubQueryError = void
 
 
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
+ params: undefined |  AuthControllerGithubParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof authControllerGithub>>,
           TError,
@@ -852,7 +860,7 @@ export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authCo
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof authControllerGithub>>,
           TError,
@@ -862,19 +870,19 @@ export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authCo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Start GitHub OAuth login
+ * @summary Start GitHub OAuth login or account linking
  */
 
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getAuthControllerGithubQueryOptions(options)
+  const queryOptions = getAuthControllerGithubQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -902,7 +910,7 @@ export const getAuthControllerGithubCallbackUrl = (params?: AuthControllerGithub
 }
 
 /**
- * @summary Complete GitHub OAuth login
+ * @summary Complete GitHub OAuth login or account linking
  */
 export const authControllerGithubCallback = async (params?: AuthControllerGithubCallbackParams, options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
 
@@ -973,7 +981,7 @@ export function useAuthControllerGithubCallback<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Complete GitHub OAuth login
+ * @summary Complete GitHub OAuth login or account linking
  */
 
 export function useAuthControllerGithubCallback<TData = Awaited<ReturnType<typeof authControllerGithubCallback>>, TError = void>(

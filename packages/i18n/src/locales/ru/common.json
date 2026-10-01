@@ -40,6 +40,11 @@
   "profile": {
     "title": "Профиль",
     "subtitle": "Здесь можно изменить данные аккаунта.",
+    "tabs": {
+      "general": "Профиль",
+      "accounts": "Связанные аккаунты",
+      "security": "Безопасность"
+    },
     "email": "Email",
     "displayName": "Имя",
     "username": "Имя пользователя",
@@ -79,6 +84,7 @@
     "telegramLinked": "Telegram подключен",
     "telegramNotLinked": "Telegram не привязан",
     "telegramLinkDesc": "Привяжите Telegram для входа в один клик и получения уведомлений о собеседованиях.",
+    "telegramFieldHint": "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
     "telegramLinkButton": "Привязать Telegram",
     "telegramUnlinkButton": "Отвязать",
     "telegramLinkDialogTitle": "Привязка Telegram",
@@ -89,9 +95,13 @@
     "githubLinked": "GitHub подключен",
     "githubNotLinked": "GitHub не привязан",
     "githubLinkDesc": "Привяжите аккаунт GitHub для входа и отображения ссылок на репозитории.",
+    "githubFieldHint": "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
     "githubConnectButton": "Подключить GitHub",
     "githubUnlinkButton": "Отвязать",
     "githubUnlinkSuccess": "GitHub отвязан.",
+    "githubLinkSuccess": "GitHub успешно привязан!",
+    "githubLinkError": "Не удалось привязать GitHub.",
+    "githubAlreadyLinked": "Этот аккаунт GitHub уже привязан к другому пользователю.",
     "connected": "Подключено",
     "notConnected": "Не подключено",
     "securityTitle": "Безопасность",

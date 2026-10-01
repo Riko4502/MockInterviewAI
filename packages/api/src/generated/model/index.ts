@@ -17,6 +17,7 @@ export * from './adminUsersControllerGetUsersListParams';
 export * from './adminUsersControllerGetUsersListSortBy';
 export * from './adminUsersControllerGetUsersListSortOrder';
 export * from './authControllerGithubCallbackParams';
+export * from './authControllerGithubParams';
 export * from './avatarDeleteResponseDto';
 export * from './avatarUploadResponseDto';
 export * from './changePasswordDto';

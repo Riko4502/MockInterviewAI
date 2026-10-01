@@ -44,8 +44,16 @@ export function ConnectedAccountsSection({
     query: { retry: false },
   });
 
-  const isTelegramLinked = Boolean(user.telegramUsername);
-  const isGithubLinked = Boolean(user.gitUrl);
+  const isTelegramLinked = Boolean(
+    user.telegramLinkVerified !== undefined
+      ? user.telegramLinkVerified && user.telegramUsername
+      : user.telegramUsername,
+  );
+  const isGithubLinked = Boolean(
+    user.githubLinkVerified !== undefined
+      ? user.githubLinkVerified && user.gitUrl
+      : user.gitUrl,
+  );
   const isPending =
     linkTelegramMutation.isPending || updateProfileMutation.isPending;
 
@@ -134,7 +142,55 @@ export function ConnectedAccountsSection({
     );
   };
 
-  const githubOAuthHref = `${getApiUrl().replace(/\/+$/, "")}/api/v1/auth/github`;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const errorParam = params.get("error");
+    const githubParam = params.get("github");
+
+    if (errorParam === "github_already_linked") {
+      toast.push({
+        status: "error",
+        title: t("profile.githubAlreadyLinked"),
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState(
+        null,
+        "",
+        url.pathname + (url.search ? url.search : ""),
+      );
+    } else if (errorParam === "github_failed") {
+      toast.push({
+        status: "error",
+        title: t("profile.githubLinkError"),
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState(
+        null,
+        "",
+        url.pathname + (url.search ? url.search : ""),
+      );
+    } else if (githubParam === "success") {
+      toast.push({
+        status: "success",
+        title: t("profile.githubLinkSuccess"),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getProfileControllerGetMyProfileQueryKey(),
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("github");
+      window.history.replaceState(
+        null,
+        "",
+        url.pathname + (url.search ? url.search : ""),
+      );
+    }
+  }, [toast, t, queryClient]);
+
+  const githubOAuthHref = `${getApiUrl().replace(/\/+$/, "")}/api/v1/auth/github?action=link`;
 
   return (
     <>
@@ -153,8 +209,8 @@ export function ConnectedAccountsSection({
             {/* Telegram Item */}
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500 dark:bg-sky-500/20">
-                  <TelegramIcon size={20} aria-hidden="true" />
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500 dark:bg-sky-500/20">
+                  <TelegramIcon size={16} aria-hidden="true" />
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
@@ -209,8 +265,8 @@ export function ConnectedAccountsSection({
             {/* GitHub Item */}
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-                  <GithubIcon size={20} aria-hidden="true" />
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                  <GithubIcon size={16} aria-hidden="true" />
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">

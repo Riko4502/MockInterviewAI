@@ -40,6 +40,11 @@
   "profile": {
     "title": "Profile",
     "subtitle": "Update your account details here.",
+    "tabs": {
+      "general": "Profile",
+      "accounts": "Connected Accounts",
+      "security": "Security"
+    },
     "email": "Email",
     "displayName": "Name",
     "username": "Username",
@@ -79,6 +84,7 @@
     "telegramLinked": "Telegram connected",
     "telegramNotLinked": "Telegram not connected",
     "telegramLinkDesc": "Link Telegram for one-click sign-in and interview notifications.",
+    "telegramFieldHint": "Linked and managed in the Connected Accounts section below.",
     "telegramLinkButton": "Link Telegram",
     "telegramUnlinkButton": "Unlink",
     "telegramLinkDialogTitle": "Link Telegram Account",
@@ -89,9 +95,13 @@
     "githubLinked": "GitHub connected",
     "githubNotLinked": "GitHub not connected",
     "githubLinkDesc": "Link your GitHub account for sign-in and repository showcase.",
+    "githubFieldHint": "Linked and managed in the Connected Accounts section below.",
     "githubConnectButton": "Connect GitHub",
     "githubUnlinkButton": "Unlink",
     "githubUnlinkSuccess": "GitHub unlinked.",
+    "githubLinkSuccess": "GitHub account successfully linked!",
+    "githubLinkError": "Failed to link GitHub account.",
+    "githubAlreadyLinked": "This GitHub account is already linked to another user.",
     "connected": "Connected",
     "notConnected": "Not connected",
     "securityTitle": "Security",

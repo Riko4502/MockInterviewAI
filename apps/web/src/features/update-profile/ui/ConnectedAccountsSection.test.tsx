@@ -53,7 +53,9 @@ const baseUser: UserProfileDto = {
   username: "ivan",
   avatarUrl: null,
   telegramUsername: null,
+  telegramLinkVerified: false,
   gitUrl: null,
+  githubLinkVerified: false,
   theme: "dark",
   locale: "ru",
   role: "USER",
@@ -95,7 +97,9 @@ describe("ConnectedAccountsSection", () => {
     const connectedUser: UserProfileDto = {
       ...baseUser,
       telegramUsername: "testuser",
+      telegramLinkVerified: true,
       gitUrl: "https://github.com/testuser",
+      githubLinkVerified: true,
     };
 
     renderSection(connectedUser);
@@ -107,11 +111,44 @@ describe("ConnectedAccountsSection", () => {
     );
   });
 
+  it("не считает Telegram подключенным, если telegramLinkVerified равен false, даже при наличии telegramUsername", () => {
+    const unverifiedUser: UserProfileDto = {
+      ...baseUser,
+      telegramUsername: "unverified_tg",
+      telegramLinkVerified: false,
+    };
+
+    renderSection(unverifiedUser);
+
+    expect(
+      screen.getByRole("button", { name: /привязать telegram/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/отвязать/i)).not.toBeInTheDocument();
+  });
+
+  it("не считает GitHub подключенным, если githubLinkVerified равен false, даже при наличии gitUrl", () => {
+    const unverifiedUser: UserProfileDto = {
+      ...baseUser,
+      gitUrl: "https://github.com/unverified_git",
+      githubLinkVerified: false,
+    };
+
+    renderSection(unverifiedUser);
+
+    expect(
+      screen.queryByText("https://github.com/unverified_git"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /подключить github/i }),
+    ).toBeInTheDocument();
+  });
+
   it("вызывает отвязку Telegram при клике на соответствующую кнопку", async () => {
     const user = userEvent.setup();
     const connectedUser: UserProfileDto = {
       ...baseUser,
       telegramUsername: "testuser",
+      telegramLinkVerified: true,
     };
 
     updateProfileMutateMock.mockImplementation(
@@ -139,6 +176,7 @@ describe("ConnectedAccountsSection", () => {
     const connectedUser: UserProfileDto = {
       ...baseUser,
       gitUrl: "https://github.com/testuser",
+      githubLinkVerified: true,
     };
 
     updateProfileMutateMock.mockImplementation(
@@ -171,5 +209,45 @@ describe("ConnectedAccountsSection", () => {
     expect(
       screen.getByRole("heading", { name: /привязка telegram/i }),
     ).toBeInTheDocument();
+  });
+
+  it("содержит ссылку на авторизацию GitHub с параметром action=link", () => {
+    renderSection();
+
+    const link = screen.getByRole("link", { name: /подключить github/i });
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/api/v1/auth/github?action=link"),
+    );
+  });
+
+  it("показывает ошибку, если в URL передан error=github_already_linked", () => {
+    window.history.pushState({}, "", "/profile?error=github_already_linked");
+
+    renderSection();
+
+    expect(toastPushMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "error",
+        title: "Этот аккаунт GitHub уже привязан к другому пользователю.",
+      }),
+    );
+
+    window.history.pushState({}, "", "/profile");
+  });
+
+  it("показывает успех, если в URL передан github=success", () => {
+    window.history.pushState({}, "", "/profile?github=success");
+
+    renderSection();
+
+    expect(toastPushMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "success",
+        title: "GitHub успешно привязан!",
+      }),
+    );
+
+    window.history.pushState({}, "", "/profile");
   });
 });

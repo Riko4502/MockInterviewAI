@@ -11,7 +11,7 @@ export const paths = {
   partners: "/dashboard/partners",
   statistics: "/dashboard/statistics",
   resources: "/dashboard/resources",
-  profile: "/dashboard/profile",
+  profile: "/profile",
   forgotPassword: "/forgot-password",
 } as const;
 

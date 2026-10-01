@@ -44,6 +44,13 @@ function renderButton() {
   );
 }
 
+function openTelegramDialog() {
+  const button = screen.getByRole("button", {
+    name: /продолжить через telegram|continue with telegram/i,
+  });
+  fireEvent.click(button);
+}
+
 function queryWidgetScript() {
   return document.querySelector<HTMLScriptElement>(
     `script[src="${WIDGET_SRC}"]`,
@@ -91,9 +98,32 @@ describe("TelegramLoginButton", () => {
     expect(queryWidgetScript()).toBeNull();
   });
 
-  it("асинхронно загружает виджет с именем бота и callback", () => {
+  it("рендерит кнопку 'Продолжить через Telegram' в стиле outline", () => {
     renderButton();
 
+    const button = screen.getByRole("button", {
+      name: "Продолжить через Telegram",
+    });
+    expect(button).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+    // До открытия модалки скрипт не монтируется
+    expect(queryWidgetScript()).toBeNull();
+  });
+
+  it("отображает локализованный текст кнопки на английском языке", async () => {
+    await i18n.changeLanguage("en");
+    renderButton();
+
+    expect(
+      screen.getByRole("button", { name: "Continue with Telegram" }),
+    ).toBeInTheDocument();
+  });
+
+  it("открывает диалог и асинхронно загружает виджет с именем бота и callback", () => {
+    renderButton();
+    openTelegramDialog();
+
+    expect(screen.getByText("Вход через Telegram")).toBeInTheDocument();
     const script = getWidgetScript();
     expect(script.async).toBe(true);
     expect(script).toHaveAttribute("data-telegram-login", "mock_interview_bot");
@@ -108,39 +138,11 @@ describe("TelegramLoginButton", () => {
     expect(
       screen.queryByText("Загрузка входа через Telegram..."),
     ).not.toBeInTheDocument();
-    const button = screen.getByRole("button", {
-      name: "Продолжить через Telegram",
-    });
-    expect(button).toBeInTheDocument();
-    expect(button).not.toBeDisabled();
-  });
-
-  it("отображает локализованный текст кнопки на английском языке", async () => {
-    await i18n.changeLanguage("en");
-    renderButton();
-    const script = getWidgetScript();
-    fireEvent.load(script);
-
-    expect(
-      screen.getByRole("button", { name: "Continue with Telegram" }),
-    ).toBeInTheDocument();
-  });
-
-  it("показывает статус отправки и блокирует кнопку во время запроса", async () => {
-    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
-    renderButton();
-    const script = getWidgetScript();
-    fireEvent.load(script);
-
-    authorizeInTelegram();
-
-    expect(
-      await screen.findByRole("button", { name: "Вход через Telegram..." }),
-    ).toBeDisabled();
   });
 
   it("показывает ошибку, если скрипт Telegram не загрузился", () => {
     renderButton();
+    openTelegramDialog();
 
     fireEvent.error(getWidgetScript());
 
@@ -151,7 +153,7 @@ describe("TelegramLoginButton", () => {
     ).toBeInTheDocument();
   });
 
-  it("входит существующего пользователя и переходит в /dashboard", async () => {
+  it("входит существующего пользователя, закрывает диалог и переходит в /dashboard", async () => {
     sessionStorage.setItem("telegramOnboardingToken", "stale-token");
     vi.mocked(fetch).mockResolvedValue(
       Response.json({
@@ -160,6 +162,10 @@ describe("TelegramLoginButton", () => {
       }),
     );
     renderButton();
+    openTelegramDialog();
+
+    const script = getWidgetScript();
+    fireEvent.load(script);
 
     authorizeInTelegram();
 
@@ -185,6 +191,10 @@ describe("TelegramLoginButton", () => {
       }),
     );
     renderButton();
+    openTelegramDialog();
+
+    const script = getWidgetScript();
+    fireEvent.load(script);
 
     authorizeInTelegram();
 
@@ -197,7 +207,7 @@ describe("TelegramLoginButton", () => {
     expect(mocks.startSession).not.toHaveBeenCalled();
   });
 
-  it("показывает ответ бэкенда, если авторизация отклонена", async () => {
+  it("показывает ответ бэкенда в диалоге, если авторизация отклонена", async () => {
     vi.mocked(fetch).mockResolvedValue(
       Response.json(
         { statusCode: 401, message: "Invalid Telegram signature" },
@@ -205,6 +215,10 @@ describe("TelegramLoginButton", () => {
       ),
     );
     renderButton();
+    openTelegramDialog();
+
+    const script = getWidgetScript();
+    fireEvent.load(script);
 
     authorizeInTelegram();
 
@@ -218,6 +232,10 @@ describe("TelegramLoginButton", () => {
   it("показывает сетевую ошибку, если сервер недоступен", async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError("Failed to fetch"));
     renderButton();
+    openTelegramDialog();
+
+    const script = getWidgetScript();
+    fireEvent.load(script);
 
     authorizeInTelegram();
 
@@ -229,13 +247,18 @@ describe("TelegramLoginButton", () => {
     expect(mocks.startSession).not.toHaveBeenCalled();
   });
 
-  it("убирает виджет и глобальный callback при размонтировании", () => {
-    const { unmount } = renderButton();
-    expect(window.onTelegramAuth).toBeDefined();
+  it("закрывает диалог по нажатию на кнопку Отмена и очищает скрипт", async () => {
+    renderButton();
+    openTelegramDialog();
 
-    unmount();
+    expect(getWidgetScript()).toBeInTheDocument();
 
+    const cancelButton = screen.getByRole("button", { name: "Отмена" });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(queryWidgetScript()).toBeNull();
+    });
     expect(window.onTelegramAuth).toBeUndefined();
-    expect(queryWidgetScript()).toBeNull();
   });
 });

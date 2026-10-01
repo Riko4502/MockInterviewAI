@@ -66,7 +66,7 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
     refresh: refreshMock,
   }),
-  usePathname: () => "/dashboard/profile",
+  usePathname: () => "/profile",
 }));
 
 vi.mock("@/entities/user", () => ({
@@ -185,7 +185,6 @@ describe("UpdateProfileForm", () => {
     const usernameInput = screen.getByDisplayValue("ivan");
     await user.clear(usernameInput);
     await user.type(usernameInput, "IVAN");
-    await user.type(screen.getByPlaceholderText("@username"), "@ivan_dev");
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     await waitFor(() => {
@@ -206,7 +205,7 @@ describe("UpdateProfileForm", () => {
         displayName: "Иван Петров",
         username: "ivan",
         telegramUsername: "ivan_dev",
-        gitUrl: null,
+        gitUrl: "https://github.com/ivan_dev",
         theme: "dark",
         locale: "ru",
       });
@@ -218,10 +217,47 @@ describe("UpdateProfileForm", () => {
     expect(
       screen.getByRole("textbox", { name: "Имя пользователя" }),
     ).toHaveValue("ivan");
-    expect(screen.getByRole("textbox", { name: "Telegram" })).toHaveValue(
-      "ivan_dev",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "GitHub / GitLab" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Telegram" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+  });
+
+  it("поле Telegram отображается в режиме только для чтения с подсказкой", () => {
+    mockUserData = {
+      ...mockUserData,
+      telegramUsername: "my_tg_user",
+    };
+    renderForm();
+
+    const tgInput = screen.getByRole("textbox", { name: "Telegram" });
+    expect(tgInput).toBeDisabled();
+    expect(tgInput).toHaveAttribute("readonly");
+    expect(tgInput).toHaveValue("@my_tg_user");
+    expect(
+      screen.getAllByText(
+        "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("поле GitHub отображается в режиме только для чтения с подсказкой", () => {
+    mockUserData = {
+      ...mockUserData,
+      gitUrl: "https://github.com/my_git_user",
+    };
+    renderForm();
+
+    const gitInput = screen.getByRole("textbox", { name: "GitHub / GitLab" });
+    expect(gitInput).toBeDisabled();
+    expect(gitInput).toHaveAttribute("readonly");
+    expect(gitInput).toHaveValue("https://github.com/my_git_user");
+    expect(
+      screen.getAllByText(
+        "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("синхронизирует значения формы при обновлении профиля и не отправляет устаревшие предпочтения", async () => {
@@ -401,5 +437,43 @@ describe("UpdateProfileForm", () => {
     // После успешного сохранения тема и куки применяются
     expect(setThemeMock).toHaveBeenCalledWith("light");
     expect(setPreferenceCookiesMock).toHaveBeenCalledWith({ theme: "light" });
+  });
+
+  it("рендерит вертикальные вкладки и переключает контент при клике", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const tabsList = screen.getByRole("tablist");
+    expect(tabsList).toHaveAttribute("aria-orientation", "vertical");
+
+    const generalTab = screen.getByRole("tab", { name: /профиль/i });
+    const accountsTab = screen.getByRole("tab", {
+      name: /связанные аккаунты/i,
+    });
+    const securityTab = screen.getByRole("tab", { name: /безопасность/i });
+
+    expect(generalTab).toHaveAttribute("aria-selected", "true");
+    expect(accountsTab).toHaveAttribute("aria-selected", "false");
+    expect(securityTab).toHaveAttribute("aria-selected", "false");
+
+    // Переключаемся на вкладку «Связанные аккаунты»
+    await user.click(accountsTab);
+    expect(accountsTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("heading", { name: /связанные аккаунты/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /привязать telegram/i }),
+    ).toBeInTheDocument();
+
+    // Переключаемся на вкладку «Безопасность»
+    await user.click(securityTab);
+    expect(securityTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("heading", { name: /безопасность/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /обновить пароль/i }),
+    ).toBeInTheDocument();
   });
 });
