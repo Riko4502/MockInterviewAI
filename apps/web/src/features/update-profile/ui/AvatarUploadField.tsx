@@ -1,16 +1,12 @@
 "use client";
 
 import { Button, Spin } from "@packages/ui";
-import dynamic from "next/dynamic";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/entities/user";
 import { useUploadAvatar } from "../model/use-profile-mutations";
 
-const AvatarCropDialog = dynamic(
-  () => import("./AvatarCropDialog").then((module) => module.AvatarCropDialog),
-  { ssr: false },
-);
+import { AvatarCropDialog } from "./AvatarCropDialog";
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
