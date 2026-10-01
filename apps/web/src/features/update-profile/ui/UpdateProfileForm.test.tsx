@@ -104,11 +104,11 @@ function renderForm() {
     },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <UpdateProfileForm />
-    </QueryClientProvider>,
-  );
+  return render(<UpdateProfileForm />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 describe("UpdateProfileForm", () => {
@@ -275,15 +275,25 @@ describe("UpdateProfileForm", () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it("показывает лоадер на кнопке сохранения во время обновления", () => {
-    profileMutation.isPending = true;
-    renderForm();
+  it("показывает лоадер на кнопке сохранения во время обновления", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderForm();
+    const nameInput = screen.getByDisplayValue("Иван");
+    const saveButton = screen.getByRole("button", { name: "Сохранить" });
 
-    const saveButton = screen.getByRole("button", { name: "Сохранение..." });
-    expect(saveButton).toBeDisabled();
-    expect(saveButton).toHaveAttribute("aria-busy", "true");
+    await user.type(nameInput, "а");
+    expect(saveButton).toBeEnabled();
+
+    profileMutation.isPending = true;
+    rerender(<UpdateProfileForm />);
+
+    const pendingButton = screen.getByRole("button", {
+      name: "Сохранение...",
+    });
+    expect(pendingButton).toBeDisabled();
+    expect(pendingButton).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Иван")).toBeDisabled();
+    expect(nameInput).toBeDisabled();
     expect(screen.getByDisplayValue("ivan")).toBeDisabled();
   });
 
