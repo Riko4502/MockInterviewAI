@@ -28,6 +28,7 @@ export interface MatchRequestResponseDto {
 
   // Статус заявки и сообщения участников
   status: MatchRequestStatus;
+  sessionId: string | null; // UUID созданной общей сессии интервью (при ACCEPTED)
   message: string | null; // Сопроводительное сообщение инициатора
   preferredTopic: string | null; // Желаемая тема мок-интервью
   rejectReason: string | null; // Причина отклонения (заполняется при REJECTED)

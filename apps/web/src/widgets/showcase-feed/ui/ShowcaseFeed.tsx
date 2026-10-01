@@ -43,38 +43,49 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
     { query: { enabled: !!currentUser } },
   );
 
-  const { pendingCardIds, matchedCardIds } = useMemo(() => {
-    const list = (
-      outgoingData as unknown as {
-        data?: Array<{
-          status?: string;
-          targetCardId?: string;
-          targetCard?: { id: string };
-        }>;
+  const { pendingCardIds, matchedCardIds, matchedCardSessions } =
+    useMemo(() => {
+      const list = (
+        outgoingData as unknown as {
+          data?: Array<{
+            status?: string;
+            targetCardId?: string;
+            targetCard?: { id: string };
+            sessionId?: string | null;
+          }>;
+        }
+      )?.data;
+      if (!Array.isArray(list)) {
+        return {
+          pendingCardIds: new Set<string>(),
+          matchedCardIds: new Set<string>(),
+          matchedCardSessions: new Map<string, string>(),
+        };
       }
-    )?.data;
-    if (!Array.isArray(list)) {
+
+      const pending = new Set<string>();
+      const matched = new Set<string>();
+      const sessions = new Map<string, string>();
+
+      for (const r of list) {
+        const cardId = r.targetCard?.id || r.targetCardId;
+        if (!cardId) continue;
+        if (r.status === "PENDING") {
+          pending.add(cardId);
+        } else if (r.status === "ACCEPTED") {
+          matched.add(cardId);
+          if (r.sessionId) {
+            sessions.set(cardId, r.sessionId);
+          }
+        }
+      }
+
       return {
-        pendingCardIds: new Set<string>(),
-        matchedCardIds: new Set<string>(),
+        pendingCardIds: pending,
+        matchedCardIds: matched,
+        matchedCardSessions: sessions,
       };
-    }
-
-    const pending = new Set<string>();
-    const matched = new Set<string>();
-
-    for (const r of list) {
-      const cardId = r.targetCard?.id || r.targetCardId;
-      if (!cardId) continue;
-      if (r.status === "PENDING") {
-        pending.add(cardId);
-      } else if (r.status === "ACCEPTED") {
-        matched.add(cardId);
-      }
-    }
-
-    return { pendingCardIds: pending, matchedCardIds: matched };
-  }, [outgoingData]);
+    }, [outgoingData]);
 
   const { data, isLoading, isError, refetch } = useShowcaseCatalog({
     search: search.trim() || undefined,
@@ -163,6 +174,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
                 isOwner={isOwner}
                 isRequested={isRequested}
                 isMatched={isMatched}
+                matchedSessionId={matchedCardSessions.get(card.id)}
                 onRespond={() => setRespondingCard(card)}
                 onManage={() => router.push(paths.partnersMy)}
               />

@@ -26,6 +26,7 @@ export function ShowcaseCard({
   isOwner = false,
   isRequested = false,
   isMatched = false,
+  matchedSessionId,
   onRespond,
   onManage,
   className,
@@ -190,7 +191,13 @@ export function ShowcaseCard({
               variant="default"
               className="text-xs font-semibold shadow-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
             >
-              <Link href={paths.sandbox}>
+              <Link
+                href={
+                  matchedSessionId
+                    ? `${paths.sandbox}?room=${matchedSessionId}`
+                    : paths.sandbox
+                }
+              >
                 <PlayIcon className="size-3.5 fill-current" />
                 <span>{t("matchmaking.goToInterview")}</span>
               </Link>

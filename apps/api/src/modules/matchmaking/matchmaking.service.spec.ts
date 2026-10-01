@@ -41,6 +41,9 @@ describe("MatchmakingService", () => {
   let redisServiceMock: {
     publish: jest.Mock;
   };
+  let sessionsServiceMock: {
+    createLiveMatchSession: jest.Mock;
+  };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
   const receiverId = "22222222-2222-4222-a222-222222222222";
@@ -150,9 +153,17 @@ describe("MatchmakingService", () => {
       publish: jest.fn().mockResolvedValue(undefined),
     };
 
+    sessionsServiceMock = {
+      createLiveMatchSession: jest.fn().mockResolvedValue({
+        sessionId: "mock-session-id-123",
+        inviteToken: "mock-invite-token",
+      }),
+    };
+
     service = new MatchmakingService(
       prismaMock as unknown as PrismaService,
       redisServiceMock as unknown as RedisService,
+      sessionsServiceMock as unknown as any,
     );
   });
 
@@ -601,7 +612,7 @@ describe("MatchmakingService", () => {
 
       expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
         where: { id: requestId, status: "PENDING" },
-        data: { status: "ACCEPTED" },
+        data: { status: "ACCEPTED", sessionId: "mock-session-id-123" },
       });
 
       expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({

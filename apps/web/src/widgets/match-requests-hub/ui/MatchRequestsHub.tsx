@@ -476,7 +476,13 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                           variant="default"
                           className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                         >
-                          <Link href={paths.sandbox}>
+                          <Link
+                            href={
+                              req.sessionId
+                                ? `${paths.sandbox}?room=${req.sessionId}`
+                                : paths.sandbox
+                            }
+                          >
                             <PlayIcon className="size-3.5 fill-current" />
                             <span>{t("matchmaking.goToInterview")}</span>
                           </Link>
@@ -616,7 +622,13 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                         variant="default"
                         className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                       >
-                        <Link href={paths.sandbox}>
+                        <Link
+                          href={
+                            req.sessionId
+                              ? `${paths.sandbox}?room=${req.sessionId}`
+                              : paths.sandbox
+                          }
+                        >
                           <PlayIcon className="size-3.5 fill-current" />
                           <span>{t("matchmaking.goToInterview")}</span>
                         </Link>

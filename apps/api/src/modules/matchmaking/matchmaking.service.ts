@@ -20,6 +20,7 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { SessionsService } from "../sessions/sessions.service";
 import { PUBLIC_USER_SELECT } from "../showcase/showcase.constants";
 import {
   MATCHMAKING_LIMITS,
@@ -63,6 +64,7 @@ export class MatchmakingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   /**
@@ -266,19 +268,29 @@ export class MatchmakingService {
 
             // Если есть встречная заявка — оформляем взаимный Auto-Match
             if (crossRequest) {
-              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING и не истекла
+              // 1. Создаем общую интерактивную сессию интервью для обоих участников
+              const liveSession =
+                await this.sessionsService.createLiveMatchSession(
+                  crossRequest.senderId,
+                  senderId,
+                );
+
+              // 2. Атомарно переводим встречную заявку в ACCEPTED с привязкой sessionId
               const updateResult = await tx.matchRequest.updateMany({
                 where: {
                   id: crossRequest.id,
                   status: "PENDING",
                   expiresAt: { gt: new Date() },
                 },
-                data: { status: "ACCEPTED" },
+                data: {
+                  status: "ACCEPTED",
+                  sessionId: liveSession.sessionId,
+                },
               });
 
               // Если встречная заявка всё ещё была PENDING и успешно обновлена
               if (updateResult.count === 1) {
-                // Создаём текущую заявку сразу в статусе ACCEPTED
+                // Создаём текущую заявку сразу в статусе ACCEPTED с той же сессией
                 const newRequest = await tx.matchRequest.create({
                   data: {
                     senderId,
@@ -288,6 +300,7 @@ export class MatchmakingService {
                     message: dto.message,
                     preferredTopic: dto.preferredTopic,
                     status: "ACCEPTED",
+                    sessionId: liveSession.sessionId,
                     expiresAt,
                   },
                   include: MATCH_REQUEST_INCLUDE,
@@ -488,6 +501,7 @@ export class MatchmakingService {
       where: { id: requestId },
       select: {
         id: true,
+        senderId: true,
         receiverId: true,
         status: true,
         expiresAt: true,
@@ -520,10 +534,16 @@ export class MatchmakingService {
       throw new BadRequestException("Срок действия заявки истек");
     }
 
-    // 5. Переводим статус в ACCEPTED атомарно
+    // 5. Создаем общую сессию интервью для двоих участников со статусом ACTIVE
+    const liveSession = await this.sessionsService.createLiveMatchSession(
+      request.senderId,
+      request.receiverId,
+    );
+
+    // 6. Переводим статус в ACCEPTED атомарно и привязываем sessionId
     const updateResult = await this.prisma.matchRequest.updateMany({
       where: { id: requestId, status: "PENDING" },
-      data: { status: "ACCEPTED" },
+      data: { status: "ACCEPTED", sessionId: liveSession.sessionId },
     });
 
     if (updateResult.count === 0) {
@@ -746,6 +766,7 @@ export class MatchmakingService {
       targetCard: formatCard(request.targetCard),
       senderCard: request.senderCard ? formatCard(request.senderCard) : null,
       status: request.status,
+      sessionId: request.sessionId || null,
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,
