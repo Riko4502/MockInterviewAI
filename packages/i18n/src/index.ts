@@ -3,11 +3,13 @@ import enAuth from "./locales/en/auth.json";
 import enCommon from "./locales/en/common.json";
 import enInterview from "./locales/en/interview.json";
 import enLanding from "./locales/en/landing.json";
+import enShowcase from "./locales/en/showcase.json";
 import enTelegram from "./locales/en/telegram.json";
 import ruAuth from "./locales/ru/auth.json";
 import ruCommon from "./locales/ru/common.json";
 import ruInterview from "./locales/ru/interview.json";
 import ruLanding from "./locales/ru/landing.json";
+import ruShowcase from "./locales/ru/showcase.json";
 import ruTelegram from "./locales/ru/telegram.json";
 import type { Messages } from "./types";
 
@@ -21,6 +23,7 @@ export const messages: Record<Locale, Messages> = {
     interview: ruInterview,
     landing: ruLanding,
     telegram: ruTelegram,
+    showcase: ruShowcase,
   },
   en: {
     common: enCommon,
@@ -28,6 +31,7 @@ export const messages: Record<Locale, Messages> = {
     interview: enInterview,
     landing: enLanding,
     telegram: enTelegram,
+    showcase: enShowcase,
   },
 };
 
