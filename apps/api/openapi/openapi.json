@@ -4743,6 +4743,11 @@
             "format": "uuid",
             "nullable": true
           },
+          "sessionStatus": {
+            "type": "string",
+            "enum": ["CREATED", "ACTIVE", "CLOSED"],
+            "nullable": true
+          },
           "message": {
             "type": "string",
             "nullable": true

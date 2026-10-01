@@ -63,6 +63,7 @@ export * from './matchmakingControllerFindIncomingStatus';
 export * from './matchmakingControllerFindOutgoingParams';
 export * from './matchmakingControllerFindOutgoingStatus';
 export * from './matchRequestResponseDto';
+export * from './matchRequestResponseDtoSessionStatus';
 export * from './matchRequestResponseDtoStatus';
 export * from './mediaTokenRequestDto';
 export * from './mediaTokenResponseDto';

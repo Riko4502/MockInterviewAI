@@ -28,6 +28,7 @@ export function ShowcaseCard({
   isRequested = false,
   isMatched = false,
   matchedSessionId,
+  matchedSessionStatus,
   onRespond,
   onManage,
   className,
@@ -181,7 +182,14 @@ export function ShowcaseCard({
               {t("card.manage")}
             </Button>
           ) : isMatched ? (
-            matchedSessionId ? (
+            matchedSessionStatus === "CLOSED" ? (
+              <Badge
+                variant="secondary"
+                className="text-xs font-medium py-1 px-2.5"
+              >
+                {t("matchmaking.sessionFinished")}
+              </Badge>
+            ) : matchedSessionId ? (
               <Button
                 asChild
                 size="sm"

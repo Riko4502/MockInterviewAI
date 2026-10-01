@@ -15,6 +15,8 @@ import type {
  * и связанные карточки витрины (targetCard/senderCard). Это позволяет фронтенду отобразить
  * карточку отклика в интерфейсе за один сетевой запрос без водопада дополнительных запросов.
  */
+
+export type SessionStatus = "CREATED" | "ACTIVE" | "CLOSED";
 export interface MatchRequestResponseDto {
   id: string;
 
@@ -29,6 +31,7 @@ export interface MatchRequestResponseDto {
   // Статус заявки и сообщения участников
   status: MatchRequestStatus;
   sessionId: string | null; // UUID созданной общей сессии интервью (при ACCEPTED)
+  sessionStatus?: SessionStatus | null; // Статус сессии интервью
   message: string | null; // Сопроводительное сообщение инициатора
   preferredTopic: string | null; // Желаемая тема мок-интервью
   rejectReason: string | null; // Причина отклонения (заполняется при REJECTED)

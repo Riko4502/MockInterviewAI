@@ -139,6 +139,11 @@ const matchRequestResponseSchemaObject = {
       enum: ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"],
     },
     sessionId: { type: "string", format: "uuid", nullable: true },
+    sessionStatus: {
+      type: "string",
+      enum: ["CREATED", "ACTIVE", "CLOSED"],
+      nullable: true,
+    },
     message: { type: "string", nullable: true },
     preferredTopic: { type: "string", nullable: true },
     rejectReason: { type: "string", nullable: true },

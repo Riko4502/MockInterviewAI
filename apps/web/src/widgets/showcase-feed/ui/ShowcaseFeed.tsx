@@ -43,40 +43,50 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
     { query: { enabled: !!currentUser } },
   );
 
-  const { pendingCardIds, matchedCardIds, matchedCardSessions } =
-    useMemo(() => {
-      const list = outgoingData?.data;
-      if (!Array.isArray(list)) {
-        return {
-          pendingCardIds: new Set<string>(),
-          matchedCardIds: new Set<string>(),
-          matchedCardSessions: new Map<string, string>(),
-        };
-      }
+  const {
+    pendingCardIds,
+    matchedCardIds,
+    matchedCardSessions,
+    matchedCardSessionStatuses,
+  } = useMemo(() => {
+    const list = outgoingData?.data;
+    if (!Array.isArray(list)) {
+      return {
+        pendingCardIds: new Set<string>(),
+        matchedCardIds: new Set<string>(),
+        matchedCardSessions: new Map<string, string>(),
+        matchedCardSessionStatuses: new Map<string, string>(),
+      };
+    }
 
-      const pending = new Set<string>();
-      const matched = new Set<string>();
-      const sessions = new Map<string, string>();
+    const pending = new Set<string>();
+    const matched = new Set<string>();
+    const sessions = new Map<string, string>();
+    const statuses = new Map<string, string>();
 
-      for (const r of list) {
-        const cardId = r.targetCard?.id;
-        if (!cardId) continue;
-        if (r.status === "PENDING") {
-          pending.add(cardId);
-        } else if (r.status === "ACCEPTED") {
-          matched.add(cardId);
-          if (r.sessionId) {
-            sessions.set(cardId, r.sessionId);
-          }
+    for (const r of list) {
+      const cardId = r.targetCard?.id;
+      if (!cardId) continue;
+      if (r.status === "PENDING") {
+        pending.add(cardId);
+      } else if (r.status === "ACCEPTED") {
+        matched.add(cardId);
+        if (r.sessionId) {
+          sessions.set(cardId, r.sessionId);
+        }
+        if (r.sessionStatus) {
+          statuses.set(cardId, r.sessionStatus);
         }
       }
+    }
 
-      return {
-        pendingCardIds: pending,
-        matchedCardIds: matched,
-        matchedCardSessions: sessions,
-      };
-    }, [outgoingData]);
+    return {
+      pendingCardIds: pending,
+      matchedCardIds: matched,
+      matchedCardSessions: sessions,
+      matchedCardSessionStatuses: statuses,
+    };
+  }, [outgoingData]);
 
   const { data, isLoading, isError, refetch } = useShowcaseCatalog({
     search: search.trim() || undefined,
@@ -107,7 +117,13 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
     <div className={`flex flex-col gap-5 ${className || ""}`}>
       {/* Панель поиска и фильтров */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/60 p-4 shadow-2xs backdrop-blur-xs">
-        <ShowcaseSearchBar value={search} onChange={setSearch} />
+        <ShowcaseSearchBar
+          value={search}
+          onChange={(newSearch) => {
+            setSearch(newSearch);
+            setPage(1);
+          }}
+        />
         <ShowcaseFiltersBar
           filters={filters}
           onChange={(newFilters) => {
@@ -166,6 +182,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
                 isRequested={isRequested}
                 isMatched={isMatched}
                 matchedSessionId={matchedCardSessions.get(card.id)}
+                matchedSessionStatus={matchedCardSessionStatuses.get(card.id)}
                 onRespond={() => setRespondingCard(card)}
                 onManage={() => router.push(paths.partnersMy)}
               />

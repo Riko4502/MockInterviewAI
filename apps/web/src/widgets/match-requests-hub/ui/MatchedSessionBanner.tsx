@@ -1,7 +1,8 @@
 "use client";
 
+import type { MatchRequestResponseDtoSessionStatus } from "@packages/api";
 import { CheckIcon, PlayIcon } from "@packages/icons";
-import { Button } from "@packages/ui";
+import { Badge, Button } from "@packages/ui";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@/shared/config";
@@ -9,31 +10,50 @@ import "@/shared/lib/i18n";
 
 export interface MatchedSessionBannerProps {
   sessionId?: string | null;
+  sessionStatus?: MatchRequestResponseDtoSessionStatus | null;
   className?: string;
 }
 
 export function MatchedSessionBanner({
   sessionId,
+  sessionStatus,
   className,
 }: MatchedSessionBannerProps) {
   const { t } = useTranslation("showcase");
+  const isClosed = sessionStatus === "CLOSED";
 
   return (
     <div
-      className={`mt-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-        className || ""
-      }`}
+      className={`mt-2 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        isClosed
+          ? "bg-muted/30 border border-border/50"
+          : "bg-emerald-500/10 border border-emerald-500/25"
+      } ${className || ""}`}
     >
       <div className="flex flex-col gap-0.5">
-        <span className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
+        <span
+          className={`font-semibold text-xs flex items-center gap-1.5 ${
+            isClosed ? "text-foreground" : "text-emerald-400"
+          }`}
+        >
           <CheckIcon className="size-3.5" />
           {t("matchmaking.matchedTitle")}
         </span>
         <span className="text-[11px] text-muted-foreground leading-snug">
-          {t("matchmaking.matchedDesc")}
+          {isClosed
+            ? t("matchmaking.sessionFinished")
+            : t("matchmaking.matchedDesc")}
         </span>
       </div>
-      {sessionId ? (
+
+      {isClosed ? (
+        <Badge
+          variant="secondary"
+          className="text-xs font-medium py-1 px-2.5 shrink-0 self-start sm:self-auto"
+        >
+          {t("matchmaking.sessionFinished")}
+        </Badge>
+      ) : sessionId ? (
         <Button
           asChild
           size="sm"

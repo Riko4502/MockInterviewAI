@@ -137,7 +137,11 @@
     "emptyCatalogTitle": "No cards found",
     "emptyCatalogDescription": "Try adjusting your search query or reset filters.",
     "emptyMyCardsTitle": "No cards yet",
-    "emptyMyCardsDescription": "Create your first card to start receiving mock interview invitations."
+    "emptyMyCardsDescription": "Create your first card to start receiving mock interview invitations.",
+    "searchTipTitle": "Search tips:",
+    "searchTipMustContain": "must contain",
+    "searchTipExclude": "exclude cards with",
+    "searchTipFree": "words separated by space — free text search"
   },
   "matchmaking": {
     "dialogTitle": "Propose Mock Interview",
@@ -169,6 +173,7 @@
     "matchedDesc": "Enter the interactive sandbox for real-time video, collaborative coding, and problem solving.",
     "goToInterview": "Enter Interview",
     "preparingRoom": "Preparing room...",
+    "sessionFinished": "Interview completed",
     "preferredTopic": "Topic:",
     "message": "Message:",
     "rejectReason": "Decline reason:",

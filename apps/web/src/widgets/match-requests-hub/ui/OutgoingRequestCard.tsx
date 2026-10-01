@@ -82,7 +82,12 @@ export function OutgoingRequestCard({
         )}
 
         {/* Если заявка принята собеседником — показываем переход в интерактивную комнату */}
-        {isAccepted && <MatchedSessionBanner sessionId={req.sessionId} />}
+        {isAccepted && (
+          <MatchedSessionBanner
+            sessionId={req.sessionId}
+            sessionStatus={req.sessionStatus}
+          />
+        )}
       </div>
 
       {isPending && (

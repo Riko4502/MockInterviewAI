@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  getMatchmakingControllerFindIncomingQueryKey,
   getMatchmakingControllerFindOutgoingQueryKey,
   getMatchmakingControllerGetUnreadCountQueryKey,
   getShowcaseControllerFindAllQueryKey,
@@ -103,6 +104,9 @@ export function SendMatchRequestDialog({
             title: t("matchmaking.sendSuccess"),
           });
           await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+            }),
             queryClient.invalidateQueries({
               queryKey: getMatchmakingControllerFindOutgoingQueryKey(),
             }),

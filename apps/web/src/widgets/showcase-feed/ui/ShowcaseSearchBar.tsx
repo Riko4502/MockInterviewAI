@@ -73,17 +73,17 @@ export function ShowcaseSearchBar({
           </Tooltip.Trigger>
           <Tooltip.Content side="top" className="max-w-xs text-xs space-y-1">
             <p className="font-semibold text-foreground">
-              Подсказка по поиску:
+              {t("filters.searchTipTitle")}
             </p>
             <p>
-              <code className="text-primary font-mono">+react</code> —
-              обязательно содержит react
+              <code className="text-primary font-mono">+react</code> —{" "}
+              {t("filters.searchTipMustContain")} react
             </p>
             <p>
-              <code className="text-destructive font-mono">-vue</code> —
-              исключить анкеты с vue
+              <code className="text-destructive font-mono">-vue</code> —{" "}
+              {t("filters.searchTipExclude")} vue
             </p>
-            <p>слова через пробел — свободный поиск</p>
+            <p>{t("filters.searchTipFree")}</p>
           </Tooltip.Content>
         </Tooltip>
       </div>

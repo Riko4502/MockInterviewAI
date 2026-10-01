@@ -51,6 +51,11 @@ const MATCH_REQUEST_INCLUDE = {
       },
     },
   },
+  session: {
+    select: {
+      status: true,
+    },
+  },
 } as const;
 
 type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
@@ -741,6 +746,7 @@ export class MatchmakingService {
           receiverId: request.receiverId,
           targetCardId: request.targetCardId,
           senderCardId: request.senderCardId,
+          sessionId: request.sessionId,
           preferredTopic: request.preferredTopic,
           timestamp: new Date().toISOString(),
         }),
@@ -795,6 +801,8 @@ export class MatchmakingService {
       senderCard: request.senderCard ? formatCard(request.senderCard) : null,
       status: request.status,
       sessionId: request.sessionId || null,
+      sessionStatus:
+        request.session?.status || (request.sessionId ? "ACTIVE" : null),
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,

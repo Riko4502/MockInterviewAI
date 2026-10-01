@@ -9,6 +9,7 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchRequestResponseDtoSessionStatus } from './matchRequestResponseDtoSessionStatus';
 import type { MatchRequestResponseDtoStatus } from './matchRequestResponseDtoStatus';
 import type { PublicUserCardDto } from './publicUserCardDto';
 import type { ShowcaseCardResponseDto } from './showcaseCardResponseDto';
@@ -24,6 +25,8 @@ export interface MatchRequestResponseDto {
   status: MatchRequestResponseDtoStatus;
   /** @nullable */
   sessionId: string | null;
+  /** @nullable */
+  sessionStatus?: MatchRequestResponseDtoSessionStatus;
   /** @nullable */
   message: string | null;
   /** @nullable */

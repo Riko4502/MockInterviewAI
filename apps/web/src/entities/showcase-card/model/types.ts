@@ -26,6 +26,7 @@ export interface ShowcaseCardProps {
   isRequested?: boolean;
   isMatched?: boolean;
   matchedSessionId?: string | null;
+  matchedSessionStatus?: "CREATED" | "ACTIVE" | "CLOSED" | string | null;
   className?: string;
   testId?: string;
 }

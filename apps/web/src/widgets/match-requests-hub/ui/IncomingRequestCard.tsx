@@ -91,7 +91,12 @@ export function IncomingRequestCard({
         )}
 
         {/* Если заявка принята — показываем переход в интерактивную комнату */}
-        {isAccepted && <MatchedSessionBanner sessionId={req.sessionId} />}
+        {isAccepted && (
+          <MatchedSessionBanner
+            sessionId={req.sessionId}
+            sessionStatus={req.sessionStatus}
+          />
+        )}
       </div>
 
       {/* Кнопки действий для входящей заявки */}

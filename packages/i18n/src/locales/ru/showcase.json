@@ -137,7 +137,11 @@
     "emptyCatalogTitle": "Анкет не найдено",
     "emptyCatalogDescription": "Попробуйте изменить параметры поиска или сбросить фильтры.",
     "emptyMyCardsTitle": "У вас пока нет созданных анкет",
-    "emptyMyCardsDescription": "Создайте первую анкету, чтобы получать предложения о mock-интервью от других участников."
+    "emptyMyCardsDescription": "Создайте первую анкету, чтобы получать предложения о mock-интервью от других участников.",
+    "searchTipTitle": "Подсказка по поиску:",
+    "searchTipMustContain": "обязательно содержит",
+    "searchTipExclude": "исключить анкеты с",
+    "searchTipFree": "слова через пробел — свободный поиск"
   },
   "matchmaking": {
     "dialogTitle": "Предложить интервью",
@@ -169,6 +173,7 @@
     "matchedDesc": "Перейдите в интерактивную песочницу для совместного видео-интервью и кодинга.",
     "goToInterview": "Войти в интервью",
     "preparingRoom": "Подготовка комнаты...",
+    "sessionFinished": "Интервью завершено",
     "preferredTopic": "Тема:",
     "message": "Сообщение:",
     "rejectReason": "Причина отказа:",
