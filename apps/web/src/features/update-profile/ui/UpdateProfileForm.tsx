@@ -69,27 +69,27 @@ export function UpdateProfileForm() {
         variant="line"
         className="w-full flex-col sm:flex-row gap-8 items-start"
       >
-        <Tabs.List className="w-full sm:w-56 shrink-0 sm:border-r border-border sm:pr-4 sm:items-stretch justify-start gap-1">
+        <Tabs.List className="w-full sm:w-56 shrink-0 justify-start gap-1 sm:items-stretch">
           <Tabs.Trigger
             value="general"
             className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
           >
-            <UserIcon size={16} />
-            {t("profile.tabs.general")}
+            <UserIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.general")}</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="accounts"
             className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
           >
-            <HubConnectionIcon size={16} />
-            {t("profile.tabs.accounts")}
+            <HubConnectionIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.accounts")}</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="security"
             className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
           >
-            <SettingsIcon size={16} />
-            {t("profile.tabs.security")}
+            <SettingsIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.security")}</span>
           </Tabs.Trigger>
         </Tabs.List>
 

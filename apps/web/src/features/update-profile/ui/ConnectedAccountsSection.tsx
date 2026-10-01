@@ -17,7 +17,7 @@ import {
   useToast,
 } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getApiUrl } from "@/shared/api/config/endpoints";
 import "@/shared/lib/i18n";
@@ -34,7 +34,12 @@ export function ConnectedAccountsSection({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [isTgDialogOpen, setIsTgDialogOpen] = useState(false);
-  const widgetContainerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [scriptStatus, setScriptStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
 
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
   const linkTelegramMutation = useAuthControllerTelegramLink();
@@ -58,9 +63,9 @@ export function ConnectedAccountsSection({
     linkTelegramMutation.isPending || updateProfileMutation.isPending;
 
   useEffect(() => {
-    if (!isTgDialogOpen || !botUsername) return;
-    const container = widgetContainerRef.current;
-    if (!container) return;
+    if (!isTgDialogOpen || !botUsername || !containerNode) return;
+
+    setScriptStatus("loading");
 
     window.onTelegramAuth = (telegramUser) => {
       linkTelegramMutation.mutate(
@@ -92,16 +97,19 @@ export function ConnectedAccountsSection({
     script.dataset.telegramLogin = botUsername;
     script.dataset.size = "large";
     script.dataset.onauth = "onTelegramAuth(user)";
+    script.onload = () => setScriptStatus("ready");
+    script.onerror = () => setScriptStatus("error");
 
-    container.appendChild(script);
+    containerNode.appendChild(script);
 
     return () => {
-      container.replaceChildren();
+      containerNode.replaceChildren();
       delete window.onTelegramAuth;
     };
   }, [
     isTgDialogOpen,
     botUsername,
+    containerNode,
     linkTelegramMutation,
     queryClient,
     t,
@@ -343,9 +351,26 @@ export function ConnectedAccountsSection({
 
           <div className="my-6 flex flex-col items-center justify-center gap-3">
             <div
-              ref={widgetContainerRef}
+              ref={setContainerNode}
               className="flex min-h-10 justify-center"
             />
+
+            {!botUsername ? (
+              <p className="text-center text-sm text-destructive">
+                {t("profile.telegramNotConfigured")}
+              </p>
+            ) : scriptStatus === "loading" ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Spin size="sm" variant="current" aria-hidden="true" />
+                <Typography.P>
+                  {t("profile.telegramWidgetLoading")}
+                </Typography.P>
+              </div>
+            ) : scriptStatus === "error" ? (
+              <p className="text-center text-sm text-destructive">
+                {t("profile.telegramWidgetError")}
+              </p>
+            ) : null}
 
             {linkTelegramMutation.isPending && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
