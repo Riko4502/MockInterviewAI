@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { SessionsService } from "../sessions/sessions.service";
 import { REDIS_MATCHMAKING_EVENTS_CHANNEL } from "./matchmaking.constants";
 import { MatchmakingService } from "./matchmaking.service";
 
@@ -43,6 +44,7 @@ describe("MatchmakingService", () => {
   };
   let sessionsServiceMock: {
     createLiveMatchSession: jest.Mock;
+    cleanupOrphanedSession: jest.Mock;
   };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
@@ -158,12 +160,13 @@ describe("MatchmakingService", () => {
         sessionId: "mock-session-id-123",
         inviteToken: "mock-invite-token",
       }),
+      cleanupOrphanedSession: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new MatchmakingService(
       prismaMock as unknown as PrismaService,
       redisServiceMock as unknown as RedisService,
-      sessionsServiceMock as unknown as any,
+      sessionsServiceMock as unknown as SessionsService,
     );
   });
 
@@ -591,6 +594,10 @@ describe("MatchmakingService", () => {
 
       await expect(service.accept(requestId, receiverId)).rejects.toThrow(
         BadRequestException,
+      );
+
+      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
+        "mock-session-id-123",
       );
     });
 

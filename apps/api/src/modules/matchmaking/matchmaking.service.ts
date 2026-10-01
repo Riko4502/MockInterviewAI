@@ -195,6 +195,7 @@ export class MatchmakingService {
     let retries = 0;
 
     while (true) {
+      let createdLiveSessionId: string | null = null;
       try {
         const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
           async (tx) => {
@@ -274,6 +275,7 @@ export class MatchmakingService {
                   crossRequest.senderId,
                   senderId,
                 );
+              createdLiveSessionId = liveSession.sessionId;
 
               // 2. Атомарно переводим встречную заявку в ACCEPTED с привязкой sessionId
               const updateResult = await tx.matchRequest.updateMany({
@@ -306,7 +308,15 @@ export class MatchmakingService {
                   include: MATCH_REQUEST_INCLUDE,
                 });
 
+                // Успешно сохранено — очистка не требуется
+                createdLiveSessionId = null;
                 return { createdRequest: newRequest, isAutoMatch: true };
+              } else {
+                // Встречная заявка больше не активна — очищаем созданную сессию
+                await this.sessionsService.cleanupOrphanedSession(
+                  liveSession.sessionId,
+                );
+                createdLiveSessionId = null;
               }
             }
 
@@ -339,6 +349,13 @@ export class MatchmakingService {
 
         return this.formatMatchRequest(createdRequest);
       } catch (error) {
+        if (createdLiveSessionId) {
+          await this.sessionsService.cleanupOrphanedSession(
+            createdLiveSessionId,
+          );
+          createdLiveSessionId = null;
+        }
+
         // При конфликте сериализации параллельных транзакций (P2034) повторяем транзакцию
         if (
           (error instanceof Prisma.PrismaClientKnownRequestError ||
@@ -535,33 +552,44 @@ export class MatchmakingService {
     }
 
     // 5. Создаем общую сессию интервью для двоих участников со статусом ACTIVE
-    const liveSession = await this.sessionsService.createLiveMatchSession(
-      request.senderId,
-      request.receiverId,
-    );
+    let liveSession: { sessionId: string; inviteToken: string } | null = null;
 
-    // 6. Переводим статус в ACCEPTED атомарно и привязываем sessionId
-    const updateResult = await this.prisma.matchRequest.updateMany({
-      where: { id: requestId, status: "PENDING" },
-      data: { status: "ACCEPTED", sessionId: liveSession.sessionId },
-    });
-
-    if (updateResult.count === 0) {
-      throw new BadRequestException(
-        "Можно принять только заявку в статусе ожидания (PENDING)",
+    try {
+      liveSession = await this.sessionsService.createLiveMatchSession(
+        request.senderId,
+        request.receiverId,
       );
+
+      // 6. Переводим статус в ACCEPTED атомарно и привязываем sessionId
+      const updateResult = await this.prisma.matchRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
+        data: { status: "ACCEPTED", sessionId: liveSession.sessionId },
+      });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          "Можно принять только заявку в статусе ожидания (PENDING)",
+        );
+      }
+
+      const updated = await this.prisma.matchRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: MATCH_REQUEST_INCLUDE,
+      });
+
+      // 7. Публикуем событие подтверждения матча в Redis Pub/Sub
+      await this.publishMatchAcceptedEvent(updated);
+
+      // 8. Возвращаем заявку с открытыми контактами
+      return this.formatMatchRequest(updated);
+    } catch (error) {
+      if (liveSession) {
+        await this.sessionsService.cleanupOrphanedSession(
+          liveSession.sessionId,
+        );
+      }
+      throw error;
     }
-
-    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
-      where: { id: requestId },
-      include: MATCH_REQUEST_INCLUDE,
-    });
-
-    // 6. Публикуем событие подтверждения матча в Redis Pub/Sub
-    await this.publishMatchAcceptedEvent(updated);
-
-    // 7. Возвращаем заявку с открытыми контактами
-    return this.formatMatchRequest(updated);
   }
 
   /**

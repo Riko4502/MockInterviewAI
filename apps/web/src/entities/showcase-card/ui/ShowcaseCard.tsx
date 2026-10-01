@@ -185,23 +185,29 @@ export function ShowcaseCard({
               {t("card.manage")}
             </Button>
           ) : isMatched ? (
-            <Button
-              asChild
-              size="sm"
-              variant="default"
-              className="text-xs font-semibold shadow-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
-            >
-              <Link
-                href={
-                  matchedSessionId
-                    ? `${paths.sandbox}?room=${matchedSessionId}`
-                    : paths.sandbox
-                }
+            matchedSessionId ? (
+              <Button
+                asChild
+                size="sm"
+                variant="default"
+                className="text-xs font-semibold shadow-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
               >
-                <PlayIcon className="size-3.5 fill-current" />
-                <span>{t("matchmaking.goToInterview")}</span>
-              </Link>
-            </Button>
+                <Link href={`${paths.sandbox}?room=${matchedSessionId}`}>
+                  <PlayIcon className="size-3.5 fill-current" />
+                  <span>{t("matchmaking.goToInterview")}</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="default"
+                disabled
+                className="text-xs font-semibold shadow-xs gap-1.5 bg-emerald-600/70 text-white opacity-80 cursor-wait"
+              >
+                <span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span>{t("matchmaking.preparingRoom")}</span>
+              </Button>
+            )
           ) : isRequested ? (
             <Button
               size="sm"

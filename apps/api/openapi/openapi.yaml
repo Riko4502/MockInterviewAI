@@ -1667,6 +1667,10 @@ paths:
       responses:
         "200":
           description: Количество непрочитанных заявок
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadMatchRequestsCountDto"
       security: &a16
         - bearer: []
       summary: Получить количество входящих заявок в ожидании ответа (статус PENDING)
@@ -1686,6 +1690,10 @@ paths:
       responses:
         "201":
           description: Заявка успешно отправлена (или согласована при авто-матче)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchRequestResponseDto"
         "400":
           description: Не заполнен профиль, попытка отклика на себя, исчерпан лимит
             входящих на карточке или действует кулдаун
@@ -1729,6 +1737,10 @@ paths:
       responses:
         "200":
           description: Пагинированный список входящих заявок
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
       security: *a16
       summary: Получить список входящих заявок текущего пользователя
       tags: *a17
@@ -1763,6 +1775,10 @@ paths:
       responses:
         "200":
           description: Пагинированный список исходящих заявок
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
       security: *a16
       summary: Получить список исходящих заявок текущего пользователя
       tags: *a17
@@ -1780,6 +1796,10 @@ paths:
       responses:
         "200":
           description: Заявка успешно принята, контакты открыты
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchRequestResponseDto"
         "400":
           description: Заявка не в статусе ожидания или срок её действия истёк
         "403":
@@ -3188,6 +3208,229 @@ components:
       required:
         - status
         - db
+    PublicUserCardDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        telegramUsername:
+          type: string
+          nullable: true
+        gitUrl:
+          type: string
+          nullable: true
+      required:
+        - id
+        - displayName
+        - username
+        - avatarUrl
+        - telegramUsername
+        - gitUrl
+    ShowcaseCardResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/PublicUserCardDto"
+        title:
+          type: string
+          nullable: true
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        language:
+          type: string
+          enum:
+            - RU
+            - EN
+            - ANY
+        skills:
+          type: array
+          items:
+            type: string
+        bio:
+          type: string
+          nullable: true
+        scheduleInfo:
+          type: string
+          nullable: true
+        isUrgent:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - EXPIRED
+        autoRenew:
+          type: boolean
+        bumpedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - user
+        - title
+        - specialization
+        - level
+        - language
+        - skills
+        - bio
+        - scheduleInfo
+        - isUrgent
+        - status
+        - autoRenew
+        - bumpedAt
+        - expiresAt
+        - createdAt
+        - updatedAt
+    MatchRequestResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        receiverId:
+          type: string
+          format: uuid
+        sender:
+          $ref: "#/components/schemas/PublicUserCardDto"
+        receiver:
+          $ref: "#/components/schemas/PublicUserCardDto"
+        targetCard:
+          $ref: "#/components/schemas/ShowcaseCardResponseDto"
+        senderCard:
+          allOf:
+            - $ref: "#/components/schemas/ShowcaseCardResponseDto"
+          nullable: true
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACCEPTED
+            - REJECTED
+            - CANCELLED
+            - EXPIRED
+        sessionId:
+          type: string
+          format: uuid
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        preferredTopic:
+          type: string
+          nullable: true
+        rejectReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - senderId
+        - receiverId
+        - sender
+        - receiver
+        - targetCard
+        - senderCard
+        - status
+        - sessionId
+        - message
+        - preferredTopic
+        - rejectReason
+        - createdAt
+        - updatedAt
+        - expiresAt
+    PaginatedMatchRequestResponseDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchRequestResponseDto"
+        meta:
+          type: object
+          properties:
+            total:
+              type: number
+            page:
+              type: number
+            limit:
+              type: number
+            totalPages:
+              type: number
+            hasNextPage:
+              type: boolean
+            hasPrevPage:
+              type: boolean
+          required:
+            - total
+            - page
+            - limit
+            - totalPages
+            - hasNextPage
+            - hasPrevPage
+      required:
+        - data
+        - meta
+    UnreadMatchRequestsCountDto:
+      type: object
+      properties:
+        pendingCount:
+          type: number
+      required:
+        - pendingCount
     CreateMatchRequestDto:
       type: object
       properties:

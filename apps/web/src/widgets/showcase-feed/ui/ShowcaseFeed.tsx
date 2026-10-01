@@ -45,16 +45,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
 
   const { pendingCardIds, matchedCardIds, matchedCardSessions } =
     useMemo(() => {
-      const list = (
-        outgoingData as unknown as {
-          data?: Array<{
-            status?: string;
-            targetCardId?: string;
-            targetCard?: { id: string };
-            sessionId?: string | null;
-          }>;
-        }
-      )?.data;
+      const list = outgoingData?.data;
       if (!Array.isArray(list)) {
         return {
           pendingCardIds: new Set<string>(),
@@ -68,7 +59,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
       const sessions = new Map<string, string>();
 
       for (const r of list) {
-        const cardId = r.targetCard?.id || r.targetCardId;
+        const cardId = r.targetCard?.id;
         if (!cardId) continue;
         if (r.status === "PENDING") {
           pending.add(cardId);

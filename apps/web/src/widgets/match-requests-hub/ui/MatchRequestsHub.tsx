@@ -5,13 +5,13 @@ import {
   getMatchmakingControllerFindOutgoingQueryKey,
   getMatchmakingControllerGetUnreadCountQueryKey,
   getShowcaseControllerFindMyQueryKey,
+  type MatchRequestResponseDto,
   useMatchmakingControllerAccept,
   useMatchmakingControllerCancel,
   useMatchmakingControllerFindIncoming,
   useMatchmakingControllerFindOutgoing,
   useMatchmakingControllerReject,
 } from "@packages/api";
-import type { MatchRequestResponseDto } from "@packages/dto";
 import { CheckIcon, PlayIcon } from "@packages/icons";
 import { Badge, Button, Card, useToast } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,12 +50,8 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
   const rejectMutation = useMatchmakingControllerReject();
   const cancelMutation = useMatchmakingControllerCancel();
 
-  const incomingRequests: MatchRequestResponseDto[] =
-    (incomingData as unknown as { data?: MatchRequestResponseDto[] })?.data ||
-    [];
-  const outgoingRequests: MatchRequestResponseDto[] =
-    (outgoingData as unknown as { data?: MatchRequestResponseDto[] })?.data ||
-    [];
+  const incomingRequests: MatchRequestResponseDto[] = incomingData?.data || [];
+  const outgoingRequests: MatchRequestResponseDto[] = outgoingData?.data || [];
 
   const invalidateAll = async () => {
     await Promise.all([
@@ -136,7 +132,32 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
     acceptMutation.mutate(
       { id: requestId },
       {
-        onSuccess: async () => {
+        onSuccess: async (acceptedDto) => {
+          if (acceptedDto?.sessionId) {
+            queryClient.setQueryData(
+              getMatchmakingControllerFindIncomingQueryKey(),
+              (old: unknown) => {
+                if (!old) return old;
+                const record = old as { data?: MatchRequestResponseDto[] };
+                if (record.data && Array.isArray(record.data)) {
+                  return {
+                    ...record,
+                    data: record.data.map((item) =>
+                      item.id === requestId
+                        ? { ...item, ...acceptedDto }
+                        : item,
+                    ),
+                  };
+                }
+                if (Array.isArray(old)) {
+                  return old.map((item) =>
+                    item.id === requestId ? { ...item, ...acceptedDto } : item,
+                  );
+                }
+                return old;
+              },
+            );
+          }
           toast.push({
             status: "success",
             title: t("matchmaking.acceptSuccess"),
@@ -470,23 +491,31 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                             {t("matchmaking.matchedDesc")}
                           </span>
                         </div>
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="default"
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
-                        >
-                          <Link
-                            href={
-                              req.sessionId
-                                ? `${paths.sandbox}?room=${req.sessionId}`
-                                : paths.sandbox
-                            }
+                        {req.sessionId ? (
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="default"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                           >
-                            <PlayIcon className="size-3.5 fill-current" />
-                            <span>{t("matchmaking.goToInterview")}</span>
-                          </Link>
-                        </Button>
+                            <Link
+                              href={`${paths.sandbox}?room=${req.sessionId}`}
+                            >
+                              <PlayIcon className="size-3.5 fill-current" />
+                              <span>{t("matchmaking.goToInterview")}</span>
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            disabled
+                            className="bg-emerald-600/70 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 opacity-80 cursor-wait"
+                          >
+                            <span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            <span>{t("matchmaking.preparingRoom")}</span>
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -616,23 +645,29 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                           {t("matchmaking.matchedDesc")}
                         </span>
                       </div>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="default"
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
-                      >
-                        <Link
-                          href={
-                            req.sessionId
-                              ? `${paths.sandbox}?room=${req.sessionId}`
-                              : paths.sandbox
-                          }
+                      {req.sessionId ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="default"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                         >
-                          <PlayIcon className="size-3.5 fill-current" />
-                          <span>{t("matchmaking.goToInterview")}</span>
-                        </Link>
-                      </Button>
+                          <Link href={`${paths.sandbox}?room=${req.sessionId}`}>
+                            <PlayIcon className="size-3.5 fill-current" />
+                            <span>{t("matchmaking.goToInterview")}</span>
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          disabled
+                          className="bg-emerald-600/70 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 opacity-80 cursor-wait"
+                        >
+                          <span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          <span>{t("matchmaking.preparingRoom")}</span>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

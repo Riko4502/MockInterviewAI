@@ -167,6 +167,7 @@
     "matchedTitle": "Interview confirmed!",
     "matchedDesc": "Enter the interactive sandbox for real-time video, collaborative coding, and problem solving.",
     "goToInterview": "Enter Interview",
+    "preparingRoom": "Preparing room...",
     "preferredTopic": "Topic:",
     "message": "Message:",
     "rejectReason": "Decline reason:",
