@@ -304,9 +304,16 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
               disabled={!isDirty || isSaving}
               aria-busy={isSaving}
             >
-              {isSaving ? <Spin size="sm" variant="current" /> : null}
+              {isSaving ? (
+                <Spin size="sm" variant="current" aria-hidden="true" />
+              ) : null}
               {isSaving ? t("profile.saving") : t("actions.save")}
             </Button>
+            {isSaving ? (
+              <output aria-live="polite" className="sr-only">
+                {t("profile.saving")}
+              </output>
+            ) : null}
           </div>
         </Card.Content>
       </Card>
