@@ -33,11 +33,12 @@ export function CropEditor({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   const [cropError, setCropError] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
 
   const busy = isSubmitting || isCropping;
 
   const handleConfirm = async () => {
-    if (!croppedAreaPixels || busy) {
+    if (!croppedAreaPixels || busy || mediaError) {
       return;
     }
 
@@ -86,6 +87,12 @@ export function CropEditor({
           showGrid={false}
           minZoom={MIN_ZOOM}
           maxZoom={MAX_ZOOM}
+          mediaProps={{
+            onError: () => {
+              setMediaError(true);
+              setCroppedAreaPixels(null);
+            },
+          }}
           onCropChange={setCrop}
           onZoomChange={setZoom}
           onCropComplete={(_area, pixels) => {
@@ -103,14 +110,14 @@ export function CropEditor({
           max={MAX_ZOOM}
           step={0.01}
           value={zoom}
-          disabled={busy}
+          disabled={busy || mediaError}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setZoom(event.target.valueAsNumber);
           }}
         />
       </label>
 
-      {cropError || errorMessage ? (
+      {mediaError || cropError || errorMessage ? (
         <p className="text-sm text-destructive">
           {errorMessage ?? t("profile.avatarError")}
         </p>
@@ -127,7 +134,7 @@ export function CropEditor({
         </Button>
         <Button
           type="button"
-          disabled={busy || !croppedAreaPixels}
+          disabled={busy || !croppedAreaPixels || mediaError}
           aria-busy={busy}
           onClick={() => {
             void handleConfirm();
