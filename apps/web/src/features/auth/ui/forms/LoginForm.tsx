@@ -11,9 +11,9 @@ import { useTranslation } from "react-i18next";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
-import { getErrorMessage } from "../lib/getErrorMessage";
-import type { LoginFormValues } from "../lib/schemas";
-import { TelegramLoginButton } from "../telegram-login";
+import { getErrorMessage } from "../../lib/getErrorMessage";
+import type { LoginFormValues } from "../../lib/schemas";
+import { TelegramLoginButton } from "../../telegram-login";
 import { GithubLoginButton } from "./GithubLoginButton";
 
 export function LoginForm() {

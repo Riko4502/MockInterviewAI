@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { SessionProvider } from "@/entities/session";
 import { NotificationRealtime } from "@/features/notification-realtime";
 import { UserPreferencesSync } from "@/features/update-profile";
+import { ApiErrorNotifications } from "./ApiErrorNotifications";
 import { QueryProvider } from "./QueryProvider";
 
 export interface AppProvidersProps extends PropsWithChildren {
@@ -32,6 +33,7 @@ export function AppProviders({
       <SessionProvider>
         <UIProvider defaultTheme={initialTheme}>
           <UserPreferencesSync />
+          <ApiErrorNotifications />
           <NotificationRealtime />
           {children}
         </UIProvider>

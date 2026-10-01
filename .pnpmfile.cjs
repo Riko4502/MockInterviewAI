@@ -12,11 +12,7 @@ function readPackage(pkg) {
   }
 
   if (pkg.dependencies?.["fast-uri"]) {
-    pkg.dependencies["fast-uri"] = "^3.1.6";
-  }
-
-  if (pkg.dependencies?.multer) {
-    pkg.dependencies.multer = "^2.3.0";
+    pkg.dependencies["fast-uri"] = "^3.1.8";
   }
 
   // Исправление уязвимостей js-yaml
@@ -37,6 +33,51 @@ function readPackage(pkg) {
       version.startsWith("4")
     ) {
       pkg.dependencies["js-yaml"] = "^4.3.2";
+    }
+  }
+
+  // Исправление уязвимостей joi
+  if (pkg.dependencies?.joi) {
+    const version = pkg.dependencies.joi;
+    if (
+      version.startsWith("^17") ||
+      version.startsWith("~17") ||
+      version.startsWith("17")
+    ) {
+      pkg.dependencies.joi = "^17.13.7";
+    } else if (
+      version.startsWith("^18") ||
+      version.startsWith("~18") ||
+      version.startsWith("18")
+    ) {
+      pkg.dependencies.joi = "^18.2.9";
+    }
+  }
+
+  // Исправление уязвимостей brace-expansion
+  if (pkg.dependencies?.["brace-expansion"]) {
+    const version = pkg.dependencies["brace-expansion"];
+    if (
+      version.startsWith("^1") ||
+      version.startsWith("~1") ||
+      version.startsWith("1")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^1.1.21";
+    } else if (
+      version.startsWith("^2") ||
+      version.startsWith("~2") ||
+      version.startsWith("2")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^2.1.7";
+    } else if (
+      version.startsWith("^4") ||
+      version.startsWith("~4") ||
+      version.startsWith("4") ||
+      version.startsWith("^5") ||
+      version.startsWith("~5") ||
+      version.startsWith("5")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^5.0.12";
     }
   }
 

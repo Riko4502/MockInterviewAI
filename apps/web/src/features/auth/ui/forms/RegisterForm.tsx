@@ -8,9 +8,9 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
-import { getErrorMessage } from "../lib/getErrorMessage";
-import type { RegisterFormValues } from "../lib/schemas";
-import { TelegramLoginButton } from "../telegram-login";
+import { getErrorMessage } from "../../lib/getErrorMessage";
+import type { RegisterFormValues } from "../../lib/schemas";
+import { TelegramLoginButton } from "../../telegram-login";
 import { GithubLoginButton } from "./GithubLoginButton";
 
 export function RegisterForm() {

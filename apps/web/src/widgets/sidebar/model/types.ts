@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 export type NavIcon = ComponentType<IconProps>;
 
 export type NavLabelKey =
+  | "navigation.adminUsers"
   | "navigation.dashboard"
   | "navigation.sandbox"
   | "navigation.notifications"
@@ -12,8 +13,19 @@ export type NavLabelKey =
   | "navigation.statistics"
   | "navigation.resources";
 
+export type NavGroupLabelKey =
+  | "navigation.workspace"
+  | "navigation.analytics"
+  | "navigation.administration";
+
 export type NavItem = {
   labelKey: NavLabelKey;
   href: string;
   icon: NavIcon;
+  badge?: string | number;
+};
+
+export type NavGroup = {
+  labelKey?: NavGroupLabelKey;
+  items: NavItem[];
 };

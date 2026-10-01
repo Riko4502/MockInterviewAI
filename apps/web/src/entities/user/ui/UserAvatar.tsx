@@ -8,14 +8,21 @@ type UserAvatarProps = {
   name?: string | null;
   email?: string | null;
   size?: AvatarProps["size"];
+  className?: string;
 };
 
-export function UserAvatar({ src, name, email, size = "md" }: UserAvatarProps) {
+export function UserAvatar({
+  src,
+  name,
+  email,
+  size = "md",
+  className,
+}: UserAvatarProps) {
   const initials = getUserInitials(name, email);
   const alt = name || email || initials;
 
   return (
-    <Avatar size={size}>
+    <Avatar size={size} className={className}>
       {src ? <Avatar.Image src={src} alt={alt} /> : null}
       <Avatar.Fallback>{initials}</Avatar.Fallback>
     </Avatar>

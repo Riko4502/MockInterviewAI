@@ -111,6 +111,7 @@ const CATEGORY_MAP: Record<string, IconCategory> = {
   HelpIcon: ICON_CATEGORIES.UI,
   HubConnectionIcon: ICON_CATEGORIES.UI,
   InfoIcon: ICON_CATEGORIES.UI,
+  LayoutDashboardIcon: ICON_CATEGORIES.UI,
   LoginIcon: ICON_CATEGORIES.UI,
   LogOutIcon: ICON_CATEGORIES.UI,
   MaximizeIcon: ICON_CATEGORIES.UI,
