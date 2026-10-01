@@ -8,6 +8,7 @@
     "dev:landing": "turbo dev --filter=landing",
     "dev:realtime": "turbo dev --filter=@apps/realtime",
     "dev:api": "turbo dev --filter=api",
+    "email:dev": "pnpm --filter @packages/email dev",
     "generate:api": "pnpm --filter api generate:openapi",
     "generate:client": "orval --config ./orval.config.ts",
     "codegen": "pnpm run generate:api && pnpm run generate:client",
