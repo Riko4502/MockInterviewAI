@@ -5,13 +5,10 @@ import { ArrowLeftIcon, InfoIcon } from "@packages/icons";
 import { Button } from "@packages/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import {
-  type ShowcaseCardResponseDto,
-  useMyShowcaseCards,
-} from "@/entities/showcase-card";
+import { useShowcaseCard } from "@/entities/showcase-card";
 import { useCurrentUser } from "@/entities/user";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
@@ -33,11 +30,8 @@ export function EditCardView({ cardId }: EditCardViewProps) {
   const { data: user } = useCurrentUser();
   const { updateCard, isUpdating } = useShowcaseMutations();
 
-  const { data: rawCards, isLoading } = useMyShowcaseCards();
-  const cards: ShowcaseCardResponseDto[] = Array.isArray(rawCards)
-    ? rawCards
-    : [];
-  const card = cards.find((c) => c.id === cardId);
+  const { data: card, isLoading } = useShowcaseCard(cardId);
+  const isInitializedRef = useRef(false);
 
   const schema = useMemo(
     () =>
@@ -69,9 +63,10 @@ export function EditCardView({ cardId }: EditCardViewProps) {
   const { reset, watch } = form;
   const watchedValues = watch();
 
-  // Заполняем форму данными карточки после её загрузки
+  // Заполняем форму только один раз при успешной первой загрузке карточки,
+  // чтобы фоновые рефетчи не сбрасывали введенные пользователем данные
   useEffect(() => {
-    if (card) {
+    if (card && !isInitializedRef.current) {
       reset({
         specialization: card.specialization,
         level: card.level,
@@ -83,8 +78,30 @@ export function EditCardView({ cardId }: EditCardViewProps) {
         isUrgent: card.isUrgent ?? false,
         autoRenew: card.autoRenew ?? false,
       });
+      isInitializedRef.current = true;
     }
   }, [card, reset]);
+
+  // Предотвращает flash дефолтных значений в Live Preview до инициализации формы
+  const previewValues = useMemo<ShowcaseFormValues>(() => {
+    if (isInitializedRef.current) {
+      return watchedValues;
+    }
+    if (card) {
+      return {
+        specialization: card.specialization,
+        level: card.level,
+        language: card.language,
+        skills: card.skills || [],
+        title: card.title || "",
+        bio: card.bio || "",
+        scheduleInfo: card.scheduleInfo || "",
+        isUrgent: card.isUrgent ?? false,
+        autoRenew: card.autoRenew ?? false,
+      };
+    }
+    return watchedValues;
+  }, [card, watchedValues]);
 
   const handleSubmitForm = async (values: ShowcaseFormValues) => {
     if (!card) return;
@@ -114,7 +131,9 @@ export function EditCardView({ cardId }: EditCardViewProps) {
     );
   }
 
-  if (!card) {
+  // Проверка существования и прав владения анкетой
+  const isOwner = card && user ? card.userId === user.id : true;
+  if (!card || !isOwner) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center gap-4 bg-muted/20 border border-dashed border-border rounded-2xl max-w-xl mx-auto my-12">
         <h3 className="text-lg font-bold text-foreground">
@@ -171,7 +190,7 @@ export function EditCardView({ cardId }: EditCardViewProps) {
                 variant="outline"
                 size="default"
                 disabled={isUpdating}
-                onClick={() => router.back()}
+                onClick={() => router.push(paths.partnersMy)}
                 className="px-5 cursor-pointer"
               >
                 {t("actions.cancel")}
@@ -182,9 +201,16 @@ export function EditCardView({ cardId }: EditCardViewProps) {
                 variant="default"
                 size="default"
                 disabled={isUpdating}
-                className="px-6 font-semibold shadow-xs cursor-pointer"
+                className="px-6 font-semibold shadow-xs cursor-pointer gap-2"
               >
-                {isUpdating ? t("actions.loading") : t("form.submitSave")}
+                {isUpdating ? (
+                  <>
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{t("actions.loading")}</span>
+                  </>
+                ) : (
+                  t("form.submitSave")
+                )}
               </Button>
             </div>
           </div>
@@ -193,7 +219,7 @@ export function EditCardView({ cardId }: EditCardViewProps) {
         {/* Правая колонка: Live Preview и подсказки */}
         <div className="lg:col-span-5 lg:sticky lg:top-6 flex flex-col gap-5">
           <ShowcaseCardLivePreview
-            values={watchedValues}
+            values={previewValues}
             user={user}
             className="rounded-2xl border border-border/70 bg-card/60 p-5 shadow-xs backdrop-blur-xs"
           />

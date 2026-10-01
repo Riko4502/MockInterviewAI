@@ -1,4 +1,5 @@
 export * from "./api/useMyShowcaseCards";
+export * from "./api/useShowcaseCard";
 export * from "./api/useShowcaseCatalog";
 export * from "./model/constants";
 export * from "./model/types";

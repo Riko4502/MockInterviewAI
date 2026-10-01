@@ -3,6 +3,7 @@
 import {
   getShowcaseControllerFindAllQueryKey,
   getShowcaseControllerFindMyQueryKey,
+  getShowcaseControllerFindOneQueryKey,
   useShowcaseControllerBump,
   useShowcaseControllerCreate,
   useShowcaseControllerRemove,
@@ -46,7 +47,7 @@ export function useShowcaseMutations() {
   const toast = useToast();
   const { t } = useTranslation("showcase");
 
-  const invalidateShowcaseQueries = async () => {
+  const invalidateShowcaseQueries = async (cardId?: string) => {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: getShowcaseControllerFindMyQueryKey(),
@@ -57,6 +58,13 @@ export function useShowcaseMutations() {
       queryClient.invalidateQueries({
         queryKey: ["dashboard"],
       }),
+      ...(cardId
+        ? [
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindOneQueryKey(cardId),
+            }),
+          ]
+        : []),
     ]);
   };
 
@@ -118,7 +126,7 @@ export function useShowcaseMutations() {
             status: "success",
             title: t("card.updateSuccess"),
           });
-          await invalidateShowcaseQueries();
+          await invalidateShowcaseQueries(id);
           callbacks?.onSuccess?.();
         },
         onError: (err: unknown) => {
@@ -149,7 +157,7 @@ export function useShowcaseMutations() {
             status: "success",
             title: t("card.deleteSuccess"),
           });
-          await invalidateShowcaseQueries();
+          await invalidateShowcaseQueries(id);
           callbacks?.onSuccess?.();
         },
         onError: (err: unknown) => {
@@ -189,7 +197,7 @@ export function useShowcaseMutations() {
                 ? t("card.statusActive")
                 : t("card.statusInactive"),
           });
-          await invalidateShowcaseQueries();
+          await invalidateShowcaseQueries(id);
           callbacks?.onSuccess?.();
         },
         onError: (err: unknown) => {
@@ -220,7 +228,7 @@ export function useShowcaseMutations() {
             status: "success",
             title: t("card.bumpSuccess"),
           });
-          await invalidateShowcaseQueries();
+          await invalidateShowcaseQueries(id);
           callbacks?.onSuccess?.();
         },
         onError: (err: unknown) => {
@@ -251,7 +259,7 @@ export function useShowcaseMutations() {
             status: "success",
             title: t("card.renewSuccess"),
           });
-          await invalidateShowcaseQueries();
+          await invalidateShowcaseQueries(id);
           callbacks?.onSuccess?.();
         },
         onError: (err: unknown) => {

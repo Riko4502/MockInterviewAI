@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/shared/lib/i18n";
 import { EditCardView } from "./EditCardView";
@@ -31,13 +31,13 @@ vi.mock("@/entities/user", () => ({
   ),
 }));
 
-const mockMyShowcaseCards = vi.fn();
+const mockShowcaseCard = vi.fn();
 vi.mock("@/entities/showcase-card", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/entities/showcase-card")>();
   return {
     ...actual,
-    useMyShowcaseCards: () => mockMyShowcaseCards(),
+    useShowcaseCard: () => mockShowcaseCard(),
   };
 });
 
@@ -61,8 +61,8 @@ describe("EditCardView", () => {
   });
 
   it("должен отображать состояние 'Анкета не найдена', если карточка отсутствует", () => {
-    mockMyShowcaseCards.mockReturnValue({
-      data: [],
+    mockShowcaseCard.mockReturnValue({
+      data: null,
       isLoading: false,
     });
 
@@ -74,29 +74,43 @@ describe("EditCardView", () => {
     ).toBeInTheDocument();
   });
 
+  it("должен отображать 'Анкета не найдена', если текущий пользователь не является владельцем", () => {
+    mockShowcaseCard.mockReturnValue({
+      data: {
+        id: "card-1",
+        userId: "another-user-id",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+      },
+      isLoading: false,
+    });
+
+    render(<EditCardView cardId="card-1" />);
+
+    expect(screen.getByText("Анкета не найдена")).toBeInTheDocument();
+  });
+
   it("должен отображать форму редактирования с заполненными данными анкеты", () => {
-    mockMyShowcaseCards.mockReturnValue({
-      data: [
-        {
-          id: "card-1",
-          userId: "u-1",
-          specialization: "FRONTEND",
-          level: "SENIOR",
-          language: "RU",
-          skills: ["React", "TypeScript"],
-          title: "Senior Frontend Engineer",
-          bio: "Готовлюсь к интервью",
-          status: "ACTIVE",
-          isUrgent: false,
-          autoRenew: false,
-          user: {
-            id: "u-1",
-            displayName: "Иван Петров",
-            username: "ipetrov",
-            avatarUrl: null,
-          },
+    mockShowcaseCard.mockReturnValue({
+      data: {
+        id: "card-1",
+        userId: "u-1",
+        specialization: "FRONTEND",
+        level: "SENIOR",
+        language: "RU",
+        skills: ["React", "TypeScript"],
+        title: "Senior Frontend Engineer",
+        bio: "Готовлюсь к интервью",
+        status: "ACTIVE",
+        isUrgent: false,
+        autoRenew: false,
+        user: {
+          id: "u-1",
+          displayName: "Иван Петров",
+          username: "ipetrov",
+          avatarUrl: null,
         },
-      ],
+      },
       isLoading: false,
     });
 
@@ -120,5 +134,25 @@ describe("EditCardView", () => {
     expect(
       screen.getByText("Специализацию нельзя изменить после создания анкеты"),
     ).toBeInTheDocument();
+  });
+
+  it("должен перенаправлять на список анкет при нажатии кнопки 'Отмена'", () => {
+    mockShowcaseCard.mockReturnValue({
+      data: {
+        id: "card-1",
+        userId: "u-1",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        skills: ["React"],
+      },
+      isLoading: false,
+    });
+
+    render(<EditCardView cardId="card-1" />);
+
+    const cancelButton = screen.getByRole("button", { name: /Отмена/i });
+    fireEvent.click(cancelButton);
+
+    expect(mockPush).toHaveBeenCalledWith("/dashboard/partners/my");
   });
 });
