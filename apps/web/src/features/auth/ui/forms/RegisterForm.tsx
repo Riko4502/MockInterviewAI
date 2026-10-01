@@ -8,8 +8,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
-import { getErrorMessage } from "../lib/getErrorMessage";
-import type { RegisterFormValues } from "../lib/schemas";
+import { getErrorMessage } from "../../lib/getErrorMessage";
+import type { RegisterFormValues } from "../../lib/schemas";
 
 import { GithubLoginButton } from "./GithubLoginButton";
 

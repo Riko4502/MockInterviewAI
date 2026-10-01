@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import i18n from "i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
@@ -17,11 +18,13 @@ const {
   toastPushMock,
   setPreferenceCookiesMock,
   refreshMock,
+  setThemeMock,
 } = vi.hoisted(() => ({
   mutateMock: vi.fn(),
   toastPushMock: vi.fn(),
   setPreferenceCookiesMock: vi.fn(),
   refreshMock: vi.fn(),
+  setThemeMock: vi.fn(),
   profileMutation: {
     isPending: false,
     isError: false,
@@ -35,6 +38,10 @@ vi.mock("@packages/ui", async (importOriginal) => {
     ...actual,
     useToast: () => ({
       push: toastPushMock,
+    }),
+    useTheme: () => ({
+      setTheme: setThemeMock,
+      theme: "dark",
     }),
   };
 });
@@ -112,7 +119,9 @@ describe("UpdateProfileForm", () => {
     profileMutation.isError = false;
     profileMutation.isSuccess = false;
     setPreferenceCookiesMock.mockClear();
+    setThemeMock.mockClear();
     refreshMock.mockClear();
+    void i18n.changeLanguage("ru");
     mockUserData = { ...initialUser };
   });
 
@@ -327,5 +336,54 @@ describe("UpdateProfileForm", () => {
       status: "success",
       title: "Profile saved.",
     });
+  });
+
+  it("применяет тему и сохраняет куки только после успешного сохранения профиля, а не при выборе в Select", async () => {
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const user = userEvent.setup();
+    renderForm();
+
+    const comboboxes = screen.getAllByRole("combobox");
+    const themeTrigger = comboboxes[0];
+
+    fireEvent.keyDown(themeTrigger, { key: "ArrowDown" });
+    const lightOption = await screen.findByRole("option", {
+      name: /светлая|light/i,
+    });
+    await user.click(lightOption);
+
+    // При выборе в select тема и куки ещё не должны применяться
+    expect(setThemeMock).not.toHaveBeenCalled();
+    expect(setPreferenceCookiesMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            theme: "light",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
+
+    const lastCall = mutateMock.mock.calls[0];
+    const options = lastCall[1];
+    act(() => {
+      options.onSuccess({
+        ...mockUserData,
+        theme: "light",
+      });
+    });
+
+    // После успешного сохранения тема и куки применяются
+    expect(setThemeMock).toHaveBeenCalledWith("light");
+    expect(setPreferenceCookiesMock).toHaveBeenCalledWith({ theme: "light" });
   });
 });

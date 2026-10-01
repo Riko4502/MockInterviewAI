@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileDto } from "@packages/api";
-import { localeLabels, locales } from "@packages/dto";
+import { localeLabels, locales, THEME_MODES } from "@packages/dto";
 import { GlobeIcon, MoonIcon, SlidersIcon, SunIcon } from "@packages/icons";
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   Select,
   Skeleton,
   Spin,
+  useTheme,
   useToast,
 } from "@packages/ui";
 import { useRouter } from "next/navigation";
@@ -30,6 +31,7 @@ import { AvatarUploadField } from "./AvatarUploadField";
 
 function ProfileFields({ user }: { user: UserProfileDto }) {
   const { t, i18n } = useTranslation("common");
+  const { setTheme } = useTheme();
   const router = useRouter();
   const updateProfile = useUpdateProfile();
   const toast = useToast();
@@ -78,14 +80,18 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
       { data },
       {
         onSuccess: (updatedUser) => {
+          if (updatedUser.theme) {
+            setTheme(updatedUser.theme);
+            setPreferenceCookies({ theme: updatedUser.theme });
+          }
           if (updatedUser.locale) {
             void i18n.changeLanguage(updatedUser.locale);
             setPreferenceCookies({ locale: updatedUser.locale });
             if (typeof document !== "undefined") {
               document.documentElement.lang = updatedUser.locale;
             }
-            router.refresh();
           }
+          router.refresh();
           reset({
             displayName: updatedUser.displayName ?? "",
             username: updatedUser.username ?? "",
@@ -213,8 +219,12 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
                   render={({ field }) => (
                     <Select
                       value={field.value}
-                      onValueChange={field.onChange}
                       disabled={isSaving}
+                      onValueChange={(val: string) => {
+                        const theme = THEME_MODES.find((mode) => mode === val);
+                        if (!theme) return;
+                        field.onChange(theme);
+                      }}
                     >
                       <Select.Trigger className="w-full">
                         <Select.Value />

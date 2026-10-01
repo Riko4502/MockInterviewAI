@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Param,
@@ -152,11 +151,11 @@ export class SessionsController {
     @Body(new ZodValidationPipe(addParticipantSchema)) body: AddParticipantDto,
     @CurrentUser("sub") ownerId: string,
   ): Promise<void> {
-    await this.assertOwner(sessionId, ownerId);
     await this.sessionsService.addParticipant(
       sessionId,
       body.userId,
       body.role as InterviewParticipantRole,
+      ownerId,
     );
   }
 
@@ -190,8 +189,7 @@ export class SessionsController {
     @Param("userId") userId: string,
     @CurrentUser("sub") ownerId: string,
   ): Promise<void> {
-    await this.assertOwner(sessionId, ownerId);
-    await this.sessionsService.removeParticipant(sessionId, userId);
+    await this.sessionsService.removeParticipant(sessionId, userId, ownerId);
   }
 
   /**
@@ -217,8 +215,7 @@ export class SessionsController {
     @Param("id") sessionId: string,
     @CurrentUser("sub") ownerId: string,
   ): Promise<void> {
-    await this.assertOwner(sessionId, ownerId);
-    await this.sessionsService.closeSession(sessionId);
+    await this.sessionsService.closeSession(sessionId, ownerId);
   }
 
   /**
@@ -261,21 +258,6 @@ export class SessionsController {
     @Param("id") sessionId: string,
     @CurrentUser("sub") ownerId: string,
   ): Promise<RotateInviteResponseDto> {
-    await this.assertOwner(sessionId, ownerId);
-    return this.sessionsService.rotateInviteToken(sessionId);
-  }
-
-  /**
-   * Проверяет, что текущий пользователь является владельцем сессии.
-   * Несуществующая сессия → 404 (выбрасывается в `getOwner`),
-   * не владелец → 403.
-   */
-  private async assertOwner(sessionId: string, ownerId: string): Promise<void> {
-    const actualOwner = await this.sessionsService.getOwner(sessionId);
-    if (actualOwner !== ownerId) {
-      throw new ForbiddenException(
-        "Only the session owner can perform this action",
-      );
-    }
+    return this.sessionsService.rotateInviteToken(sessionId, ownerId);
   }
 }

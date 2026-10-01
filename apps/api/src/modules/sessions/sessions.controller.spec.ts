@@ -77,18 +77,27 @@ describe("SessionsController", () => {
       const result = await controller.rotateInviteToken(sessionId, ownerId);
 
       expect(result).toEqual({ inviteToken: "new-token-123" });
-      expect(sessionsServiceMock.getOwner).toHaveBeenCalledWith(sessionId);
       expect(sessionsServiceMock.rotateInviteToken).toHaveBeenCalledWith(
         sessionId,
+        ownerId,
       );
     });
 
     it("бросает ForbiddenException если вызывающий не владелец", async () => {
+      sessionsServiceMock.rotateInviteToken.mockRejectedValue(
+        new ForbiddenException(
+          "Only the session owner can perform this action",
+        ),
+      );
+
       await expect(
         controller.rotateInviteToken(sessionId, otherUserId),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(sessionsServiceMock.rotateInviteToken).not.toHaveBeenCalled();
+      expect(sessionsServiceMock.rotateInviteToken).toHaveBeenCalledWith(
+        sessionId,
+        otherUserId,
+      );
     });
   });
 
@@ -96,19 +105,29 @@ describe("SessionsController", () => {
     it("удаляет участника если вызывающий — владелец", async () => {
       await controller.removeParticipant(sessionId, otherUserId, ownerId);
 
-      expect(sessionsServiceMock.getOwner).toHaveBeenCalledWith(sessionId);
       expect(sessionsServiceMock.removeParticipant).toHaveBeenCalledWith(
         sessionId,
         otherUserId,
+        ownerId,
       );
     });
 
     it("бросает ForbiddenException если удаление вызывает не владелец", async () => {
+      sessionsServiceMock.removeParticipant.mockRejectedValue(
+        new ForbiddenException(
+          "Only the session owner can perform this action",
+        ),
+      );
+
       await expect(
         controller.removeParticipant(sessionId, "target-id", otherUserId),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(sessionsServiceMock.removeParticipant).not.toHaveBeenCalled();
+      expect(sessionsServiceMock.removeParticipant).toHaveBeenCalledWith(
+        sessionId,
+        "target-id",
+        otherUserId,
+      );
     });
   });
 
@@ -116,15 +135,27 @@ describe("SessionsController", () => {
     it("закрывает сессию если вызывающий — владелец", async () => {
       await controller.closeSession(sessionId, ownerId);
 
-      expect(sessionsServiceMock.closeSession).toHaveBeenCalledWith(sessionId);
+      expect(sessionsServiceMock.closeSession).toHaveBeenCalledWith(
+        sessionId,
+        ownerId,
+      );
     });
 
     it("бросает ForbiddenException если закрытие вызывает не владелец", async () => {
+      sessionsServiceMock.closeSession.mockRejectedValue(
+        new ForbiddenException(
+          "Only the session owner can perform this action",
+        ),
+      );
+
       await expect(
         controller.closeSession(sessionId, otherUserId),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(sessionsServiceMock.closeSession).not.toHaveBeenCalled();
+      expect(sessionsServiceMock.closeSession).toHaveBeenCalledWith(
+        sessionId,
+        otherUserId,
+      );
     });
   });
 });

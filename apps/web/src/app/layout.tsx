@@ -20,7 +20,7 @@ export default async function RootLayout({
     ? (rawLocale as Locale)
     : defaultLocale;
 
-  const rawTheme = cookieStore.get("theme")?.value;
+  const rawTheme = cookieStore.get("theme")?.value ?? "dark";
   const isLight = rawTheme === "light";
 
   return (
@@ -31,7 +31,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <AppProviders initialTheme={rawTheme || "dark"} initialLocale={locale}>
+        <AppProviders initialTheme={rawTheme} initialLocale={locale}>
           {children}
         </AppProviders>
       </body>
