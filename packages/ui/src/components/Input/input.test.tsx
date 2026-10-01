@@ -739,4 +739,15 @@ describe("Input Component", () => {
       ).toBe(true);
     });
   });
+
+  describe("type=range", () => {
+    it("рендерит ползунок без стилей текстового поля", () => {
+      render(<Input type="range" aria-label="Масштаб" min={1} max={3} />);
+      const input = screen.getByRole("slider", { name: "Масштаб" });
+
+      expect(input.getAttribute("type")).toBe("range");
+      expect(input.className).toContain("accent-primary");
+      expect(input.className).not.toContain("h-[46px]");
+    });
+  });
 });
