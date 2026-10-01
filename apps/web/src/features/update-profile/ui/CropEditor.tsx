@@ -16,6 +16,7 @@ type CropEditorProps = {
   errorMessage?: string | null;
   onCancel: () => void;
   onConfirm: (file: File) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 };
 
 export function CropEditor({
@@ -24,6 +25,7 @@ export function CropEditor({
   errorMessage,
   onCancel,
   onConfirm,
+  onCloseAutoFocus,
 }: CropEditorProps) {
   const { t } = useTranslation("common");
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
@@ -56,6 +58,7 @@ export function CropEditor({
     <Dialog.Content
       className="sm:max-w-md"
       showCloseButton={!busy}
+      onCloseAutoFocus={onCloseAutoFocus}
       onEscapeKeyDown={(event) => {
         if (busy) {
           event.preventDefault();

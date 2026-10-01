@@ -23,6 +23,7 @@ export function AvatarUploadField({
 }: AvatarUploadFieldProps) {
   const { t } = useTranslation("common");
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const uploadAvatar = useUploadAvatar();
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export function AvatarUploadField({
           onChange={onFileChange}
         />
         <Button
+          ref={uploadButtonRef}
           type="button"
           variant="outline"
           size="sm"
@@ -98,6 +100,7 @@ export function AvatarUploadField({
       {imageFile ? (
         <AvatarCropDialog
           imageSrc={imageSrc}
+          triggerRef={uploadButtonRef}
           isSubmitting={uploadAvatar.isPending}
           errorMessage={uploadAvatar.isError ? t("profile.avatarError") : null}
           onOpenChange={(open) => {
