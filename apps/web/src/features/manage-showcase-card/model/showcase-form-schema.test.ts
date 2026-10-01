@@ -87,7 +87,7 @@ describe("showcase-form-schema", () => {
       bio: "",
     });
 
-    expect(dto.title).toBeUndefined();
+    expect(dto.title).toBeNull();
     expect(dto.bio).toBeNull();
   });
 });

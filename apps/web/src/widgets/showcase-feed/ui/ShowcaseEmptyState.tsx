@@ -35,9 +35,7 @@ export function ShowcaseEmptyState({
       </div>
 
       <h3 className="text-base font-bold text-foreground">
-        {isFiltered
-          ? t("filters.emptyCatalogTitle")
-          : t("filters.emptyMyCardsTitle")}
+        {t("filters.emptyCatalogTitle")}
       </h3>
 
       <p className="mt-1.5 max-w-sm text-xs text-muted-foreground leading-relaxed">

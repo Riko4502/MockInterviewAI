@@ -323,6 +323,40 @@ describe("ShowcaseService", () => {
         }),
       );
     });
+
+    it("позволяет очистить заголовок, передавая null", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        status: "ACTIVE",
+      });
+      const updatedCard = {
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        title: null,
+        status: "ACTIVE",
+        user: { id: userId, telegramUsername: null },
+      };
+      prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
+
+      const result = await service.update("card-1", userId, {
+        title: null,
+      });
+
+      expect(result).toEqual(updatedCard);
+      expect(prismaMock.showcaseCard.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "card-1" },
+          data: expect.objectContaining({
+            title: null,
+          }),
+        }),
+      );
+    });
   });
 
   describe("updateStatus", () => {

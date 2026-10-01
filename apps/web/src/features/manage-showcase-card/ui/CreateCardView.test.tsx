@@ -42,6 +42,22 @@ describe("CreateCardView", () => {
     };
   });
 
+  it("должен отображать skeleton во время загрузки профиля без предупреждения о неполном профиле", () => {
+    mockCurrentUser.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+
+    render(<CreateCardView />);
+
+    expect(screen.getByTestId("create-card-skeleton")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Для публикации анкеты необходимо указать имя и username в профиле/i,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("должен отображать предупреждение о неполном профиле", () => {
     mockCurrentUser.mockReturnValue({
       data: {
@@ -49,6 +65,7 @@ describe("CreateCardView", () => {
         displayName: "",
         username: null,
       },
+      isLoading: false,
     });
 
     render(<CreateCardView />);

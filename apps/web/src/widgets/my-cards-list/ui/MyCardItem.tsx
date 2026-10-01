@@ -1,6 +1,11 @@
 "use client";
 
-import { EditIcon, MessageSquareIcon, TrashIcon } from "@packages/icons";
+import {
+  EditIcon,
+  MessageSquareIcon,
+  RedoIcon,
+  TrashIcon,
+} from "@packages/icons";
 import { Badge, Button, Card } from "@packages/ui";
 import { cn } from "@packages/utils";
 import Link from "next/link";
@@ -28,7 +33,8 @@ export interface MyCardItemProps {
 
 export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
   const { t } = useTranslation("showcase");
-  const { toggleStatus, isTogglingStatus } = useShowcaseMutations();
+  const { toggleStatus, isTogglingStatus, renewCard, isRenewing } =
+    useShowcaseMutations();
 
   const isInactive = card.status === "INACTIVE";
   const isExpired = card.status === "EXPIRED";
@@ -118,20 +124,35 @@ export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
       {/* Панель действий */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3.5">
         <div className="flex items-center gap-1.5">
-          <BumpCardButton cardId={card.id} bumpedAt={card.bumpedAt} />
+          {isExpired ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isRenewing}
+              onClick={() => renewCard(card.id)}
+              className="text-xs"
+            >
+              <RedoIcon className="size-3.5 shrink-0 text-primary" />
+              <span>{t("card.renew")}</span>
+            </Button>
+          ) : (
+            <>
+              <BumpCardButton cardId={card.id} bumpedAt={card.bumpedAt} />
 
-          {/* Переключение статуса */}
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isExpired || isTogglingStatus}
-            onClick={() =>
-              toggleStatus(card.id, card.status as "ACTIVE" | "INACTIVE")
-            }
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            {isInactive ? t("actions.activate") : t("actions.hide")}
-          </Button>
+              {/* Переключение статуса */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isTogglingStatus}
+                onClick={() =>
+                  toggleStatus(card.id, card.status as "ACTIVE" | "INACTIVE")
+                }
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {isInactive ? t("actions.activate") : t("actions.hide")}
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1 ml-auto">

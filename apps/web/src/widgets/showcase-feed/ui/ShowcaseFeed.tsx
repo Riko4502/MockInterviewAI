@@ -1,6 +1,7 @@
 "use client";
 
 import { useMatchmakingControllerFindOutgoing } from "@packages/api";
+import { Pagination } from "@packages/ui";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,7 +40,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
     useState<ShowcaseCardResponseDto | null>(null);
 
   const { data: outgoingData } = useMatchmakingControllerFindOutgoing(
-    { limit: 100 },
+    { limit: 50 },
     { query: { enabled: !!currentUser } },
   );
 
@@ -168,27 +169,88 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
           onCreateCard={() => router.push(paths.partnersNew)}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {cards.map((card: ShowcaseCardResponseDto) => {
-            const isOwner = currentUser?.id === card.userId;
-            const isRequested = pendingCardIds.has(card.id);
-            const isMatched = matchedCardIds.has(card.id);
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {cards.map((card: ShowcaseCardResponseDto) => {
+              const isOwner = currentUser?.id === card.userId;
+              const isRequested = pendingCardIds.has(card.id);
+              const isMatched = matchedCardIds.has(card.id);
 
-            return (
-              <ShowcaseCard
-                key={card.id}
-                card={card}
-                isOwner={isOwner}
-                isRequested={isRequested}
-                isMatched={isMatched}
-                matchedSessionId={matchedCardSessions.get(card.id)}
-                matchedSessionStatus={matchedCardSessionStatuses.get(card.id)}
-                onRespond={() => setRespondingCard(card)}
-                onManage={() => router.push(paths.partnersMy)}
-              />
-            );
-          })}
-        </div>
+              return (
+                <ShowcaseCard
+                  key={card.id}
+                  card={card}
+                  isOwner={isOwner}
+                  isRequested={isRequested}
+                  isMatched={isMatched}
+                  matchedSessionId={matchedCardSessions.get(card.id)}
+                  matchedSessionStatus={matchedCardSessionStatuses.get(card.id)}
+                  onRespond={() => setRespondingCard(card)}
+                  onManage={() => router.push(paths.partnersMy)}
+                />
+              );
+            })}
+          </div>
+
+          {/* Пагинация каталога */}
+          {data?.meta && (data.meta.hasPrevPage || data.meta.hasNextPage) && (
+            <Pagination
+              aria-label={t("pagination.label")}
+              className="mt-2 justify-center"
+            >
+              <Pagination.Content>
+                <Pagination.Item>
+                  <Pagination.Previous
+                    href="#"
+                    label={t("pagination.previous")}
+                    aria-disabled={!data.meta.hasPrevPage}
+                    tabIndex={!data.meta.hasPrevPage ? -1 : 0}
+                    className={
+                      !data.meta.hasPrevPage
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (data.meta.hasPrevPage) {
+                        setPage((prev) => Math.max(1, prev - 1));
+                      }
+                    }}
+                  />
+                </Pagination.Item>
+
+                <Pagination.Item>
+                  <span className="px-3 text-xs text-muted-foreground font-medium select-none">
+                    {t("pagination.page", {
+                      page: data.meta.page,
+                      totalPages: data.meta.totalPages,
+                    })}
+                  </span>
+                </Pagination.Item>
+
+                <Pagination.Item>
+                  <Pagination.Next
+                    href="#"
+                    label={t("pagination.next")}
+                    aria-disabled={!data.meta.hasNextPage}
+                    tabIndex={!data.meta.hasNextPage ? -1 : 0}
+                    className={
+                      !data.meta.hasNextPage
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (data.meta.hasNextPage) {
+                        setPage((prev) => prev + 1);
+                      }
+                    }}
+                  />
+                </Pagination.Item>
+              </Pagination.Content>
+            </Pagination>
+          )}
+        </>
       )}
 
       {/* Диалог отправки заявки на интервью */}

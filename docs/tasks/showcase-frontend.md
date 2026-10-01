@@ -21,7 +21,7 @@
    - Поднятие в топ (`bump`) 1 раз в 24 часа с тикающим таймером кулдауна;
    - Автопродление (`autoRenew`) и ручное продление на 15 дней (`renew`);
    - Переключение видимости (`ACTIVE` ↔ `INACTIVE`);
-   - Статистика просмотров и откликов для каждой анкеты автора (`GET /showcase/my`).
+   - Статистика входящих заявок для каждой анкеты автора (`GET /showcase/my`).
 5. **Премиальный UI и адаптивность:**
    - Адаптивная сетка карточек, плавная анимация бейджей (молния срочности ⚡ `isUrgent`, цветовая дифференциация грейдов);
    - Изолированные скелетоны загрузки без скачков верстки (CLS = 0).
@@ -34,15 +34,15 @@
 sequenceDiagram
     autonumber
     actor User as 👨‍💻 Кандидат
-    participant Dialog as 🪟 CreateCardDialog
+    participant View as 📄 CreateCardView
     participant Form as 📝 ShowcaseCardForm
     participant Preview as 👁️ ShowcaseCardPreview
     participant Mutation as 🔄 useShowcaseMutations
     participant API as 🚀 Backend (/api/v1/showcase)
     participant Feed as 📋 MyCardsList & Feed
 
-    User->>Dialog: Клик «Создать анкету»
-    Dialog->>Form: Инициализация полей (default: RU, level: MIDDLE)
+    User->>View: Переход на /dashboard/partners/new
+    View->>Form: Инициализация полей (default: RU, level: MIDDLE)
     Form->>Preview: Передача текущих значений формы
     Preview-->>User: Рендер живого предпросмотра карточки
 
@@ -50,7 +50,7 @@ sequenceDiagram
     Form->>Preview: Реактивное обновление карточки и бейджей
 
     User->>Form: Клик «Опубликовать анкету»
-    Form->>Form: Zod-валидация (createShowcaseCardSchema)
+    Form->>Form: Zod-валидация (createShowcaseFormSchema)
     Form->>Mutation: mutate(CreateShowcaseCardDto)
     Mutation->>API: POST /api/v1/showcase
 
@@ -60,7 +60,7 @@ sequenceDiagram
     else Успех (201 Created)
         API-->>Mutation: 201 Created (ShowcaseCardResponseDto)
         Mutation->>Mutation: Инвалидация кэша ['showcaseControllerFindMy'], ['showcaseControllerFindAll']
-        Mutation-->>Dialog: Закрытие модального окна
+        Mutation-->>View: Редирект на /dashboard/partners/my
         Mutation-->>User: Toast: «Анкета успешно опубликована на витрине»
         Feed-->>User: Мгновенное появление карточки в списке
     end
@@ -77,17 +77,24 @@ apps/web/src/
 │       └── dashboard/
 │           └── partners/                           # Роут paths.partners
 │               ├── page.tsx                        # Каталог витрины + кнопка «Создать анкету»
+│               ├── new/                            # Страница создания анкеты (CreateCardView)
+│               │   └── page.tsx
+│               ├── [id]/                           # Страница редактирования анкеты (EditCardView)
+│               │   └── edit/
+│               │       └── page.tsx
 │               ├── my/                             # Страница управления своими анкетами
 │               │   └── page.tsx
+│               ├── requests/                       # Центр входящих и исходящих заявок на интервью
+│               │   └── page.tsx
 │               ├── loading.tsx                     # Скелетон витрины
-│               └── layout.tsx                      # Табы навигации: «Каталог» | «Мои анкеты»
+│               └── layout.tsx                      # Табы навигации: «Каталог» | «Мои анкеты» | «Заявки»
 │
 ├── entities/
 │   └── showcase-card/                              # Слой бизнес-сущности карточки
 │       ├── api/
 │       │   ├── useMyShowcaseCards.ts               # GET /showcase/my (хук списка своих анкет)
 │       │   ├── useShowcaseCatalog.ts               # GET /showcase (каталог с поиском и фильтрами)
-│       │   └── showcaseQueryKeys.ts                # Централизованные ключи кэша
+│       │   └── useShowcaseCard.ts                  # GET /showcase/:id (хук получения анкеты по ID)
 │       ├── model/
 │       │   ├── types.ts                            # ShowcaseCardItemDto, карточные фильтры
 │       │   └── constants.ts                        # Конфиг цветов уровней, иконки стеков
@@ -97,7 +104,8 @@ apps/web/src/
 │           ├── LevelBadge.tsx                      # Бейдж грейда (Junior/Middle/Senior/Lead)
 │           ├── SpecializationBadge.tsx             # Бейдж стека с иконкой направления
 │           ├── LanguageBadge.tsx                   # Бейдж языка собеседования (RU/EN/ANY)
-│           └── UrgentBadge.tsx                     # Бейдж ⚡ «Готов сегодня»
+│           ├── UrgentBadge.tsx                     # Бейдж ⚡ «Готов сегодня»
+│           └── SkillBadge.tsx                      # Бейдж отдельного навыка
 │
 ├── features/
 │   └── manage-showcase-card/                       # Создание, редактирование и действия с анкетой
@@ -107,19 +115,20 @@ apps/web/src/
 │       │   ├── use-skill-suggestions.ts            # Быстрые подсказки навыков по стеку
 │       │   └── types.ts                            # ShowcaseFormValues
 │       ├── ui/
-│       │   ├── CreateCardDialog.tsx                # Модальное окно создания анкеты
-│       │   ├── EditCardDialog.tsx                  # Модальное окно редактирования анкеты
+│       │   ├── CreateCardView.tsx                  # Страница создания анкеты (/dashboard/partners/new)
+│       │   ├── EditCardView.tsx                    # Страница редактирования анкеты (/dashboard/partners/[id]/edit)
 │       │   ├── ShowcaseCardForm.tsx                # Поля формы (двухколоночный UI)
+│       │   ├── ShowcaseCardSettings.tsx            # Настройки анкеты (срочность, автопродление)
 │       │   ├── ShowcaseCardLivePreview.tsx         # Живой предпросмотр заполняемой анкеты
 │       │   ├── BumpCardButton.tsx                  # Кнопка поднятия в топ с таймером кулдауна
-│       │   ├── CardStatusToggle.tsx                # Переключатель ACTIVE ↔ INACTIVE
+│       │   ├── SkillSuggestionButton.tsx           # Кнопка быстрой подсказки навыка
 │       │   └── DeleteCardConfirmDialog.tsx         # Подтверждение удаления анкеты
 │       └── index.ts
 │
 ├── widgets/
 │   ├── showcase-feed/                              # Каталог анкет с фильтрами и поиском
 │   │   ├── ui/
-│   │   │   ├── ShowcaseFeed.tsx                    # Сетка анкет с пагинацией/бесконечной лентой
+│   │   │   ├── ShowcaseFeed.tsx                    # Сетка анкет с пагинацией
 │   │   │   ├── ShowcaseFiltersBar.tsx              # Фильтры: специализация, грейд, язык, urgent
 │   │   │   ├── ShowcaseSearchBar.tsx               # Поисковая строка с подсказками (+react -vue)
 │   │   │   └── ShowcaseEmptyState.tsx              # Заглушка, если ничего не найдено
@@ -134,7 +143,7 @@ apps/web/src/
 │
 └── shared/
     └── config/
-        └── paths.ts                                # paths.partners, paths.partnersMy
+        └── paths.ts                                # paths.partners, paths.partnersMy, paths.partnersNew, paths.partnersEdit
 ```
 
 ---
@@ -216,14 +225,19 @@ export type ShowcaseFormValues = z.infer<ReturnType<typeof createShowcaseFormSch
   * `deleteMutation`: вызов `showcaseControllerDelete`.
 * Интеграция с `useToast` для показа информативных сообщений об успехе и ошибках (например, при 409 — «Анкета с такой специализацией и уровнем уже опубликована»).
 
-#### 4.2.3. Компоненты UI формы:
-* **`CreateCardDialog.tsx`:**
-  * Диалоговое окно размером `max-w-4xl` с заголовком «Создание анкеты на витрине» и описанием;
-  * Проверка готовности профиля: если `!user.displayName || !user.username`, диалог отображает предупреждающий баннер с кнопкой «Перейти в профиль»;
+#### 4.2.3. Компоненты UI создания и редактирования анкеты:
+* **`CreateCardView.tsx`:**
+  * Полноэкранная страница создания анкеты (`/dashboard/partners/new`);
+  * Проверка готовности профиля: если `!user.displayName || !user.username`, отображается предупреждающий баннер с кнопкой «Перейти в профиль» (во время загрузки профиля отображается скелетон);
   * Двухколоночный layout (на десктопе):
-    * **Левая колонка:** Форма ввода (специализация, грейд, язык, `TagInput` со списком тегов, заголовок, био, расписание, свитчи `isUrgent` и `autoRenew`);
-    * **Правая колонка:** `ShowcaseCardLivePreview` — динамический рендер карточки с текущими данными формы и аватаром пользователя;
-  * Кнопки футера: «Отмена» и «Опубликовать анкету» (с состоянием `isLoading`).
+    * **Левая колонка:** Форма ввода `ShowcaseCardForm` (специализация, грейд, язык, `TagInput` со списком тегов, заголовок, био, расписание) и `ShowcaseCardSettings` (свитчи `isUrgent` и `autoRenew`);
+    * **Правая колонка:** `ShowcaseCardLivePreview` — динамический рендер карточки в реальном времени с текущими данными формы и аватаром пользователя;
+  * Действия: кнопки «Отмена» (возврат назад) и «Опубликовать анкету» (с состоянием `isLoading`), после публикации — переход в «Мои анкеты».
+
+* **`EditCardView.tsx`:**
+  * Страница редактирования существующей анкеты (`/dashboard/partners/[id]/edit`);
+  * Загрузка данных анкеты через `useShowcaseCard(id)`, предзаполнение полей формы;
+  * Двухколоночный layout с живым превью изменений и сохранением через `updateCard`.
 
 ---
 
@@ -254,12 +268,13 @@ export type ShowcaseFormValues = z.infer<ReturnType<typeof createShowcaseFormSch
   * Прогресс-бар и предупреждение при приближении к лимиту.
 * **`MyCardItem.tsx`:**
   * Карточка с бейджем статуса (`ACTIVE`, `INACTIVE`, `EXPIRED`);
-  * Блок статистики: 👁️ Просмотры: `stats.viewsCount`, 📬 Заявки: `stats.requestsCount`;
+  * Блок статистики: 📬 Заявки: `stats.pendingRequestsCount` (клик переходит в центр заявок `/dashboard/partners/requests`);
   * Действия:
-    * **Bump:** кнопка «Поднять в топ» с таймером обратного отсчета до следующего доступного поднятия (если кулдаун активен);
-    * **Статус:** тумблер видимости карточки;
-    * **Редактировать:** открытие `EditCardDialog`;
-    * **Продлить / Удалить.**
+    * **Bump:** кнопка `BumpCardButton` («Поднять в топ») с таймером обратного отсчета до следующего доступного поднятия (если кулдаун активен);
+    * **Статус:** кнопка переключения видимости карточки («Скрыть» / «Активировать») через `toggleStatus`;
+    * **Продлить:** кнопка ручного продления для истёкших карточек (`renewCard`);
+    * **Редактировать:** переход на страницу редактирования (`paths.partnersEdit(card.id)`);
+    * **Удалить:** открытие диалога подтверждения `DeleteCardConfirmDialog`.
 
 ---
 
@@ -342,16 +357,17 @@ export type ShowcaseFormValues = z.infer<ReturnType<typeof createShowcaseFormSch
   - Интеграция с `@packages/api` (`create`, `update`, `bump`, `renew`, `status`, `delete`);
   - Оптимистичные обновления / точечная инвалидация кэша React Query;
   - Обработка ошибок (лимит 5 анкет, дубликат specialization+level, 400 профиль).
-- [x] **2.3. UI компоненты формы:**
-  - `ShowcaseCardForm.tsx` (интеграция `react-hook-form`, `TagInput` из `@packages/ui`, `Select`, `Switch`);
+- [x] **2.3. UI компоненты формы и страниц:**
+  - `ShowcaseCardForm.tsx` (интеграция `react-hook-form`, `TagInput` из `@packages/ui`, `Select`);
+  - `ShowcaseCardSettings.tsx` (настройки срочности и автопродления со свитчами);
   - `ShowcaseCardLivePreview.tsx` (живой предпросмотр в реальном времени);
-  - `CreateCardDialog.tsx` (модальное окно создания с двухколоночным layout и проверкой заполненности профиля);
-  - `EditCardDialog.tsx` (редактирование существующей анкеты);
+  - `CreateCardView.tsx` (страница создания анкеты с двухколоночным layout и проверкой заполненности профиля);
+  - `EditCardView.tsx` (страница редактирования существующей анкеты);
   - `BumpCardButton.tsx` (кнопка поднятия с таймером кулдауна 24ч);
   - `DeleteCardConfirmDialog.tsx` (модалка подтверждения удаления).
 - [x] **2.4. Тесты:**
   - Unit-тесты схемы валидации;
-  - Тесты формы и модального окна создания анкеты (`ShowcaseCardForm.test.tsx`, `CreateCardDialog.test.tsx`).
+  - Тесты формы и страниц создания/редактирования анкеты (`ShowcaseCardForm.test.tsx`, `CreateCardView.test.tsx`, `EditCardView.test.tsx`, `BumpCardButton.test.tsx`).
 
 ---
 
@@ -363,12 +379,15 @@ export type ShowcaseFormValues = z.infer<ReturnType<typeof createShowcaseFormSch
   - `ShowcaseEmptyState.tsx`.
 - [x] **3.2. Виджет своих анкет (`widgets/my-cards-list`):**
   - `MyCardsList.tsx` (список анкет автора);
-  - `MyCardItem.tsx` (карточка со статистикой просмотров/откликов, кнопками управления);
+  - `MyCardItem.tsx` (карточка со статистикой входящих заявок, переключением статуса, продлением и удалением);
   - `ShowcaseLimitBanner.tsx` (индикатор `X / 5` активных анкет).
 - [x] **3.3. Роутинг и сборка страниц (`apps/web/src/app/(protected)/dashboard/partners`):**
-  - `layout.tsx` (табы: «Каталог» и «Мои анкеты», кнопка «Создать анкету»);
+  - `layout.tsx` (табы: «Каталог», «Мои анкеты», «Заявки», счетчик входящих заявок, кнопка «Создать анкету»);
   - `page.tsx` (каталог витрины);
   - `my/page.tsx` (страница «Мои анкеты»);
+  - `new/page.tsx` (страница создания анкеты `CreateCardView`);
+  - `[id]/edit/page.tsx` (страница редактирования анкеты `EditCardView`);
+  - `requests/page.tsx` (центр заявок на интервью);
   - `loading.tsx` (скелетон страницы).
 
 ---

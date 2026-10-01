@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircleIcon, ArrowLeftIcon, InfoIcon } from "@packages/icons";
-import { Button } from "@packages/ui";
+import { Button, Skeleton } from "@packages/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -34,7 +34,7 @@ const defaultValues: ShowcaseFormValues = {
 export function CreateCardView() {
   const { t } = useTranslation("showcase");
   const router = useRouter();
-  const { data: user } = useCurrentUser();
+  const { data: user, isLoading } = useCurrentUser();
   const { createCard, isCreating } = useShowcaseMutations();
 
   const schema = useMemo(
@@ -57,7 +57,8 @@ export function CreateCardView() {
   const { watch } = form;
   const watchedValues = watch();
 
-  const isProfileIncomplete = !user?.displayName || !user?.username;
+  const isProfileIncomplete =
+    !isLoading && (!user?.displayName || !user?.username);
 
   const handleSubmitForm = async (values: ShowcaseFormValues) => {
     await createCard(values, {
@@ -91,7 +92,15 @@ export function CreateCardView() {
       </div>
 
       {/* Содержимое страницы */}
-      {isProfileIncomplete ? (
+      {isLoading ? (
+        <div
+          data-testid="create-card-skeleton"
+          className="grid gap-8 lg:grid-cols-12 items-start mt-2"
+        >
+          <Skeleton className="lg:col-span-7 h-96 rounded-2xl" />
+          <Skeleton className="lg:col-span-5 h-72 rounded-2xl" />
+        </div>
+      ) : isProfileIncomplete ? (
         <div className="flex flex-col items-center justify-center p-10 text-center gap-4 bg-muted/20 border border-dashed border-border rounded-2xl max-w-2xl mx-auto my-8">
           <div className="size-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
             <AlertCircleIcon className="size-7" />

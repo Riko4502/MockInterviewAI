@@ -73,7 +73,7 @@ export function toUpdateShowcaseCardDto(
     level: values.level,
     language: values.language,
     skills: values.skills,
-    title: values.title?.trim() || undefined,
+    title: values.title?.trim() || null,
     bio: values.bio?.trim() || null,
     scheduleInfo: values.scheduleInfo?.trim() || null,
     isUrgent: values.isUrgent,

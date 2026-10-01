@@ -107,10 +107,10 @@ export function useMatchRequestsHub() {
       getMatchmakingControllerGetUnreadCountQueryKey(),
       (old: unknown) => {
         if (!old) return old;
-        const record = old as { count?: number };
+        const record = old as { pendingCount?: number };
         return {
           ...record,
-          count: Math.max(0, (record.count ?? 1) - 1),
+          pendingCount: Math.max(0, (record.pendingCount ?? 1) - 1),
         };
       },
     );
@@ -220,10 +220,10 @@ export function useMatchRequestsHub() {
       getMatchmakingControllerGetUnreadCountQueryKey(),
       (old: unknown) => {
         if (!old) return old;
-        const record = old as { count?: number };
+        const record = old as { pendingCount?: number };
         return {
           ...record,
-          count: Math.max(0, (record.count ?? 1) - 1),
+          pendingCount: Math.max(0, (record.pendingCount ?? 1) - 1),
         };
       },
     );

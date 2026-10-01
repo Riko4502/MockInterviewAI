@@ -102,6 +102,8 @@
     "urgent": "Ready today",
     "bump": "Bump to top",
     "bumpCooldown": "Bump in {{time}}",
+    "cooldownHours": "{{hours}}h {{minutes}}m",
+    "cooldownMinutes": "{{minutes}}m",
     "bumpSuccess": "Card bumped to top!",
     "bumpError": "Failed to bump card.",
     "renew": "Renew for 15 days",
@@ -192,6 +194,12 @@
     "description": "This card will be permanently deleted from the showcase. This action cannot be undone.",
     "confirm": "Delete",
     "cancel": "Cancel"
+  },
+  "pagination": {
+    "label": "Catalog pages",
+    "previous": "Back",
+    "next": "Next",
+    "page": "Page {{page}} of {{totalPages}}"
   },
   "actions": {
     "edit": "Edit",

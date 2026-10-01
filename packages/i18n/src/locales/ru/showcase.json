@@ -102,6 +102,8 @@
     "urgent": "Готов сегодня",
     "bump": "Поднять в топ",
     "bumpCooldown": "Поднять через {{time}}",
+    "cooldownHours": "{{hours}}ч {{minutes}}м",
+    "cooldownMinutes": "{{minutes}}м",
     "bumpSuccess": "Анкета успешно поднята в топ!",
     "bumpError": "Не удалось поднять анкету.",
     "renew": "Продлить на 15 дней",
@@ -192,6 +194,12 @@
     "description": "Анкета будет навсегда удалена с витрины. Это действие нельзя отменить.",
     "confirm": "Удалить",
     "cancel": "Отмена"
+  },
+  "pagination": {
+    "label": "Страницы каталога",
+    "previous": "Назад",
+    "next": "Вперед",
+    "page": "Страница {{page}} из {{totalPages}}"
   },
   "actions": {
     "edit": "Редактировать",

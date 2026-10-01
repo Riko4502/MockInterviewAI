@@ -2,6 +2,7 @@
 
 import { TrendUpIcon } from "@packages/icons";
 import { Button } from "@packages/ui";
+import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/shared/lib/i18n";
@@ -16,15 +17,15 @@ export interface BumpCardButtonProps {
 
 const BUMP_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-function formatCooldown(ms: number): string {
+export function formatCooldown(ms: number, t: TFunction<"showcase">): string {
   const totalMinutes = Math.max(0, Math.floor(ms / (1000 * 60)));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
   if (hours > 0) {
-    return `${hours}ч ${minutes}м`;
+    return t("card.cooldownHours", { hours, minutes });
   }
-  return `${minutes}м`;
+  return t("card.cooldownMinutes", { minutes });
 }
 
 export function BumpCardButton({
@@ -63,6 +64,12 @@ export function BumpCardButton({
     await bumpCard(cardId);
   };
 
+  const label = isCooldownActive
+    ? t("card.bumpCooldown", {
+        time: formatCooldown(timeLeftMs, t),
+      })
+    : t("card.bump");
+
   return (
     <Button
       variant="outline"
@@ -70,22 +77,10 @@ export function BumpCardButton({
       onClick={handleBump}
       disabled={isCooldownActive || isBumping}
       className={className}
-      title={
-        isCooldownActive
-          ? t("card.bumpCooldown", {
-              time: formatCooldown(timeLeftMs),
-            })
-          : t("card.bump")
-      }
+      title={label}
     >
       <TrendUpIcon className="size-3.5 shrink-0 text-primary" />
-      <span>
-        {isCooldownActive
-          ? t("card.bumpCooldown", {
-              time: formatCooldown(timeLeftMs),
-            })
-          : t("card.bump")}
-      </span>
+      <span>{label}</span>
     </Button>
   );
 }

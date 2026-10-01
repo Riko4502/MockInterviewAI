@@ -5042,6 +5042,7 @@
         "type": "object",
         "properties": {
           "title": {
+            "nullable": true,
             "type": "string",
             "minLength": 3,
             "maxLength": 100
@@ -5103,6 +5104,7 @@
         "type": "object",
         "properties": {
           "title": {
+            "nullable": true,
             "type": "string",
             "minLength": 3,
             "maxLength": 100
