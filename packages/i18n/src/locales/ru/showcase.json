@@ -52,6 +52,7 @@
     "editTitle": "Редактирование анкеты",
     "specializationLabel": "Специализация",
     "specializationPlaceholder": "Выберите специализацию",
+    "specializationDisabledHint": "Специализацию нельзя изменить после создания анкеты",
     "levelLabel": "Уровень (грейд)",
     "levelPlaceholder": "Выберите грейд",
     "languageLabel": "Язык собеседования",

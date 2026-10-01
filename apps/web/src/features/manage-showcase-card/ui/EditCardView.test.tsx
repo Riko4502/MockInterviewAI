@@ -117,5 +117,8 @@ describe("EditCardView", () => {
     expect(
       screen.getByRole("button", { name: /Сохранить изменения/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Специализацию нельзя изменить после создания анкеты"),
+    ).toBeInTheDocument();
   });
 });

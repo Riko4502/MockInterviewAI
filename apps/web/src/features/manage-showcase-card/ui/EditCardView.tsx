@@ -87,11 +87,19 @@ export function EditCardView({ cardId }: EditCardViewProps) {
   }, [card, reset]);
 
   const handleSubmitForm = async (values: ShowcaseFormValues) => {
-    await updateCard(cardId, values, {
-      onSuccess: () => {
-        router.push(paths.partnersMy);
+    if (!card) return;
+    await updateCard(
+      cardId,
+      {
+        ...values,
+        specialization: card.specialization,
       },
-    });
+      {
+        onSuccess: () => {
+          router.push(paths.partnersMy);
+        },
+      },
+    );
   };
 
   if (isLoading) {
@@ -150,7 +158,11 @@ export function EditCardView({ cardId }: EditCardViewProps) {
         {/* Левая колонка: Форма ввода данных */}
         <div className="lg:col-span-7 flex flex-col gap-6">
           <div className="rounded-2xl border border-border/70 bg-card p-6 sm:p-7 shadow-xs">
-            <ShowcaseCardForm form={form} onSubmit={handleSubmitForm} />
+            <ShowcaseCardForm
+              form={form}
+              onSubmit={handleSubmitForm}
+              disableSpecialization={true}
+            />
 
             {/* Панель кнопок формы */}
             <div className="mt-8 pt-5 border-t border-border/60 flex items-center justify-end gap-3">

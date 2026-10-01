@@ -6,5 +6,6 @@ export { LanguageBadge } from "./ui/LanguageBadge";
 export { LevelBadge } from "./ui/LevelBadge";
 export { ShowcaseCard } from "./ui/ShowcaseCard";
 export { ShowcaseCardSkeleton } from "./ui/ShowcaseCardSkeleton";
+export { SkillBadge } from "./ui/SkillBadge";
 export { SpecializationBadge } from "./ui/SpecializationBadge";
 export { UrgentBadge } from "./ui/UrgentBadge";

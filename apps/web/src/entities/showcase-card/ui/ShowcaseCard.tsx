@@ -16,6 +16,7 @@ import "@/shared/lib/i18n";
 import type { ShowcaseCardProps } from "../model/types";
 import { LanguageBadge } from "./LanguageBadge";
 import { LevelBadge } from "./LevelBadge";
+import { SkillBadge } from "./SkillBadge";
 import { SpecializationBadge } from "./SpecializationBadge";
 import { UrgentBadge } from "./UrgentBadge";
 
@@ -120,12 +121,7 @@ export function ShowcaseCard({
         {card.skills && card.skills.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             {visibleSkills.map((skill) => (
-              <span
-                key={skill}
-                className="inline-flex items-center rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs font-medium text-foreground/80 border border-border/40"
-              >
-                {skill}
-              </span>
+              <SkillBadge key={skill} skill={skill} />
             ))}
             {hiddenSkillsCount > 0 && (
               <span

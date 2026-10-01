@@ -52,6 +52,7 @@
     "editTitle": "Edit Showcase Card",
     "specializationLabel": "Specialization",
     "specializationPlaceholder": "Select specialization",
+    "specializationDisabledHint": "Specialization cannot be changed after creating the card",
     "levelLabel": "Level (Seniority)",
     "levelPlaceholder": "Select level",
     "languageLabel": "Interview Language",

@@ -7,3 +7,5 @@ export { DeleteCardConfirmDialog } from "./ui/DeleteCardConfirmDialog";
 export { EditCardView } from "./ui/EditCardView";
 export { ShowcaseCardForm } from "./ui/ShowcaseCardForm";
 export { ShowcaseCardLivePreview } from "./ui/ShowcaseCardLivePreview";
+export { ShowcaseCardSettings } from "./ui/ShowcaseCardSettings";
+export { SkillSuggestionButton } from "./ui/SkillSuggestionButton";

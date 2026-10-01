@@ -9,6 +9,7 @@ import {
   LanguageBadge,
   LevelBadge,
   type ShowcaseCardResponseDto,
+  SkillBadge,
   SpecializationBadge,
   UrgentBadge,
 } from "@/entities/showcase-card";
@@ -101,12 +102,7 @@ export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
         {card.skills && card.skills.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             {card.skills.map((skill) => (
-              <span
-                key={skill}
-                className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 font-mono text-xs font-medium text-foreground/80 border border-border/30"
-              >
-                {skill}
-              </span>
+              <SkillBadge key={skill} skill={skill} />
             ))}
           </div>
         )}
