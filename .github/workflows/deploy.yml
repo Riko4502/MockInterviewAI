@@ -43,7 +43,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
     secrets:
-      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${{ secrets.NEXwqT_PUBLIC_TELEGRAM_BOT_USERNAME }}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${{ secrets.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
 
   build-api:
     name: "API"
