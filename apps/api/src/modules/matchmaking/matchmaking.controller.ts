@@ -25,13 +25,16 @@ import {
   MatchRequestQueryDto,
   MatchRequestResponseDto,
   matchRequestQuerySchema,
+  matchRequestResponseSchema,
   PaginatedResponseDto,
+  paginatedMatchRequestsSchema,
   RejectMatchRequestDto,
   rejectMatchRequestSchema,
   UnreadMatchRequestsCountDto,
+  unreadMatchRequestsCountSchema,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { ZodBody } from "../../common/openapi/zod-openapi";
+import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { MatchmakingService } from "./matchmaking.service";
 
@@ -52,6 +55,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Количество непрочитанных заявок",
+    schema: registerSchema(
+      "UnreadMatchRequestsCountDto",
+      unreadMatchRequestsCountSchema,
+    ),
   })
   async getUnreadCount(
     @CurrentUser("sub") userId: string,
@@ -71,6 +78,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 201,
     description: "Заявка успешно отправлена (или согласована при авто-матче)",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,
@@ -125,6 +136,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Пагинированный список входящих заявок",
+    schema: registerSchema(
+      "PaginatedMatchRequestsDto",
+      paginatedMatchRequestsSchema,
+    ),
   })
   async findIncoming(
     @CurrentUser("sub") userId: string,
@@ -162,6 +177,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Пагинированный список исходящих заявок",
+    schema: registerSchema(
+      "PaginatedMatchRequestsDto",
+      paginatedMatchRequestsSchema,
+    ),
   })
   async findOutgoing(
     @CurrentUser("sub") userId: string,
@@ -181,6 +200,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Заявка успешно принята, контакты открыты",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,
@@ -209,6 +232,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Заявка успешно отклонена",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,
@@ -238,6 +265,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Заявка успешно отменена",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,

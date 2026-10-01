@@ -18,6 +18,8 @@ const notification = (
   id,
   userId: "user",
   category,
+  type: "system.welcome",
+  payload: {},
   title: id,
   message: `Текст ${id}`,
   actionUrl: null,

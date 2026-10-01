@@ -12,6 +12,7 @@ import {
   PaginatedResponseDto,
   parseSearchQuery,
   ShowcaseCardResponseDto,
+  type ShowcaseCardStatsDto,
   ShowcaseQueryDto,
   sanitizeSearchTerm,
   UpdateShowcaseCardDto,
@@ -21,6 +22,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { PUBLIC_USER_SELECT, SHOWCASE_LIMITS } from "./showcase.constants";
+import { toShowcaseCardResponse } from "./showcase.mapper";
 
 @Injectable()
 export class ShowcaseService {
@@ -137,7 +139,7 @@ export class ShowcaseService {
       });
 
       await this.invalidateShowcaseCache(userId);
-      return created;
+      return toShowcaseCardResponse(created);
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -266,7 +268,7 @@ export class ShowcaseService {
 
     // 9. Возвращаем данные с мета-информацией для навигации
     return {
-      data: cards,
+      data: cards.map((card) => toShowcaseCardResponse(card)),
       meta: {
         total,
         page,
@@ -314,10 +316,7 @@ export class ShowcaseService {
     });
 
     // 4. Раскладываем результат подсчёта в словарь Map для быстрого доступа O(1)
-    const statsMap = new Map<
-      string,
-      { pendingRequestsCount: number; acceptedRequestsCount: number }
-    >();
+    const statsMap = new Map<string, ShowcaseCardStatsDto>();
 
     for (const stat of requestStats) {
       const current = statsMap.get(stat.targetCardId) ?? {
@@ -335,13 +334,15 @@ export class ShowcaseService {
     }
 
     // 5. Прикрепляем объект stats к каждой карточке (с нулями по умолчанию)
-    return cards.map((card) => ({
-      ...card,
-      stats: statsMap.get(card.id) ?? {
-        pendingRequestsCount: 0,
-        acceptedRequestsCount: 0,
-      },
-    }));
+    return cards.map((card) =>
+      toShowcaseCardResponse(
+        card,
+        statsMap.get(card.id) ?? {
+          pendingRequestsCount: 0,
+          acceptedRequestsCount: 0,
+        },
+      ),
+    );
   }
 
   /**
@@ -378,7 +379,7 @@ export class ShowcaseService {
     // 4. Скрываем Telegram в публичном просмотре (открывается только после взаимного ACCEPTED)
     card.user.telegramUsername = null;
 
-    return card;
+    return toShowcaseCardResponse(card);
   }
 
   /**
@@ -462,7 +463,7 @@ export class ShowcaseService {
       });
 
       await this.invalidateShowcaseCache(userId);
-      return updated;
+      return toShowcaseCardResponse(updated);
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -509,7 +510,7 @@ export class ShowcaseService {
 
     // 3. Если статус совпадает с текущим — возвращаем данные владельца без повторной мутации
     if (card.status === dto.status) {
-      return card;
+      return toShowcaseCardResponse(card);
     }
 
     // 4. При включении (ACTIVE) проверяем лимит 5 активных анкет
@@ -539,7 +540,7 @@ export class ShowcaseService {
       });
 
       await this.invalidateShowcaseCache(userId);
-      return updated;
+      return toShowcaseCardResponse(updated);
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -609,7 +610,7 @@ export class ShowcaseService {
     });
 
     await this.invalidateShowcaseCache(userId);
-    return updated;
+    return toShowcaseCardResponse(updated);
   }
 
   /**
@@ -679,7 +680,7 @@ export class ShowcaseService {
       });
 
       await this.invalidateShowcaseCache(userId);
-      return renewed;
+      return toShowcaseCardResponse(renewed);
     } catch (error) {
       this.handleUniqueConflict(
         error,

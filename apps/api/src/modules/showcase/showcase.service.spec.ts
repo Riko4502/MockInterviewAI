@@ -29,6 +29,18 @@ describe("ShowcaseService", () => {
 
   const userId = "11111111-1111-4111-a111-111111111111";
 
+  /**
+   * Даты записи Prisma. Маппер `toShowcaseCardResponse` вызывает
+   * `toISOString()` на каждой из них, поэтому в моках они обязаны быть
+   * настоящими `Date`, а не заглушками.
+   */
+  const cardTimestamps = {
+    bumpedAt: new Date("2026-01-01T10:00:00.000Z"),
+    expiresAt: new Date("2026-01-16T10:00:00.000Z"),
+    createdAt: new Date("2026-01-01T10:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T10:00:00.000Z"),
+  };
+
   const validDto = {
     title: "Ищу напарника для mock-собеседований по React",
     specialization: "FRONTEND" as const,
@@ -150,7 +162,7 @@ describe("ShowcaseService", () => {
         userId,
         ...validDto,
         status: "ACTIVE",
-        expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+        ...cardTimestamps,
         user: {
           id: userId,
           displayName: "John Doe",
@@ -164,7 +176,13 @@ describe("ShowcaseService", () => {
 
       const result = await service.create(userId, validDto);
 
-      expect(result).toEqual(createdCard);
+      expect(result).toEqual({
+        ...createdCard,
+        bumpedAt: cardTimestamps.bumpedAt.toISOString(),
+        expiresAt: cardTimestamps.expiresAt.toISOString(),
+        createdAt: cardTimestamps.createdAt.toISOString(),
+        updatedAt: cardTimestamps.updatedAt.toISOString(),
+      });
       expect(prismaMock.showcaseCard.create).toHaveBeenCalled();
     });
   });
@@ -184,6 +202,7 @@ describe("ShowcaseService", () => {
         userId,
         title: "Test",
         status: "ACTIVE",
+        ...cardTimestamps,
         user: {
           id: userId,
           displayName: "User",
@@ -290,6 +309,7 @@ describe("ShowcaseService", () => {
         id: "card-1",
         userId,
         status: "ACTIVE",
+        ...cardTimestamps,
         user: { id: userId, telegramUsername: "tg" },
       };
       prismaMock.showcaseCard.findUnique.mockResolvedValue(existingCard);
@@ -298,7 +318,8 @@ describe("ShowcaseService", () => {
         status: "ACTIVE",
       });
 
-      expect(result).toEqual(existingCard);
+      expect(result.id).toBe("card-1");
+      expect(result.bumpedAt).toBe(cardTimestamps.bumpedAt.toISOString());
       expect(prismaMock.showcaseCard.update).not.toHaveBeenCalled();
       expect(prismaMock.showcaseCard.count).not.toHaveBeenCalled();
     });
@@ -322,12 +343,14 @@ describe("ShowcaseService", () => {
         id: "card-1",
         userId,
         status: "ACTIVE",
+        ...cardTimestamps,
         user: { id: userId, telegramUsername: "tg" },
       });
       const updatedCard = {
         id: "card-1",
         userId,
         status: "INACTIVE",
+        ...cardTimestamps,
         user: { id: userId, telegramUsername: "tg" },
       };
       prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
@@ -368,12 +391,13 @@ describe("ShowcaseService", () => {
       });
       prismaMock.showcaseCard.update.mockResolvedValue({
         id: "card-1",
-        bumpedAt: new Date(),
+        ...cardTimestamps,
+        user: { id: "other-user", telegramUsername: "tg" },
       });
 
       const result = await service.bump("card-1", userId);
 
-      expect(result).toBeDefined();
+      expect(result.bumpedAt).toBe(cardTimestamps.bumpedAt.toISOString());
       expect(prismaMock.showcaseCard.update).toHaveBeenCalled();
     });
   });
@@ -401,11 +425,13 @@ describe("ShowcaseService", () => {
       prismaMock.showcaseCard.update.mockResolvedValue({
         id: "card-1",
         status: "ACTIVE",
+        ...cardTimestamps,
+        user: { id: userId, telegramUsername: "tg" },
       });
 
       const result = await service.renew("card-1", userId);
 
-      expect(result).toBeDefined();
+      expect(result.status).toBe("ACTIVE");
       expect(prismaMock.showcaseCard.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: "ACTIVE" }),
@@ -425,7 +451,7 @@ describe("ShowcaseService", () => {
 
     it("возвращает карточки с посчитанной статистикой заявок", async () => {
       prismaMock.showcaseCard.findMany.mockResolvedValue([
-        { id: "card-1", userId },
+        { id: "card-1", userId, ...cardTimestamps },
       ]);
       prismaMock.matchRequest.groupBy.mockResolvedValue([
         { targetCardId: "card-1", status: "PENDING", _count: { _all: 3 } },
@@ -449,6 +475,7 @@ describe("ShowcaseService", () => {
         {
           id: "card-1",
           userId: "other-user",
+          ...cardTimestamps,
           user: { telegramUsername: "secret" },
         },
       ]);
@@ -485,6 +512,7 @@ describe("ShowcaseService", () => {
         {
           id: "card-2",
           userId: "other-user",
+          ...cardTimestamps,
           user: { telegramUsername: "secret" },
         },
       ]);
@@ -524,6 +552,7 @@ describe("ShowcaseService", () => {
         {
           id: "card-3",
           userId: "other-user",
+          ...cardTimestamps,
           user: { telegramUsername: "secret" },
         },
       ]);

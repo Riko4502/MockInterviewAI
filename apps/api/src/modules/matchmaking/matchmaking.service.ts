@@ -21,6 +21,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { PUBLIC_USER_SELECT } from "../showcase/showcase.constants";
+import { toShowcaseCardResponse } from "../showcase/showcase.mapper";
 import {
   MATCHMAKING_LIMITS,
   REDIS_MATCHMAKING_EVENTS_CHANNEL,
@@ -722,13 +723,13 @@ export class MatchmakingService {
     const formatCard = (
       card: MatchRequestWithRelations["targetCard"],
     ): ShowcaseCardResponseDto => {
-      return {
+      return toShowcaseCardResponse({
         ...card,
         user: {
           ...card.user,
           telegramUsername: null,
         },
-      };
+      });
     };
 
     return {
@@ -749,9 +750,9 @@ export class MatchmakingService {
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,
-      createdAt: request.createdAt,
-      updatedAt: request.updatedAt,
-      expiresAt: request.expiresAt,
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+      expiresAt: request.expiresAt.toISOString(),
     };
   }
 

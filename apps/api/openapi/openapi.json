@@ -2335,7 +2335,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Пагинированный список анкет"
+            "description": "Пагинированный список анкет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedShowcaseCardsDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Некорректные параметры query"
@@ -2365,7 +2372,14 @@
         },
         "responses": {
           "201": {
-            "description": "Анкета успешно создана"
+            "description": "Анкета успешно создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Не заполнен профиль или превышен лимит 5 анкет"
@@ -2389,7 +2403,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Список анкет пользователя"
+            "description": "Список анкет пользователя",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardListDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2418,7 +2439,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Данные анкеты"
+            "description": "Данные анкеты",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "404": {
             "description": "Анкета не найдена"
@@ -2459,7 +2487,14 @@
         },
         "responses": {
           "200": {
-            "description": "Анкета успешно обновлена"
+            "description": "Анкета успешно обновлена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "403": {
             "description": "Недостаточно прав для редактирования"
@@ -2541,7 +2576,14 @@
         },
         "responses": {
           "200": {
-            "description": "Статус успешно изменен"
+            "description": "Статус успешно изменен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Превышен лимит 5 активных карточек или анкета просрочена"
@@ -2579,7 +2621,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Анкета поднята в топ"
+            "description": "Анкета поднята в топ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Не прошёл кулдаун 24 часа или анкета не активна"
@@ -2617,7 +2666,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Анкета продлена на 15 дней"
+            "description": "Анкета продлена на 15 дней",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Анкета не в статусе EXPIRED или достигнут лимит 5 анкет"
@@ -2644,7 +2700,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Количество непрочитанных заявок"
+            "description": "Количество непрочитанных заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadMatchRequestsCountDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2673,7 +2736,14 @@
         },
         "responses": {
           "201": {
-            "description": "Заявка успешно отправлена (или согласована при авто-матче)"
+            "description": "Заявка успешно отправлена (или согласована при авто-матче)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Не заполнен профиль, попытка отклика на себя, исчерпан лимит входящих на карточке или действует кулдаун"
@@ -2738,7 +2808,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Пагинированный список входящих заявок"
+            "description": "Пагинированный список входящих заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMatchRequestsDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2791,7 +2868,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Пагинированный список исходящих заявок"
+            "description": "Пагинированный список исходящих заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMatchRequestsDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2820,7 +2904,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Заявка успешно принята, контакты открыты"
+            "description": "Заявка успешно принята, контакты открыты",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Заявка не в статусе ожидания или срок её действия истёк"
@@ -2869,7 +2960,14 @@
         },
         "responses": {
           "200": {
-            "description": "Заявка успешно отклонена"
+            "description": "Заявка успешно отклонена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Заявка не в статусе ожидания"
@@ -2907,7 +3005,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Заявка успешно отменена"
+            "description": "Заявка успешно отменена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Заявка не в статусе ожидания"
@@ -4649,6 +4754,17 @@
         },
         "required": ["status", "db"]
       },
+      "UnreadMatchRequestsCountDto": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["pendingCount"]
+      },
       "CreateMatchRequestDto": {
         "type": "object",
         "properties": {
@@ -4672,6 +4788,984 @@
           }
         },
         "required": ["targetCardId"]
+      },
+      "MatchRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "senderId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "receiverId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sender": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "displayName": {
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "nullable": true,
+                "type": "string"
+              },
+              "avatarUrl": {
+                "nullable": true,
+                "type": "string"
+              },
+              "telegramUsername": {
+                "nullable": true,
+                "type": "string"
+              },
+              "gitUrl": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName",
+              "username",
+              "avatarUrl",
+              "telegramUsername",
+              "gitUrl"
+            ]
+          },
+          "receiver": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "displayName": {
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "nullable": true,
+                "type": "string"
+              },
+              "avatarUrl": {
+                "nullable": true,
+                "type": "string"
+              },
+              "telegramUsername": {
+                "nullable": true,
+                "type": "string"
+              },
+              "gitUrl": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName",
+              "username",
+              "avatarUrl",
+              "telegramUsername",
+              "gitUrl"
+            ]
+          },
+          "targetCard": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "userId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "displayName": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "username": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "avatarUrl": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "telegramUsername": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "gitUrl": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "displayName",
+                  "username",
+                  "avatarUrl",
+                  "telegramUsername",
+                  "gitUrl"
+                ]
+              },
+              "title": {
+                "nullable": true,
+                "type": "string"
+              },
+              "specialization": {
+                "type": "string",
+                "enum": [
+                  "FRONTEND",
+                  "BACKEND",
+                  "FULLSTACK",
+                  "DEVOPS",
+                  "QA",
+                  "MOBILE",
+                  "DATA_ML",
+                  "SYSTEM_DESIGN"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+              },
+              "language": {
+                "type": "string",
+                "enum": ["RU", "EN", "ANY"]
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "bio": {
+                "nullable": true,
+                "type": "string"
+              },
+              "scheduleInfo": {
+                "nullable": true,
+                "type": "string"
+              },
+              "isUrgent": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+              },
+              "autoRenew": {
+                "type": "boolean"
+              },
+              "bumpedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "stats": {
+                "type": "object",
+                "properties": {
+                  "pendingRequestsCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "acceptedRequestsCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["pendingRequestsCount", "acceptedRequestsCount"]
+              }
+            },
+            "required": [
+              "id",
+              "userId",
+              "user",
+              "title",
+              "specialization",
+              "level",
+              "language",
+              "skills",
+              "bio",
+              "scheduleInfo",
+              "isUrgent",
+              "status",
+              "autoRenew",
+              "bumpedAt",
+              "expiresAt",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          "senderCard": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "userId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "displayName": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "username": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "avatarUrl": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "telegramUsername": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "gitUrl": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "displayName",
+                  "username",
+                  "avatarUrl",
+                  "telegramUsername",
+                  "gitUrl"
+                ]
+              },
+              "title": {
+                "nullable": true,
+                "type": "string"
+              },
+              "specialization": {
+                "type": "string",
+                "enum": [
+                  "FRONTEND",
+                  "BACKEND",
+                  "FULLSTACK",
+                  "DEVOPS",
+                  "QA",
+                  "MOBILE",
+                  "DATA_ML",
+                  "SYSTEM_DESIGN"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+              },
+              "language": {
+                "type": "string",
+                "enum": ["RU", "EN", "ANY"]
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "bio": {
+                "nullable": true,
+                "type": "string"
+              },
+              "scheduleInfo": {
+                "nullable": true,
+                "type": "string"
+              },
+              "isUrgent": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+              },
+              "autoRenew": {
+                "type": "boolean"
+              },
+              "bumpedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "stats": {
+                "type": "object",
+                "properties": {
+                  "pendingRequestsCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "acceptedRequestsCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["pendingRequestsCount", "acceptedRequestsCount"]
+              }
+            },
+            "required": [
+              "id",
+              "userId",
+              "user",
+              "title",
+              "specialization",
+              "level",
+              "language",
+              "skills",
+              "bio",
+              "scheduleInfo",
+              "isUrgent",
+              "status",
+              "autoRenew",
+              "bumpedAt",
+              "expiresAt",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"]
+          },
+          "message": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredTopic": {
+            "nullable": true,
+            "type": "string"
+          },
+          "rejectReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "senderId",
+          "receiverId",
+          "sender",
+          "receiver",
+          "targetCard",
+          "senderCard",
+          "status",
+          "message",
+          "preferredTopic",
+          "rejectReason",
+          "createdAt",
+          "updatedAt",
+          "expiresAt"
+        ]
+      },
+      "PaginatedMatchRequestsDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "senderId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "receiverId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "sender": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "displayName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "username": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "telegramUsername": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gitUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "displayName",
+                    "username",
+                    "avatarUrl",
+                    "telegramUsername",
+                    "gitUrl"
+                  ]
+                },
+                "receiver": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "displayName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "username": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "telegramUsername": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gitUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "displayName",
+                    "username",
+                    "avatarUrl",
+                    "telegramUsername",
+                    "gitUrl"
+                  ]
+                },
+                "targetCard": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "displayName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "username": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "telegramUsername": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "gitUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "username",
+                        "avatarUrl",
+                        "telegramUsername",
+                        "gitUrl"
+                      ]
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "specialization": {
+                      "type": "string",
+                      "enum": [
+                        "FRONTEND",
+                        "BACKEND",
+                        "FULLSTACK",
+                        "DEVOPS",
+                        "QA",
+                        "MOBILE",
+                        "DATA_ML",
+                        "SYSTEM_DESIGN"
+                      ]
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                    },
+                    "language": {
+                      "type": "string",
+                      "enum": ["RU", "EN", "ANY"]
+                    },
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "bio": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scheduleInfo": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "isUrgent": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+                    },
+                    "autoRenew": {
+                      "type": "boolean"
+                    },
+                    "bumpedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "pendingRequestsCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "acceptedRequestsCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "pendingRequestsCount",
+                        "acceptedRequestsCount"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "user",
+                    "title",
+                    "specialization",
+                    "level",
+                    "language",
+                    "skills",
+                    "bio",
+                    "scheduleInfo",
+                    "isUrgent",
+                    "status",
+                    "autoRenew",
+                    "bumpedAt",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                },
+                "senderCard": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "displayName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "username": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "telegramUsername": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "gitUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "username",
+                        "avatarUrl",
+                        "telegramUsername",
+                        "gitUrl"
+                      ]
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "specialization": {
+                      "type": "string",
+                      "enum": [
+                        "FRONTEND",
+                        "BACKEND",
+                        "FULLSTACK",
+                        "DEVOPS",
+                        "QA",
+                        "MOBILE",
+                        "DATA_ML",
+                        "SYSTEM_DESIGN"
+                      ]
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                    },
+                    "language": {
+                      "type": "string",
+                      "enum": ["RU", "EN", "ANY"]
+                    },
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "bio": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scheduleInfo": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "isUrgent": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+                    },
+                    "autoRenew": {
+                      "type": "boolean"
+                    },
+                    "bumpedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "pendingRequestsCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "acceptedRequestsCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "pendingRequestsCount",
+                        "acceptedRequestsCount"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "user",
+                    "title",
+                    "specialization",
+                    "level",
+                    "language",
+                    "skills",
+                    "bio",
+                    "scheduleInfo",
+                    "isUrgent",
+                    "status",
+                    "autoRenew",
+                    "bumpedAt",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "PENDING",
+                    "ACCEPTED",
+                    "REJECTED",
+                    "CANCELLED",
+                    "EXPIRED"
+                  ]
+                },
+                "message": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "preferredTopic": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "rejectReason": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "senderId",
+                "receiverId",
+                "sender",
+                "receiver",
+                "targetCard",
+                "senderCard",
+                "status",
+                "message",
+                "preferredTopic",
+                "rejectReason",
+                "createdAt",
+                "updatedAt",
+                "expiresAt"
+              ]
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPrevPage": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "total",
+              "page",
+              "limit",
+              "totalPages",
+              "hasNextPage",
+              "hasPrevPage"
+            ]
+          }
+        },
+        "required": ["data", "meta"]
       },
       "RejectMatchRequestDto": {
         "type": "object",
@@ -4731,6 +5825,373 @@
           }
         },
         "required": ["token", "serverUrl", "roomName"]
+      },
+      "PaginatedShowcaseCardsDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "displayName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "username": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "telegramUsername": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gitUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "displayName",
+                    "username",
+                    "avatarUrl",
+                    "telegramUsername",
+                    "gitUrl"
+                  ]
+                },
+                "title": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "specialization": {
+                  "type": "string",
+                  "enum": [
+                    "FRONTEND",
+                    "BACKEND",
+                    "FULLSTACK",
+                    "DEVOPS",
+                    "QA",
+                    "MOBILE",
+                    "DATA_ML",
+                    "SYSTEM_DESIGN"
+                  ]
+                },
+                "level": {
+                  "type": "string",
+                  "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                },
+                "language": {
+                  "type": "string",
+                  "enum": ["RU", "EN", "ANY"]
+                },
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bio": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "scheduleInfo": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "isUrgent": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+                },
+                "autoRenew": {
+                  "type": "boolean"
+                },
+                "bumpedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "stats": {
+                  "type": "object",
+                  "properties": {
+                    "pendingRequestsCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "acceptedRequestsCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["pendingRequestsCount", "acceptedRequestsCount"]
+                }
+              },
+              "required": [
+                "id",
+                "userId",
+                "user",
+                "title",
+                "specialization",
+                "level",
+                "language",
+                "skills",
+                "bio",
+                "scheduleInfo",
+                "isUrgent",
+                "status",
+                "autoRenew",
+                "bumpedAt",
+                "expiresAt",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPrevPage": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "total",
+              "page",
+              "limit",
+              "totalPages",
+              "hasNextPage",
+              "hasPrevPage"
+            ]
+          }
+        },
+        "required": ["data", "meta"]
+      },
+      "ShowcaseCardListDto": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "userId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "user": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "displayName": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "username": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "telegramUsername": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "gitUrl": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "displayName",
+                "username",
+                "avatarUrl",
+                "telegramUsername",
+                "gitUrl"
+              ]
+            },
+            "title": {
+              "nullable": true,
+              "type": "string"
+            },
+            "specialization": {
+              "type": "string",
+              "enum": [
+                "FRONTEND",
+                "BACKEND",
+                "FULLSTACK",
+                "DEVOPS",
+                "QA",
+                "MOBILE",
+                "DATA_ML",
+                "SYSTEM_DESIGN"
+              ]
+            },
+            "level": {
+              "type": "string",
+              "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+            },
+            "language": {
+              "type": "string",
+              "enum": ["RU", "EN", "ANY"]
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bio": {
+              "nullable": true,
+              "type": "string"
+            },
+            "scheduleInfo": {
+              "nullable": true,
+              "type": "string"
+            },
+            "isUrgent": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+            },
+            "autoRenew": {
+              "type": "boolean"
+            },
+            "bumpedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            "stats": {
+              "type": "object",
+              "properties": {
+                "pendingRequestsCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "acceptedRequestsCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["pendingRequestsCount", "acceptedRequestsCount"]
+            }
+          },
+          "required": [
+            "id",
+            "userId",
+            "user",
+            "title",
+            "specialization",
+            "level",
+            "language",
+            "skills",
+            "bio",
+            "scheduleInfo",
+            "isUrgent",
+            "status",
+            "autoRenew",
+            "bumpedAt",
+            "expiresAt",
+            "createdAt",
+            "updatedAt"
+          ]
+        }
       },
       "CreateShowcaseCardDto": {
         "type": "object",
@@ -4792,6 +6253,163 @@
           }
         },
         "required": ["specialization", "level", "skills"]
+      },
+      "ShowcaseCardResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "displayName": {
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "nullable": true,
+                "type": "string"
+              },
+              "avatarUrl": {
+                "nullable": true,
+                "type": "string"
+              },
+              "telegramUsername": {
+                "nullable": true,
+                "type": "string"
+              },
+              "gitUrl": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName",
+              "username",
+              "avatarUrl",
+              "telegramUsername",
+              "gitUrl"
+            ]
+          },
+          "title": {
+            "nullable": true,
+            "type": "string"
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string"
+          },
+          "scheduleInfo": {
+            "nullable": true,
+            "type": "string"
+          },
+          "isUrgent": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+          },
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "bumpedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "pendingRequestsCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "acceptedRequestsCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["pendingRequestsCount", "acceptedRequestsCount"]
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "user",
+          "title",
+          "specialization",
+          "level",
+          "language",
+          "skills",
+          "bio",
+          "scheduleInfo",
+          "isUrgent",
+          "status",
+          "autoRenew",
+          "bumpedAt",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ]
       },
       "UpdateShowcaseCardDto": {
         "type": "object",

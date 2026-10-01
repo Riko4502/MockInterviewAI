@@ -59,10 +59,10 @@ describe("MatchmakingController", () => {
       isUrgent: false,
       autoRenew: false,
       status: "ACTIVE",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      bumpedAt: new Date(),
-      expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      bumpedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
       user: {
         id: receiverId,
         displayName: "Receiver User",
@@ -77,9 +77,9 @@ describe("MatchmakingController", () => {
     message: "Привет, давай потренируем алгоритмы!",
     preferredTopic: "Алгоритмы и структуры данных",
     rejectReason: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
   };
 
   const mockPaginatedRequests: PaginatedResponseDto<MatchRequestResponseDto> = {

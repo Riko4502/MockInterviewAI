@@ -30,9 +30,12 @@ import type {
 
 import type {
   CreateMatchRequestDto,
+  MatchRequestResponseDto,
   MatchmakingControllerFindIncomingParams,
   MatchmakingControllerFindOutgoingParams,
-  RejectMatchRequestDto
+  PaginatedMatchRequestsDto,
+  RejectMatchRequestDto,
+  UnreadMatchRequestsCountDto
 } from '../../model';
 
 import { customInstance } from '../../../transport';
@@ -72,9 +75,9 @@ export const getMatchmakingControllerGetUnreadCountUrl = () => {
 /**
  * @summary Получить количество входящих заявок в ожидании ответа (статус PENDING)
  */
-export const matchmakingControllerGetUnreadCount = async ( options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerGetUnreadCount = async ( options?: Parameters<typeof customInstance>[1]): Promise<UnreadMatchRequestsCountDto> => {
 
-  return customInstance<void>(getMatchmakingControllerGetUnreadCountUrl(),
+  return customInstance<UnreadMatchRequestsCountDto>(getMatchmakingControllerGetUnreadCountUrl(),
   {
     ...options,
     method: 'GET'
@@ -172,7 +175,7 @@ export const getMatchmakingControllerCreateUrl = () => {
 /**
  * @summary Отправить заявку (отклик) на карточку собеседования
  */
-export const matchmakingControllerCreate = async (createMatchRequestDto: CreateMatchRequestDto, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerCreate = async (createMatchRequestDto: CreateMatchRequestDto, options?: Parameters<typeof customInstance>[1]): Promise<MatchRequestResponseDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -180,7 +183,7 @@ export const matchmakingControllerCreate = async (createMatchRequestDto: CreateM
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
-return customInstance<void>(getMatchmakingControllerCreateUrl(),
+return customInstance<MatchRequestResponseDto>(getMatchmakingControllerCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -258,9 +261,9 @@ export const useMatchmakingControllerCreate = <TError = void,
 /**
  * @summary Получить список входящих заявок текущего пользователя
  */
-export const matchmakingControllerFindIncoming = async (params?: MatchmakingControllerFindIncomingParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerFindIncoming = async (params?: MatchmakingControllerFindIncomingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestsDto> => {
 
-  return customInstance<void>(getMatchmakingControllerFindIncomingUrl(params),
+  return customInstance<PaginatedMatchRequestsDto>(getMatchmakingControllerFindIncomingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -365,9 +368,9 @@ export const getMatchmakingControllerFindOutgoingUrl = (params?: MatchmakingCont
 /**
  * @summary Получить список исходящих заявок текущего пользователя
  */
-export const matchmakingControllerFindOutgoing = async (params?: MatchmakingControllerFindOutgoingParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerFindOutgoing = async (params?: MatchmakingControllerFindOutgoingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestsDto> => {
 
-  return customInstance<void>(getMatchmakingControllerFindOutgoingUrl(params),
+  return customInstance<PaginatedMatchRequestsDto>(getMatchmakingControllerFindOutgoingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -465,9 +468,9 @@ export const getMatchmakingControllerAcceptUrl = (id: string,) => {
 /**
  * @summary Принять входящую заявку на собеседование
  */
-export const matchmakingControllerAccept = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerAccept = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<MatchRequestResponseDto> => {
 
-  return customInstance<void>(getMatchmakingControllerAcceptUrl(id),
+  return customInstance<MatchRequestResponseDto>(getMatchmakingControllerAcceptUrl(id),
   {
     ...options,
     method: 'POST'
@@ -539,7 +542,7 @@ export const useMatchmakingControllerAccept = <TError = void,
  * @summary Отклонить входящую заявку на собеседование
  */
 export const matchmakingControllerReject = async (id: string,
-    rejectMatchRequestDto: RejectMatchRequestDto, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+    rejectMatchRequestDto: RejectMatchRequestDto, options?: Parameters<typeof customInstance>[1]): Promise<MatchRequestResponseDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -547,7 +550,7 @@ export const matchmakingControllerReject = async (id: string,
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
-return customInstance<void>(getMatchmakingControllerRejectUrl(id),
+return customInstance<MatchRequestResponseDto>(getMatchmakingControllerRejectUrl(id),
   {
     ...options,
     method: 'POST',
@@ -618,9 +621,9 @@ export const useMatchmakingControllerReject = <TError = void,
 /**
  * @summary Отменить свою исходящую заявку на собеседование
  */
-export const matchmakingControllerCancel = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const matchmakingControllerCancel = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<MatchRequestResponseDto> => {
 
-  return customInstance<void>(getMatchmakingControllerCancelUrl(id),
+  return customInstance<MatchRequestResponseDto>(getMatchmakingControllerCancelUrl(id),
   {
     ...options,
     method: 'POST'

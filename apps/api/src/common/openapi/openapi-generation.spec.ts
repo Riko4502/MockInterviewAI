@@ -118,6 +118,12 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       "ValidationErrorResponseDto",
       "CreateSessionResponseDto",
       "AddParticipantDto",
+      "ShowcaseCardResponseDto",
+      "ShowcaseCardListDto",
+      "PaginatedShowcaseCardsDto",
+      "MatchRequestResponseDto",
+      "PaginatedMatchRequestsDto",
+      "UnreadMatchRequestsCountDto",
     ];
 
     it.each(expectedSchemas)("содержит схему %s", (schemaName) => {
@@ -190,6 +196,75 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       expect(op.responses["400"]).toBeDefined();
       expect(op.responses["401"]).toBeDefined();
       expect(op.responses["429"]).toBeDefined();
+    });
+
+    it("GET /api/v1/showcase: возвращает 200 (PaginatedShowcaseCardsDto) с непустой схемой", () => {
+      const op = document.paths["/api/v1/showcase"]?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/PaginatedShowcaseCardsDto",
+      );
+
+      // Схема без `data`/`meta` описала бы пагинацию словами: именно форма
+      // обёртки проверяется здесь, иначе типизированный клиент по эндпоинту
+      // снова станет `Promise<void>` (ADR-003:102).
+      const paginated = document.components?.schemas
+        ?.PaginatedShowcaseCardsDto as SchemaObject;
+      const properties = paginated?.properties ?? {};
+      expect(properties.data?.type).toBe("array");
+      expect(properties.meta?.properties?.hasPrevPage?.type).toBe("boolean");
+      expect(properties.meta?.properties?.hasNextPage?.type).toBe("boolean");
+    });
+
+    it("GET /api/v1/showcase/my: возвращает 200 массивом карточек", () => {
+      const op = document.paths["/api/v1/showcase/my"]?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/ShowcaseCardListDto");
+    });
+
+    it("GET /api/v1/showcase/{id}: возвращает 200 (ShowcaseCardResponseDto) и 404", () => {
+      const op = document.paths["/api/v1/showcase/{id}"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/ShowcaseCardResponseDto");
+      expect(op.responses["404"]).toBeDefined();
+    });
+
+    it("GET /api/v1/matchmaking/requests/unread-count: возвращает 200 (UnreadMatchRequestsCountDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/unread-count"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/UnreadMatchRequestsCountDto",
+      );
+    });
+
+    it("GET /api/v1/matchmaking/requests/incoming: возвращает 200 (PaginatedMatchRequestsDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/incoming"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/PaginatedMatchRequestsDto",
+      );
+    });
+
+    it("POST /api/v1/matchmaking/requests/{id}/accept: возвращает 200 (MatchRequestResponseDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/{id}/accept"]
+        ?.post as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/MatchRequestResponseDto");
     });
   });
 

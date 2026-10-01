@@ -50,6 +50,8 @@ beforeEach(async () => {
     id: String(index),
     userId: "user",
     category: "SYSTEM",
+    type: "system.welcome",
+    payload: {},
     title: `Уведомление ${index}`,
     message: `Сообщение ${index}`,
     actionUrl: null,

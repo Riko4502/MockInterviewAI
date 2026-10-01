@@ -38,9 +38,13 @@ export {
 } from "./auth/telegram.dto";
 // Dashboard
 export * from "./dashboard";
-export type {
-  MatchRequestResponseDto,
-  UnreadMatchRequestsCountDto,
+export {
+  type MatchRequestResponseDto,
+  matchRequestResponseSchema,
+  type PaginatedMatchRequestsDto,
+  paginatedMatchRequestsSchema,
+  type UnreadMatchRequestsCountDto,
+  unreadMatchRequestsCountSchema,
 } from "./matchmaking/match-request-response.dto";
 // Matchmaking
 export {
@@ -234,11 +238,21 @@ export {
   type ShowcaseQueryDto,
   showcaseQuerySchema,
 } from "./showcase/showcase-query.dto";
-export type {
-  PaginatedResponseDto,
-  PublicUserCardDto,
-  ShowcaseCardResponseDto,
-  ShowcaseCardStatsDto,
+export {
+  type PaginatedListMetaDto,
+  type PaginatedResponseDto,
+  type PaginatedShowcaseCardsDto,
+  type PublicUserCardDto,
+  paginatedListMetaSchema,
+  paginatedResponseSchema,
+  paginatedShowcaseCardsSchema,
+  publicUserCardSchema,
+  type ShowcaseCardListDto,
+  type ShowcaseCardResponseDto,
+  type ShowcaseCardStatsDto,
+  showcaseCardListSchema,
+  showcaseCardResponseSchema,
+  showcaseCardStatsSchema,
 } from "./showcase/showcase-response.dto";
 export {
   type TelegramInterviewDto,
