@@ -9,9 +9,10 @@ export const tabsListVariants = cva(
     variants: {
       variant: {
         default:
-          "rounded-xl bg-muted/80 p-1 shadow-xs justify-center data-[orientation=vertical]:w-44 data-[orientation=vertical]:justify-start",
-        line: "border-b border-border bg-transparent p-0 gap-4 justify-start w-full data-[orientation=vertical]:border-b-0 data-[orientation=vertical]:border-r data-[orientation=vertical]:w-44 data-[orientation=vertical]:gap-1",
-        card: "bg-transparent p-0 gap-1 justify-start data-[orientation=vertical]:w-44",
+          "rounded-xl bg-muted/80 p-1 shadow-xs justify-center data-[orientation=vertical]:justify-start",
+        line: "border-b border-border bg-transparent p-0 gap-4 justify-start w-full data-[orientation=vertical]:border-b-0 data-[orientation=vertical]:border-r data-[orientation=vertical]:gap-1",
+        card: "bg-transparent p-0 gap-1 justify-start",
+        pills: "bg-transparent p-0 gap-1.5 justify-start",
       },
       size: {
         sm: "h-8 text-xs",
@@ -38,11 +39,13 @@ export const tabsTriggerVariants = cva(
           "rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs hover:text-foreground",
         line: "border-b-2 border-transparent rounded-none data-[state=active]:border-primary data-[state=active]:text-foreground hover:text-foreground -mb-[1px] data-[orientation=vertical]:border-b-0 data-[orientation=vertical]:border-r-2 data-[orientation=vertical]:-mb-0 data-[orientation=vertical]:-mr-[1px] data-[orientation=vertical]:pb-0 data-[orientation=vertical]:py-2",
         card: "rounded-t-lg border border-transparent data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground hover:bg-muted/40 data-[orientation=vertical]:rounded-r-none data-[orientation=vertical]:rounded-l-lg",
+        pills:
+          "rounded-xl text-muted-foreground hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:shadow-xs",
       },
       size: {
         sm: "px-2.5 py-1 text-xs gap-1.5",
-        default: "px-3 py-1.5 text-sm gap-2",
-        lg: "px-4 py-2 text-base gap-2.5",
+        default: "px-3.5 py-2 text-sm gap-2.5",
+        lg: "px-4 py-2.5 text-base gap-3",
       },
     },
     defaultVariants: {

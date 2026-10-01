@@ -42,7 +42,7 @@ export function UpdateProfileForm() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <Skeleton className="h-8 w-40" />
         <div className="flex flex-col gap-6 sm:flex-row">
-          <Skeleton className="h-40 w-full sm:w-56 shrink-0" />
+          <Skeleton className="h-40 w-full sm:w-64 shrink-0" />
           <Skeleton className="h-96 flex-1" />
         </div>
       </div>
@@ -66,27 +66,27 @@ export function UpdateProfileForm() {
         value={activeTab}
         onValueChange={(val) => setActiveTab(val as ProfileTab)}
         orientation="vertical"
-        variant="line"
+        variant="pills"
         className="w-full flex-col sm:flex-row gap-8 items-start"
       >
-        <Tabs.List className="w-full sm:w-56 shrink-0 justify-start gap-1 sm:items-stretch">
+        <Tabs.List className="w-full sm:w-64 shrink-0 flex flex-col gap-1.5 bg-transparent p-0 border-0 h-auto items-stretch">
           <Tabs.Trigger
             value="general"
-            className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
           >
             <UserIcon size="sm" className="size-4 shrink-0" />
             <span>{t("profile.tabs.general")}</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="accounts"
-            className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
           >
             <HubConnectionIcon size="sm" className="size-4 shrink-0" />
             <span>{t("profile.tabs.accounts")}</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="security"
-            className="justify-start gap-2.5 px-3 py-2 text-sm w-full"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
           >
             <SettingsIcon size="sm" className="size-4 shrink-0" />
             <span>{t("profile.tabs.security")}</span>
