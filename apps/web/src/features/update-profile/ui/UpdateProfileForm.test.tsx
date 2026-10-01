@@ -94,6 +94,12 @@ vi.mock("../model/use-profile-mutations", () => ({
     isPending: false,
     isError: false,
   }),
+  useChangePassword: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+  }),
 }));
 
 function renderForm() {

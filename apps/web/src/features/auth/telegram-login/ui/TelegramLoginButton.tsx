@@ -1,6 +1,8 @@
 "use client";
 
-import { Typography } from "@packages/ui";
+import { TelegramIcon } from "@packages/icons";
+import { Button, Spin, Typography } from "@packages/ui";
+import { cn } from "@packages/utils";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HttpError } from "@/shared/api";
@@ -17,6 +19,7 @@ type ScriptStatus = "loading" | "ready" | "error";
  *
  * Асинхронно загружает telegram-widget.js, регистрирует глобальный
  * callback `onTelegramAuth` и отправляет данные пользователя на бэкенд.
+ * Оформлена в едином стиле с кнопкой GitHub (variant="outline", size="lg", w-full).
  * Не рендерится, если не задан NEXT_PUBLIC_TELEGRAM_BOT_USERNAME.
  */
 export function TelegramLoginButton() {
@@ -61,19 +64,48 @@ export function TelegramLoginButton() {
         : t("oauth.telegram.networkError");
   }
 
+  const isLoading = scriptStatus === "loading";
+  const isBusy = isLoading || isPending;
+
   return (
     <div className="flex w-full flex-col items-center gap-2">
-      <div ref={containerRef} className="flex min-h-10 justify-center" />
+      <div className="relative w-full">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={isBusy || scriptStatus === "error"}
+        >
+          {isPending ? (
+            <>
+              <Spin size="sm" />
+              {t("oauth.telegram.submitting")}
+            </>
+          ) : (
+            <>
+              <TelegramIcon />
+              {t("oauth.telegram.button")}
+            </>
+          )}
+        </Button>
 
-      {scriptStatus === "loading" && (
+        <div
+          ref={containerRef}
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 z-10 flex items-center justify-center overflow-hidden opacity-0 cursor-pointer",
+            isBusy || scriptStatus === "error"
+              ? "pointer-events-none hidden"
+              : "",
+            "[&>iframe]:h-full [&>iframe]:w-full [&>iframe]:min-w-full [&>iframe]:cursor-pointer [&>iframe]:scale-[3]",
+          )}
+        />
+      </div>
+
+      {isLoading && (
         <Typography.P className="text-sm text-muted-foreground">
           {t("oauth.telegram.loading")}
-        </Typography.P>
-      )}
-
-      {isPending && (
-        <Typography.P className="text-sm text-muted-foreground">
-          {t("oauth.telegram.submitting")}
         </Typography.P>
       )}
 

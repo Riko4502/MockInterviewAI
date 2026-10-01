@@ -108,6 +108,35 @@ describe("TelegramLoginButton", () => {
     expect(
       screen.queryByText("Загрузка входа через Telegram..."),
     ).not.toBeInTheDocument();
+    const button = screen.getByRole("button", {
+      name: "Продолжить через Telegram",
+    });
+    expect(button).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+  });
+
+  it("отображает локализованный текст кнопки на английском языке", async () => {
+    await i18n.changeLanguage("en");
+    renderButton();
+    const script = getWidgetScript();
+    fireEvent.load(script);
+
+    expect(
+      screen.getByRole("button", { name: "Continue with Telegram" }),
+    ).toBeInTheDocument();
+  });
+
+  it("показывает статус отправки и блокирует кнопку во время запроса", async () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+    renderButton();
+    const script = getWidgetScript();
+    fireEvent.load(script);
+
+    authorizeInTelegram();
+
+    expect(
+      await screen.findByRole("button", { name: "Вход через Telegram..." }),
+    ).toBeDisabled();
   });
 
   it("показывает ошибку, если скрипт Telegram не загрузился", () => {

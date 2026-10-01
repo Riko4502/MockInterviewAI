@@ -2,10 +2,15 @@
 
 import {
   getProfileControllerGetMyProfileQueryKey,
+  useAuthControllerChangePassword,
   useProfileControllerUpdateMyProfile,
   useProfileControllerUploadAvatar,
 } from "@packages/api";
 import { useQueryClient } from "@tanstack/react-query";
+
+export function useChangePassword() {
+  return useAuthControllerChangePassword();
+}
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();

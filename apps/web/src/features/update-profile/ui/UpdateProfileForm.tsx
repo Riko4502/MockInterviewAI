@@ -28,6 +28,7 @@ import {
 } from "../model/profile-form-schema";
 import { useUpdateProfile } from "../model/use-profile-mutations";
 import { AvatarUploadField } from "./AvatarUploadField";
+import { ChangePasswordSection } from "./ChangePasswordSection";
 import { ConnectedAccountsSection } from "./ConnectedAccountsSection";
 import { DeleteAccountSection } from "./DeleteAccountSection";
 
@@ -325,6 +326,8 @@ function ProfileFields({ user }: { user: UserProfileDto }) {
       </form>
 
       <ConnectedAccountsSection user={user} />
+
+      <ChangePasswordSection />
 
       <DeleteAccountSection />
     </div>
