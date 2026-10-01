@@ -10,6 +10,7 @@ export const paths = {
   partners: "/dashboard/partners",
   partnersMy: "/dashboard/partners/my",
   partnersNew: "/dashboard/partners/new",
+  partnersEdit: (id: string) => `/dashboard/partners/${id}/edit`,
   partnersRequests: "/dashboard/partners/requests",
   statistics: "/dashboard/statistics",
   resources: "/dashboard/resources",

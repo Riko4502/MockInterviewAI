@@ -12,7 +12,7 @@ import {
   useMatchmakingControllerReject,
 } from "@packages/api";
 import type { MatchRequestResponseDto } from "@packages/dto";
-import { CheckIcon } from "@packages/icons";
+import { CheckIcon, PlayIcon } from "@packages/icons";
 import { Badge, Button, Card, useToast } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -75,6 +75,64 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
   };
 
   const handleAccept = async (requestId: string) => {
+    // 1. Отменяем текущие запросы для предотвращения перезаписи
+    await Promise.all([
+      queryClient.cancelQueries({
+        queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+      }),
+      queryClient.cancelQueries({
+        queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+      }),
+    ]);
+
+    // 2. Снимок предыдущего состояния для rollback при ошибке
+    const previousIncoming = queryClient.getQueryData(
+      getMatchmakingControllerFindIncomingQueryKey(),
+    );
+    const previousUnread = queryClient.getQueryData(
+      getMatchmakingControllerGetUnreadCountQueryKey(),
+    );
+
+    // 3. Оптимистичное обновление входящих заявок и счётчика
+    queryClient.setQueryData(
+      getMatchmakingControllerFindIncomingQueryKey(),
+      (old: unknown) => {
+        if (!old) return old;
+        const record = old as { data?: MatchRequestResponseDto[] };
+        if (record.data && Array.isArray(record.data)) {
+          return {
+            ...record,
+            data: record.data.map((item) =>
+              item.id === requestId
+                ? { ...item, status: "ACCEPTED" as const }
+                : item,
+            ),
+          };
+        }
+        if (Array.isArray(old)) {
+          return old.map((item) =>
+            item.id === requestId
+              ? { ...item, status: "ACCEPTED" as const }
+              : item,
+          );
+        }
+        return old;
+      },
+    );
+
+    queryClient.setQueryData(
+      getMatchmakingControllerGetUnreadCountQueryKey(),
+      (old: unknown) => {
+        if (!old) return old;
+        const record = old as { count?: number };
+        return {
+          ...record,
+          count: Math.max(0, (record.count ?? 1) - 1),
+        };
+      },
+    );
+
+    // 4. Запрос к серверу
     acceptMutation.mutate(
       { id: requestId },
       {
@@ -86,6 +144,19 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
           await invalidateAll();
         },
         onError: () => {
+          // Откат при ошибке
+          if (previousIncoming !== undefined) {
+            queryClient.setQueryData(
+              getMatchmakingControllerFindIncomingQueryKey(),
+              previousIncoming,
+            );
+          }
+          if (previousUnread !== undefined) {
+            queryClient.setQueryData(
+              getMatchmakingControllerGetUnreadCountQueryKey(),
+              previousUnread,
+            );
+          }
           toast.push({
             status: "error",
             title: t("matchmaking.actionError"),
@@ -96,6 +167,60 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
   };
 
   const handleReject = async (requestId: string) => {
+    await Promise.all([
+      queryClient.cancelQueries({
+        queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+      }),
+      queryClient.cancelQueries({
+        queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+      }),
+    ]);
+
+    const previousIncoming = queryClient.getQueryData(
+      getMatchmakingControllerFindIncomingQueryKey(),
+    );
+    const previousUnread = queryClient.getQueryData(
+      getMatchmakingControllerGetUnreadCountQueryKey(),
+    );
+
+    queryClient.setQueryData(
+      getMatchmakingControllerFindIncomingQueryKey(),
+      (old: unknown) => {
+        if (!old) return old;
+        const record = old as { data?: MatchRequestResponseDto[] };
+        if (record.data && Array.isArray(record.data)) {
+          return {
+            ...record,
+            data: record.data.map((item) =>
+              item.id === requestId
+                ? { ...item, status: "REJECTED" as const }
+                : item,
+            ),
+          };
+        }
+        if (Array.isArray(old)) {
+          return old.map((item) =>
+            item.id === requestId
+              ? { ...item, status: "REJECTED" as const }
+              : item,
+          );
+        }
+        return old;
+      },
+    );
+
+    queryClient.setQueryData(
+      getMatchmakingControllerGetUnreadCountQueryKey(),
+      (old: unknown) => {
+        if (!old) return old;
+        const record = old as { count?: number };
+        return {
+          ...record,
+          count: Math.max(0, (record.count ?? 1) - 1),
+        };
+      },
+    );
+
     rejectMutation.mutate(
       { id: requestId, data: {} },
       {
@@ -107,6 +232,18 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
           await invalidateAll();
         },
         onError: () => {
+          if (previousIncoming !== undefined) {
+            queryClient.setQueryData(
+              getMatchmakingControllerFindIncomingQueryKey(),
+              previousIncoming,
+            );
+          }
+          if (previousUnread !== undefined) {
+            queryClient.setQueryData(
+              getMatchmakingControllerGetUnreadCountQueryKey(),
+              previousUnread,
+            );
+          }
           toast.push({
             status: "error",
             title: t("matchmaking.actionError"),
@@ -117,6 +254,40 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
   };
 
   const handleCancel = async (requestId: string) => {
+    await queryClient.cancelQueries({
+      queryKey: getMatchmakingControllerFindOutgoingQueryKey(),
+    });
+
+    const previousOutgoing = queryClient.getQueryData(
+      getMatchmakingControllerFindOutgoingQueryKey(),
+    );
+
+    queryClient.setQueryData(
+      getMatchmakingControllerFindOutgoingQueryKey(),
+      (old: unknown) => {
+        if (!old) return old;
+        const record = old as { data?: MatchRequestResponseDto[] };
+        if (record.data && Array.isArray(record.data)) {
+          return {
+            ...record,
+            data: record.data.map((item) =>
+              item.id === requestId
+                ? { ...item, status: "CANCELLED" as const }
+                : item,
+            ),
+          };
+        }
+        if (Array.isArray(old)) {
+          return old.map((item) =>
+            item.id === requestId
+              ? { ...item, status: "CANCELLED" as const }
+              : item,
+          );
+        }
+        return old;
+      },
+    );
+
     cancelMutation.mutate(
       { id: requestId },
       {
@@ -128,6 +299,12 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
           await invalidateAll();
         },
         onError: () => {
+          if (previousOutgoing !== undefined) {
+            queryClient.setQueryData(
+              getMatchmakingControllerFindOutgoingQueryKey(),
+              previousOutgoing,
+            );
+          }
           toast.push({
             status: "error",
             title: t("matchmaking.actionError"),
@@ -281,20 +458,29 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                       </p>
                     )}
 
-                    {/* Если заявка принята — показываем открытые контакты */}
-                    {isAccepted && req.sender.telegramUsername && (
-                      <div className="mt-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-xs text-emerald-400">
-                        <span className="font-semibold block mb-0.5">
-                          {t("matchmaking.contactsTitle")}
-                        </span>
-                        <a
-                          href={`https://t.me/${req.sender.telegramUsername}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline underline-offset-2 hover:text-emerald-300 font-mono"
+                    {/* Если заявка принята — показываем переход в интерактивную комнату */}
+                    {isAccepted && (
+                      <div className="mt-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
+                            <CheckIcon className="size-3.5" />
+                            {t("matchmaking.matchedTitle")}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground leading-snug">
+                            {t("matchmaking.matchedDesc")}
+                          </span>
+                        </div>
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="default"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                         >
-                          @{req.sender.telegramUsername}
-                        </a>
+                          <Link href={paths.sandbox}>
+                            <PlayIcon className="size-3.5 fill-current" />
+                            <span>{t("matchmaking.goToInterview")}</span>
+                          </Link>
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -412,20 +598,29 @@ export function MatchRequestsHub({ className }: MatchRequestsHubProps) {
                     </p>
                   )}
 
-                  {/* Если заявка принята собеседником — показываем контакты */}
-                  {isAccepted && req.receiver.telegramUsername && (
-                    <div className="mt-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-xs text-emerald-400">
-                      <span className="font-semibold block mb-0.5">
-                        {t("matchmaking.contactsTitle")}
-                      </span>
-                      <a
-                        href={`https://t.me/${req.receiver.telegramUsername}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline underline-offset-2 hover:text-emerald-300 font-mono"
+                  {/* Если заявка принята собеседником — показываем переход в интерактивную комнату */}
+                  {isAccepted && (
+                    <div className="mt-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
+                          <CheckIcon className="size-3.5" />
+                          {t("matchmaking.matchedTitle")}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground leading-snug">
+                          {t("matchmaking.matchedDesc")}
+                        </span>
+                      </div>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="default"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 shadow-xs gap-1.5 cursor-pointer"
                       >
-                        @{req.receiver.telegramUsername}
-                      </a>
+                        <Link href={paths.sandbox}>
+                          <PlayIcon className="size-3.5 fill-current" />
+                          <span>{t("matchmaking.goToInterview")}</span>
+                        </Link>
+                      </Button>
                     </div>
                   )}
                 </div>

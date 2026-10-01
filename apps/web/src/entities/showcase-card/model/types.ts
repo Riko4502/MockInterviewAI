@@ -24,6 +24,7 @@ export interface ShowcaseCardProps {
   onRespond?: (card: ShowcaseCardResponseDto) => void;
   onManage?: (card: ShowcaseCardResponseDto) => void;
   isRequested?: boolean;
+  isMatched?: boolean;
   className?: string;
   testId?: string;
 }

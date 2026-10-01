@@ -10,10 +10,7 @@ import {
   ShowcaseCardSkeleton,
   useMyShowcaseCards,
 } from "@/entities/showcase-card";
-import {
-  DeleteCardConfirmDialog,
-  EditCardDialog,
-} from "@/features/manage-showcase-card";
+import { DeleteCardConfirmDialog } from "@/features/manage-showcase-card";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { MyCardItem } from "./MyCardItem";
@@ -30,8 +27,6 @@ export function MyCardsList({ className }: MyCardsListProps) {
     ? rawCards
     : [];
 
-  const [editingCard, setEditingCard] =
-    useState<ShowcaseCardResponseDto | null>(null);
   const [deletingCardId, setDeletingCardId] = useState<string | null>(null);
 
   const activeCardsCount = cards.filter(
@@ -112,7 +107,6 @@ export function MyCardsList({ className }: MyCardsListProps) {
             <MyCardItem
               key={card.id}
               card={card}
-              onEdit={(c: ShowcaseCardResponseDto) => setEditingCard(c)}
               onDelete={(id: string) => setDeletingCardId(id)}
             />
           ))}
@@ -120,15 +114,6 @@ export function MyCardsList({ className }: MyCardsListProps) {
       )}
 
       {/* Диалоги */}
-      <EditCardDialog
-        card={editingCard}
-        open={!!editingCard}
-        onOpenChange={(open) => {
-          if (!open) setEditingCard(null);
-        }}
-        onSuccess={() => refetch()}
-      />
-
       <DeleteCardConfirmDialog
         cardId={deletingCardId}
         open={!!deletingCardId}

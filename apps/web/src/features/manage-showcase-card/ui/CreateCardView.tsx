@@ -153,21 +153,12 @@ export function CreateCardView() {
             <div className="rounded-2xl border border-border/60 bg-muted/20 p-5 space-y-3">
               <h4 className="font-semibold text-foreground text-xs flex items-center gap-1.5 uppercase tracking-wider">
                 <InfoIcon className="size-3.5 text-primary" />
-                <span>Советы для эффективной анкеты</span>
+                <span>{t("form.tipsTitle")}</span>
               </h4>
               <ul className="space-y-2 text-xs text-muted-foreground list-disc pl-4 leading-relaxed">
-                <li>
-                  Укажите ваш основной стек технологий и фреймворки, которые
-                  хотите потренировать на собеседовании.
-                </li>
-                <li>
-                  В поле «О себе» опишите комфортный формат (теория, лайвкодинг,
-                  System Design) и ваш часовой пояс.
-                </li>
-                <li>
-                  Включите опцию «Готов провести сегодня», чтобы анкета получила
-                  бейдж срочности ⚡ и поднялась в поиске.
-                </li>
+                <li>{t("form.tip1")}</li>
+                <li>{t("form.tip2")}</li>
+                <li>{t("form.tip3")}</li>
               </ul>
             </div>
           </div>

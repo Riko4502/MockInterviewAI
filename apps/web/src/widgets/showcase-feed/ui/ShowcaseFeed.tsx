@@ -39,22 +39,41 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
     useState<ShowcaseCardResponseDto | null>(null);
 
   const { data: outgoingData } = useMatchmakingControllerFindOutgoing(
-    { status: "PENDING", limit: 50 },
+    { limit: 100 },
     { query: { enabled: !!currentUser } },
   );
 
-  const requestedCardIds = useMemo(() => {
+  const { pendingCardIds, matchedCardIds } = useMemo(() => {
     const list = (
       outgoingData as unknown as {
-        data?: Array<{ targetCardId?: string; targetCard?: { id: string } }>;
+        data?: Array<{
+          status?: string;
+          targetCardId?: string;
+          targetCard?: { id: string };
+        }>;
       }
     )?.data;
-    if (!Array.isArray(list)) return new Set<string>();
-    return new Set(
-      list
-        .map((r) => r.targetCard?.id || r.targetCardId)
-        .filter(Boolean) as string[],
-    );
+    if (!Array.isArray(list)) {
+      return {
+        pendingCardIds: new Set<string>(),
+        matchedCardIds: new Set<string>(),
+      };
+    }
+
+    const pending = new Set<string>();
+    const matched = new Set<string>();
+
+    for (const r of list) {
+      const cardId = r.targetCard?.id || r.targetCardId;
+      if (!cardId) continue;
+      if (r.status === "PENDING") {
+        pending.add(cardId);
+      } else if (r.status === "ACCEPTED") {
+        matched.add(cardId);
+      }
+    }
+
+    return { pendingCardIds: pending, matchedCardIds: matched };
   }, [outgoingData]);
 
   const { data, isLoading, isError, refetch } = useShowcaseCatalog({
@@ -134,7 +153,8 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {cards.map((card: ShowcaseCardResponseDto) => {
             const isOwner = currentUser?.id === card.userId;
-            const isRequested = requestedCardIds.has(card.id);
+            const isRequested = pendingCardIds.has(card.id);
+            const isMatched = matchedCardIds.has(card.id);
 
             return (
               <ShowcaseCard
@@ -142,6 +162,7 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
                 card={card}
                 isOwner={isOwner}
                 isRequested={isRequested}
+                isMatched={isMatched}
                 onRespond={() => setRespondingCard(card)}
                 onManage={() => router.push(paths.partnersMy)}
               />

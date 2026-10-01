@@ -1,10 +1,17 @@
 "use client";
 
-import { CheckIcon, ClockIcon, MessageSquareIcon } from "@packages/icons";
+import {
+  CheckIcon,
+  ClockIcon,
+  MessageSquareIcon,
+  PlayIcon,
+} from "@packages/icons";
 import { Badge, Button, Card } from "@packages/ui";
 import { cn } from "@packages/utils";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/entities/user";
+import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import type { ShowcaseCardProps } from "../model/types";
 import { LanguageBadge } from "./LanguageBadge";
@@ -18,6 +25,7 @@ export function ShowcaseCard({
   card,
   isOwner = false,
   isRequested = false,
+  isMatched = false,
   onRespond,
   onManage,
   className,
@@ -174,6 +182,18 @@ export function ShowcaseCard({
               className="text-xs font-medium"
             >
               {t("card.manage")}
+            </Button>
+          ) : isMatched ? (
+            <Button
+              asChild
+              size="sm"
+              variant="default"
+              className="text-xs font-semibold shadow-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+            >
+              <Link href={paths.sandbox}>
+                <PlayIcon className="size-3.5 fill-current" />
+                <span>{t("matchmaking.goToInterview")}</span>
+              </Link>
             </Button>
           ) : isRequested ? (
             <Button

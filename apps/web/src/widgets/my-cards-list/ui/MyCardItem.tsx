@@ -21,17 +21,11 @@ import "@/shared/lib/i18n";
 
 export interface MyCardItemProps {
   card: ShowcaseCardResponseDto;
-  onEdit: (card: ShowcaseCardResponseDto) => void;
   onDelete: (cardId: string) => void;
   className?: string;
 }
 
-export function MyCardItem({
-  card,
-  onEdit,
-  onDelete,
-  className,
-}: MyCardItemProps) {
+export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
   const { t } = useTranslation("showcase");
   const { toggleStatus, isTogglingStatus } = useShowcaseMutations();
 
@@ -146,13 +140,15 @@ export function MyCardItem({
 
         <div className="flex items-center gap-1 ml-auto">
           <Button
+            asChild
             variant="ghost"
             size="icon-xs"
-            onClick={() => onEdit(card)}
             title={t("actions.edit")}
             className="text-muted-foreground hover:text-foreground"
           >
-            <EditIcon className="size-3.5" />
+            <Link href={paths.partnersEdit(card.id)}>
+              <EditIcon className="size-3.5" />
+            </Link>
           </Button>
 
           <Button
