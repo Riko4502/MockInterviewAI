@@ -12,7 +12,6 @@ sequenceDiagram
     actor Alice as 👩 Кандидат А (Инициатор)
     participant Web as 🌐 apps/web
     participant API as 🚀 apps/api (NestJS)
-    participant Redis as ⚡ Redis Pub/Sub
     participant DB as 🗄️ PostgreSQL
     actor Bob as 👨 Кандидат Б (Автор карточки)
 
@@ -29,13 +28,14 @@ sequenceDiagram
     API->>DB: 8. Создание MatchRequest (status: PENDING, expiresAt: now + 72h)
     API-->>Web: 9. 201 Created
 
-    Bob->>Web: 10. Просмотр входящих заявок (GET /matchmaking/requests/incoming)
+    Bob->>Web: 10. Открытие входящих (GET /matchmaking/requests/incoming)
     Web->>API: 11. POST /api/v1/matchmaking/requests/:id/accept
     
-    API->>DB: 12. Обновление статуса -> ACCEPTED
-    API->>Redis: 13. Publish 'matchmaking:events' { event: 'match.accepted', ... }
-    API-->>Web: 14. 200 OK (Возврат контактов Алисы: telegramUsername, email)
-    Web-->>Bob: 15. Отображение контактов для созвона!
+    API->>DB: 12. Атомарная смена статуса -> ACCEPTED
+    API-->>Web: 13. 200 OK (данные кандидата скрыты: telegramUsername, email)
+    Web-->>Bob: 14. Кандидат найден, перейти к диалогу!
+
+    Note over Web,API: Алисе событие о принятии доставляется по её SSE-потоку<br/>уведомлений как notification.new (payload проверяет общий словарь).<br/>Отдельного matchmaking-канала в Redis нет: ADR-003, фаза 3.
 ```
 
 ---
@@ -157,8 +157,8 @@ apps/web/src/
 - [ ] **Фоновые воркеры (Cron):**
   - `ShowcaseCronService` (15 дней TTL / `autoRenew`).
   - `MatchmakingCronService` (72ч TTL заявок).
-- [ ] **Redis Pub/Sub:**
-  - Публикация события `match.accepted` в канал `matchmaking:events`.
+- [ ] **Доставка уведомления о принятии:**
+  - `NotificationsService.createNotification` вызывается в той же транзакции, что и смена статуса заявки; SSE-кадр `notification.new` проверяется общим словарём. Собственный канал матчмейкинга в Redis не используется (ADR-003).
 - [ ] **Тестирование:**
   - Unit-тесты для сервисов, контроллеров и парсера поиска (покрытие >= 85%).
 
