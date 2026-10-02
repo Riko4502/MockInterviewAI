@@ -68,8 +68,9 @@ pnpm sse:send -i
 | Флаг | Короткий | Значение по умолчанию | Описание |
 | :--- | :---: | :--- | :--- |
 | `--user <id>` | `-u` | `dev-user-1` | ID пользователя-получателя (ключ стрима `user:{id}:notifications`). |
-| `--type <type>` | `-t` | `notification.new` | Тип события SSE (`notification.new`, `notification.badge`, `interview.invite`, `ai.report.ready`, и т.д.). |
-| `--category <cat>` | `-c` | `SYSTEM` | Категория уведомления: `SYSTEM`, `INTERVIEW`, `MESSAGE`, `info`, `warning`, `error`, `success`. |
+| `--type <type>` | `-t` | `notification.new` | Тип события SSE. Допустимые значения заданы словарём `@packages/dto`: `notification.new`, `notification.badge`, `session.invited`, `code_runner.status`, `ai.report_ready`, `account.updated`, `system.broadcast`, `auth.revoked`. Значение вне списка отклоняется. |
+| `--category <cat>` | `-c` | `SYSTEM` | Доменный тип уведомления из БД: `SYSTEM`, `INTERVIEW`, `MESSAGE`. |
+| `--severity <sev>` | `-s` | `null` | Визуальная severity: `info`, `success`, `warning`, `error`. Для `system.broadcast` обязательна, иначе подставляется `info`. |
 | `--title <title>` | | `Тестовое уведомление` | Заголовок уведомления. |
 | `--message <text>`| `-m` | `...` | Текст сообщения уведомления. |
 | `--action-url <url>`| `-a` | `null` | URL перехода при клике на уведомление (например, `/sessions/session-123`). |
@@ -77,9 +78,11 @@ pnpm sse:send -i
 | `--broadcast` | `-b` | `false` | Опубликовать в глобальный Pub/Sub канал `notifications:broadcast` (автоматически выставляет `--type system.broadcast`). |
 | `--tls` | | `false` | Использовать TLS-шифрование при подключении к Redis (`rediss://` / `REDIS_TLS=true`). |
 | `--insecure` | | `false` | Разрешить подключение к удаленному Redis без TLS (отключение проверки CWE-319, не рекомендуется). |
-| `--raw <json>` | | `null` | Передать собственный кастомный JSON payload. |
+| `--raw <json>` | | `null` | Передать собственный JSON payload. Обязателен для типов событий, payload которых CLI не собирает из флагов. |
 | `--interactive` | `-i` | `false` | Пошаговый консольный мастер с подсказками. |
 | `--help` | `-h` | | Вывести справку по командам. |
+
+> **Словарь, а не копия в скрипте.** Имена событий, значения `category` и `severity` и форма payload'а читаются скриптом из `@packages/dto` — того же пакета, которым пользуются `apps/api` и клиент. Готовый payload дополнительно проверяется функцией `parseSseEventPayload` перед записью в Redis: `apps/realtime` передаёт payload как `json.RawMessage` и не сверяет ни имя события, ни его форму, поэтому кадр с опечаткой ушёл бы в браузер как валидный. Требуется собранный пакет: `pnpm build:dto`.
 
 ---
 
@@ -92,8 +95,8 @@ pnpm sse:send -i
 | `--interview` | `notification.new` | `INTERVIEW` | Приглашение кандидата на техническое собеседование с ссылкой на сессию. |
 | `--system` | `notification.new` | `SYSTEM` | Системное уведомление о технических работах или обновлении платформы. |
 | `--message-preset`| `notification.new` | `MESSAGE` | Новое сообщение в чате сессии интервью. |
-| `--ai-report` | `ai.report.ready` | `SYSTEM` | Событие завершения генерации AI-отчета с ссылкой на аналитику. |
-| `--code-run` | `code.run.completed`| `SYSTEM` | Результат запуска тестов в сервисе code-runner. |
+
+События `session.invited`, `code_runner.status`, `ai.report_ready`, `account.updated` и `auth.revoked` пресетов не имеют: их payload состоит из доменных данных (идентификатор сессии, результаты прогона), которых у CLI нет. Для них payload передаётся флагом `--raw`.
 
 ---
 
@@ -101,7 +104,7 @@ pnpm sse:send -i
 
 ### 1. Тестирование всплывающего инвайта на интервью (с ссылкой)
 ```bash
-pnpm sse:send --user user-42 --category INTERVIEW --title "Собеседование готово" --message "Интервьюер ждет вас в комнате" --action-url "/sessions/interview-888"
+pnpm sse:send --user user-42 --category INTERVIEW --severity info --title "Собеседование готово" --message "Интервьюер ждет вас в комнате" --action-url "/sessions/interview-888"
 ```
 
 ### 2. Тестирование колокольчика и бейджа непрочитанных
@@ -115,21 +118,27 @@ pnpm sse:send --user user-42 --badge 0
 
 ### 3. Эмуляция готовности отчета ИИ
 ```bash
-pnpm sse:send --user user-42 --ai-report --action-url "/reports/dev-session-1"
+pnpm sse:send --user user-42 --type ai.report_ready --raw '{"sessionId":"s-1","reportId":"r-1","score":82,"summary":"Хорошие ответы","reportUrl":"/reports/r-1"}'
 ```
 
-### 4. Тестирование с произвольным JSON payload
+### 4. Отзыв авторизации (последний кадр перед разрывом потока)
 ```bash
-pnpm sse:send --user user-42 --type custom.event --raw '{"codeState":{"lines":150},"status":"passed"}'
+pnpm sse:send --user user-42 --type auth.revoked --raw '{"reason":"password_reset"}'
 ```
+
+> **PowerShell 5.1 и `--raw`.** Встроенный парсер аргументов PowerShell 5.1 портит
+> кавычки внутри значения, и CLI получает невалидный JSON
+> (`❌ Невалидный JSON в --raw`). Передавайте JSON переменной:
+> `$json = '{"reason":"password_reset"}'; pnpm sse:send --user user-42 --type auth.revoked --raw $json`.
+> В PowerShell 7 и в bash кавычки доходят до CLI без изменений.
 
 ### 5. Отправка общесистемного алерта (Broadcast)
 ```bash
 # Быстрая команда (автоматически использует --type system.broadcast):
-pnpm sse:broadcast --message "Технические работы через 10 минут"
+pnpm sse:broadcast --severity warning --message "Технические работы через 10 минут"
 
 # Или через sse:send с явным указанием флага:
-pnpm sse:send --broadcast --type system.broadcast --message "Сервер будет перезагружен через 10 минут"
+pnpm sse:send --broadcast --type system.broadcast --severity warning --message "Сервер будет перезагружен через 10 минут"
 ```
 
 ---
@@ -170,6 +179,10 @@ eventSource.addEventListener("system.broadcast", (event) => {
    - Убедитесь, что Redis запущен в Docker: выполните `pnpm infra:up`.
 2. **`❌ Ошибка: пакет ioredis не найден`**:
    - Выполните `pnpm install` в корне монорепозитория.
-3. **Уведомление отправлено, но браузер его не видит**:
+3. **`❌ Ошибка: не удалось загрузить словарь событий из @packages/dto`**:
+   - Соберите пакет: `pnpm build:dto`. Скрипт читает словарь из `dist`, а не из исходников.
+4. **Уведомление отправлено, но браузер его не видит**:
    - Проверьте `userID`: ID пользователя в токене авторизации клиента должен совпадать с флагом `--user <id>`.
    - Проверьте статус сервиса realtime: `pnpm realtime:logs`.
+5. **`❌ Payload не соответствует словарю события`**:
+   - Форма кадра отличается от описанной в `packages/dto/src/realtime/sse-event.dto.ts`. Для `notification.new` обязательны `id`, `category`, `title`, `message`, `createdAt`, `read`; для `system.broadcast` — `severity` и `message`.
