@@ -7,15 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { PrismaService } from "../../prisma/prisma.service";
-import type { RedisService } from "../../redis/redis.service";
-import { REDIS_MATCHMAKING_EVENTS_CHANNEL } from "./matchmaking.constants";
 import { MatchmakingService } from "./matchmaking.service";
-
-type LoggerAccessor = {
-  logger: {
-    error: (...args: unknown[]) => void;
-  };
-};
 
 describe("MatchmakingService", () => {
   let service: MatchmakingService;
@@ -37,9 +29,6 @@ describe("MatchmakingService", () => {
       updateMany: jest.Mock;
     };
     $transaction: jest.Mock;
-  };
-  let redisServiceMock: {
-    publish: jest.Mock;
   };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
@@ -146,14 +135,7 @@ describe("MatchmakingService", () => {
       $transaction: jest.fn((callback) => callback(prismaMock)),
     };
 
-    redisServiceMock = {
-      publish: jest.fn().mockResolvedValue(undefined),
-    };
-
-    service = new MatchmakingService(
-      prismaMock as unknown as PrismaService,
-      redisServiceMock as unknown as RedisService,
-    );
+    service = new MatchmakingService(prismaMock as unknown as PrismaService);
   });
 
   it("should be defined", () => {
@@ -407,50 +389,21 @@ describe("MatchmakingService", () => {
       const result = await service.create(senderId, validDto);
 
       expect(prismaMock.$transaction).toHaveBeenCalled();
-      expect(redisServiceMock.publish).toHaveBeenCalledWith(
-        REDIS_MATCHMAKING_EVENTS_CHANNEL,
-        expect.stringContaining("match.accepted"),
-      );
+      // Встречная заявка переводится в ACCEPTED атомарно, а вторая создаётся
+      // сразу в ACCEPTED (ADR-002:109 разбирает эту ветку в фазе 4).
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "cross-request-id",
+          status: "PENDING",
+          expiresAt: { gt: expect.any(Date) },
+        },
+        data: { status: "ACCEPTED" },
+      });
 
       expect(result.status).toBe("ACCEPTED");
       // При ACCEPTED контакты раскрываются
       expect(result.sender.telegramUsername).toBe("sender_tg");
       expect(result.receiver.telegramUsername).toBe("receiver_tg");
-    });
-
-    it("логирует ошибку и не прерывает операцию, если публикация в Redis Pub/Sub завершилась сбоем", async () => {
-      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
-      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
-      prismaMock.matchRequest.count
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(0);
-      prismaMock.matchRequest.findFirst
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: "cross-request-id" });
-
-      const acceptedMockRequest = {
-        ...mockMatchRequest,
-        status: "ACCEPTED",
-      };
-
-      prismaMock.matchRequest.create.mockResolvedValueOnce(acceptedMockRequest);
-      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
-
-      const loggerSpy = jest.spyOn(
-        (service as unknown as LoggerAccessor).logger,
-        "error",
-      );
-      redisServiceMock.publish.mockRejectedValueOnce(
-        new Error("Redis offline"),
-      );
-
-      const result = await service.create(senderId, validDto);
-
-      expect(result.status).toBe("ACCEPTED");
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to publish match.accepted event"),
-        expect.any(String),
-      );
     });
 
     it("создает обычную PENDING заявку, если встречная заявка была отменена параллельно (updateMany count === 0)", async () => {
@@ -470,7 +423,6 @@ describe("MatchmakingService", () => {
       const result = await service.create(senderId, validDto);
 
       expect(result.status).toBe("PENDING");
-      expect(redisServiceMock.publish).not.toHaveBeenCalled();
     });
   });
 
@@ -583,7 +535,7 @@ describe("MatchmakingService", () => {
       );
     });
 
-    it("успешно переводит заявку в ACCEPTED, публикует в Redis и открывает контакты", async () => {
+    it("успешно переводит заявку в ACCEPTED и открывает контакты", async () => {
       prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
         id: requestId,
         receiverId,
@@ -608,11 +560,6 @@ describe("MatchmakingService", () => {
         where: { id: requestId },
         include: expect.any(Object),
       });
-
-      expect(redisServiceMock.publish).toHaveBeenCalledWith(
-        REDIS_MATCHMAKING_EVENTS_CHANNEL,
-        expect.stringContaining("match.accepted"),
-      );
 
       expect(result.status).toBe("ACCEPTED");
       expect(result.sender.telegramUsername).toBe("sender_tg");

@@ -5,7 +5,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -19,13 +18,9 @@ import {
 } from "@packages/dto";
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
-import { RedisService } from "../../redis/redis.service";
 import { PUBLIC_USER_SELECT } from "../showcase/showcase.constants";
 import { toShowcaseCardResponse } from "../showcase/showcase.mapper";
-import {
-  MATCHMAKING_LIMITS,
-  REDIS_MATCHMAKING_EVENTS_CHANNEL,
-} from "./matchmaking.constants";
+import { MATCHMAKING_LIMITS } from "./matchmaking.constants";
 
 /**
  * Внутренняя структура выборки заявки из базы данных с авторами и карточками.
@@ -59,12 +54,7 @@ type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
 
 @Injectable()
 export class MatchmakingService {
-  private readonly logger = new Logger(MatchmakingService.name);
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Получение количества непрочитанных (ожидающих ответа) входящих заявок.
@@ -195,7 +185,7 @@ export class MatchmakingService {
 
     while (true) {
       try {
-        const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
+        const { createdRequest } = await this.prisma.$transaction(
           async (tx) => {
             // 5. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
             const incomingPendingCount = await tx.matchRequest.count({
@@ -294,7 +284,7 @@ export class MatchmakingService {
                   include: MATCH_REQUEST_INCLUDE,
                 });
 
-                return { createdRequest: newRequest, isAutoMatch: true };
+                return { createdRequest: newRequest };
               }
             }
 
@@ -313,18 +303,21 @@ export class MatchmakingService {
               include: MATCH_REQUEST_INCLUDE,
             });
 
-            return { createdRequest: newRequest, isAutoMatch: false };
+            return { createdRequest: newRequest };
           },
           {
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           },
         );
 
-        if (isAutoMatch) {
-          // Публикуем событие авто-матчинга в Redis Pub/Sub для уведомлений после коммита транзакции
-          await this.publishMatchAcceptedEvent(createdRequest);
-        }
-
+        // Уведомление о подтверждении матча здесь не публикуется: единственный
+        // контракт, который для этого существовал, — Redis Pub/Sub канал
+        // событий матчмейкинга без единого подписчика — удалён вместе с
+        // publishMatchAcceptedEvent (ADR-004:89).
+        // Событие о матче придёт через outbox и диспетчер вместе с
+        // `AvailabilitySlot` (ADR-002): payload'ы `interview.match_proposed` и
+        // `interview.slot_booked` несут идентификатор слота и UTC-инстант,
+        // которых в модели заявки нет.
         return this.formatMatchRequest(createdRequest);
       } catch (error) {
         // При конфликте сериализации параллельных транзакций (P2034) повторяем транзакцию
@@ -473,7 +466,10 @@ export class MatchmakingService {
    * - Принять заявку может только её прямой адресат (receiverId).
    * - Заявка должна находиться строго в статусе PENDING.
    * - Если срок жизни заявки истёк (expiresAt <= now) — переводит в EXPIRED и отклоняет операцию.
-   * - Публикует событие match.accepted в Redis Pub/Sub канал matchmaking:events.
+   * - Уведомление о принятии не публикуется: единственный контракт для него —
+   *   Redis Pub/Sub канал событий матчмейкинга без единого подписчика —
+   *   удалён вместе с publishMatchAcceptedEvent (ADR-004:89), а событие о
+   *   матче придёт через outbox вместе с появлением слотов (ADR-002).
    * - Раскрывает контактные данные (telegramUsername) обоим участникам.
    *
    * @param requestId - ID заявки
@@ -538,10 +534,7 @@ export class MatchmakingService {
       include: MATCH_REQUEST_INCLUDE,
     });
 
-    // 6. Публикуем событие подтверждения матча в Redis Pub/Sub
-    await this.publishMatchAcceptedEvent(updated);
-
-    // 7. Возвращаем заявку с открытыми контактами
+    // 6. Возвращаем заявку с открытыми контактами
     return this.formatMatchRequest(updated);
   }
 
@@ -674,37 +667,6 @@ export class MatchmakingService {
     });
 
     return this.formatMatchRequest(updated);
-  }
-
-  /**
-   * Публикация события подтверждения матча в шину событий Redis Pub/Sub.
-   *
-   * Уведомляет сервис уведомлений и сторонние realtime-обработчики о взаимном согласии.
-   */
-  private async publishMatchAcceptedEvent(
-    request: MatchRequestWithRelations,
-  ): Promise<void> {
-    try {
-      await this.redisService.publish(
-        REDIS_MATCHMAKING_EVENTS_CHANNEL,
-        JSON.stringify({
-          event: "match.accepted",
-          requestId: request.id,
-          senderId: request.senderId,
-          receiverId: request.receiverId,
-          targetCardId: request.targetCardId,
-          senderCardId: request.senderCardId,
-          preferredTopic: request.preferredTopic,
-          timestamp: new Date().toISOString(),
-        }),
-      );
-    } catch (error) {
-      // Логируем ошибку для диагностики, сохраняя best-effort поведение без падения бизнес-транзакции
-      this.logger.error(
-        `Failed to publish match.accepted event for request ${request.id}: ${error instanceof Error ? error.message : String(error)}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
   }
 
   /**

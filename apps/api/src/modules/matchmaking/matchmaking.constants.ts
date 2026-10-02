@@ -16,12 +16,6 @@ export const MATCHMAKING_LIMITS = {
 } as const;
 
 /**
- * Имя Redis Pub/Sub канала для событий матчмейкинга.
- * Используется для уведомлений и межсервисного взаимодействия при подтверждении матча.
- */
-export const REDIS_MATCHMAKING_EVENTS_CHANNEL = "matchmaking:events";
-
-/**
  * Redis-ключ распределённого лока для крон-задачи очистки просроченных заявок.
  */
 export const MATCHMAKING_EXPIRY_LOCK_KEY = "lock:cron:matchmaking-expiry";
