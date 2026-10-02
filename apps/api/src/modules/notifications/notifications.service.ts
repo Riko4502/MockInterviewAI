@@ -5,6 +5,9 @@ import {
   type NotificationEventType,
   notificationEventCategory,
   parseNotificationEvent,
+  parseSseEventPayload,
+  type SseEventPayloads,
+  type SseEventType,
 } from "@packages/dto";
 import {
   defaultLocale,
@@ -395,10 +398,17 @@ export class NotificationsService {
     // Контракт SSE не меняется: клиент ждёт title и message
     // (apps/web/src/features/notification-realtime/model/schemas.ts), поэтому
     // наружу отдаётся денормализованный кэш, а не payload.
+    //
+    // Текст кадра берётся из `rendered`, а не из строки: колонки рендера
+    // nullable (ADR-003:58 — NULL означает «ещё не отрендерено»), и на пути
+    // повторной доставки upsert оставляет прежний рендер, тогда как кадр
+    // должен нести текст, который получатель увидит в списке, — то есть
+    // посчитанный под текущие локаль и таймзону. Строка при этом остаётся
+    // источником правды для HTTP-списка.
     await this.publishNotificationEvent(params.userId, "notification.new", {
       id: notification.id,
-      title: notification.renderedTitle,
-      message: notification.renderedMessage,
+      title: rendered.title,
+      message: rendered.message,
       category: notification.category,
       actionUrl: notification.actionUrl,
       createdAt: notification.createdAt.toISOString(),
@@ -503,15 +513,23 @@ export class NotificationsService {
     });
   }
 
-  private async publishNotificationEvent(
+  /**
+   * Публикация кадра в персональный Redis Stream пользователя.
+   *
+   * Имя события и payload берутся из общего словаря
+   * (`packages/dto/src/realtime/sse-event.dto.ts`, ADR-004:86), а проверяются
+   * Zod-схемой события: `apps/realtime` payload не декодирует и имя события не
+   * сверяет, поэтому опечатка уехала бы в браузер как валидный кадр.
+   */
+  private async publishNotificationEvent<TType extends SseEventType>(
     userId: string,
-    type: string,
-    data: unknown,
+    type: TType,
+    data: SseEventPayloads[TType],
   ): Promise<void> {
     await this.redis.xadd(
       this.getNotificationStreamKey(userId),
       type,
-      data,
+      parseSseEventPayload(type, data),
       this.notificationStreamMaxLength,
       this.notificationStreamTtlSeconds,
       new Date().toISOString(),

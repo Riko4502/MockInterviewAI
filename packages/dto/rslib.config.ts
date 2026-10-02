@@ -5,6 +5,10 @@ export default defineConfig({
     entry: {
       index: "./src/index.ts",
     },
+    // Декларации собираются по tsconfig.build.json, а не по tsconfig.json:
+    // во втором вместе с src включён scripts/, поэтому rootDir расширился бы на
+    // корень пакета и .d.ts легли в dist/src вместо dist/index.d.ts.
+    tsconfigPath: "./tsconfig.build.json",
   },
   lib: [
     {

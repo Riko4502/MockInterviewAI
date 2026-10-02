@@ -15,6 +15,7 @@
   "scripts": {
     "build": "rslib build",
     "dev": "rslib build --watch",
+    "generate:go": "tsx scripts/generate-go-sse-events.ts",
     "lint": "biome check --no-errors-on-unmatched",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -28,6 +29,7 @@
     "@biomejs/biome": "2.4.2",
     "@rslib/core": "^0.23.2",
     "@types/node": "^24",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

@@ -575,7 +575,7 @@ describe("NotificationsService", () => {
       expect(result).toEqual(mockNotification);
     });
 
-    it("отдаёт в SSE кэш рендера под прежними ключами title и message", async () => {
+    it("отдаёт в SSE кадр текст свежего рендера, а не строки кэша", async () => {
       arrange();
 
       await service.createNotification({
@@ -585,18 +585,54 @@ describe("NotificationsService", () => {
         actionUrl: "/interviews/123",
       });
 
+      // Кэш рендера в моке намеренно отличается от того, что даёт шаблон
+      // (нет даты слота). Кадр обязан нести текст, который получатель
+      // увидит в тосте, а не устаревшую копию из колонки.
       expect(redisMock.xadd).toHaveBeenCalledWith(
         notificationStreamKey,
         "notification.new",
         {
           id: notificationId,
           title: mockNotification.renderedTitle,
-          message: mockNotification.renderedMessage,
+          message: "Иван предлагает провести интервью 1 окт. 2026 г., 12:00.",
           category: NotificationType.INTERVIEW,
           actionUrl: "/interviews/123",
           createdAt: mockNotification.createdAt.toISOString(),
           read: false,
         },
+        100,
+        604800,
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      );
+    });
+
+    it("публикует кадр, даже если колонки рендера в базе NULL", async () => {
+      arrange();
+      // Повторная доставка: upsert с update: {} возвращает прежнюю строку,
+      // а её рендер мог остаться непосчитанным (ADR-003:58 — NULL означает
+      // «ещё не отрендерено»). Кадр с title: null не прошёл бы проверку
+      // словаря и уронил бы весь createNotification после записи в БД.
+      prismaMock.notification.upsert.mockResolvedValue({
+        ...mockNotification,
+        renderedTitle: null,
+        renderedMessage: null,
+        renderedLocale: null,
+        renderedTimezone: null,
+      });
+
+      await service.createNotification({
+        userId,
+        type: matchProposedEvent.type,
+        payload: matchProposedEvent.payload,
+      });
+
+      expect(redisMock.xadd).toHaveBeenCalledWith(
+        notificationStreamKey,
+        "notification.new",
+        expect.objectContaining({
+          title: mockNotification.renderedTitle,
+          message: "Иван предлагает провести интервью 1 окт. 2026 г., 12:00.",
+        }),
         100,
         604800,
         expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
