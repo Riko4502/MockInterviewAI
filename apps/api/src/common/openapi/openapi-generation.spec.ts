@@ -19,10 +19,34 @@ const REQUIRED_MOCK_ENV: Record<string, string> = {
   REFRESH_TOKEN_HASH_SECRET: "mock-test-refresh-hash-secret-at-least-32-chars",
 };
 
+/**
+ * Свойство компонентной схемы как `SchemaObject`.
+ *
+ * `SchemaObject.properties` типизирован как `Record<string, SchemaObject |
+ * ReferenceObject>`, потому что в OpenAPI свойство может быть ссылкой. Здесь
+ * проверяется форма обёртки, а не ссылки, поэтому `$ref` считается ошибкой
+ * контракта, а не поводом молча пропустить проверку.
+ */
+function propertySchema(
+  schema: SchemaObject | undefined,
+  name: string,
+): SchemaObject {
+  const property = schema?.properties?.[name];
+  if (!property || "$ref" in property) {
+    throw new Error(`Expected an inline schema for property "${name}"`);
+  }
+  return property;
+}
+
 describe("OpenAPI Generation & Contract Verification (T030)", () => {
   let app: INestApplication;
   let document: OpenAPIObject;
   const envRestorations = new Map<string, string | undefined>();
+
+  // Хук поднимает весь AppModule, а не один модуль: только этот спек
+  // проверяет документ целиком. Стандартных 30 с не хватает даже на CI, где
+  // ts-jest компилирует приложение с нуля.
+  const APP_BOOT_TIMEOUT_MS = 120_000;
 
   beforeAll(async () => {
     for (const [key, value] of Object.entries(REQUIRED_MOCK_ENV)) {
@@ -50,7 +74,7 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
     await app.init();
 
     document = buildOpenApiDocument(app);
-  });
+  }, APP_BOOT_TIMEOUT_MS);
 
   afterAll(async () => {
     if (app) {
@@ -63,7 +87,7 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
         process.env[key] = originalValue;
       }
     }
-  });
+  }, APP_BOOT_TIMEOUT_MS);
 
   describe("Базовая структура и метаданные документа", () => {
     it("содержит валидную версию OpenAPI и базовую информацию", () => {
@@ -212,10 +236,10 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       // снова станет `Promise<void>` (ADR-003:102).
       const paginated = document.components?.schemas
         ?.PaginatedShowcaseCardsDto as SchemaObject;
-      const properties = paginated?.properties ?? {};
-      expect(properties.data?.type).toBe("array");
-      expect(properties.meta?.properties?.hasPrevPage?.type).toBe("boolean");
-      expect(properties.meta?.properties?.hasNextPage?.type).toBe("boolean");
+      expect(propertySchema(paginated, "data").type).toBe("array");
+      const meta = propertySchema(paginated, "meta");
+      expect(propertySchema(meta, "hasPrevPage").type).toBe("boolean");
+      expect(propertySchema(meta, "hasNextPage").type).toBe("boolean");
     });
 
     it("GET /api/v1/showcase/my: возвращает 200 массивом карточек", () => {
