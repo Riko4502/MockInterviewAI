@@ -493,6 +493,39 @@ export class SessionsService {
   }
 
   /**
+   * Очищает осиротевшую сессию (компенсаторное действие при ошибках транзакции/матчинга).
+   * Удаляет сессию из Postgres (каскадно удаляя участников) и ключи зеркала в Redis.
+   */
+  async cleanupOrphanedSession(sessionId: string): Promise<void> {
+    try {
+      await this.prisma.interviewSession.delete({
+        where: { id: sessionId },
+      });
+      this.logger.log(
+        `Cleaned up orphaned live match session ${sessionId} in Postgres`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete interview session ${sessionId} in Postgres during cleanup: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    try {
+      await Promise.allSettled([
+        this.redis.delete(sessionActiveKey(sessionId)),
+        this.redis.delete(sessionMembersKey(sessionId)),
+        this.redis.delete(sessionInviteKey(sessionId)),
+        this.redis.delete(sessionSeededTasksKey(sessionId)),
+        this.redis.delete(sessionTaskUpdatesKey(sessionId, DEFAULT_TASK_KEY)),
+      ]);
+    } catch (redisErr) {
+      this.logger.warn(
+        `Failed to delete Redis keys for session ${sessionId} during cleanup: ${redisErr instanceof Error ? redisErr.message : String(redisErr)}`,
+      );
+    }
+  }
+
+  /**
    * Атомарно проверяет и засевает/восстанавливает служебные структуры Yjs-документа задачи.
    */
   async seedTaskDoc(
