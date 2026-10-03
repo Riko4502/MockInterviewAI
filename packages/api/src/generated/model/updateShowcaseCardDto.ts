@@ -17,8 +17,9 @@ export interface UpdateShowcaseCardDto {
   /**
      * @minLength 3
      * @maxLength 100
+     * @nullable
      */
-  title?: string;
+  title?: string | null;
   specialization?: UpdateShowcaseCardDtoSpecialization;
   level?: UpdateShowcaseCardDtoLevel;
   language?: UpdateShowcaseCardDtoLanguage;

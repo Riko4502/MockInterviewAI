@@ -8,6 +8,10 @@ import {
 } from "@nestjs/common";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import {
+  LiveMatchPostCommitError,
+  type SessionsService,
+} from "../sessions/sessions.service";
 import { REDIS_MATCHMAKING_EVENTS_CHANNEL } from "./matchmaking.constants";
 import { MatchmakingService } from "./matchmaking.service";
 
@@ -40,6 +44,10 @@ describe("MatchmakingService", () => {
   };
   let redisServiceMock: {
     publish: jest.Mock;
+  };
+  let sessionsServiceMock: {
+    createLiveMatchSession: jest.Mock;
+    cleanupOrphanedSession: jest.Mock;
   };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
@@ -116,6 +124,8 @@ describe("MatchmakingService", () => {
     message: "Привет, давай потренируем алгоритмы!",
     preferredTopic: "Алгоритмы",
     rejectReason: null,
+    sessionId: null,
+    session: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
@@ -150,9 +160,18 @@ describe("MatchmakingService", () => {
       publish: jest.fn().mockResolvedValue(undefined),
     };
 
+    sessionsServiceMock = {
+      createLiveMatchSession: jest.fn().mockResolvedValue({
+        sessionId: "mock-session-id-123",
+        inviteToken: "mock-invite-token",
+      }),
+      cleanupOrphanedSession: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new MatchmakingService(
       prismaMock as unknown as PrismaService,
       redisServiceMock as unknown as RedisService,
+      sessionsServiceMock as unknown as SessionsService,
     );
   });
 
@@ -472,6 +491,37 @@ describe("MatchmakingService", () => {
       expect(result.status).toBe("PENDING");
       expect(redisServiceMock.publish).not.toHaveBeenCalled();
     });
+
+    it("очищает сессию при возникновении LiveMatchPostCommitError при встречном отклике", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
+      prismaMock.matchRequest.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      prismaMock.matchRequest.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: "cross-request-id",
+          senderId: receiverId,
+        });
+
+      const postCommitError = new LiveMatchPostCommitError(
+        "post-commit-session-id",
+        "post-commit-token",
+        "Redis warm-up failed",
+      );
+      sessionsServiceMock.createLiveMatchSession.mockRejectedValueOnce(
+        postCommitError,
+      );
+
+      await expect(service.create(senderId, validDto)).rejects.toThrow(
+        LiveMatchPostCommitError,
+      );
+
+      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
+        "post-commit-session-id",
+      );
+    });
   });
 
   describe("findIncoming and findOutgoing", () => {
@@ -581,6 +631,56 @@ describe("MatchmakingService", () => {
       await expect(service.accept(requestId, receiverId)).rejects.toThrow(
         BadRequestException,
       );
+
+      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
+        "mock-session-id-123",
+      );
+    });
+
+    it("не удаляет сессию при ошибке после того, как сессия уже была привязана к заявке", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        id: requestId,
+        receiverId,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      prismaMock.matchRequest.findUniqueOrThrow.mockRejectedValueOnce(
+        new Error("Database error during reread"),
+      );
+
+      await expect(service.accept(requestId, receiverId)).rejects.toThrow(
+        "Database error during reread",
+      );
+
+      expect(sessionsServiceMock.cleanupOrphanedSession).not.toHaveBeenCalled();
+    });
+
+    it("очищает сессию при возникновении LiveMatchPostCommitError", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        id: requestId,
+        receiverId,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      const postCommitError = new LiveMatchPostCommitError(
+        "post-commit-session-id",
+        "post-commit-token",
+        "Redis warm-up failed",
+      );
+      sessionsServiceMock.createLiveMatchSession.mockRejectedValueOnce(
+        postCommitError,
+      );
+
+      await expect(service.accept(requestId, receiverId)).rejects.toThrow(
+        LiveMatchPostCommitError,
+      );
+
+      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
+        "post-commit-session-id",
+      );
     });
 
     it("успешно переводит заявку в ACCEPTED, публикует в Redis и открывает контакты", async () => {
@@ -601,7 +701,7 @@ describe("MatchmakingService", () => {
 
       expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
         where: { id: requestId, status: "PENDING" },
-        data: { status: "ACCEPTED" },
+        data: { status: "ACCEPTED", sessionId: "mock-session-id-123" },
       });
 
       expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({
