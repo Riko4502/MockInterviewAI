@@ -46,15 +46,18 @@ import {
   ZodBody,
 } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { AuthService, type LoginResult } from "./auth.service";
+import { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import { AuthSessionService } from "./services/auth-session.service";
 import {
   GITHUB_STATE_COOKIE,
   GITHUB_STATE_TTL_SECONDS,
+  GitHubLinkConflictException,
+  GitHubLinkException,
   GithubOAuthService,
 } from "./services/github-oauth.service";
 import { getRefreshTokenTtlSeconds } from "./services/refresh-token-ttl";
-import type { TokenPayload } from "./services/token.service";
+import { type TokenPayload, TokenService } from "./services/token.service";
 
 /**
  * HTTP-запрос с установленным `request.user` (payload access token).
@@ -198,6 +201,8 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
     private readonly githubOAuth: GithubOAuthService,
+    private readonly tokenService: TokenService,
+    private readonly sessionService: AuthSessionService,
   ) {}
 
   /**
@@ -592,10 +597,54 @@ export class AuthController {
   @OAuthNavigation()
   @Public()
   @UseGuards(AuthThrottlerGuard)
-  @ApiOperation({ summary: "Start GitHub OAuth login" })
+  @ApiOperation({ summary: "Start GitHub OAuth login or account linking" })
+  @ApiQuery({ name: "action", type: String, required: false })
   @ApiResponse({ status: 302, description: "Redirect to GitHub" })
-  async github(@Res() response: Response): Promise<void> {
-    const { url, browserSecret } = await this.githubOAuth.authorize();
+  async github(
+    @Res() response: Response,
+    @Req() request: Request = {} as Request,
+    @Query("action") action?: string,
+  ): Promise<void> {
+    let linkUserId: string | undefined;
+    if (action === "link") {
+      const refreshToken = request?.cookies?.[this.getRefreshTokenCookieName()];
+      if (!refreshToken) {
+        response.redirect(
+          302,
+          new URL(
+            "/login?error=unauthorized",
+            this.configService.getOrThrow<string>("FRONTEND_URL"),
+          ).toString(),
+        );
+        return;
+      }
+      try {
+        const payload = this.tokenService.verifyRefreshToken(refreshToken);
+        const session = await this.sessionService.getSession(payload.sid);
+        if (!session || session.userId !== payload.sub) {
+          response.redirect(
+            302,
+            new URL(
+              "/login?error=unauthorized",
+              this.configService.getOrThrow<string>("FRONTEND_URL"),
+            ).toString(),
+          );
+          return;
+        }
+        linkUserId = payload.sub;
+      } catch {
+        response.redirect(
+          302,
+          new URL(
+            "/login?error=unauthorized",
+            this.configService.getOrThrow<string>("FRONTEND_URL"),
+          ).toString(),
+        );
+        return;
+      }
+    }
+
+    const { url, browserSecret } = await this.githubOAuth.authorize(linkUserId);
     response.cookie(GITHUB_STATE_COOKIE, browserSecret, {
       ...this.getRefreshCookieAttributes(),
       maxAge: GITHUB_STATE_TTL_SECONDS * 1000,
@@ -608,12 +657,12 @@ export class AuthController {
   @OAuthNavigation()
   @Public()
   @UseGuards(AuthThrottlerGuard)
-  @ApiOperation({ summary: "Complete GitHub OAuth login" })
+  @ApiOperation({ summary: "Complete GitHub OAuth login or account linking" })
   @ApiQuery({ name: "code", type: String, required: false })
   @ApiQuery({ name: "state", type: String, required: false })
   @ApiResponse({
     status: 302,
-    description: "Refresh cookie and redirect to dashboard",
+    description: "Refresh cookie and redirect to dashboard or profile",
   })
   async githubCallback(
     @Query("code") code: unknown,
@@ -627,15 +676,75 @@ export class AuthController {
       GITHUB_STATE_COOKIE,
       this.getRefreshCookieAttributes(),
     );
-    let result: LoginResult;
     try {
-      const user = await this.githubOAuth.callback(
+      const callbackResult = await this.githubOAuth.callback(
         code,
         state,
         request.cookies?.[GITHUB_STATE_COOKIE],
       );
-      result = await this.authService.loginUser(user);
-    } catch {
+
+      if ("type" in callbackResult) {
+        response.redirect(
+          302,
+          new URL(
+            "/profile?github=success",
+            this.configService.getOrThrow<string>("FRONTEND_URL"),
+          ).toString(),
+        );
+        return;
+      }
+
+      const result = await this.authService.loginUser(callbackResult);
+      this.setRefreshTokenCookie(response, result.refreshToken);
+      response.redirect(
+        302,
+        new URL(
+          "/dashboard",
+          this.configService.getOrThrow<string>("FRONTEND_URL"),
+        ).toString(),
+      );
+    } catch (error) {
+      if (error instanceof GitHubLinkConflictException) {
+        response.redirect(
+          302,
+          new URL(
+            "/profile?error=github_already_linked",
+            this.configService.getOrThrow<string>("FRONTEND_URL"),
+          ).toString(),
+        );
+        return;
+      }
+      if (error instanceof GitHubLinkException) {
+        response.redirect(
+          302,
+          new URL(
+            "/profile?error=github_failed",
+            this.configService.getOrThrow<string>("FRONTEND_URL"),
+          ).toString(),
+        );
+        return;
+      }
+
+      const refreshToken = request?.cookies?.[this.getRefreshTokenCookieName()];
+      if (refreshToken) {
+        try {
+          const payload = this.tokenService.verifyRefreshToken(refreshToken);
+          const session = await this.sessionService.getSession(payload.sid);
+          if (session && session.userId === payload.sub) {
+            response.redirect(
+              302,
+              new URL(
+                "/profile?error=github_failed",
+                this.configService.getOrThrow<string>("FRONTEND_URL"),
+              ).toString(),
+            );
+            return;
+          }
+        } catch {
+          // Игнорируем и перенаправляем на login
+        }
+      }
+
       response.redirect(
         302,
         new URL(
@@ -643,16 +752,7 @@ export class AuthController {
           this.configService.getOrThrow<string>("FRONTEND_URL"),
         ).toString(),
       );
-      return;
     }
-    this.setRefreshTokenCookie(response, result.refreshToken);
-    response.redirect(
-      302,
-      new URL(
-        "/dashboard",
-        this.configService.getOrThrow<string>("FRONTEND_URL"),
-      ).toString(),
-    );
   }
 
   /**

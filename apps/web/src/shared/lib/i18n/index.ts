@@ -22,7 +22,7 @@ if (!i18n.isInitialized) {
     fallbackLng: defaultLocale,
     supportedLngs: locales,
     defaultNS: "common",
-    ns: ["common", "auth", "interview", "dashboard"],
+    ns: ["common", "auth", "interview", "dashboard", "showcase"],
     interpolation: {
       escapeValue: false,
     },

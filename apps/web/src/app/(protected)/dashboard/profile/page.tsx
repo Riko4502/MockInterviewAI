@@ -1,5 +1,6 @@
-import { UpdateProfileForm } from "@/features/update-profile";
+import { redirect } from "next/navigation";
+import { paths } from "@/shared/config/paths";
 
-export default function ProfilePage() {
-  return <UpdateProfileForm />;
+export default function DashboardProfilePage() {
+  redirect(paths.profile);
 }

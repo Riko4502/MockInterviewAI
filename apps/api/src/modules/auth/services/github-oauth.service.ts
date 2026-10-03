@@ -12,6 +12,18 @@ import { PrismaService } from "../../../prisma/prisma.service";
 import { RedisService } from "../../../redis/redis.service";
 import { UsersService } from "../../users/users.service";
 
+export class GitHubLinkConflictException extends ConflictException {
+  constructor(message = "GitHub account is already linked to another user") {
+    super(message);
+  }
+}
+
+export class GitHubLinkException extends BadGatewayException {
+  constructor(message = "GitHub linking failed") {
+    super(message);
+  }
+}
+
 const STATE_PREFIX = "auth:github:state:";
 export const GITHUB_STATE_TTL_SECONDS = 300;
 export const GITHUB_STATE_COOKIE = "github_oauth_state";
@@ -20,13 +32,17 @@ const contextSchema = z.object({
   state: secretSchema,
   browserHash: secretSchema,
   verifier: secretSchema,
+  userId: z.string().uuid().optional(),
 });
 const tokenSchema = z.object({
   access_token: z.string().min(1),
   token_type: z.string().refine((value) => value.toLowerCase() === "bearer"),
   error: z.never().optional(),
 });
-const profileSchema = z.object({ id: z.number().int().positive().safe() });
+const profileSchema = z.object({
+  id: z.number().int().positive().safe(),
+  html_url: z.string().url().optional(),
+});
 const emailsSchema = z.array(
   z.object({
     email: z.email(),
@@ -67,7 +83,7 @@ export class GithubOAuthService {
     return { clientId, clientSecret, callbackUrl, frontendUrl };
   }
 
-  async authorize() {
+  async authorize(userId?: string) {
     const { clientId, callbackUrl } = this.settings();
     const state = randomBytes(32).toString("hex");
     const browserSecret = randomBytes(32).toString("hex");
@@ -79,6 +95,7 @@ export class GithubOAuthService {
           state,
           browserHash: this.hash(browserSecret),
           verifier,
+          ...(userId ? { userId } : {}),
         }),
         GITHUB_STATE_TTL_SECONDS,
       );
@@ -146,6 +163,16 @@ export class GithubOAuthService {
       profileSchema,
       { headers },
     );
+
+    if (context.userId) {
+      await this.linkUser(
+        context.userId,
+        String(profile.id),
+        profile.html_url ?? "https://github.com",
+      );
+      return { type: "link" as const, userId: context.userId };
+    }
+
     const emails = await this.request(
       "https://api.github.com/user/emails",
       emailsSchema,
@@ -161,6 +188,64 @@ export class GithubOAuthService {
       String(profile.id),
       email.email.trim().toLowerCase(),
     );
+  }
+
+  private async linkUser(
+    userId: string,
+    githubId: string,
+    gitUrl: string,
+  ): Promise<void> {
+    const existing = await this.prisma.user.findUnique({
+      where: { githubId },
+    });
+    if (existing) {
+      if (existing.id === userId) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { gitUrl },
+        });
+        return;
+      }
+      throw new GitHubLinkConflictException(
+        "GitHub account is already linked to another user",
+      );
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!currentUser) {
+      throw new GitHubLinkException("User not found");
+    }
+    if (currentUser.githubId && currentUser.githubId !== githubId) {
+      throw new GitHubLinkConflictException(
+        "Account is already linked to a different GitHub account",
+      );
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          githubId,
+          gitUrl,
+        },
+      });
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2002"
+      ) {
+        throw new GitHubLinkConflictException(
+          "GitHub account is already linked to another user",
+        );
+      }
+      throw error;
+    }
+
+    await this.users.invalidateReadinessCache(userId);
   }
 
   private async request<T>(

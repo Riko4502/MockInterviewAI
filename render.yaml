@@ -84,6 +84,8 @@ services:
         sync: false # https://<api-domain>/api/v1/auth/github/callback
       - key: FRONTEND_URL
         sync: false # https://<web-domain>, used for the post-login redirect
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false # Токен бота от @BotFather (необходим для валидации hash данных Telegram OAuth)
       - key: S3_ENDPOINT
         sync: false # Cloudflare R2 / AWS S3 endpoint
       - key: S3_REGION
@@ -268,6 +270,8 @@ services:
         sync: false # e.g. wss://devsync-realtime.onrender.com
       - key: NEXT_PUBLIC_API_PROXY
         value: "true"
+      - key: NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
+        value: MockInterviewBot
 
   # -------------------------------------------------------------
   # Landing Page (Nginx Static Export)

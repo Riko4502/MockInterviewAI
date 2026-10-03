@@ -27,6 +27,8 @@ export const userProfileSchema = publicUserProfileSchema.extend({
   theme: z.enum(THEME_MODES),
   locale: z.enum(locales),
   updatedAt: z.iso.datetime(),
+  telegramLinkVerified: z.boolean().default(false),
+  githubLinkVerified: z.boolean().default(false),
 });
 
 export type UserProfileDto = z.infer<typeof userProfileSchema>;

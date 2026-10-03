@@ -3,6 +3,7 @@ import type common from "./locales/ru/common.json";
 import type dashboard from "./locales/ru/dashboard.json";
 import type interview from "./locales/ru/interview.json";
 import type landing from "./locales/ru/landing.json";
+import type showcase from "./locales/ru/showcase.json";
 import type telegram from "./locales/ru/telegram.json";
 
 /**
@@ -14,6 +15,7 @@ export type LandingMessages = typeof landing;
 export type AuthMessages = typeof auth;
 export type InterviewMessages = typeof interview;
 export type TelegramMessages = typeof telegram;
+export type ShowcaseMessages = typeof showcase;
 
 /**
  * Зарезервированные типы для будущих разделов (FR-014)
@@ -31,6 +33,7 @@ export const translationNamespaces = [
   "landing",
   "common",
   "dashboard",
+  "showcase",
   "blog",
   "roadmap",
   "knowledge",
@@ -50,6 +53,7 @@ export interface Messages {
   auth: AuthMessages;
   interview: InterviewMessages;
   telegram: TelegramMessages;
+  showcase: ShowcaseMessages;
   blog?: BlogMessages;
   roadmap?: RoadmapMessages;
   knowledge?: KnowledgeMessages;

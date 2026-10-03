@@ -1,3 +1,9 @@
+export { AccountsTab } from "./ui/AccountsTab";
+export { ChangePasswordSection } from "./ui/ChangePasswordSection";
+export { ConnectedAccountsSection } from "./ui/ConnectedAccountsSection";
+export { DeleteAccountSection } from "./ui/DeleteAccountSection";
+export { GeneralTab } from "./ui/GeneralTab";
 export { LanguageSwitcher } from "./ui/LanguageSwitcher";
+export { SecurityTab } from "./ui/SecurityTab";
 export { UpdateProfileForm } from "./ui/UpdateProfileForm";
 export { UserPreferencesSync } from "./ui/UserPreferencesSync";

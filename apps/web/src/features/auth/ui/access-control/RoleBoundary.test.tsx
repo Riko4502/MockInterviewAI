@@ -143,10 +143,7 @@ describe("RoleBoundary", () => {
   it("Перенаправляет на заданный адрес один раз при StrictMode и повторном рендере", () => {
     const ui = (
       <StrictMode>
-        <RoleBoundary
-          allowedRoles={[SystemRole.ADMIN]}
-          redirectTo="/dashboard/profile"
-        >
+        <RoleBoundary allowedRoles={[SystemRole.ADMIN]} redirectTo="/profile">
           {secret}
         </RoleBoundary>
       </StrictMode>
@@ -154,9 +151,7 @@ describe("RoleBoundary", () => {
     const view = mount(ui);
     view.rerender(ui);
     expectHidden();
-    expect(router.replace).toHaveBeenCalledExactlyOnceWith(
-      "/dashboard/profile",
-    );
+    expect(router.replace).toHaveBeenCalledExactlyOnceWith("/profile");
   });
   it.each([
     SESSION_STATUS.UNAUTHENTICATED,

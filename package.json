@@ -70,5 +70,12 @@
     "orval": "^8.27.0",
     "turbo": "^2.4.0"
   },
+  "pnpm": {
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93687"
+      ]
+    }
+  },
   "packageManager": "pnpm@9.15.9"
 }

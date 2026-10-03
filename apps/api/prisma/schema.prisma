@@ -115,6 +115,7 @@ model InterviewSession {
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   participants InterviewParticipant[]
+  matchRequests MatchRequest[]
 
   @@index([userId])
   @@index([status])
@@ -267,6 +268,8 @@ model MatchRequest {
   message        String?            @db.VarChar(300)
   preferredTopic String?            @map("preferred_topic") @db.VarChar(100)
   rejectReason   String?            @map("reject_reason") @db.VarChar(200) // Причина отклонения
+  sessionId      String?            @map("session_id") @db.Uuid
+  session        InterviewSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -277,6 +280,7 @@ model MatchRequest {
   @@index([senderId, status])
   @@index([targetCardId, status])
   @@index([status, expiresAt])
+  @@index([sessionId])
   @@map("match_requests")
 }
 

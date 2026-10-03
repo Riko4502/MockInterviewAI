@@ -53,7 +53,9 @@ const USER_PROFILE_SELECT = {
   username: true,
   avatarUrl: true,
   telegramUsername: true,
+  telegramLinkVerified: true,
   gitUrl: true,
+  githubId: true,
   theme: true,
   locale: true,
   role: {
@@ -101,7 +103,7 @@ export class UsersService {
   /**
    * Инвалидирует кэш готовности профиля для дашборда (TASK-BACK-45).
    */
-  private async invalidateReadinessCache(userId: string): Promise<void> {
+  async invalidateReadinessCache(userId: string): Promise<void> {
     try {
       await this.redisService.delete(`cache:dashboard:readiness:${userId}`);
     } catch (err) {
@@ -403,6 +405,22 @@ export class UsersService {
       }
     }
 
+    if (
+      dto.telegramUsername !== undefined &&
+      dto.telegramUsername !== null &&
+      !existing.telegramLinkVerified
+    ) {
+      throw new BadRequestException(
+        "Telegram account cannot be linked manually. Please link it via Telegram widget.",
+      );
+    }
+
+    if (dto.gitUrl !== undefined && dto.gitUrl !== null && !existing.githubId) {
+      throw new BadRequestException(
+        "GitHub account cannot be linked manually. Please link it via GitHub OAuth.",
+      );
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -411,8 +429,16 @@ export class UsersService {
         ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
         ...(dto.telegramUsername !== undefined && {
           telegramUsername: dto.telegramUsername,
+          ...(dto.telegramUsername === null && {
+            telegramId: null,
+            telegramChatId: null,
+            telegramLinkVerified: false,
+          }),
         }),
-        ...(dto.gitUrl !== undefined && { gitUrl: dto.gitUrl }),
+        ...(dto.gitUrl !== undefined && {
+          gitUrl: dto.gitUrl,
+          ...(dto.gitUrl === null && { githubId: null }),
+        }),
         ...(dto.theme !== undefined && {
           theme: dto.theme.toUpperCase() as ThemePreference,
         }),
@@ -796,7 +822,9 @@ export class UsersService {
       username: profile.username,
       avatarUrl: profile.avatarUrl,
       telegramUsername: profile.telegramUsername,
+      telegramLinkVerified: profile.telegramLinkVerified ?? false,
       gitUrl: profile.gitUrl,
+      githubLinkVerified: Boolean(profile.githubId),
       theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
       locale: (profile.locale === "en" ? "en" : "ru") as Locale,
       createdAt:

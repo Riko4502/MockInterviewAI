@@ -1,10 +1,13 @@
 "use client";
 
-import { Button } from "@packages/ui";
-import { type ChangeEvent, useRef } from "react";
+import { Button, Spin } from "@packages/ui";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/entities/user";
 import { useUploadAvatar } from "../model/use-profile-mutations";
+import { AvatarCropDialogLazy } from "./AvatarCropDialog.lazy";
+
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 type AvatarUploadFieldProps = {
   src?: string | null;
@@ -19,7 +22,25 @@ export function AvatarUploadField({
 }: AvatarUploadFieldProps) {
   const { t } = useTranslation("common");
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const uploadAvatar = useUploadAvatar();
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [typeError, setTypeError] = useState(false);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImageSrc(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(imageFile);
+    setImageSrc(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [imageFile]);
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -29,7 +50,14 @@ export function AvatarUploadField({
       return;
     }
 
-    uploadAvatar.mutate({ data: { file } });
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setTypeError(true);
+      return;
+    }
+
+    setTypeError(false);
+    uploadAvatar.reset();
+    setImageFile(file);
   };
 
   return (
@@ -47,18 +75,50 @@ export function AvatarUploadField({
           onChange={onFileChange}
         />
         <Button
+          ref={uploadButtonRef}
           type="button"
           variant="outline"
           size="sm"
           disabled={uploadAvatar.isPending}
+          aria-busy={uploadAvatar.isPending}
           onClick={() => inputRef.current?.click()}
         >
+          {uploadAvatar.isPending ? <Spin size="sm" variant="current" /> : null}
           {t("profile.uploadAvatar")}
         </Button>
-        {uploadAvatar.isError ? (
+        {typeError ? (
+          <p className="text-sm text-destructive">
+            {t("profile.avatarTypeError")}
+          </p>
+        ) : null}
+        {uploadAvatar.isError && !imageSrc ? (
           <p className="text-sm text-destructive">{t("profile.avatarError")}</p>
         ) : null}
       </div>
+
+      {imageFile ? (
+        <AvatarCropDialogLazy
+          imageSrc={imageSrc}
+          triggerRef={uploadButtonRef}
+          isSubmitting={uploadAvatar.isPending}
+          errorMessage={uploadAvatar.isError ? t("profile.avatarError") : null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setImageFile(null);
+            }
+          }}
+          onConfirm={(file) => {
+            uploadAvatar.mutate(
+              { data: { file } },
+              {
+                onSuccess: () => {
+                  setImageFile(null);
+                },
+              },
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -12,3 +12,4 @@ export type {
 export { useSandboxState } from "./model/useSandboxState";
 export { useSandboxStore } from "./model/useSandboxStore";
 export { SandboxRoom } from "./ui/SandboxRoom";
+export { SandboxRoomLazy } from "./ui/SandboxRoom.lazy";
