@@ -37,7 +37,6 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
       "@app": path.resolve(import.meta.dirname, "./src/app"),
       "@pages": path.resolve(import.meta.dirname, "./src/pages"),
-      "@views": path.resolve(import.meta.dirname, "./src/views"),
       "@widgets": path.resolve(import.meta.dirname, "./src/widgets"),
       "@features": path.resolve(import.meta.dirname, "./src/features"),
       "@entities": path.resolve(import.meta.dirname, "./src/entities"),
