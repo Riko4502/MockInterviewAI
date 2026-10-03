@@ -60,11 +60,9 @@ test.describe("Контроль доступа", () => {
     await mockSession(page, "USER");
     await page.goto(paths.adminUsers);
     await expect(page).toHaveURL(new RegExp(`${paths.dashboard}$`));
-    await expect(
-      page.getByRole("heading", { name: "Интервью", exact: true }),
-    ).toBeVisible();
     const toast = page.locator('[data-slot="toast"]');
     await expect(toast).toHaveCount(1);
+    await expect(page.getByTestId("dashboard")).toBeVisible();
     await expect(toast).toContainText("Недостаточно прав");
     await expect(toast).toContainText(
       "У вас нет прав для выполнения этого действия.",
@@ -136,9 +134,7 @@ test.describe("Контроль доступа", () => {
       "Недостаточно прав",
     );
     await expect(page).toHaveURL(new RegExp(`${paths.dashboard}$`));
-    await expect(
-      page.getByRole("heading", { name: "Интервью", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByTestId("dashboard")).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /Тестовый пользователь/ }).click();
     await expect(
