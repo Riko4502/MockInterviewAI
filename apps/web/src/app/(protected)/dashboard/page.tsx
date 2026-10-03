@@ -1,10 +1,44 @@
+import {
+  DashboardAiInsights,
+  DashboardDailyChallenge,
+  DashboardFrame,
+  DashboardHero,
+  DashboardMatchRequests,
+  DashboardQuickActions,
+  DashboardReadinessChecklist,
+  DashboardRecentSessions,
+  DashboardShowcaseBanner,
+  DashboardStatsGrid,
+  DashboardUpcomingSession,
+  QuickMediaCheckWidget,
+} from "@/widgets/dashboard";
+
 export default function DashboardPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-foreground">Интервью</h1>
-      <p className="text-muted-foreground">
-        Выберите тип интервью для начала тренировки.
-      </p>
-    </div>
+    <DashboardFrame
+      header={
+        <>
+          <DashboardHero />
+          <DashboardQuickActions />
+        </>
+      }
+      primary={
+        <>
+          <DashboardReadinessChecklist />
+          <DashboardUpcomingSession />
+          <DashboardDailyChallenge />
+          <DashboardStatsGrid />
+          <DashboardAiInsights />
+          <DashboardRecentSessions />
+        </>
+      }
+      secondary={
+        <>
+          <DashboardMatchRequests />
+          <DashboardShowcaseBanner />
+          <QuickMediaCheckWidget />
+        </>
+      }
+    />
   );
 }
