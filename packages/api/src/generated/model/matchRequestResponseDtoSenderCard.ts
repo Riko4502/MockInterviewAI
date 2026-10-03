@@ -11,6 +11,7 @@
  */
 import type { MatchRequestResponseDtoSenderCardLanguage } from './matchRequestResponseDtoSenderCardLanguage';
 import type { MatchRequestResponseDtoSenderCardLevel } from './matchRequestResponseDtoSenderCardLevel';
+import type { MatchRequestResponseDtoSenderCardSlotsItem } from './matchRequestResponseDtoSenderCardSlotsItem';
 import type { MatchRequestResponseDtoSenderCardSpecialization } from './matchRequestResponseDtoSenderCardSpecialization';
 import type { MatchRequestResponseDtoSenderCardStats } from './matchRequestResponseDtoSenderCardStats';
 import type { MatchRequestResponseDtoSenderCardStatus } from './matchRequestResponseDtoSenderCardStatus';
@@ -35,6 +36,7 @@ export type MatchRequestResponseDtoSenderCard = {
   bio: string | null;
   /** @nullable */
   scheduleInfo: string | null;
+  slots: MatchRequestResponseDtoSenderCardSlotsItem[];
   isUrgent: boolean;
   status: MatchRequestResponseDtoSenderCardStatus;
   autoRenew: boolean;

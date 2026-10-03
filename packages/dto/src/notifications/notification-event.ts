@@ -37,11 +37,15 @@ export const systemWelcomePayloadSchema = z.object({});
 /**
  * Payload предложения слота (ADR-003:57).
  *
+ * Идентификатор заявки, а не сессии: предложение возникает до `accept`, и
+ * сессии на этом шаге ещё не существует (ADR-002:62). Ссылка на сессию
+ * появляется в следующем событии — `interview.slot_booked`.
+ *
  * `proposedStartUtc` — обязательный UTC-инстант: без него рендер в зоне
  * читателя невозможен (ADR-002:55).
  */
 export const interviewMatchProposedPayloadSchema = z.object({
-  sessionId: z.uuid(),
+  requestId: z.uuid(),
   proposedSlotId: z.uuid(),
   proposedStartUtc: z.iso.datetime(),
   senderName: z.string().min(1),
@@ -142,11 +146,11 @@ export function parseNotificationEvent(input: unknown): NotificationEvent {
 const eventIdentity = {
   "system.welcome": () => "",
   "interview.match_proposed": (payload: {
-    sessionId: string;
+    requestId: string;
     proposedSlotId: string;
     proposedStartUtc: string;
   }) =>
-    `session=${payload.sessionId}&slot=${payload.proposedSlotId}&start=${payload.proposedStartUtc}`,
+    `request=${payload.requestId}&slot=${payload.proposedSlotId}&start=${payload.proposedStartUtc}`,
   "interview.slot_booked": (payload: {
     sessionId: string;
     slotId: string;

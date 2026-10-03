@@ -7,10 +7,14 @@ import { matchRequestStatusEnum } from "../showcase/showcase.enums";
  *
  * Пользователь откликается на чужую карточку витрины (targetCardId).
  * Опционально может привязать свою карточку (senderCardId), оставить сообщение и тему для мока.
+ * Если у карточки есть расписание, отклик обязан содержать slotId (ADR-002:62):
+ * слот — часть заявки, поэтому заявка без слота не объясняет, о каком времени идёт речь.
  */
 export const createMatchRequestSchema = z.object({
   targetCardId: z.string().uuid("Некорректный UUID карточки витрины"),
   senderCardId: z.string().uuid("Некорректный UUID вашей карточки").optional(),
+  /** Выбранный слот расписания карточки; резерв этого слота выполняется при создании заявки. */
+  slotId: z.string().uuid("Некорректный UUID слота расписания").optional(),
   message: z
     .string()
     .trim()

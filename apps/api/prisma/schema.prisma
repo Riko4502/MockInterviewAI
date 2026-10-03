@@ -15,8 +15,8 @@ model Role {
   description String?
   permissions BigInt   @default(0)
   isSystem    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @db.Timestamptz(3) @default(now())
+  updatedAt   DateTime @db.Timestamptz(3) @updatedAt
 
   users User[]
 
@@ -30,7 +30,7 @@ model Permission {
   name        String   @db.VarChar(255)
   description String?
   bitValue    BigInt
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @db.Timestamptz(3) @default(now())
 
   @@index([slug])
   @@map("permissions")
@@ -44,8 +44,8 @@ model User {
   roleId           String?   @db.Uuid
   role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive         Boolean   @default(true)
-  deactivatedAt    DateTime?
-  firstLoginAt     DateTime?
+  deactivatedAt    DateTime? @db.Timestamptz(3)
+  firstLoginAt     DateTime? @db.Timestamptz(3)
   displayName      String?
   username         String?   @unique
   avatarUrl        String?
@@ -58,10 +58,10 @@ model User {
   theme            ThemePreference @default(DARK)
   locale           String          @default("ru")
   timezone         String          @default("Europe/Moscow")
-  deletedAt        DateTime?
+  deletedAt        DateTime? @db.Timestamptz(3)
   generation       Int       @default(1)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @db.Timestamptz(3) @default(now())
+  updatedAt        DateTime  @db.Timestamptz(3) @updatedAt
 
   deviceSettings        UserDeviceSettings[]
   notifications         Notification[]
@@ -86,7 +86,7 @@ model AuthRevocationTask {
   userId     String   @db.Uuid
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   generation Int?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @db.Timestamptz(3) @default(now())
 
   @@index([userId])
   @@index([createdAt])
@@ -111,14 +111,22 @@ model InterviewSession {
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   status       InterviewSessionStatus @default(ACTIVE)
   inviteToken  String?                @map("invite_token") @db.VarChar(128)
-  startedAt    DateTime?
-  endedAt      DateTime?
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
+  /// Запланированное время встречи (ADR-002:62).
+  /// Заполняется при принятии заявки витрины из слота; для обычных сессий NULL.
+  scheduledAt DateTime? @db.Timestamptz(3) @map("scheduled_at")
+  startedAt   DateTime? @db.Timestamptz(3)
+  endedAt     DateTime? @db.Timestamptz(3)
+  createdAt    DateTime               @db.Timestamptz(3) @default(now())
+  updatedAt    DateTime               @db.Timestamptz(3) @updatedAt
   participants InterviewParticipant[]
+
+  /// Заявка витрины, принятие которой создало сессию; обратная ссылка на
+  /// `MatchRequest.sessionId`, уникальная — одна сессия на одну заявку.
+  matchRequest MatchRequest?
 
   @@index([userId])
   @@index([status])
+  @@index([scheduledAt])
   @@map("interview_sessions")
 }
 
@@ -153,10 +161,10 @@ model Notification {
   renderedTimezone String?
   dedupKey        String?          @unique
   actionUrl       String?
-  readAt          DateTime?
-  deletedAt       DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  readAt          DateTime? @db.Timestamptz(3)
+  deletedAt       DateTime? @db.Timestamptz(3)
+  createdAt       DateTime         @db.Timestamptz(3) @default(now())
+  updatedAt       DateTime         @db.Timestamptz(3) @updatedAt
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
@@ -182,11 +190,11 @@ model NotificationOutbox {
   actionUrl     String?
   status        NotificationOutboxStatus  @default(PENDING)
   attempts      Int                       @default(0)
-  nextAttemptAt DateTime                  @default(now())
-  processedAt   DateTime?
+  nextAttemptAt DateTime                  @db.Timestamptz(3) @default(now())
+  processedAt   DateTime? @db.Timestamptz(3)
   lastError     String?
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
+  createdAt     DateTime                  @db.Timestamptz(3) @default(now())
+  updatedAt     DateTime                  @db.Timestamptz(3) @updatedAt
 
   @@index([status, nextAttemptAt])
   @@map("notification_outbox")
@@ -236,6 +244,62 @@ enum MatchRequestStatus {
   EXPIRED
 }
 
+/// Статус слота доступности (ADR-002:60).
+///
+/// OPEN — свободен для откликов, BOOKED — резерв заявки в статусе PENDING
+/// (то есть занятый, но ещё не подтверждённый), CANCELLED — выведен из
+/// расписания владельцем, истёкшим сроком карточки или прошедшим временем.
+enum AvailabilitySlotStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+}
+
+/// Слот доступности анкеты (ADR-002:60).
+///
+/// `startsAt` и `endsAt` — инстанты в UTC; локальное время и смещение не
+/// хранятся, зона владельца берётся из `User.timezone` при записи и
+/// рендерится получателем при чтении (ADR-002:54-55).
+///
+/// `endsAt` дублирует `startsAt + durationMinutes` и существует не для
+/// запросов, а для ограничения БД: выражение `starts_at + interval` в
+/// PostgreSQL имеет класс STABLE, а индекс требует IMMUTABLE, поэтому диапазон
+/// приходится строить по двум уже вычисленным инстантам. Данные пишет
+/// приложение, а соответствие `endsAt` длительности закреплено CHECK-ограничением
+/// в миграции — иначе поле можно было бы рассинхронизировать молча.
+///
+/// Ограничение «слоты одной карточки не пересекаются» обеспечивается на уровне
+/// БД частичным EXCLUDE-индексом по `tstzrange(starts_at, ends_at)` — Prisma
+/// такое выражение описать не может, поэтому оно живёт в миграции
+/// `add_availability_slots`. Приложение проверяет пересечения сам (ADR-002:65),
+/// а индекс остаётся страховкой от гонок, которые приложение не поймало
+/// (ADR-002:74).
+model AvailabilitySlot {
+  id     String @id @default(uuid()) @db.Uuid
+  cardId String @map("card_id") @db.Uuid
+  card   ShowcaseCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  /// Начало интервала в UTC (ADR-002:60).
+  startsAt        DateTime               @map("starts_at") @db.Timestamptz(3)
+  durationMinutes Int                    @map("duration_minutes")
+  /// Конец интервала в UTC; вычисляется приложением, проверяется БД.
+  endsAt          DateTime               @map("ends_at") @db.Timestamptz(3)
+  status          AvailabilitySlotStatus @default(OPEN)
+
+  /// Заявка, зарезервировавшая слот; заполняется при отклике, поэтому слот
+  /// принадлежит не пользователю, а конкретной заявке.
+  bookedByRequestId String? @map("booked_by_request_id") @db.Uuid
+
+  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
+
+  requests MatchRequest[]
+
+  @@index([cardId, status])
+  @@index([cardId, startsAt])
+  @@index([bookedByRequestId])
+  @@map("availability_slots")
+}
+
 // Анкета на витрине
 model ShowcaseCard {
   id     String @id @default(uuid()) @db.Uuid
@@ -254,14 +318,15 @@ model ShowcaseCard {
   status    ShowcaseCardStatus @default(ACTIVE)
   autoRenew Boolean            @default(false) @map("auto_renew") // Авто-продление каждые 15 дней
 
-  bumpedAt  DateTime @default(now()) @map("bumped_at") // Время последнего поднятия в топ
-  expiresAt DateTime @map("expires_at") // now() + 15 days
+  bumpedAt  DateTime @db.Timestamptz(3) @default(now()) @map("bumped_at") // Время последнего поднятия в топ
+  expiresAt DateTime @db.Timestamptz(3) @map("expires_at") // now() + 15 days
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
+  updatedAt DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
 
   receivedRequests MatchRequest[] @relation("TargetCardRequests")
   senderRequests   MatchRequest[] @relation("SenderCardRequests")
+  slots            AvailabilitySlot[]
 
   @@unique([userId, specialization, level], map: "unique_active_user_specialization_level", where: { status: "ACTIVE" })
   @@index([specialization, level])
@@ -295,14 +360,23 @@ model MatchRequest {
   senderCardId String?       @map("sender_card_id") @db.Uuid
   senderCard   ShowcaseCard? @relation("SenderCardRequests", fields: [senderCardId], references: [id], onDelete: SetNull)
 
+  // Выбранный слот расписания (ADR-002:62).
+  // Слот резервируется вместе с заявкой и освобождается, если заявка не была принята.
+  slotId String?          @map("slot_id") @db.Uuid
+  slot   AvailabilitySlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+
+  // Сессия интервью, созданная при принятии заявки со слотом (ADR-002:62).
+  sessionId String?          @unique @map("session_id") @db.Uuid
+  session   InterviewSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
   status         MatchRequestStatus @default(PENDING)
   message        String?            @db.VarChar(300)
   preferredTopic String?            @map("preferred_topic") @db.VarChar(100)
   rejectReason   String?            @map("reject_reason") @db.VarChar(200) // Причина отклонения
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  expiresAt DateTime @map("expires_at") // now() + 72h
+  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
+  updatedAt DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
+  expiresAt DateTime @db.Timestamptz(3) @map("expires_at") // now() + 72h
 
   @@unique([senderId, targetCardId], map: "unique_pending_match_request_per_card", where: { status: "PENDING" })
   @@index([receiverId, status])
@@ -324,8 +398,8 @@ model UserDeviceSettings {
   preferredAudioInputLabel  String?  @map("preferred_audio_input_label") @db.VarChar(255)
   preferredAudioOutputLabel String?  @map("preferred_audio_output_label") @db.VarChar(255)
   preferredVideoInputLabel  String?  @map("preferred_video_input_label") @db.VarChar(255)
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
+  createdAt                 DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
+  updatedAt                 DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
 
   @@unique([userId, clientId])
   @@index([userId])

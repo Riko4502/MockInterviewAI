@@ -9,13 +9,13 @@ import {
 } from "./notification-event";
 
 const RECIPIENT = "11111111-1111-4111-a111-111111111111";
-const SESSION = "22222222-2222-4222-a222-222222222222";
+const REQUEST = "22222222-2222-4222-a222-222222222222";
 const SLOT = "33333333-3333-4333-a333-333333333333";
 
 const matchProposed = {
   type: "interview.match_proposed" as const,
   payload: {
-    sessionId: SESSION,
+    requestId: REQUEST,
     proposedSlotId: SLOT,
     proposedStartUtc: "2026-10-01T09:00:00.000Z",
     senderName: "Иван",

@@ -5,6 +5,7 @@ import {
   interviewLanguageEnum,
   specializationEnum,
 } from "./showcase.enums";
+import { showcaseSlotsInputSchema } from "./showcase-slot.dto";
 
 const baseShowcaseCardFields = {
   title: z
@@ -45,6 +46,14 @@ const baseShowcaseCardFields = {
     .nullable(),
   isUrgent: z.boolean(),
   autoRenew: z.boolean(),
+  /**
+   * Расписание в формате слотов (ADR-002:41, :103).
+   *
+   * Поле необязательное: карточка без расписания допустима. Переданный набор —
+   * полное новое расписание карточки, а не частичное обновление, иначе
+   * удаление слота и добавление нового выражались бы одним и тем же запросом.
+   */
+  slots: showcaseSlotsInputSchema.optional(),
 };
 
 /**

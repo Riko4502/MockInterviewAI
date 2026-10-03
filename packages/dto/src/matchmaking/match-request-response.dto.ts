@@ -5,6 +5,7 @@ import {
   publicUserCardSchema,
   showcaseCardResponseSchema,
 } from "../showcase/showcase-response.dto";
+import { showcaseSlotResponseSchema } from "../showcase/showcase-slot.dto";
 
 /**
  * [Response] Ответ сервера с полными данными заявки на собеседование.
@@ -29,6 +30,10 @@ export const matchRequestResponseSchema = z.object({
   targetCard: showcaseCardResponseSchema,
   /** Прикреплённая карточка автора отклика (если указана). */
   senderCard: showcaseCardResponseSchema.nullable(),
+  /** Слот, который заявка занимает или заняла; null у заявок без расписания. */
+  slot: showcaseSlotResponseSchema.nullable(),
+  /** Сессия интервью, созданная при принятии заявки со слотом (ADR-002:62). */
+  sessionId: z.uuid().nullable(),
 
   // Статус заявки и сообщения участников
   status: matchRequestStatusEnum,

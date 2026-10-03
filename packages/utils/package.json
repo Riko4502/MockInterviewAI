@@ -31,9 +31,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@date-fns/tz": "1.5.0",
     "@packages/types": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "4.4.0",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

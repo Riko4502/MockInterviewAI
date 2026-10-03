@@ -284,6 +284,19 @@ export {
   showcaseCardStatsSchema,
 } from "./showcase/showcase-response.dto";
 export {
+  type AvailabilitySlotStatusDto,
+  availabilitySlotStatusEnum,
+  localSlotDateTimeSchema,
+  MAX_SLOTS_PER_CARD,
+  type ShowcaseSlotInputDto,
+  type ShowcaseSlotResponseDto,
+  type ShowcaseSlotsInputDto,
+  SLOT_DURATION_LIMITS,
+  showcaseSlotInputSchema,
+  showcaseSlotResponseSchema,
+  showcaseSlotsInputSchema,
+} from "./showcase/showcase-slot.dto";
+export {
   type TelegramInterviewDto,
   type TelegramInterviewsListDto,
   type TelegramInterviewsQuery,

@@ -11,6 +11,7 @@
  */
 import type { PaginatedShowcaseCardsDtoDataItemLanguage } from './paginatedShowcaseCardsDtoDataItemLanguage';
 import type { PaginatedShowcaseCardsDtoDataItemLevel } from './paginatedShowcaseCardsDtoDataItemLevel';
+import type { PaginatedShowcaseCardsDtoDataItemSlotsItem } from './paginatedShowcaseCardsDtoDataItemSlotsItem';
 import type { PaginatedShowcaseCardsDtoDataItemSpecialization } from './paginatedShowcaseCardsDtoDataItemSpecialization';
 import type { PaginatedShowcaseCardsDtoDataItemStats } from './paginatedShowcaseCardsDtoDataItemStats';
 import type { PaginatedShowcaseCardsDtoDataItemStatus } from './paginatedShowcaseCardsDtoDataItemStatus';
@@ -32,6 +33,7 @@ export type PaginatedShowcaseCardsDtoDataItem = {
   bio: string | null;
   /** @nullable */
   scheduleInfo: string | null;
+  slots: PaginatedShowcaseCardsDtoDataItemSlotsItem[];
   isUrgent: boolean;
   status: PaginatedShowcaseCardsDtoDataItemStatus;
   autoRenew: boolean;

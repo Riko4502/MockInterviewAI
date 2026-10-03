@@ -11,6 +11,7 @@
  */
 import type { UpdateShowcaseCardDtoLanguage } from './updateShowcaseCardDtoLanguage';
 import type { UpdateShowcaseCardDtoLevel } from './updateShowcaseCardDtoLevel';
+import type { UpdateShowcaseCardDtoSlotsItem } from './updateShowcaseCardDtoSlotsItem';
 import type { UpdateShowcaseCardDtoSpecialization } from './updateShowcaseCardDtoSpecialization';
 
 export interface UpdateShowcaseCardDto {
@@ -41,4 +42,9 @@ export interface UpdateShowcaseCardDto {
   scheduleInfo?: string | null;
   isUrgent?: boolean;
   autoRenew?: boolean;
+  /**
+     * @minItems 1
+     * @maxItems 10
+     */
+  slots?: UpdateShowcaseCardDtoSlotsItem[];
 }

@@ -12,6 +12,7 @@
 import type { PaginatedMatchRequestsDtoDataItemReceiver } from './paginatedMatchRequestsDtoDataItemReceiver';
 import type { PaginatedMatchRequestsDtoDataItemSender } from './paginatedMatchRequestsDtoDataItemSender';
 import type { PaginatedMatchRequestsDtoDataItemSenderCard } from './paginatedMatchRequestsDtoDataItemSenderCard';
+import type { PaginatedMatchRequestsDtoDataItemSlot } from './paginatedMatchRequestsDtoDataItemSlot';
 import type { PaginatedMatchRequestsDtoDataItemStatus } from './paginatedMatchRequestsDtoDataItemStatus';
 import type { PaginatedMatchRequestsDtoDataItemTargetCard } from './paginatedMatchRequestsDtoDataItemTargetCard';
 
@@ -27,6 +28,13 @@ export type PaginatedMatchRequestsDtoDataItem = {
   targetCard: PaginatedMatchRequestsDtoDataItemTargetCard;
   /** @nullable */
   senderCard: PaginatedMatchRequestsDtoDataItemSenderCard;
+  /** @nullable */
+  slot: PaginatedMatchRequestsDtoDataItemSlot;
+  /**
+     * @nullable
+     * @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+     */
+  sessionId: string | null;
   status: PaginatedMatchRequestsDtoDataItemStatus;
   /** @nullable */
   message: string | null;

@@ -25,6 +25,11 @@ describe("ShowcaseService", () => {
     matchRequest: {
       groupBy: jest.Mock;
     };
+    availabilitySlot: {
+      createManyAndReturn: jest.Mock;
+      updateMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
 
   const userId = "11111111-1111-4111-a111-111111111111";
@@ -70,6 +75,11 @@ describe("ShowcaseService", () => {
       matchRequest: {
         groupBy: jest.fn(),
       },
+      availabilitySlot: {
+        createManyAndReturn: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: jest.fn((callback) => callback(prismaMock)),
     };
 
     service = new ShowcaseService(prismaMock as unknown as PrismaService);
@@ -78,6 +88,23 @@ describe("ShowcaseService", () => {
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
+
+  const createdCard = {
+    id: "new-card-id",
+    userId,
+    ...validDto,
+    status: "ACTIVE",
+    ...cardTimestamps,
+    slots: [],
+    user: {
+      id: userId,
+      displayName: "John Doe",
+      username: "johndoe",
+      avatarUrl: null,
+      telegramUsername: "tg_john",
+      gitUrl: null,
+    },
+  };
 
   describe("create", () => {
     it("бросает NotFoundException, если пользователь не найден", async () => {
@@ -156,22 +183,6 @@ describe("ShowcaseService", () => {
       });
       prismaMock.showcaseCard.count.mockResolvedValue(0);
       prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
-
-      const createdCard = {
-        id: "new-card-id",
-        userId,
-        ...validDto,
-        status: "ACTIVE",
-        ...cardTimestamps,
-        user: {
-          id: userId,
-          displayName: "John Doe",
-          username: "johndoe",
-          avatarUrl: null,
-          telegramUsername: "tg_john",
-          gitUrl: null,
-        },
-      };
       prismaMock.showcaseCard.create.mockResolvedValue(createdCard);
 
       const result = await service.create(userId, validDto);
@@ -184,6 +195,64 @@ describe("ShowcaseService", () => {
         updatedAt: cardTimestamps.updatedAt.toISOString(),
       });
       expect(prismaMock.showcaseCard.create).toHaveBeenCalled();
+    });
+
+    it("переводит слоты в зоне владельца и возвращает их вместе с анкетой", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: userId,
+        displayName: "John Doe",
+        username: "johndoe",
+        avatarUrl: null,
+        telegramUsername: "tg_john",
+        gitUrl: null,
+        timezone: "Europe/Moscow",
+      });
+      prismaMock.showcaseCard.count.mockResolvedValue(0);
+      prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
+
+      prismaMock.showcaseCard.create.mockResolvedValue(createdCard);
+
+      // 19:00 Europe/Moscow — это 16:00Z.
+      const insertedSlot = {
+        id: "slot-1",
+        cardId: "new-card-id",
+        startsAt: new Date("2026-10-10T16:00:00.000Z"),
+        endsAt: new Date("2026-10-10T17:00:00.000Z"),
+        durationMinutes: 60,
+        status: "OPEN",
+        bookedByRequestId: null,
+      };
+      prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([
+        insertedSlot,
+      ]);
+
+      const result = await service.create(userId, {
+        ...validDto,
+        slots: [{ startsAtLocal: "2026-10-10T19:00" }],
+      });
+
+      expect(
+        prismaMock.availabilitySlot.createManyAndReturn,
+      ).toHaveBeenCalledWith({
+        data: [
+          {
+            cardId: "new-card-id",
+            startsAt: insertedSlot.startsAt,
+            endsAt: insertedSlot.endsAt,
+            durationMinutes: 60,
+          },
+        ],
+      });
+      expect(result.slots).toEqual([
+        {
+          id: "slot-1",
+          startsAt: "2026-10-10T16:00:00.000Z",
+          durationMinutes: 60,
+          status: "OPEN",
+        },
+      ]);
+      // Слоты вытесняют свободный текст о расписании (ADR-002:63).
+      expect(result.scheduleInfo).toBeNull();
     });
   });
 
@@ -203,6 +272,7 @@ describe("ShowcaseService", () => {
         title: "Test",
         status: "ACTIVE",
         ...cardTimestamps,
+        slots: [],
         user: {
           id: userId,
           displayName: "User",
@@ -232,6 +302,231 @@ describe("ShowcaseService", () => {
       await expect(service.findOne("card-1", "stranger-id")).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe("update", () => {
+    /**
+     * 19:00 Europe/Moscow — это 16:00Z. Слоты в моках заданы UTC-инстантами,
+     * потому что в базу попадает именно он, а локальное время приходит только
+     * на проводе.
+     */
+    const slotAt19 = new Date("2026-12-01T16:00:00.000Z");
+    const slotAt20 = new Date("2026-12-01T17:00:00.000Z");
+
+    const openSlot = {
+      id: "slot-open-19",
+      cardId: "card-1",
+      startsAt: slotAt19,
+      endsAt: new Date("2026-12-01T17:00:00.000Z"),
+      durationMinutes: 60,
+      status: "OPEN",
+      bookedByRequestId: null,
+      createdAt: new Date("2026-01-01T10:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T10:00:00.000Z"),
+    };
+
+    const bookedSlot = {
+      ...openSlot,
+      id: "slot-booked-20",
+      startsAt: slotAt20,
+      endsAt: new Date("2026-12-01T18:00:00.000Z"),
+      status: "BOOKED",
+      bookedByRequestId: "request-1",
+    };
+
+    const cardWithSlots = (slots: unknown[]) => ({
+      id: "card-1",
+      userId,
+      status: "ACTIVE",
+      specialization: "FRONTEND",
+      level: "MIDDLE",
+      ...cardTimestamps,
+      expiresAt: new Date("2026-12-10T10:00:00.000Z"),
+      slots,
+    });
+
+    const savedCard = (slots: unknown[]) => ({
+      id: "card-1",
+      userId,
+      title: "Новое название",
+      status: "ACTIVE",
+      ...cardTimestamps,
+      expiresAt: new Date("2026-12-10T10:00:00.000Z"),
+      slots,
+      user: { id: userId, telegramUsername: "tg" },
+    });
+
+    beforeEach(() => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: userId,
+        timezone: "Europe/Moscow",
+      });
+    });
+
+    it("бросает NotFoundException, если карточка не найдена", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.update("card-1", userId, { title: "Новое название" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("бросает ForbiddenException, если редактирует не автор", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+
+      await expect(
+        service.update("card-1", "another-user", { title: "Новое название" }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("не трогает расписание, если поле slots не прислано", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+      prismaMock.showcaseCard.update.mockResolvedValue(savedCard([openSlot]));
+
+      const result = await service.update("card-1", userId, {
+        title: "Новое название",
+      });
+
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+      expect(
+        prismaMock.availabilitySlot.createManyAndReturn,
+      ).not.toHaveBeenCalled();
+      expect(result.title).toBe("Новое название");
+    });
+
+    it("гасит удалённые слоты, сохраняет совпавшие и создаёт новые", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+
+      const newSlot = {
+        id: "slot-new-21",
+        cardId: "card-1",
+        startsAt: new Date("2026-12-01T18:00:00.000Z"), // 21:00 MSK
+        endsAt: new Date("2026-12-01T19:00:00.000Z"),
+        durationMinutes: 60,
+        status: "OPEN",
+        bookedByRequestId: null,
+        createdAt: new Date("2026-01-01T10:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T10:00:00.000Z"),
+      };
+      prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([
+        newSlot,
+      ]);
+      prismaMock.showcaseCard.update.mockResolvedValue(
+        savedCard([openSlot, newSlot]),
+      );
+
+      const result = await service.update("card-1", userId, {
+        slots: [
+          { startsAtLocal: "2026-12-01T19:00" },
+          { startsAtLocal: "2026-12-01T21:00" },
+        ],
+      });
+
+      // 19:00 остаётся тем же слотом, а не вставляется заново.
+      expect(
+        prismaMock.availabilitySlot.createManyAndReturn,
+      ).toHaveBeenCalledWith({
+        data: [
+          {
+            cardId: "card-1",
+            startsAt: newSlot.startsAt,
+            endsAt: newSlot.endsAt,
+            durationMinutes: 60,
+          },
+        ],
+      });
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+      expect(result.slots.map((slot) => slot.id)).toEqual([
+        "slot-open-19",
+        "slot-new-21",
+      ]);
+    });
+
+    it("гасит снятые владельцем слоты при полной пересборке", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+      prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([]);
+      prismaMock.showcaseCard.update.mockResolvedValue(savedCard([]));
+
+      await service.update("card-1", userId, {
+        slots: [{ startsAtLocal: "2026-12-01T21:00" }],
+      });
+
+      expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["slot-open-19"] }, status: "OPEN" },
+        data: { status: "CANCELLED" },
+      });
+    });
+
+    it("не трогает слот, занятый заявкой", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot, bookedSlot]),
+      );
+      prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([]);
+      prismaMock.showcaseCard.update.mockResolvedValue(savedCard([openSlot]));
+
+      const result = await service.update("card-1", userId, {
+        slots: [{ startsAtLocal: "2026-12-01T19:00" }],
+      });
+
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+      expect(result.slots.map((slot) => slot.id)).toEqual(["slot-open-19"]);
+    });
+
+    it("бросает ConflictException, если новый слот пересекается с занятым заявкой", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([bookedSlot]),
+      );
+
+      await expect(
+        service.update("card-1", userId, {
+          slots: [{ startsAtLocal: "2026-12-01T20:30" }],
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+      expect(
+        prismaMock.availabilitySlot.createManyAndReturn,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("бросает BadRequestException, если у владельца не задана таймзона", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: userId,
+        timezone: null,
+      });
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+
+      await expect(
+        service.update("card-1", userId, {
+          slots: [{ startsAtLocal: "2026-12-01T19:00" }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("бросает BadRequestException при конфликте сериализации P2034", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(
+        cardWithSlots([openSlot]),
+      );
+
+      const p2034 = Object.assign(new Error("Serialization conflict"), {
+        code: "P2034",
+      });
+      prismaMock.$transaction.mockRejectedValueOnce(p2034);
+
+      await expect(
+        service.update("card-1", userId, { title: "Новое название" }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -310,6 +605,7 @@ describe("ShowcaseService", () => {
         userId,
         status: "ACTIVE",
         ...cardTimestamps,
+        slots: [],
         user: { id: userId, telegramUsername: "tg" },
       };
       prismaMock.showcaseCard.findUnique.mockResolvedValue(existingCard);
@@ -344,6 +640,7 @@ describe("ShowcaseService", () => {
         userId,
         status: "ACTIVE",
         ...cardTimestamps,
+        slots: [],
         user: { id: userId, telegramUsername: "tg" },
       });
       const updatedCard = {
@@ -351,6 +648,7 @@ describe("ShowcaseService", () => {
         userId,
         status: "INACTIVE",
         ...cardTimestamps,
+        slots: [],
         user: { id: userId, telegramUsername: "tg" },
       };
       prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
@@ -392,6 +690,7 @@ describe("ShowcaseService", () => {
       prismaMock.showcaseCard.update.mockResolvedValue({
         id: "card-1",
         ...cardTimestamps,
+        slots: [],
         user: { id: "other-user", telegramUsername: "tg" },
       });
 
@@ -426,6 +725,7 @@ describe("ShowcaseService", () => {
         id: "card-1",
         status: "ACTIVE",
         ...cardTimestamps,
+        slots: [],
         user: { id: userId, telegramUsername: "tg" },
       });
 
@@ -451,7 +751,7 @@ describe("ShowcaseService", () => {
 
     it("возвращает карточки с посчитанной статистикой заявок", async () => {
       prismaMock.showcaseCard.findMany.mockResolvedValue([
-        { id: "card-1", userId, ...cardTimestamps },
+        { id: "card-1", userId, ...cardTimestamps, slots: [] },
       ]);
       prismaMock.matchRequest.groupBy.mockResolvedValue([
         { targetCardId: "card-1", status: "PENDING", _count: { _all: 3 } },
@@ -476,6 +776,7 @@ describe("ShowcaseService", () => {
           id: "card-1",
           userId: "other-user",
           ...cardTimestamps,
+          slots: [],
           user: { telegramUsername: "secret" },
         },
       ]);
@@ -513,6 +814,7 @@ describe("ShowcaseService", () => {
           id: "card-2",
           userId: "other-user",
           ...cardTimestamps,
+          slots: [],
           user: { telegramUsername: "secret" },
         },
       ]);
@@ -553,6 +855,7 @@ describe("ShowcaseService", () => {
           id: "card-3",
           userId: "other-user",
           ...cardTimestamps,
+          slots: [],
           user: { telegramUsername: "secret" },
         },
       ]);

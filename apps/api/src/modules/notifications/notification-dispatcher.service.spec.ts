@@ -145,7 +145,7 @@ describe("NotificationDispatcher", () => {
         ...createdOutbox,
         type: "interview.match_proposed",
         payload: {
-          sessionId: "33333333-3333-4333-a333-333333333333",
+          requestId: "33333333-3333-4333-a333-333333333333",
           proposedSlotId: "44444444-4444-4444-a444-444444444444",
           proposedStartUtc: "2026-10-01T09:00:00.000Z",
           senderName: "Иван",

@@ -23,6 +23,7 @@
   "dependencies": {
     "@packages/i18n": "workspace:*",
     "@packages/types": "workspace:*",
+    "@packages/utils": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {

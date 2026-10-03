@@ -533,10 +533,20 @@ backfill готовых текстов в `type`/`payload`, а ADR-003:96 обя
 
 **3. Мёртвый канал матчмейкинга удалён (ADR-004:89).** Удалены
 `REDIS_MATCHMAKING_EVENTS_CHANNEL`, `publishMatchAcceptedEvent` и зависимость
-`MatchmakingService` от `RedisService`. О принятии заявки получатель узнаёт из
-`notification.new`, которую публикует сам `NotificationsService` в той же
-транзакции, что и смена статуса (ADR-003), — то есть ровно тот путь, который
-ADR-004:89 и предписывал.
+`MatchmakingService` от `RedisService`. Удаление не сняло работавшей доставки:
+подписчика канала не было нигде, а `publish` глотал ошибки, поэтому контракт
+не доставлял ничего и до удаления.
+
+**Долг, который остался после удаления.** Продюсера, заменяющего канал, в
+матчмейкинге нет: `MatchmakingService` не вызывает `NotificationDispatcher`,
+поэтому ни `accept`, ни авто-матч не эмитят событий. Инфраструктура замены
+существует (ADR-003, фаза 2), блокер один — payload'ы
+`interview.match_proposed` и `interview.slot_booked` требуют `slotId` и
+UTC-инстанта, которых нет без `AvailabilitySlot` (ADR-002, фаза 4, п. 7.3
+шаги 2-5 и 9). Автоматического уведомления о принятии сейчас нет ни по
+SSE, ни по опросу: `refetchOnWindowFocus: false`
+(`apps/web/src/shared/api/query/query-client.ts:9`), а polling
+`unread-count` в проде не используется. Событие о матче появится в фазе 4.
 
 **Решение по кодогенерации принято 02.10.2026** (ADR-004:146): генератор в
 `packages/dto` рядом с источником правды, запуск
@@ -584,6 +594,11 @@ ADR-004:89 и предписывал.
   `room_test.go` и `room_benchmark_test.go`. Это файлы коммита `355af4b`
   (sandbox yjs crdt), фаза их не трогала; CI проверяет `go vet` и `revive`,
   а не `gofmt`.
+* Write-only Pub/Sub канал `live_match:notify:{partnerId}`
+  (`apps/api/src/modules/dashboard/dashboard-live-match.service.ts:208`) —
+  тот же паттерн, что был у `matchmaking:events`: подписчика нет ни в одном
+  из сервисов, доставки не происходит. Фаза 3 не трогала (это код из
+  `origin/dev`), удаление — отдельная задача, не входящая в фазы 2-6.
 
 ### 7.2. Фаза 5 — ADR-004 транспорт
 
@@ -649,11 +664,23 @@ ADR-003 некуда положить UTC-инстант для рендера �
    не хранится». `Intl.supportedValuesOf('timeZone')` как allowlist запрещён
    (ADR-002:51).
 8. `packages/i18n`: namespace `showcase` (ADR-002:129).
+9. Продюсер уведомлений в `MatchmakingService` — `NotificationDispatcher`
+   в `NotificationsModule` того же модуля, `dispatch` с транзакционным
+   клиентом: `interview.match_proposed` при предложении слота,
+   `interview.slot_booked` при его брони. Шаг идёт после пп. 2-5, потому
+   что payload обоих событий требует `slotId` и UTC-инстант. Шаг 9 — это
+   замена удалённого канала `matchmaking:events`, и до него уведомления о
+   матче не существует ни в одном транспорте.
 
 **Критерий завершения.** Слот, созданный на несуществующем локальном времени
 в зоне владельца, отклоняется с 422; два конкурентных запроса на один слот
 дают ровно один 200 и один 409; уведомление о предложении встречи рендерит
-разные локальные времена для пользователей в разных зонах.
+разные локальные времена для пользователей в разных зонах. Отдельно:
+`MatchmakingService` вызывает `NotificationDispatcher.dispatch` в той же
+`$transaction`, что и смена статуса заявки, — `interview.match_proposed` при
+предложении слота и `interview.slot_booked` при брони, оба получателю. Это
+закрывает долг п. 7.1: до этого продюсера у матчмейкинга не было, и кадр
+`notification.new` о матче не появлялся ниоткуда.
 
 ### 7.4. Фаза 6 — ADR-005
 

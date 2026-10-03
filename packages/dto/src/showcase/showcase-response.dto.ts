@@ -5,6 +5,7 @@ import {
   showcaseCardStatusEnum,
   specializationEnum,
 } from "./showcase.enums";
+import { showcaseSlotResponseSchema } from "./showcase-slot.dto";
 
 /**
  * [Response] Публичная визитка автора карточки.
@@ -52,7 +53,17 @@ export const showcaseCardResponseSchema = z.object({
   language: interviewLanguageEnum,
   skills: z.array(z.string()),
   bio: z.string().nullable(),
+  /**
+   * Свободное описание расписания (ADR-002:63).
+   *
+   * Поле вытесняется слотами: как только у карточки есть слоты, в выдаче
+   * витрины оно не возвращается, иначе показывались бы два разных расписания
+   * одной карточки. Удаление колонки — отдельная миграция после переходного
+   * периода, поэтому значение владельца остаётся в базе.
+   */
   scheduleInfo: z.string().nullable(),
+  /** Слоты доступности; приходят вместе с карточкой, отдельной выборки нет. */
+  slots: z.array(showcaseSlotResponseSchema),
   isUrgent: z.boolean(),
   status: showcaseCardStatusEnum,
   autoRenew: z.boolean(),

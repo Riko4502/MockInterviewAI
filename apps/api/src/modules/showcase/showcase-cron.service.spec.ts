@@ -1,5 +1,8 @@
 import { Logger } from "@nestjs/common";
-import { ShowcaseCardStatus } from "../../generated/prisma/enums";
+import {
+  AvailabilitySlotStatus,
+  ShowcaseCardStatus,
+} from "../../generated/prisma/enums";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import { SHOWCASE_LIMITS } from "./showcase.constants";
@@ -13,6 +16,9 @@ describe("ShowcaseCronService", () => {
   let cron: ShowcaseCronService;
   let prismaMock: {
     showcaseCard: {
+      updateMany: jest.Mock;
+    };
+    availabilitySlot: {
       updateMany: jest.Mock;
     };
   };
@@ -35,6 +41,9 @@ describe("ShowcaseCronService", () => {
     prismaMock = {
       showcaseCard: {
         updateMany: jest.fn(),
+      },
+      availabilitySlot: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
 
@@ -60,6 +69,9 @@ describe("ShowcaseCronService", () => {
       prismaMock.showcaseCard.updateMany
         .mockResolvedValueOnce({ count: 3 })
         .mockResolvedValueOnce({ count: 5 });
+      prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+        count: 4,
+      });
 
       const result = await cron.handleCron();
 
@@ -105,7 +117,16 @@ describe("ShowcaseCronService", () => {
         expect.any(String),
       );
 
-      expect(result).toEqual({ renewed: 3, expired: 5 });
+      // Истёкшие слоты гасятся: их интервалы иначе остались бы занятыми в БД.
+      expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: AvailabilitySlotStatus.OPEN,
+          endsAt: { lte: expect.any(Date) },
+        },
+        data: { status: AvailabilitySlotStatus.CANCELLED },
+      });
+
+      expect(result).toEqual({ renewed: 3, expired: 5, slotsCancelled: 4 });
     });
 
     it("пропускает выполнение, если другая реплика уже держит лок", async () => {
@@ -113,7 +134,7 @@ describe("ShowcaseCronService", () => {
 
       const result = await cron.handleCron();
 
-      expect(result).toEqual({ renewed: 0, expired: 0 });
+      expect(result).toEqual({ renewed: 0, expired: 0, slotsCancelled: 0 });
       expect(prismaMock.showcaseCard.updateMany).not.toHaveBeenCalled();
       expect(redisServiceMock.compareAndDelete).not.toHaveBeenCalled();
     });
@@ -125,7 +146,7 @@ describe("ShowcaseCronService", () => {
 
       const result = await cron.handleCron();
 
-      expect(result).toEqual({ renewed: 0, expired: 0 });
+      expect(result).toEqual({ renewed: 0, expired: 0, slotsCancelled: 0 });
       expect(redisServiceMock.compareAndDelete).toHaveBeenCalledWith(
         SHOWCASE_EXPIRY_LOCK_KEY,
         expect.any(String),
@@ -185,7 +206,32 @@ describe("ShowcaseCronService", () => {
         },
       });
 
-      expect(result).toEqual({ renewed: 2, expired: 1 });
+      expect(result).toEqual({ renewed: 2, expired: 1, slotsCancelled: 0 });
+
+      jest.useRealTimers();
+    });
+
+    it("гасит только свободные слоты, время которых прошло", async () => {
+      const fakeNow = new Date("2026-09-18T12:00:00.000Z");
+      jest.useFakeTimers();
+      jest.setSystemTime(fakeNow);
+
+      prismaMock.showcaseCard.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+        count: 7,
+      });
+
+      const result = await cron.processExpiredCards();
+
+      // `BOOKED` не трогаем: его время отдано встрече, а не расписанию.
+      expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: AvailabilitySlotStatus.OPEN,
+          endsAt: { lte: fakeNow },
+        },
+        data: { status: AvailabilitySlotStatus.CANCELLED },
+      });
+      expect(result.slotsCancelled).toBe(7);
 
       jest.useRealTimers();
     });

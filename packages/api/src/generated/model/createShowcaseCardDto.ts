@@ -11,6 +11,7 @@
  */
 import type { CreateShowcaseCardDtoLanguage } from './createShowcaseCardDtoLanguage';
 import type { CreateShowcaseCardDtoLevel } from './createShowcaseCardDtoLevel';
+import type { CreateShowcaseCardDtoSlotsItem } from './createShowcaseCardDtoSlotsItem';
 import type { CreateShowcaseCardDtoSpecialization } from './createShowcaseCardDtoSpecialization';
 
 export interface CreateShowcaseCardDto {
@@ -41,4 +42,9 @@ export interface CreateShowcaseCardDto {
   scheduleInfo?: string | null;
   isUrgent?: boolean;
   autoRenew?: boolean;
+  /**
+     * @minItems 1
+     * @maxItems 10
+     */
+  slots?: CreateShowcaseCardDtoSlotsItem[];
 }

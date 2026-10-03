@@ -63,6 +63,7 @@ describe("MatchmakingController", () => {
       updatedAt: new Date().toISOString(),
       bumpedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+      slots: [],
       user: {
         id: receiverId,
         displayName: "Receiver User",
@@ -73,6 +74,8 @@ describe("MatchmakingController", () => {
       },
     },
     senderCard: null,
+    slot: null,
+    sessionId: null,
     status: "PENDING",
     message: "Привет, давай потренируем алгоритмы!",
     preferredTopic: "Алгоритмы и структуры данных",

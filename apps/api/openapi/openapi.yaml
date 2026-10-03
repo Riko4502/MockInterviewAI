@@ -2120,6 +2120,8 @@ components:
           enum:
             - ru
             - en
+        timezone:
+          type: string
     DeviceSettingsDto:
       type: object
       properties:
@@ -3370,6 +3372,10 @@ components:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        slotId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         message:
           type: string
           maxLength: 300
@@ -3528,6 +3534,34 @@ components:
             scheduleInfo:
               nullable: true
               type: string
+            slots:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
             isUrgent:
               type: boolean
             status:
@@ -3579,6 +3613,7 @@ components:
             - skills
             - bio
             - scheduleInfo
+            - slots
             - isUrgent
             - status
             - autoRenew
@@ -3664,6 +3699,34 @@ components:
             scheduleInfo:
               nullable: true
               type: string
+            slots:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
             isUrgent:
               type: boolean
             status:
@@ -3715,6 +3778,7 @@ components:
             - skills
             - bio
             - scheduleInfo
+            - slots
             - isUrgent
             - status
             - autoRenew
@@ -3722,6 +3786,38 @@ components:
             - expiresAt
             - createdAt
             - updatedAt
+        slot:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            startsAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            durationMinutes:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            status:
+              type: string
+              enum:
+                - OPEN
+                - BOOKED
+                - CANCELLED
+          required:
+            - id
+            - startsAt
+            - durationMinutes
+            - status
+        sessionId:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         status:
           type: string
           enum:
@@ -3759,6 +3855,8 @@ components:
         - receiver
         - targetCard
         - senderCard
+        - slot
+        - sessionId
         - status
         - message
         - preferredTopic
@@ -3921,6 +4019,34 @@ components:
                   scheduleInfo:
                     nullable: true
                     type: string
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        startsAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        durationMinutes:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - OPEN
+                            - BOOKED
+                            - CANCELLED
+                      required:
+                        - id
+                        - startsAt
+                        - durationMinutes
+                        - status
                   isUrgent:
                     type: boolean
                   status:
@@ -3972,6 +4098,7 @@ components:
                   - skills
                   - bio
                   - scheduleInfo
+                  - slots
                   - isUrgent
                   - status
                   - autoRenew
@@ -4057,6 +4184,34 @@ components:
                   scheduleInfo:
                     nullable: true
                     type: string
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        startsAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        durationMinutes:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - OPEN
+                            - BOOKED
+                            - CANCELLED
+                      required:
+                        - id
+                        - startsAt
+                        - durationMinutes
+                        - status
                   isUrgent:
                     type: boolean
                   status:
@@ -4108,6 +4263,7 @@ components:
                   - skills
                   - bio
                   - scheduleInfo
+                  - slots
                   - isUrgent
                   - status
                   - autoRenew
@@ -4115,6 +4271,38 @@ components:
                   - expiresAt
                   - createdAt
                   - updatedAt
+              slot:
+                nullable: true
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
+              sessionId:
+                nullable: true
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
               status:
                 type: string
                 enum:
@@ -4152,6 +4340,8 @@ components:
               - receiver
               - targetCard
               - senderCard
+              - slot
+              - sessionId
               - status
               - message
               - preferredTopic
@@ -4324,6 +4514,34 @@ components:
               scheduleInfo:
                 nullable: true
                 type: string
+              slots:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    startsAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                    durationMinutes:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    status:
+                      type: string
+                      enum:
+                        - OPEN
+                        - BOOKED
+                        - CANCELLED
+                  required:
+                    - id
+                    - startsAt
+                    - durationMinutes
+                    - status
               isUrgent:
                 type: boolean
               status:
@@ -4375,6 +4593,7 @@ components:
               - skills
               - bio
               - scheduleInfo
+              - slots
               - isUrgent
               - status
               - autoRenew
@@ -4496,6 +4715,34 @@ components:
           scheduleInfo:
             nullable: true
             type: string
+          slots:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                startsAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                durationMinutes:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                status:
+                  type: string
+                  enum:
+                    - OPEN
+                    - BOOKED
+                    - CANCELLED
+              required:
+                - id
+                - startsAt
+                - durationMinutes
+                - status
           isUrgent:
             type: boolean
           status:
@@ -4547,6 +4794,7 @@ components:
           - skills
           - bio
           - scheduleInfo
+          - slots
           - isUrgent
           - status
           - autoRenew
@@ -4608,6 +4856,22 @@ components:
         autoRenew:
           default: false
           type: boolean
+        slots:
+          minItems: 1
+          maxItems: 10
+          type: array
+          items:
+            type: object
+            properties:
+              startsAtLocal:
+                type: string
+                pattern: ^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$
+              durationMinutes:
+                type: integer
+                minimum: 15
+                maximum: 240
+            required:
+              - startsAtLocal
       required:
         - specialization
         - level
@@ -4689,6 +4953,34 @@ components:
         scheduleInfo:
           nullable: true
           type: string
+        slots:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              startsAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              durationMinutes:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              status:
+                type: string
+                enum:
+                  - OPEN
+                  - BOOKED
+                  - CANCELLED
+            required:
+              - id
+              - startsAt
+              - durationMinutes
+              - status
         isUrgent:
           type: boolean
         status:
@@ -4740,6 +5032,7 @@ components:
         - skills
         - bio
         - scheduleInfo
+        - slots
         - isUrgent
         - status
         - autoRenew
@@ -4798,6 +5091,22 @@ components:
           type: boolean
         autoRenew:
           type: boolean
+        slots:
+          minItems: 1
+          maxItems: 10
+          type: array
+          items:
+            type: object
+            properties:
+              startsAtLocal:
+                type: string
+                pattern: ^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$
+              durationMinutes:
+                type: integer
+                minimum: 15
+                maximum: 240
+            required:
+              - startsAtLocal
     UpdateShowcaseCardStatusDto:
       type: object
       properties:

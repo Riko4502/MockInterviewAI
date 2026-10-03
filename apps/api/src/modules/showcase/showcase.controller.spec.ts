@@ -43,6 +43,7 @@ describe("ShowcaseController", () => {
     updatedAt: new Date().toISOString(),
     bumpedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    slots: [],
     user: {
       id: userId,
       displayName: "Test User",

@@ -11,6 +11,7 @@
  */
 import type { ShowcaseCardResponseDtoLanguage } from './showcaseCardResponseDtoLanguage';
 import type { ShowcaseCardResponseDtoLevel } from './showcaseCardResponseDtoLevel';
+import type { ShowcaseCardResponseDtoSlotsItem } from './showcaseCardResponseDtoSlotsItem';
 import type { ShowcaseCardResponseDtoSpecialization } from './showcaseCardResponseDtoSpecialization';
 import type { ShowcaseCardResponseDtoStats } from './showcaseCardResponseDtoStats';
 import type { ShowcaseCardResponseDtoStatus } from './showcaseCardResponseDtoStatus';
@@ -32,6 +33,7 @@ export interface ShowcaseCardResponseDto {
   bio: string | null;
   /** @nullable */
   scheduleInfo: string | null;
+  slots: ShowcaseCardResponseDtoSlotsItem[];
   isUrgent: boolean;
   status: ShowcaseCardResponseDtoStatus;
   autoRenew: boolean;

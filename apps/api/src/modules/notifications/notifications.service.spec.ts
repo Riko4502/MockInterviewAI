@@ -51,7 +51,7 @@ describe("NotificationsService", () => {
     category: NotificationType.INTERVIEW,
     type: "interview.match_proposed",
     payload: {
-      sessionId: "33333333-3333-4333-a333-333333333333",
+      requestId: "33333333-3333-4333-a333-333333333333",
       proposedSlotId: "44444444-4444-4444-a444-444444444444",
       proposedStartUtc: "2026-10-01T09:00:00.000Z",
       senderName: "Иван",
@@ -60,7 +60,7 @@ describe("NotificationsService", () => {
     renderedMessage: "Иван предлагает провести интервью.",
     renderedLocale: "ru",
     renderedTimezone: "Europe/Moscow",
-    dedupKey: `interview.match_proposed:${userId}:session=33333333-3333-4333-a333-333333333333&slot=44444444-4444-4444-a444-444444444444&start=2026-10-01T09:00:00.000Z`,
+    dedupKey: `interview.match_proposed:${userId}:request=33333333-3333-4333-a333-333333333333&slot=44444444-4444-4444-a444-444444444444&start=2026-10-01T09:00:00.000Z`,
     actionUrl: "/interviews/123",
     readAt: null,
     deletedAt: null,
@@ -87,7 +87,7 @@ describe("NotificationsService", () => {
   const matchProposedEvent = {
     type: "interview.match_proposed" as const,
     payload: {
-      sessionId: "33333333-3333-4333-a333-333333333333",
+      requestId: "33333333-3333-4333-a333-333333333333",
       proposedSlotId: "44444444-4444-4444-a444-444444444444",
       proposedStartUtc: "2026-10-01T09:00:00.000Z",
       senderName: "Иван",

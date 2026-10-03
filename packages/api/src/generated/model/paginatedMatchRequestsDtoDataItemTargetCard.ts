@@ -11,6 +11,7 @@
  */
 import type { PaginatedMatchRequestsDtoDataItemTargetCardLanguage } from './paginatedMatchRequestsDtoDataItemTargetCardLanguage';
 import type { PaginatedMatchRequestsDtoDataItemTargetCardLevel } from './paginatedMatchRequestsDtoDataItemTargetCardLevel';
+import type { PaginatedMatchRequestsDtoDataItemTargetCardSlotsItem } from './paginatedMatchRequestsDtoDataItemTargetCardSlotsItem';
 import type { PaginatedMatchRequestsDtoDataItemTargetCardSpecialization } from './paginatedMatchRequestsDtoDataItemTargetCardSpecialization';
 import type { PaginatedMatchRequestsDtoDataItemTargetCardStats } from './paginatedMatchRequestsDtoDataItemTargetCardStats';
 import type { PaginatedMatchRequestsDtoDataItemTargetCardStatus } from './paginatedMatchRequestsDtoDataItemTargetCardStatus';
@@ -32,6 +33,7 @@ export type PaginatedMatchRequestsDtoDataItemTargetCard = {
   bio: string | null;
   /** @nullable */
   scheduleInfo: string | null;
+  slots: PaginatedMatchRequestsDtoDataItemTargetCardSlotsItem[];
   isUrgent: boolean;
   status: PaginatedMatchRequestsDtoDataItemTargetCardStatus;
   autoRenew: boolean;

@@ -11,6 +11,7 @@
  */
 import type { ShowcaseCardListDtoItemLanguage } from './showcaseCardListDtoItemLanguage';
 import type { ShowcaseCardListDtoItemLevel } from './showcaseCardListDtoItemLevel';
+import type { ShowcaseCardListDtoItemSlotsItem } from './showcaseCardListDtoItemSlotsItem';
 import type { ShowcaseCardListDtoItemSpecialization } from './showcaseCardListDtoItemSpecialization';
 import type { ShowcaseCardListDtoItemStats } from './showcaseCardListDtoItemStats';
 import type { ShowcaseCardListDtoItemStatus } from './showcaseCardListDtoItemStatus';
@@ -32,6 +33,7 @@ export type ShowcaseCardListDtoItem = {
   bio: string | null;
   /** @nullable */
   scheduleInfo: string | null;
+  slots: ShowcaseCardListDtoItemSlotsItem[];
   isUrgent: boolean;
   status: ShowcaseCardListDtoItemStatus;
   autoRenew: boolean;
