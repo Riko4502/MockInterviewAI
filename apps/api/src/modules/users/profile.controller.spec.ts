@@ -11,6 +11,8 @@ describe("ProfileController", () => {
     deleteAvatar: jest.Mock;
     deactivateAccount: jest.Mock;
     restoreAccount: jest.Mock;
+    getDeviceSettings: jest.Mock;
+    upsertDeviceSettings: jest.Mock;
   };
   let configServiceMock: jest.Mocked<Partial<ConfigService>>;
   let responseMock: { clearCookie: jest.Mock };
@@ -41,6 +43,8 @@ describe("ProfileController", () => {
       deleteAvatar: jest.fn().mockResolvedValue(undefined),
       deactivateAccount: jest.fn().mockResolvedValue(undefined),
       restoreAccount: jest.fn().mockResolvedValue(mockProfile),
+      getDeviceSettings: jest.fn(),
+      upsertDeviceSettings: jest.fn(),
     };
     configServiceMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -110,6 +114,57 @@ describe("ProfileController", () => {
       path: "/api/v1/auth",
     });
     expect(result.message).toContain("deactivated");
+  });
+
+  it("getDeviceSettings возвращает настройки клиентского устройства", async () => {
+    const mockDeviceSettings = {
+      clientId: "client-1",
+      deviceName: "Chrome",
+      audioVolume: 80,
+      speechVolume: 80,
+      micGain: 100,
+      preferredAudioInputLabel: "Microphone",
+      preferredAudioOutputLabel: "Headphones",
+      preferredVideoInputLabel: null,
+      isPersisted: true,
+    };
+    usersServiceMock.getDeviceSettings = jest
+      .fn()
+      .mockResolvedValue(mockDeviceSettings);
+
+    const result = await controller.getDeviceSettings(
+      mockProfile.id,
+      "client-1",
+    );
+
+    expect(usersServiceMock.getDeviceSettings).toHaveBeenCalledWith(
+      mockProfile.id,
+      "client-1",
+    );
+    expect(result).toEqual(mockDeviceSettings);
+  });
+
+  it("updateDeviceSettings сохраняет настройки клиентского устройства", async () => {
+    const updateDto = {
+      clientId: "client-1",
+      audioVolume: 90,
+      speechVolume: 75,
+      micGain: 100,
+    };
+    usersServiceMock.upsertDeviceSettings = jest
+      .fn()
+      .mockResolvedValue(updateDto);
+
+    const result = await controller.updateDeviceSettings(
+      mockProfile.id,
+      updateDto,
+    );
+
+    expect(usersServiceMock.upsertDeviceSettings).toHaveBeenCalledWith(
+      mockProfile.id,
+      updateDto,
+    );
+    expect(result).toEqual(updateDto);
   });
 
   it("restoreMyProfile восстанавливает аккаунт", async () => {

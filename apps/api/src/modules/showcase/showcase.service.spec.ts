@@ -250,6 +250,115 @@ describe("ShowcaseService", () => {
     });
   });
 
+  describe("update", () => {
+    it("бросает NotFoundException, если карточка не найдена", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.update("card-1", userId, { title: "New title" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("бросает ForbiddenException, если карточку пытается обновить не автор", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId: "someone-else",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        status: "ACTIVE",
+      });
+
+      await expect(
+        service.update("card-1", userId, { title: "New title" }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("бросает BadRequestException, если передана отличная от исходной специализация", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        status: "ACTIVE",
+      });
+
+      await expect(
+        service.update("card-1", userId, { specialization: "BACKEND" }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("успешно обновляет разрешённые поля карточки", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        status: "ACTIVE",
+      });
+      const updatedCard = {
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "SENIOR",
+        title: "Updated Senior Title",
+        status: "ACTIVE",
+        user: { id: userId, telegramUsername: null },
+      };
+      prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
+      prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
+
+      const result = await service.update("card-1", userId, {
+        level: "SENIOR",
+        title: "Updated Senior Title",
+      });
+
+      expect(result).toEqual(updatedCard);
+      expect(prismaMock.showcaseCard.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "card-1" },
+          data: expect.objectContaining({
+            level: "SENIOR",
+            title: "Updated Senior Title",
+          }),
+        }),
+      );
+    });
+
+    it("позволяет очистить заголовок, передавая null", async () => {
+      prismaMock.showcaseCard.findUnique.mockResolvedValue({
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        status: "ACTIVE",
+      });
+      const updatedCard = {
+        id: "card-1",
+        userId,
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        title: null,
+        status: "ACTIVE",
+        user: { id: userId, telegramUsername: null },
+      };
+      prismaMock.showcaseCard.update.mockResolvedValue(updatedCard);
+
+      const result = await service.update("card-1", userId, {
+        title: null,
+      });
+
+      expect(result).toEqual(updatedCard);
+      expect(prismaMock.showcaseCard.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "card-1" },
+          data: expect.objectContaining({
+            title: null,
+          }),
+        }),
+      );
+    });
+  });
+
   describe("updateStatus", () => {
     it("бросает NotFoundException, если карточка не найдена", async () => {
       prismaMock.showcaseCard.findUnique.mockResolvedValue(null);

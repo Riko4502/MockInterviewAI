@@ -20,6 +20,10 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import {
+  LiveMatchPostCommitError,
+  SessionsService,
+} from "../sessions/sessions.service";
 import { PUBLIC_USER_SELECT } from "../showcase/showcase.constants";
 import {
   MATCHMAKING_LIMITS,
@@ -50,6 +54,7 @@ const MATCH_REQUEST_INCLUDE = {
       },
     },
   },
+  session: true,
 } as const;
 
 type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
@@ -63,6 +68,7 @@ export class MatchmakingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   /**
@@ -193,6 +199,7 @@ export class MatchmakingService {
     let retries = 0;
 
     while (true) {
+      let createdLiveSessionId: string | null = null;
       try {
         const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
           async (tx) => {
@@ -266,19 +273,30 @@ export class MatchmakingService {
 
             // Если есть встречная заявка — оформляем взаимный Auto-Match
             if (crossRequest) {
-              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING и не истекла
+              // 1. Создаем общую интерактивную сессию интервью для обоих участников
+              const liveSession =
+                await this.sessionsService.createLiveMatchSession(
+                  crossRequest.senderId,
+                  senderId,
+                );
+              createdLiveSessionId = liveSession.sessionId;
+
+              // 2. Атомарно переводим встречную заявку в ACCEPTED с привязкой sessionId
               const updateResult = await tx.matchRequest.updateMany({
                 where: {
                   id: crossRequest.id,
                   status: "PENDING",
                   expiresAt: { gt: new Date() },
                 },
-                data: { status: "ACCEPTED" },
+                data: {
+                  status: "ACCEPTED",
+                  sessionId: liveSession.sessionId,
+                },
               });
 
               // Если встречная заявка всё ещё была PENDING и успешно обновлена
               if (updateResult.count === 1) {
-                // Создаём текущую заявку сразу в статусе ACCEPTED
+                // Создаём текущую заявку сразу в статусе ACCEPTED с той же сессией
                 const newRequest = await tx.matchRequest.create({
                   data: {
                     senderId,
@@ -288,12 +306,21 @@ export class MatchmakingService {
                     message: dto.message,
                     preferredTopic: dto.preferredTopic,
                     status: "ACCEPTED",
+                    sessionId: liveSession.sessionId,
                     expiresAt,
                   },
                   include: MATCH_REQUEST_INCLUDE,
                 });
 
+                // Успешно сохранено — очистка не требуется
+                createdLiveSessionId = null;
                 return { createdRequest: newRequest, isAutoMatch: true };
+              } else {
+                // Встречная заявка больше не активна — очищаем созданную сессию
+                await this.sessionsService.cleanupOrphanedSession(
+                  liveSession.sessionId,
+                );
+                createdLiveSessionId = null;
               }
             }
 
@@ -326,6 +353,14 @@ export class MatchmakingService {
 
         return this.formatMatchRequest(createdRequest);
       } catch (error) {
+        const orphanId =
+          createdLiveSessionId ??
+          (error instanceof LiveMatchPostCommitError ? error.sessionId : null);
+        if (orphanId) {
+          await this.sessionsService.cleanupOrphanedSession(orphanId);
+          createdLiveSessionId = null;
+        }
+
         // При конфликте сериализации параллельных транзакций (P2034) повторяем транзакцию
         if (
           (error instanceof Prisma.PrismaClientKnownRequestError ||
@@ -488,6 +523,7 @@ export class MatchmakingService {
       where: { id: requestId },
       select: {
         id: true,
+        senderId: true,
         receiverId: true,
         status: true,
         expiresAt: true,
@@ -520,28 +556,49 @@ export class MatchmakingService {
       throw new BadRequestException("Срок действия заявки истек");
     }
 
-    // 5. Переводим статус в ACCEPTED атомарно
-    const updateResult = await this.prisma.matchRequest.updateMany({
-      where: { id: requestId, status: "PENDING" },
-      data: { status: "ACCEPTED" },
-    });
+    // 5. Создаем общую сессию интервью для двоих участников со статусом ACTIVE
+    let liveSession: { sessionId: string; inviteToken: string } | null = null;
+    let sessionLinked = false;
 
-    if (updateResult.count === 0) {
-      throw new BadRequestException(
-        "Можно принять только заявку в статусе ожидания (PENDING)",
+    try {
+      liveSession = await this.sessionsService.createLiveMatchSession(
+        request.senderId,
+        request.receiverId,
       );
+
+      // 6. Переводим статус в ACCEPTED атомарно и привязываем sessionId
+      const updateResult = await this.prisma.matchRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
+        data: { status: "ACCEPTED", sessionId: liveSession.sessionId },
+      });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          "Можно принять только заявку в статусе ожидания (PENDING)",
+        );
+      }
+
+      sessionLinked = true;
+
+      const updated = await this.prisma.matchRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: MATCH_REQUEST_INCLUDE,
+      });
+
+      // 7. Публикуем событие подтверждения матча в Redis Pub/Sub
+      await this.publishMatchAcceptedEvent(updated);
+
+      // 8. Возвращаем заявку с открытыми контактами
+      return this.formatMatchRequest(updated);
+    } catch (error) {
+      const orphanId =
+        liveSession?.sessionId ??
+        (error instanceof LiveMatchPostCommitError ? error.sessionId : null);
+      if (orphanId && !sessionLinked) {
+        await this.sessionsService.cleanupOrphanedSession(orphanId);
+      }
+      throw error;
     }
-
-    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
-      where: { id: requestId },
-      include: MATCH_REQUEST_INCLUDE,
-    });
-
-    // 6. Публикуем событие подтверждения матча в Redis Pub/Sub
-    await this.publishMatchAcceptedEvent(updated);
-
-    // 7. Возвращаем заявку с открытыми контактами
-    return this.formatMatchRequest(updated);
   }
 
   /**
@@ -693,6 +750,7 @@ export class MatchmakingService {
           receiverId: request.receiverId,
           targetCardId: request.targetCardId,
           senderCardId: request.senderCardId,
+          sessionId: request.sessionId,
           preferredTopic: request.preferredTopic,
           timestamp: new Date().toISOString(),
         }),
@@ -746,6 +804,9 @@ export class MatchmakingService {
       targetCard: formatCard(request.targetCard),
       senderCard: request.senderCard ? formatCard(request.senderCard) : null,
       status: request.status,
+      sessionId: request.sessionId || null,
+      sessionStatus:
+        request.session?.status || (request.sessionId ? "ACTIVE" : null),
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,

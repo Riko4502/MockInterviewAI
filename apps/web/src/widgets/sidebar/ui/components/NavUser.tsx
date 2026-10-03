@@ -1,17 +1,32 @@
 "use client";
 
-import { ChevronRightIcon, LogOutIcon, UserIcon } from "@packages/icons";
+import { useIsMobile } from "@packages/hooks";
+import {
+  ChevronRightIcon,
+  LogOutIcon,
+  MoonIcon,
+  SettingsIcon,
+  SlidersIcon,
+  SunIcon,
+} from "@packages/icons";
 import { DropdownMenu, Skeleton, Sidebar as UiSidebar } from "@packages/ui";
+import { cn } from "@packages/utils";
 import Link from "next/link";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { UserAvatar, useCurrentUser } from "@/entities/user";
+import { UserAvatar, useCurrentUser, usePreferences } from "@/entities/user";
 import { useLogout } from "@/features/auth";
+import { MediaSettingsDialogLazy } from "@/features/media-settings";
 import { paths } from "@/shared/config";
 
 export function NavUser() {
   const { t } = useTranslation("common");
   const { data: user, isLoading } = useCurrentUser();
   const { logout, isPending } = useLogout();
+  const [isMediaSettingsOpen, setIsMediaSettingsOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const preferences = usePreferences();
+  const isMobile = useIsMobile();
 
   if (isLoading) {
     return (
@@ -32,20 +47,23 @@ export function NavUser() {
   return (
     <UiSidebar.Menu>
       <UiSidebar.MenuItem>
-        <DropdownMenu>
+        <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <DropdownMenu.Trigger asChild>
             <UiSidebar.MenuButton
               size="lg"
               tooltip={displayName}
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="h-auto gap-3 py-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/80 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-0!"
             >
-              <UserAvatar
-                src={user?.avatarUrl}
-                name={user?.displayName}
-                email={user?.email}
-                size="sm"
-              />
-              <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+              <div className="relative flex shrink-0 items-center justify-center p-0.5">
+                <UserAvatar
+                  src={user?.avatarUrl}
+                  name={user?.displayName}
+                  email={user?.email}
+                  size="md"
+                />
+                <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-sidebar" />
+              </div>
+              <div className="grid min-w-0 flex-1 gap-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">{displayName}</span>
                 {email ? (
                   <span className="truncate text-xs text-muted-foreground">
@@ -53,33 +71,59 @@ export function NavUser() {
                   </span>
                 ) : null}
               </div>
-              <ChevronRightIcon className="ml-auto size-4 rotate-90" />
+              <ChevronRightIcon
+                className={cn(
+                  "ml-auto size-4 text-muted-foreground transition-transform duration-200 group-data-[collapsible=icon]:hidden",
+                  isMenuOpen ? "-rotate-90" : "rotate-90",
+                )}
+              />
             </UiSidebar.MenuButton>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content
-            className="w-56"
-            side="top"
+            className="w-56 [&_svg]:size-4"
+            side={isMobile ? "top" : "right"}
             align="end"
             sideOffset={8}
+            alignOffset={14}
           >
             <DropdownMenu.Item asChild>
               <Link href={paths.profile}>
-                <UserIcon />
-                {t("navigation.profile")}
+                <SettingsIcon size="sm" />
+                {t("navigation.settings")}
               </Link>
             </DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={() => setIsMediaSettingsOpen(true)}>
+              <SlidersIcon size="sm" />
+              {t("navigation.mediaSettings")}
+            </DropdownMenu.Item>
+            {preferences && (
+              <DropdownMenu.Item onSelect={() => preferences?.toggleTheme()}>
+                {preferences.resolvedTheme === "dark" ? (
+                  <SunIcon size="sm" />
+                ) : (
+                  <MoonIcon size="sm" />
+                )}
+                {t("navigation.theme")}
+              </DropdownMenu.Item>
+            )}
             <DropdownMenu.Separator />
             <DropdownMenu.Item
               variant="destructive"
               disabled={isPending}
               onSelect={() => logout()}
             >
-              <LogOutIcon />
+              <LogOutIcon size="sm" />
               {t("navigation.logout")}
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu>
       </UiSidebar.MenuItem>
+      {isMediaSettingsOpen && (
+        <MediaSettingsDialogLazy
+          open={isMediaSettingsOpen}
+          onOpenChange={setIsMediaSettingsOpen}
+        />
+      )}
     </UiSidebar.Menu>
   );
 }

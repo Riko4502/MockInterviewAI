@@ -31,6 +31,7 @@ import type {
 import type {
   AccessTokenResponseDto,
   AuthControllerGithubCallbackParams,
+  AuthControllerGithubParams,
   ChangePasswordDto,
   ErrorResponseDto,
   ForgotPasswordDto,
@@ -39,6 +40,10 @@ import type {
   OAuthProvidersResponseDto,
   RegisterDto,
   ResetPasswordDto,
+  TelegramAuthDto,
+  TelegramAuthResponseDto,
+  TelegramCompleteDto,
+  TelegramLinkDto,
   ValidationErrorResponseDto
 } from '../../model';
 
@@ -782,20 +787,27 @@ export function useAuthControllerOauthProviders<TData = Awaited<ReturnType<typeo
 
 
 
-export const getAuthControllerGithubUrl = () => {
+export const getAuthControllerGithubUrl = (params?: AuthControllerGithubParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/auth/github`
+  return stringifiedParams.length > 0 ? `/api/v1/auth/github?${stringifiedParams}` : `/api/v1/auth/github`
 }
 
 /**
- * @summary Start GitHub OAuth login
+ * @summary Start GitHub OAuth login or account linking
  */
-export const authControllerGithub = async ( options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
+export const authControllerGithub = async (params?: AuthControllerGithubParams, options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
 
-  return customInstance<unknown>(getAuthControllerGithubUrl(),
+  return customInstance<unknown>(getAuthControllerGithubUrl(params),
   {
     ...options,
     method: 'GET'
@@ -808,23 +820,23 @@ export const authControllerGithub = async ( options?: Parameters<typeof customIn
 
 
 
-export const getAuthControllerGithubQueryKey = () => {
+export const getAuthControllerGithubQueryKey = (params?: AuthControllerGithubParams,) => {
     return [
-    `/api/v1/auth/github`
+    `/api/v1/auth/github`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getAuthControllerGithubQueryOptions = <TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getAuthControllerGithubQueryOptions = <TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getAuthControllerGithubQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getAuthControllerGithubQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof authControllerGithub>>> = ({ signal }) => authControllerGithub({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof authControllerGithub>>> = ({ signal }) => authControllerGithub(params, { signal, ...requestOptions });
 
 
 
@@ -838,7 +850,7 @@ export type AuthControllerGithubQueryError = void
 
 
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
+ params: undefined |  AuthControllerGithubParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof authControllerGithub>>,
           TError,
@@ -848,7 +860,7 @@ export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authCo
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof authControllerGithub>>,
           TError,
@@ -858,19 +870,19 @@ export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authCo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Start GitHub OAuth login
+ * @summary Start GitHub OAuth login or account linking
  */
 
 export function useAuthControllerGithub<TData = Awaited<ReturnType<typeof authControllerGithub>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ params?: AuthControllerGithubParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof authControllerGithub>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getAuthControllerGithubQueryOptions(options)
+  const queryOptions = getAuthControllerGithubQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -898,7 +910,7 @@ export const getAuthControllerGithubCallbackUrl = (params?: AuthControllerGithub
 }
 
 /**
- * @summary Complete GitHub OAuth login
+ * @summary Complete GitHub OAuth login or account linking
  */
 export const authControllerGithubCallback = async (params?: AuthControllerGithubCallbackParams, options?: Parameters<typeof customInstance>[1]): Promise<unknown> => {
 
@@ -969,7 +981,7 @@ export function useAuthControllerGithubCallback<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Complete GitHub OAuth login
+ * @summary Complete GitHub OAuth login or account linking
  */
 
 export function useAuthControllerGithubCallback<TData = Awaited<ReturnType<typeof authControllerGithubCallback>>, TError = void>(
@@ -989,3 +1001,240 @@ export function useAuthControllerGithubCallback<TData = Awaited<ReturnType<typeo
 
 
 
+export const getAuthControllerTelegramAuthUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram`
+}
+
+/**
+ * @summary Вход через Telegram Widget
+ */
+export const authControllerTelegramAuth = async (telegramAuthDto: TelegramAuthDto, options?: Parameters<typeof customInstance>[1]): Promise<TelegramAuthResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<TelegramAuthResponseDto>(getAuthControllerTelegramAuthUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramAuthDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramAuthMutationKey = () => ['authControllerTelegramAuth'] as const;
+
+export const getAuthControllerTelegramAuthMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramAuthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramAuth>>, AuthControllerTelegramAuthMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramAuth(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramAuthMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramAuth>>>
+    export type AuthControllerTelegramAuthMutationBody = TelegramAuthDto
+    export type AuthControllerTelegramAuthMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramAuthMutationVariables = {data: TelegramAuthDto}
+
+    /**
+ * @summary Вход через Telegram Widget
+ */
+export const useAuthControllerTelegramAuth = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramAuth>>, TError,AuthControllerTelegramAuthMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramAuth>>,
+        TError,
+        AuthControllerTelegramAuthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramAuthMutationOptions(options), queryClient);
+    }
+    export const getAuthControllerTelegramCompleteUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram/complete`
+}
+
+/**
+ * @summary Завершение онбординга Telegram с указанием email
+ */
+export const authControllerTelegramComplete = async (telegramCompleteDto: TelegramCompleteDto, options?: Parameters<typeof customInstance>[1]): Promise<AccessTokenResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<AccessTokenResponseDto>(getAuthControllerTelegramCompleteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramCompleteDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramCompleteMutationKey = () => ['authControllerTelegramComplete'] as const;
+
+export const getAuthControllerTelegramCompleteMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramCompleteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramComplete>>, AuthControllerTelegramCompleteMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramComplete(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramComplete>>>
+    export type AuthControllerTelegramCompleteMutationBody = TelegramCompleteDto
+    export type AuthControllerTelegramCompleteMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramCompleteMutationVariables = {data: TelegramCompleteDto}
+
+    /**
+ * @summary Завершение онбординга Telegram с указанием email
+ */
+export const useAuthControllerTelegramComplete = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramComplete>>, TError,AuthControllerTelegramCompleteMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramComplete>>,
+        TError,
+        AuthControllerTelegramCompleteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramCompleteMutationOptions(options), queryClient);
+    }
+    export const getAuthControllerTelegramLinkUrl = () => {
+
+
+
+
+  return `/api/v1/auth/telegram/link`
+}
+
+/**
+ * @summary Привязка Telegram аккаунта
+ */
+export const authControllerTelegramLink = async (telegramLinkDto: TelegramLinkDto, options?: Parameters<typeof customInstance>[1]): Promise<MessageResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<MessageResponseDto>(getAuthControllerTelegramLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(telegramLinkDto)
+  }
+);}
+
+
+
+
+
+export const getAuthControllerTelegramLinkMutationKey = () => ['authControllerTelegramLink'] as const;
+
+export const getAuthControllerTelegramLinkMutationOptions = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext> => {
+
+const mutationKey = getAuthControllerTelegramLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authControllerTelegramLink>>, AuthControllerTelegramLinkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authControllerTelegramLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthControllerTelegramLinkMutationResult = NonNullable<Awaited<ReturnType<typeof authControllerTelegramLink>>>
+    export type AuthControllerTelegramLinkMutationBody = TelegramLinkDto
+    export type AuthControllerTelegramLinkMutationError = ValidationErrorResponseDto | ErrorResponseDto
+    export type AuthControllerTelegramLinkMutationVariables = {data: TelegramLinkDto}
+
+    /**
+ * @summary Привязка Telegram аккаунта
+ */
+export const useAuthControllerTelegramLink = <TError = ValidationErrorResponseDto | ErrorResponseDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authControllerTelegramLink>>, TError,AuthControllerTelegramLinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authControllerTelegramLink>>,
+        TError,
+        AuthControllerTelegramLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthControllerTelegramLinkMutationOptions(options), queryClient);
+    }

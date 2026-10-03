@@ -2,26 +2,32 @@
   "name": "@packages/dto",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.cjs"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rslib build",
+    "dev": "rslib build --watch",
     "lint": "biome check --no-errors-on-unmatched",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@packages/i18n": "workspace:*",
     "@packages/types": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
+    "@rslib/core": "^0.23.2",
+    "@types/node": "^20.19.43",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

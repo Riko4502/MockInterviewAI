@@ -1,7 +1,9 @@
 import {
   GIT_URL_REGEX,
+  locales,
   normalizeTelegramUsername,
   TELEGRAM_USERNAME_REGEX,
+  THEME_MODES,
   type UpdateProfileDto,
   USERNAME_REGEX,
 } from "@packages/dto";
@@ -40,6 +42,8 @@ export function createProfileFormSchema(t: (key: ProfileErrorKey) => string) {
         (value) => value === "" || GIT_URL_REGEX.test(value),
         t("profile.errors.gitUrl"),
       ),
+    theme: z.enum(THEME_MODES),
+    locale: z.enum(locales),
   });
 }
 
@@ -49,17 +53,34 @@ export type ProfileFormValues = z.infer<
 
 export function toUpdateProfileDto(
   values: ProfileFormValues,
+  dirtyFields?: Partial<Record<keyof ProfileFormValues, boolean>>,
 ): UpdateProfileDto {
   const telegramUsername = values.telegramUsername.trim();
   const gitUrl = values.gitUrl.trim();
 
-  return {
-    displayName: values.displayName.trim(),
-    username: values.username.trim().toLowerCase(),
-    telegramUsername:
+  const dto: UpdateProfileDto = {};
+
+  if (!dirtyFields || dirtyFields.displayName) {
+    dto.displayName = values.displayName.trim();
+  }
+  if (!dirtyFields || dirtyFields.username) {
+    dto.username = values.username.trim().toLowerCase();
+  }
+  if (!dirtyFields || dirtyFields.telegramUsername) {
+    dto.telegramUsername =
       telegramUsername === ""
         ? null
-        : normalizeTelegramUsername(telegramUsername),
-    gitUrl: gitUrl === "" ? null : gitUrl,
-  };
+        : normalizeTelegramUsername(telegramUsername);
+  }
+  if (!dirtyFields || dirtyFields.gitUrl) {
+    dto.gitUrl = gitUrl === "" ? null : gitUrl;
+  }
+  if (!dirtyFields || dirtyFields.theme) {
+    dto.theme = values.theme;
+  }
+  if (!dirtyFields || dirtyFields.locale) {
+    dto.locale = values.locale;
+  }
+
+  return dto;
 }

@@ -1,11 +1,20 @@
 "use client";
 
-import { CodeEditorLazy } from "@packages/editor";
 import { CheckIcon, MicIcon, ZapIcon } from "@packages/icons";
 import { Badge, Tabs, WindowHeader } from "@packages/ui";
+import dynamic from "next/dynamic";
+
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+const CodeEditor = dynamic(
+  () => import("@packages/editor").then((mod) => mod.CodeEditorLazy),
+  {
+    ssr: false,
+    loading: () => <div className="h-[230px] w-full" />,
+  },
+);
 
 const EVALUATE_STREAM_CODE = `// High-Performance Stream Evaluator
 export async function evaluateStream(
@@ -124,7 +133,7 @@ export function HeroCodeMockup() {
               value="solution"
               className="h-[230px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-white/40 dark:bg-[#0c0d14]/80 outline-none"
             >
-              <CodeEditorLazy
+              <CodeEditor
                 value={EVALUATE_STREAM_CODE}
                 language="typescript"
                 theme={editorTheme}
@@ -148,7 +157,7 @@ export function HeroCodeMockup() {
               value="test"
               className="h-[230px] w-full rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-white/40 dark:bg-[#0c0d14]/80 outline-none"
             >
-              <CodeEditorLazy
+              <CodeEditor
                 value={TEST_STREAM_CODE}
                 language="typescript"
                 theme={editorTheme}

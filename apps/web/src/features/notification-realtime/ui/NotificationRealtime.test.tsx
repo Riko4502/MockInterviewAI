@@ -100,12 +100,12 @@ describe("NotificationRealtime", () => {
   });
 
   it("preserves the stream and active toasts across locale changes", () => {
-    mocks.translate = (key: string) => "en:" + key;
+    mocks.translate = (key: string) => `en:${key}`;
     const { rerender, unmount } = render(tree());
     emit("notification.new", newNotification);
     const firstToast = mocks.toast.push.mock.calls[0][0];
 
-    mocks.translate = (key: string) => "ru:" + key;
+    mocks.translate = (key: string) => `ru:${key}`;
     rerender(tree());
     expect(mocks.open).toHaveBeenCalledTimes(1);
     expect(stream.close).not.toHaveBeenCalled();

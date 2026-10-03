@@ -125,6 +125,87 @@
         "tags": ["Profile"]
       }
     },
+    "/api/v1/profile/device-settings": {
+      "get": {
+        "operationId": "ProfileController_getDeviceSettings",
+        "parameters": [
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "query",
+            "description": "Уникальный ID клиентского устройства (1-128 символов)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Настройки аудио, речи и устройств",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный clientId"
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить настройки медиа и устройств для клиентского устройства",
+        "tags": ["Profile"]
+      },
+      "put": {
+        "operationId": "ProfileController_updateDeviceSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Обновленные настройки аудио, речи и устройств",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации входных данных"
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Сохранить настройки медиа и устройств для клиентского устройства",
+        "tags": ["Profile"]
+      }
+    },
     "/api/v1/profile/avatar": {
       "post": {
         "operationId": "ProfileController_uploadAvatar",
@@ -667,13 +748,22 @@
     "/api/v1/auth/github": {
       "get": {
         "operationId": "AuthController_github",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "302": {
             "description": "Redirect to GitHub"
           }
         },
-        "summary": "Start GitHub OAuth login",
+        "summary": "Start GitHub OAuth login or account linking",
         "tags": ["auth"]
       }
     },
@@ -700,10 +790,185 @@
         ],
         "responses": {
           "302": {
-            "description": "Refresh cookie and redirect to dashboard"
+            "description": "Refresh cookie and redirect to dashboard or profile"
           }
         },
-        "summary": "Complete GitHub OAuth login",
+        "summary": "Complete GitHub OAuth login or account linking",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/telegram": {
+      "post": {
+        "operationId": "AuthController_telegramAuth",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный вход (AUTHENTICATED) или необходимость ввода email (NEED_EMAIL). Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). Refresh token не возвращается в JSON response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramAuthResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации DTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Недействительная подпись Telegram, истекший auth_date или повторный запрос.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Вход через Telegram Widget",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/telegram/complete": {
+      "post": {
+        "operationId": "AuthController_telegramComplete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramCompleteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Успешное завершение онбординга и создание аккаунта. Set-Cookie: refresh_token={JWT}; HttpOnly; SameSite=Lax; Path=/api/v1/auth; Max-Age=JWT_REFRESH_EXPIRATION (§25–28 SPEC.md). Refresh token не возвращается в JSON response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Недействительный или истекший onboardingToken / ошибка валидации.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponseDto"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email уже зарегистрирован.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Завершение онбординга Telegram с указанием email",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/telegram/link": {
+      "post": {
+        "operationId": "AuthController_telegramLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Telegram аккаунт успешно привязан.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации DTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Недействительная подпись Telegram или неавторизованный запрос.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Telegram аккаунт уже привязан к другому пользователю.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Привязка Telegram аккаунта",
         "tags": ["auth"]
       }
     },
@@ -1167,6 +1432,264 @@
         ],
         "summary": "Восстановить удаленного пользователя администратором",
         "tags": ["Admin / Users"]
+      }
+    },
+    "/api/v1/dashboard/upcoming": {
+      "get": {
+        "operationId": "DashboardController_getUpcoming",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Информация о ближайшем интервью с таймером и статусом готовности",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpcomingSessionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить ближайшее запланированное или активное интервью",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/readiness": {
+      "get": {
+        "operationId": "DashboardController_getReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Процент готовности и список шагов с actionUrl",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardReadinessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить процент готовности профиля и статус шагов онбординга",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/daily-challenge": {
+      "get": {
+        "operationId": "DashboardController_getDailyChallenge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Задача дня с бейджем сложности и статусом решения",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyChallengeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить сегодняшнюю задачу дня по алгоритмам",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/live-match/toggle": {
+      "post": {
+        "operationId": "DashboardController_toggleLiveMatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveMatchToggleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveMatchStatusResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Включить или выключить режим мгновенного поиска напарника",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/match-requests": {
+      "get": {
+        "operationId": "DashboardController_getMatchRequests",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "maximum": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список входящих заявок в статусе PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardMatchRequestsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить входящие запросы на собеседование с витрины",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/stats": {
+      "get": {
+        "operationId": "DashboardController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Метрики: интервью, стрик дней, задачи, средний балл",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить сводные показатели активности и стрик кандидата",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/recent-sessions": {
+      "get": {
+        "operationId": "DashboardController_getRecentSessions",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "maximum": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список недавних сессий с оценками и ссылками на отчеты",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentSessionsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить список последних завершенных интервью",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/insights": {
+      "get": {
+        "operationId": "DashboardController_getInsights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Слабые темы и ссылки на практические материалы в песочнице",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardInsightsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить рекомендации AI по зонам роста на основе прошлых интервью",
+        "tags": ["Dashboard"]
+      }
+    },
+    "/api/v1/dashboard/showcase-status": {
+      "get": {
+        "operationId": "DashboardController_getShowcaseStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Статус карточки: оставшиеся дни, просмотры, возможность bump",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseStatusResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить статус анкеты на витрине поиска напарников",
+        "tags": ["Dashboard"]
       }
     },
     "/api/v1/sessions": {
@@ -2130,7 +2653,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Количество непрочитанных заявок"
+            "description": "Количество непрочитанных заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadMatchRequestsCountDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2159,7 +2689,14 @@
         },
         "responses": {
           "201": {
-            "description": "Заявка успешно отправлена (или согласована при авто-матче)"
+            "description": "Заявка успешно отправлена (или согласована при авто-матче)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Не заполнен профиль, попытка отклика на себя, исчерпан лимит входящих на карточке или действует кулдаун"
@@ -2224,7 +2761,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Пагинированный список входящих заявок"
+            "description": "Пагинированный список входящих заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMatchRequestResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2277,7 +2821,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Пагинированный список исходящих заявок"
+            "description": "Пагинированный список исходящих заявок",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMatchRequestResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2306,7 +2857,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Заявка успешно принята, контакты открыты"
+            "description": "Заявка успешно принята, контакты открыты",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchRequestResponseDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Заявка не в статусе ожидания или срок её действия истёк"
@@ -2480,10 +3038,26 @@
           "permissions": {
             "type": "string"
           },
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"]
+          },
+          "locale": {
+            "type": "string",
+            "enum": ["ru", "en"]
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "telegramLinkVerified": {
+            "default": false,
+            "type": "boolean"
+          },
+          "githubLinkVerified": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
@@ -2497,6 +3071,8 @@
           "email",
           "role",
           "permissions",
+          "theme",
+          "locale",
           "updatedAt"
         ]
       },
@@ -2526,8 +3102,108 @@
             "nullable": true,
             "type": "string",
             "pattern": "^https?:\\/\\/(www\\.)?(github|gitlab)\\.com\\/[a-zA-Z0-9_.-]+\\/?$"
+          },
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"]
+          },
+          "locale": {
+            "type": "string",
+            "enum": ["ru", "en"]
           }
         }
+      },
+      "DeviceSettingsDto": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deviceName": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 128
+          },
+          "audioVolume": {
+            "default": 80,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "speechVolume": {
+            "default": 80,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "micGain": {
+            "default": 100,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "preferredAudioInputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredAudioOutputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredVideoInputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "isPersisted": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": ["clientId"]
+      },
+      "UpdateDeviceSettingsDto": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "deviceName": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "audioVolume": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "speechVolume": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "micGain": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "preferredAudioInputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredAudioOutputLabel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "preferredVideoInputLabel": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["clientId"]
       },
       "AvatarUploadResponseDto": {
         "type": "object",
@@ -2661,6 +3337,40 @@
         },
         "required": ["statusCode", "message"]
       },
+      "TelegramAuthResponseDto": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["AUTHENTICATED"],
+                "example": "AUTHENTICATED"
+              },
+              "accessToken": {
+                "type": "string",
+                "description": "JWT access token"
+              }
+            },
+            "required": ["status", "accessToken"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["NEED_EMAIL"],
+                "example": "NEED_EMAIL"
+              },
+              "onboardingToken": {
+                "type": "string",
+                "description": "Одноразовый токен онбординга для завершения регистрации"
+              }
+            },
+            "required": ["status", "onboardingToken"]
+          }
+        ]
+      },
       "OAuthProvidersResponseDto": {
         "type": "object",
         "properties": {
@@ -2759,6 +3469,99 @@
           }
         },
         "required": ["token", "newPassword", "newPasswordConfirmation"]
+      },
+      "TelegramAuthDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "first_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "last_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          },
+          "photo_url": {
+            "nullable": true,
+            "type": "string",
+            "format": "uri"
+          },
+          "auth_date": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "auth_date", "hash"]
+      },
+      "TelegramCompleteDto": {
+        "type": "object",
+        "properties": {
+          "onboardingToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": ["onboardingToken", "email"]
+      },
+      "TelegramLinkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "first_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "last_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          },
+          "photo_url": {
+            "nullable": true,
+            "type": "string",
+            "format": "uri"
+          },
+          "auth_date": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "auth_date", "hash"]
       },
       "PaginatedUsersAdminResponseDto": {
         "type": "object",
@@ -3134,6 +3937,637 @@
         },
         "required": ["isActive"]
       },
+      "CreateSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inviteToken": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionId", "inviteToken"]
+      },
+      "JoinSessionDto": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "inviteToken": {
+            "type": "string"
+          }
+        }
+      },
+      "JoinSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"],
+            "description": "Роль пользователя в сессии"
+          },
+          "inviteToken": {
+            "type": "string",
+            "description": "Инвайт-токен сессии"
+          }
+        },
+        "required": ["role", "inviteToken"]
+      },
+      "AddParticipantDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"]
+          }
+        },
+        "required": ["userId", "role"]
+      },
+      "RotateInviteResponseDto": {
+        "type": "object",
+        "properties": {
+          "inviteToken": {
+            "type": "string",
+            "description": "Новый инвайт-токен сессии"
+          }
+        },
+        "required": ["inviteToken"]
+      },
+      "UpcomingSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "hasUpcoming": {
+            "type": "boolean"
+          },
+          "session": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "title": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["CREATED", "ACTIVE", "CLOSED"]
+              },
+              "scheduledAt": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"]
+              },
+              "partner": {
+                "nullable": true,
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "displayName": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "username": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "avatarUrl": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "specialization": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "FRONTEND",
+                      "BACKEND",
+                      "FULLSTACK",
+                      "DEVOPS",
+                      "QA",
+                      "MOBILE",
+                      "DATA_ML",
+                      "SYSTEM_DESIGN"
+                    ]
+                  },
+                  "level": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                  }
+                },
+                "required": ["id", "displayName", "username", "avatarUrl"]
+              },
+              "isReadyToJoin": {
+                "type": "boolean"
+              },
+              "secondsUntilStart": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status",
+              "scheduledAt",
+              "role",
+              "isReadyToJoin",
+              "secondsUntilStart"
+            ]
+          }
+        },
+        "required": ["hasUpcoming"]
+      },
+      "DashboardReadinessResponseDto": {
+        "type": "object",
+        "properties": {
+          "totalPercentage": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "isFullyReady": {
+            "type": "boolean"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "EMAIL_PROVIDED",
+                    "MEDIA_CONFIGURED",
+                    "TELEGRAM_LINKED",
+                    "SHOWCASE_CREATED",
+                    "FIRST_MOCK_COMPLETED"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "isCompleted": {
+                  "type": "boolean"
+                },
+                "actionUrl": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "description",
+                "isCompleted",
+                "actionUrl"
+              ]
+            }
+          }
+        },
+        "required": ["totalPercentage", "isFullyReady", "steps"]
+      },
+      "DailyChallengeResponseDto": {
+        "type": "object",
+        "properties": {
+          "problemId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": ["EASY", "MEDIUM", "HARD"]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timeUntilResetSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "isSolvedToday": {
+            "type": "boolean"
+          },
+          "solvedAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "pointsReward": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "problemId",
+          "title",
+          "difficulty",
+          "tags",
+          "timeUntilResetSeconds",
+          "isSolvedToday",
+          "pointsReward"
+        ]
+      },
+      "LiveMatchToggleDto": {
+        "type": "object",
+        "properties": {
+          "isSearching": {
+            "type": "boolean"
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          }
+        },
+        "required": ["isSearching", "specialization", "level"]
+      },
+      "LiveMatchStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["IDLE", "SEARCHING", "MATCHED"]
+          },
+          "sessionId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "estimatedWaitSeconds": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["status"]
+      },
+      "DashboardMatchRequestsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "senderId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "senderName": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "senderAvatarUrl": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "specialization": {
+                  "nullable": true,
+                  "type": "string",
+                  "enum": [
+                    "FRONTEND",
+                    "BACKEND",
+                    "FULLSTACK",
+                    "DEVOPS",
+                    "QA",
+                    "MOBILE",
+                    "DATA_ML",
+                    "SYSTEM_DESIGN"
+                  ]
+                },
+                "level": {
+                  "nullable": true,
+                  "type": "string",
+                  "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                },
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "message": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "senderId",
+                "senderName",
+                "skills",
+                "createdAt"
+              ]
+            }
+          },
+          "totalPendingCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["items", "totalPendingCount"]
+      },
+      "DashboardStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "totalInterviews": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "completedInterviews": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "averageScore": {
+            "nullable": true,
+            "type": "number"
+          },
+          "currentStreakDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxStreakDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "solvedTasks": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "easy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "medium": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "hard": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["total", "easy", "medium", "hard"]
+          },
+          "totalPracticeTimeMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "totalInterviews",
+          "completedInterviews",
+          "averageScore",
+          "currentStreakDays",
+          "maxStreakDays",
+          "solvedTasks",
+          "totalPracticeTimeMinutes"
+        ]
+      },
+      "RecentSessionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "completedAt": {
+                  "type": "string"
+                },
+                "durationMinutes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "score": {
+                  "nullable": true,
+                  "type": "number"
+                },
+                "specialization": {
+                  "nullable": true,
+                  "type": "string",
+                  "enum": [
+                    "FRONTEND",
+                    "BACKEND",
+                    "FULLSTACK",
+                    "DEVOPS",
+                    "QA",
+                    "MOBILE",
+                    "DATA_ML",
+                    "SYSTEM_DESIGN"
+                  ]
+                },
+                "level": {
+                  "nullable": true,
+                  "type": "string",
+                  "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"]
+                },
+                "hasFeedbackReport": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "completedAt",
+                "durationMinutes",
+                "role",
+                "hasFeedbackReport"
+              ]
+            }
+          }
+        },
+        "required": ["items"]
+      },
+      "DashboardInsightsResponseDto": {
+        "type": "object",
+        "properties": {
+          "insights": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "ALGORITHMS",
+                    "SYSTEM_DESIGN",
+                    "COMMUNICATION",
+                    "CODE_QUALITY"
+                  ]
+                },
+                "headline": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "practiceUrl": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "category", "headline", "recommendation"]
+            }
+          },
+          "overallSummary": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["insights"]
+      },
+      "ShowcaseStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "hasActiveCard": {
+            "type": "boolean"
+          },
+          "card": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "specialization": {
+                "type": "string",
+                "enum": [
+                  "FRONTEND",
+                  "BACKEND",
+                  "FULLSTACK",
+                  "DEVOPS",
+                  "QA",
+                  "MOBILE",
+                  "DATA_ML",
+                  "SYSTEM_DESIGN"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+              },
+              "isUrgent": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string"
+              },
+              "daysLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "canBump": {
+                "type": "boolean"
+              },
+              "lastBumpedAt": {
+                "type": "string"
+              },
+              "viewsCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "incomingRequestsCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "specialization",
+              "level",
+              "isUrgent",
+              "expiresAt",
+              "daysLeft",
+              "canBump",
+              "lastBumpedAt",
+              "viewsCount",
+              "incomingRequestsCount"
+            ]
+          }
+        },
+        "required": ["hasActiveCard"]
+      },
       "HealthResponseDto": {
         "type": "object",
         "properties": {
@@ -3147,6 +4581,284 @@
           }
         },
         "required": ["status", "db"]
+      },
+      "PublicUserCardDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "telegramUsername": {
+            "type": "string",
+            "nullable": true
+          },
+          "gitUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "username",
+          "avatarUrl",
+          "telegramUsername",
+          "gitUrl"
+        ]
+      },
+      "ShowcaseCardResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "$ref": "#/components/schemas/PublicUserCardDto"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
+          },
+          "language": {
+            "type": "string",
+            "enum": ["RU", "EN", "ANY"]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "scheduleInfo": {
+            "type": "string",
+            "nullable": true
+          },
+          "isUrgent": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INACTIVE", "EXPIRED"]
+          },
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "bumpedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "user",
+          "title",
+          "specialization",
+          "level",
+          "language",
+          "skills",
+          "bio",
+          "scheduleInfo",
+          "isUrgent",
+          "status",
+          "autoRenew",
+          "bumpedAt",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "MatchRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "senderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receiverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/PublicUserCardDto"
+          },
+          "receiver": {
+            "$ref": "#/components/schemas/PublicUserCardDto"
+          },
+          "targetCard": {
+            "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+          },
+          "senderCard": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ShowcaseCardResponseDto"
+              }
+            ],
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"]
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "sessionStatus": {
+            "type": "string",
+            "enum": ["CREATED", "ACTIVE", "CLOSED"],
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "preferredTopic": {
+            "type": "string",
+            "nullable": true
+          },
+          "rejectReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "senderId",
+          "receiverId",
+          "sender",
+          "receiver",
+          "targetCard",
+          "senderCard",
+          "status",
+          "sessionId",
+          "message",
+          "preferredTopic",
+          "rejectReason",
+          "createdAt",
+          "updatedAt",
+          "expiresAt"
+        ]
+      },
+      "PaginatedMatchRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchRequestResponseDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "page": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "totalPages": {
+                "type": "number"
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPrevPage": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "total",
+              "page",
+              "limit",
+              "totalPages",
+              "hasNextPage",
+              "hasPrevPage"
+            ]
+          }
+        },
+        "required": ["data", "meta"]
+      },
+      "UnreadMatchRequestsCountDto": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "number"
+          }
+        },
+        "required": ["pendingCount"]
       },
       "CreateMatchRequestDto": {
         "type": "object",
@@ -3293,68 +5005,6 @@
         },
         "required": ["success"]
       },
-      "CreateSessionResponseDto": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "inviteToken": {
-            "type": "string"
-          }
-        },
-        "required": ["sessionId", "inviteToken"]
-      },
-      "JoinSessionDto": {
-        "default": {},
-        "type": "object",
-        "properties": {
-          "inviteToken": {
-            "type": "string"
-          }
-        }
-      },
-      "JoinSessionResponseDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"],
-            "description": "Роль пользователя в сессии"
-          },
-          "inviteToken": {
-            "type": "string",
-            "description": "Инвайт-токен сессии"
-          }
-        },
-        "required": ["role", "inviteToken"]
-      },
-      "AddParticipantDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "role": {
-            "type": "string",
-            "enum": ["CANDIDATE", "INTERVIEWER", "OBSERVER"]
-          }
-        },
-        "required": ["userId", "role"]
-      },
-      "RotateInviteResponseDto": {
-        "type": "object",
-        "properties": {
-          "inviteToken": {
-            "type": "string",
-            "description": "Новый инвайт-токен сессии"
-          }
-        },
-        "required": ["inviteToken"]
-      },
       "TicketDto": {
         "type": "object",
         "properties": {
@@ -3409,6 +5059,7 @@
         "type": "object",
         "properties": {
           "title": {
+            "nullable": true,
             "type": "string",
             "minLength": 3,
             "maxLength": 100
@@ -3470,6 +5121,7 @@
         "type": "object",
         "properties": {
           "title": {
+            "nullable": true,
             "type": "string",
             "minLength": 3,
             "maxLength": 100

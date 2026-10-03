@@ -7,6 +7,9 @@ on:
         type: string
         required: false
         default: ''
+    secrets:
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:
+        required: false
 
 jobs:
   build:
@@ -47,6 +50,8 @@ jobs:
           context: .
           file: ./apps/web/Dockerfile
           push: true
+          build-args: |
+            NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=${{ secrets.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

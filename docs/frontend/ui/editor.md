@@ -1,15 +1,15 @@
 # Редактор кода (Code Editor)
 
-Пакет `packages/editor` (`@packages/editor`) — это обёртка над **Monaco Editor**, предоставляющая готовый React-компонент для совместного редактирования кода в реальном времени на собеседовании.
+Пакет `packages/editor` (`@packages/editor`) — это обёртка над **Monaco Editor**, предоставляющая полнофункциональный React-компонент для совместного редактирования кода в реальном времени на базе **Yjs CRDT** и **Yjs Awareness**.
 
 ---
 
 ## 1. Назначение
 
-`@packages/editor` решает три задачи:
-1. **Единый редактор кода** для всей платформы — с подсветкой синтаксиса, автокомплитом и кастомными темами.
-2. **Мультиплеерные курсоры** — отображение позиций курсоров других участников комнаты в реальном времени (аналог Google Docs / VS Code Live Share).
-3. **Шаблоны кода** — стартовые бойлерплейты для алгоритмических и SQL-задач на 7+ языках программирования.
+`@packages/editor` решает три ключевые задачи платформы:
+1. **Единый редактор кода** — с подсветкой синтаксиса, автокомплитом и кастомными темами для 8 языков программирования.
+2. **Yjs CRDT Мультиплеер** — бесконфликтное совместное редактирование документов в реальном времени с поддержкой многопользовательских курсоров и выделений (Yjs Awareness).
+3. **Шаблоны кода** — стартовые бойлерплейты для алгоритмических и SQL-задач.
 
 ---
 
@@ -17,11 +17,14 @@
 
 | Технология | Роль |
 | :--- | :--- |
-| **Monaco Editor** (`monaco-editor`) | Ядро редактора (тот же движок, что и в VS Code) |
+| **Monaco Editor** (`monaco-editor`) | Ядро редактора (движок VS Code) |
 | **@monaco-editor/react** | React-обёртка для интеграции Monaco в компонентную модель |
+| **Yjs** (`yjs`) | CRDT-движок для бесконфликтной синхронизации текста |
+| **y-monaco** | Официальный биндинг `Y.Text` к модели `ITextModel` Monaco Editor |
+| **y-protocols** (`y-protocols/awareness`) | Протокол эфемерного состояния участников (курсоры, выделения, имена, цвета) |
 | **@packages/types** | Общий тип `Theme` (`"dark"` \| `"light"`) |
 | **Rslib** | Сборка пакета в `dist/` (ESM, `bundle: false`) |
-| **Vitest** | Юнит-тесты шаблонов кода |
+| **Vitest** | Юнит-тесты шаблонов кода и биндингов |
 | **Biome** | Линтинг и форматирование |
 
 ---
@@ -30,11 +33,11 @@
 
 ```text
 @packages/editor
-├── components/       ← React-компонент CodeEditor + Lazy-обёртка
+├── components/       ← React-компонент CodeEditor + Lazy-обёртка (CodeEditorLazy)
 ├── languages/        ← Конфиги языков + провайдеры автокомплита
 ├── themes/           ← Кастомные темы Monaco (dark / light)
 ├── templates/        ← Стартовые шаблоны кода (algorithm / sql)
-└── multiplayer/      ← Хук useRemoteCursors + генерация CSS курсоров
+└── multiplayer/      ← Утилиты стилизации курсоров Yjs Awareness (cursor-css.ts)
 ```
 
 ### Граф зависимостей внутри пакета
@@ -78,150 +81,128 @@ flowchart TD
 | Rust | `rust` | 4 | Пробелы | Кастомный (ключевые слова + макросы) |
 | SQL | `sql` | 2 | Пробелы | Кастомный (SQL-команды + агрегаты) |
 
-Автокомплит для каждого языка регистрируется **ровно один раз** (флаг-предохранитель `*ProviderRegistered`), что предотвращает дублирование при ре-рендерах React.
+Автокомплит регистрируется **ровно один раз** (флаг `*ProviderRegistered`), что предотвращает дублирование при ре-рендерах.
 
 ---
 
 ## 5. Система тем
 
-Пакет регистрирует кастомные темы при инициализации редактора (`beforeMount`):
-
 | Тема | ID | Базовая тема VS Code | Описание |
 | :--- | :--- | :--- | :--- |
-| Тёмная | `"dark"` | `vs-dark` | Наследует все цвета VS Code Dark+ |
-| Светлая | `"light"` | `vs` | Наследует все цвета VS Code Light+ |
+| Тёмная | `"dark"` | `vs-dark` | Кастомная тёмная палитра MockInterviewAI |
+| Светлая | `"light"` | `vs` | Светлая палитра VS Code Light+ |
 
-Тип `Theme` (`"dark" | "light"`) определён в `@packages/types` и используется для строгой типизации пропа `theme`.
+Тип `Theme` (`"dark" | "light"`) импортируется из `@packages/types`.
 
 ---
 
-## 6. Мультиплеер (совместные курсоры)
+## 6. Мультиплеер (Yjs CRDT и Awareness)
 
-### 6.1. Принцип работы
+### 6.1. Архитектура интеграции
+
+Совместная работа построена на модели **CRDT (Conflict-free Replicated Data Types)**:
+1. `Y.Text` связывается с моделью Monaco Editor через `MonacoBinding`.
+2. Правки синхронизируются бинарными дельтами через `RealtimeYjsProvider` в WebSocket транспорт.
+3. Позиции курсоров и выделений соавторов передаются через протокол **Yjs Awareness**.
 
 ```mermaid
-sequenceDiagram
-    participant User as Наш пользователь
-    participant CE as CodeEditor
-    participant WS as WebSocket (apps/realtime)
-    participant Other as Другие участники
+flowchart LR
+    subgraph Browser["Браузер"]
+        CE["CodeEditor (Monaco)"]
+        MB["MonacoBinding"]
+        YT["Y.Text (yText)"]
+        AW["Awareness"]
+        UM["Y.UndoManager\n(trackedOrigins: [binding])"]
+        CSS["updateYjsAwarenessStyles"]
+    end
 
-    User->>CE: Перемещает курсор
-    CE->>CE: Троттлинг (50ms)
-    CE->>WS: onCursorChange(position)
-    Note over WS: cursor.move event
-    WS->>Other: Бродкаст cursor.move
+    subgraph Transport["WebSocket"]
+        P["RealtimeYjsProvider"]
+    end
 
-    Other->>WS: cursor.move event
-    WS->>CE: collaborators prop обновляется
-    CE->>CE: useRemoteCursors → декорации Monaco
-    CE->>CE: updateRemoteCursorStyles → CSS флажки
+    CE <--> MB
+    MB <--> YT
+    MB <--> AW
+    AW --> CSS
+    YT <--> UM
+    YT <--> P
+    AW <--> P
 ```
 
-### 6.2. Интерфейсы
+### 6.2. Изоляция истории Undo/Redo
 
+Для предотвращения отката чужих правок при нажатии `Ctrl+Z` / `Ctrl+Y`:
 ```typescript
-interface CursorPosition {
-  line: number;              // Номер строки (от 1)
-  column: number;            // Номер столбца (от 1)
-  selectionEndLine?: number; // Конец выделения (строка)
-  selectionEndColumn?: number; // Конец выделения (столбец)
-}
-
-interface Collaborator {
-  id: string;    // Уникальный ID участника
-  name: string;  // Имя (отображается на флажке курсора)
-  color: string; // HEX-цвет курсора и выделения
-  cursor?: CursorPosition;
-}
+const currentUndoManager = new Y.UndoManager(yText, {
+  trackedOrigins: new Set([binding]),
+});
 ```
+Стандартные команды Monaco `Undo` / `Redo` перехватываются и делегируются в Yjs `UndoManager`. Изменения удаленных участников приходят с origin провайдера и игнорируются локальным стеком отмены.
 
-> **Совместимость с realtime-протоколом:** поля `CursorPosition` напрямую совпадают с контрактом `CursorPayload` события `cursor.move` WebSocket-протокола, что позволяет маппить данные без трансформаций.
+### 6.3. Отображение курсоров участников
 
-### 6.3. Дизайн курсоров
+Функция `updateYjsAwarenessStyles(awareness)` слушает событие `awareness.on("change")` и динамически внедряет CSS-стили для классов `y-monaco`:
+- `.yRemoteSelection-${clientID}` — подсветка выделенного соавтором текста (цвет с прозрачностью 25%);
+- `.yRemoteSelectionHead-${clientID}` — вертикальная каретка толщиной 2px цвета соавтора;
+- `.yRemoteSelectionHead-${clientID}::after` — всплывающий бейдж с именем участника над кареткой.
 
-Каждый курсор соавтора отрисовывается в виде:
-- **Вертикальная каретка** (2px, цвет участника)
-- **Флажок с именем** над кареткой (фон — цвет участника, текст — белый)
-- **Выделение текста** (цвет участника с 25% прозрачностью)
-
-CSS-правила генерируются динамически и инжектируются в `<head>`.
+> ⚠️ **RETIRED:** Устаревшие LWW-механизмы (`collaborators: Collaborator[]`, `onCursorChange`, ручные cursor decorations) выведены из эксплуатации. Совместная работа осуществляется через `yText` и `awareness`.
 
 ---
 
 ## 7. Шаблоны стартового кода
 
-Функция `getTemplate(language, category)` возвращает стартовый бойлерплейт для задачи:
+Функция `getTemplate(language, category)` возвращает стартовый бойлерплейт:
 
 | Категория | Описание | Языки |
 | :--- | :--- | :--- |
-| `"algorithm"` | Алгоритмическая задача (функция `solution`) | TS, JS, Python, Go, Java, C++, Rust |
+| `"algorithm"` | Алгоритмическая задача (сигнатура функции `solution`) | TS, JS, Python, Go, Java, C++, Rust |
 | `"sql"` | SQL-задача (шаблон `SELECT` запроса) | SQL |
-
-> **Важно:** пакет `@packages/editor` **не встраивает** шаблоны в редактор автоматически. Приложение (`apps/web`) само решает, когда вызвать `getTemplate` — например, при создании комнаты.
 
 ---
 
-## 8. Lazy-загрузка (SSR-совместимость)
+## 8. Lazy-загрузка и пропсы
 
-Monaco Editor работает **только в браузере** (ему нужен объект `window`). Для использования в Next.js (`apps/web`) предоставляется `CodeEditorLazy`:
+Monaco Editor требует объект `window`. Для Next.js предоставляется `CodeEditorLazy`:
 
 ```tsx
 import { CodeEditorLazy } from "@packages/editor";
 
-// Безопасно рендерится в Next.js без dynamic import
 <CodeEditorLazy
-  value={code}
-  onChange={setCode}
   language="typescript"
   theme="dark"
+  yText={yText}
+  awareness={provider.awareness}
 />
 ```
 
-Внутри используется `React.lazy` + `Suspense`.
+### Основные пропсы `CodeEditorProps`:
+
+| Проп | Тип | По умолчанию | Описание |
+| :--- | :--- | :--- | :--- |
+| `language` | `LanguageId` | `"typescript"` | Язык программирования |
+| `theme` | `Theme` | `"dark"` | Тема оформления |
+| `readOnly` | `boolean` | `false` | Режим только для чтения |
+| `yText` | `Y.Text` | — | Yjs Text для CRDT синхронизации |
+| `awareness` | `Awareness` | — | Инстанс Awareness для совместных курсоров |
+| `undoManager` | `Y.UndoManager` | — | Внешний менеджер истории отмен |
+| `onUndoManagerInit` | `(um) => void` | — | Коллбэк инициализации UndoManager |
+| `value` | `string` | `""` | Текст для автономного режима (без Yjs) |
+| `onChange` | `(val) => void` | — | Коллбэк изменения текста (без Yjs) |
+| `options` | `editor.IStandalone...` | `{}` | Дополнительные опции Monaco Editor |
 
 ---
 
-## 9. Интеграция в приложение `apps/web`
+## 9. Интеграция в `apps/web`
 
-```text
-apps/web
-└── widgets/
-    └── session-workspace/
-        └── CodeEditorWorkspace      ← Виджет использует @packages/editor
-            ├── Подключение к WebSocket (cursor.move, code.update)
-            ├── Маппинг участников → Collaborator[]
-            └── <CodeEditorLazy ... />
-```
-
-```tsx
-// ❌ ЗАПРЕЩЕНО (глубокий внутренний импорт)
-import { CodeEditor } from "@packages/editor/src/components/CodeEditor/code-editor";
-
-// ✅ РАЗРЕШЕНО (через публичный Public API)
-import { CodeEditor, type CodeEditorProps } from "@packages/editor";
-```
+Песочница собеседования (`apps/web/src/features/sandbox`):
+1. `RealtimeYjsProvider` связывает `Y.Doc` и `awareness` с WebSocket Dumb Relay.
+2. `SandboxRoomWorkspace` передает `yText` и `awareness` в `CodeEditorLazy`.
+3. При нажатии «Run Code» считывается иммутабельный строковый срез `yText.toString()`.
 
 ---
 
-## 10. Настройки по умолчанию
-
-Дефолтные опции Monaco Editor (`DEFAULT_EDITOR_OPTIONS`):
-
-| Опция | Значение | Обоснование |
-| :--- | :--- | :--- |
-| `minimap` | `{ enabled: false }` | Код на собеседовании обычно небольшой |
-| `fontSize` | `14` | Читаемый размер шрифта |
-| `wordWrap` | `"on"` | Нет горизонтального скролла |
-| `scrollBeyondLastLine` | `false` | Запрет скроллить за пределы кода |
-| `smoothScrolling` | `true` | Плавная прокрутка |
-| `cursorBlinking` | `"smooth"` | Плавное мигание курсора |
-| `formatOnPaste` | `true` | Автоформатирование при вставке |
-| `automaticLayout` | `true` | Автоподстройка при ресайзе контейнера |
-
----
-
-## 11. Сборка и проверка
+## 10. Сборка и проверка
 
 ```bash
 # Сборка пакета (Rslib)
@@ -233,6 +214,6 @@ pnpm --filter @packages/editor typecheck
 # Линтинг (Biome)
 pnpm --filter @packages/editor lint
 
-# Тесты (Vitest) — 10 кейсов
+# Тесты (Vitest)
 pnpm --filter @packages/editor test
 ```

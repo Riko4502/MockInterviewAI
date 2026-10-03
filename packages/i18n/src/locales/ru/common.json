@@ -1,4 +1,9 @@
 {
+  "roles": { "administrator": "Администратор" },
+  "errors": {
+    "forbiddenTitle": "Недостаточно прав",
+    "forbiddenDescription": "У вас нет прав для выполнения этого действия."
+  },
   "appName": "Mock Interview AI",
   "actions": {
     "save": "Сохранить",
@@ -8,9 +13,12 @@
     "continue": "Продолжить",
     "back": "Назад",
     "submit": "Отправить",
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "switchLanguage": "Сменить язык"
   },
   "navigation": {
+    "administration": "Администрирование",
+    "adminUsers": "Пользователи",
     "home": "Главная",
     "dashboard": "Панель управления",
     "notifications": "Уведомления",
@@ -18,8 +26,12 @@
     "findPartners": "Найти партнёров",
     "statistics": "Статистика",
     "resources": "Ресурсы",
-    "sandbox": "Песочница (Sandbox)",
+    "sandbox": "Песочница",
+    "workspace": "Рабочее пространство",
+    "analytics": "Обучение и аналитика",
     "settings": "Настройки",
+    "mediaSettings": "Настройки звука и видео",
+    "theme": "Тема оформления",
     "profile": "Профиль",
     "login": "Войти",
     "register": "Зарегистрироваться",
@@ -28,6 +40,11 @@
   "profile": {
     "title": "Профиль",
     "subtitle": "Здесь можно изменить данные аккаунта.",
+    "tabs": {
+      "general": "Профиль",
+      "accounts": "Связанные аккаунты",
+      "security": "Безопасность"
+    },
     "email": "Email",
     "displayName": "Имя",
     "username": "Имя пользователя",
@@ -35,11 +52,76 @@
     "gitUrl": "GitHub / GitLab",
     "avatar": "Аватар",
     "uploadAvatar": "Загрузить фото",
+    "cropTitle": "Обрезка фото",
+    "cropDescription": "Выберите область, которая будет видна на аватаре.",
+    "cropConfirm": "Подтвердить",
+    "zoom": "Масштаб",
     "saving": "Сохранение...",
     "loadError": "Не удалось загрузить профиль.",
     "saveError": "Не удалось сохранить профиль.",
     "saveSuccess": "Профиль сохранён.",
     "avatarError": "Не удалось загрузить аватар.",
+    "avatarTypeError": "Можно загрузить только JPEG, PNG или WebP.",
+    "preferencesTitle": "Внешний вид и язык",
+    "preferencesSubtitle": "Настройте тему оформления и язык интерфейса.",
+    "theme": "Тема оформления",
+    "themeLight": "Светлая",
+    "themeDark": "Тёмная",
+    "themeSystem": "Системная",
+    "language": "Язык интерфейса",
+    "dangerZoneTitle": "Опасная зона",
+    "dangerZoneSubtitle": "Необратимые действия с аккаунтом.",
+    "dangerZoneDescription": "После удаления ваш аккаунт будет деактивирован. В течение 30 дней его можно восстановить.",
+    "deleteAccount": "Удалить аккаунт",
+    "deleteAccountConfirmTitle": "Удалить аккаунт?",
+    "deleteAccountConfirmDescription": "Это действие деактивирует вашу учетную запись. В течение 30 дней вы сможете восстановить её, войдя снова или обратившись в поддержку. По истечении 30 дней профиль и все данные будут безвозвратно удалены.",
+    "deleteAccountConfirmButton": "Да, деактивировать аккаунт",
+    "deleteAccountSuccess": "Аккаунт успешно деактивирован.",
+    "deleteAccountError": "Не удалось удалить аккаунт. Попробуйте позже.",
+    "deleting": "Удаление...",
+    "connectedAccountsTitle": "Связанные аккаунты",
+    "connectedAccountsSubtitle": "Сервисы для быстрого входа и получения уведомлений.",
+    "telegramLinked": "Telegram подключен",
+    "telegramNotLinked": "Telegram не привязан",
+    "telegramLinkDesc": "Привяжите Telegram для входа в один клик и получения уведомлений о собеседованиях.",
+    "telegramFieldHint": "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+    "telegramLinkButton": "Привязать Telegram",
+    "telegramUnlinkButton": "Отвязать",
+    "telegramLinkDialogTitle": "Привязка Telegram",
+    "telegramLinkDialogDesc": "Подтвердите привязку вашего Telegram-аккаунта через официальный виджет.",
+    "telegramLinkSuccess": "Telegram успешно привязан!",
+    "telegramLinkError": "Не удалось привязать Telegram.",
+    "telegramUnlinkSuccess": "Telegram отвязан.",
+    "telegramWidgetLoading": "Загрузка виджета Telegram...",
+    "telegramWidgetError": "Не удалось загрузить виджет Telegram. Проверьте интернет-соединение.",
+    "telegramNotConfigured": "Виджет Telegram не настроен (переменная NEXT_PUBLIC_TELEGRAM_BOT_USERNAME не задана на сервере).",
+    "githubLinked": "GitHub подключен",
+    "githubNotLinked": "GitHub не привязан",
+    "githubLinkDesc": "Привяжите аккаунт GitHub для входа и отображения ссылок на репозитории.",
+    "githubFieldHint": "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+    "githubConnectButton": "Подключить GitHub",
+    "githubUnlinkButton": "Отвязать",
+    "githubUnlinkSuccess": "GitHub отвязан.",
+    "githubLinkSuccess": "GitHub успешно привязан!",
+    "githubLinkError": "Не удалось привязать GitHub.",
+    "githubAlreadyLinked": "Этот аккаунт GitHub уже привязан к другому пользователю.",
+    "connected": "Подключено",
+    "notConnected": "Не подключено",
+    "securityTitle": "Безопасность",
+    "securitySubtitle": "Смена пароля и управление доступом к аккаунту.",
+    "currentPassword": "Текущий пароль",
+    "currentPasswordPlaceholder": "Введите текущий пароль",
+    "newPassword": "Новый пароль",
+    "newPasswordPlaceholder": "Введите новый пароль",
+    "newPasswordHint": "Минимум 12 символов",
+    "confirmNewPassword": "Подтверждение пароля",
+    "confirmNewPasswordPlaceholder": "Повторите новый пароль",
+    "changePasswordButton": "Обновить пароль",
+    "changePasswordSaving": "Обновление...",
+    "changePasswordSuccess": "Пароль успешно изменён. Выполняется перенаправление...",
+    "changePasswordError": "Не удалось изменить пароль. Проверьте данные и попробуйте снова.",
+    "wrongCurrentPassword": "Неверный текущий пароль",
+    "samePassword": "Новый пароль должен отличаться от текущего",
     "errors": {
       "displayNameMin": "Имя должно содержать минимум 2 символа",
       "displayNameMax": "Имя должно содержать максимум 50 символов",
@@ -79,5 +161,73 @@
     "open": "Открыть уведомления",
     "deleteAria": "Удалить уведомление: {{title}}",
     "updateError": "Не удалось обновить уведомление. Попробуйте ещё раз."
+  },
+  "loading": {
+    "title": "MockInterview AI",
+    "landingTitle": "DEVSYNC",
+    "badges": {
+      "system": "ПОДГОТОВКА СИСТЕМЫ",
+      "auth": "АВТОРИЗАЦИЯ",
+      "workspace": "РАБОЧАЯ ОБЛАСТЬ",
+      "redirect": "ПЕРЕНАПРАВЛЕНИЕ",
+      "sync": "СИНХРОНИЗАЦИЯ",
+      "access": "ПРОВЕРКА ДОСТУПА"
+    },
+    "descriptions": {
+      "default": "Подготовка рабочего пространства...",
+      "landing": "Загрузка платформы технических AI-интервью...",
+      "auth": "Загрузка сервиса учетных записей...",
+      "workspace": "Загрузка защищенного пространства...",
+      "sessionRestore": "Восстановление защищенной сессии...",
+      "accessCheck": "Проверка прав доступа к странице...",
+      "redirectLogin": "Перенаправление на страницу входа...",
+      "redirectDashboard": "Перенаправление в личный кабинет..."
+    },
+    "steps": {
+      "landing": [
+        "Инициализация сервисов",
+        "Подготовка интерактивных компонентов",
+        "Запуск презентации платформы"
+      ],
+      "root": [
+        "Проверка системного окружения",
+        "Синхронизация сервисов платформы",
+        "Загрузка пользовательского интерфейса",
+        "Запуск рабочего пространства"
+      ],
+      "guest": [
+        "Подключение к шлюзу аутентификации",
+        "Проверка защищенного соединения",
+        "Подготовка формы входа"
+      ],
+      "protected": [
+        "Проверка прав доступа к кабинету",
+        "Синхронизация профиля и активных сессий",
+        "Инициализация AI-интервьюера и песочницы",
+        "Готово к работе"
+      ],
+      "sessionRestore": [
+        "Проверка параметров аутентификации",
+        "Синхронизация профиля разработчика",
+        "Подготовка рабочего пространства"
+      ],
+      "accessCheck": [
+        "Проверка статуса сессии",
+        "Маршрутизация запроса",
+        "Подготовка интерфейса"
+      ],
+      "redirectLogin": [
+        "Сессия не авторизована",
+        "Подготовка формы авторизации",
+        "Переход на страницу входа"
+      ],
+      "redirectDashboard": [
+        "Сессия подтверждена",
+        "Загрузка профиля разработчика",
+        "Переход в рабочее пространство"
+      ]
+    },
+    "systemActive": "AI СИСТЕМА АКТИВНА",
+    "brandLabel": "MOCK INTERVIEW AI"
   }
 }

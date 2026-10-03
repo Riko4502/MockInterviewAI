@@ -1,4 +1,9 @@
 {
+  "roles": { "administrator": "Administrator" },
+  "errors": {
+    "forbiddenTitle": "Insufficient permissions",
+    "forbiddenDescription": "You do not have permission to perform this action."
+  },
   "appName": "Mock Interview AI",
   "actions": {
     "save": "Save",
@@ -8,9 +13,12 @@
     "continue": "Continue",
     "back": "Back",
     "submit": "Submit",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "switchLanguage": "Switch language"
   },
   "navigation": {
+    "administration": "Administration",
+    "adminUsers": "Users",
     "home": "Home",
     "dashboard": "Dashboard",
     "notifications": "Notifications",
@@ -18,8 +26,12 @@
     "findPartners": "Find Partners",
     "statistics": "Statistics",
     "resources": "Resources",
-    "sandbox": "Practice Sandbox",
+    "sandbox": "Sandbox",
+    "workspace": "Workspace",
+    "analytics": "Learning & Analytics",
     "settings": "Settings",
+    "mediaSettings": "Audio & Video Settings",
+    "theme": "Theme",
     "profile": "Profile",
     "login": "Log in",
     "register": "Sign up",
@@ -28,6 +40,11 @@
   "profile": {
     "title": "Profile",
     "subtitle": "Update your account details here.",
+    "tabs": {
+      "general": "Profile",
+      "accounts": "Connected Accounts",
+      "security": "Security"
+    },
     "email": "Email",
     "displayName": "Name",
     "username": "Username",
@@ -35,11 +52,76 @@
     "gitUrl": "GitHub / GitLab",
     "avatar": "Avatar",
     "uploadAvatar": "Upload photo",
+    "cropTitle": "Crop photo",
+    "cropDescription": "Choose the area that will appear on your avatar.",
+    "cropConfirm": "Confirm",
+    "zoom": "Zoom",
     "saving": "Saving...",
     "loadError": "Failed to load profile.",
     "saveError": "Failed to save profile.",
     "saveSuccess": "Profile saved.",
     "avatarError": "Failed to upload avatar.",
+    "avatarTypeError": "Only JPEG, PNG, or WebP images can be uploaded.",
+    "preferencesTitle": "Appearance & Language",
+    "preferencesSubtitle": "Customize interface theme and display language.",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "dangerZoneTitle": "Danger Zone",
+    "dangerZoneSubtitle": "Irreversible actions for your account.",
+    "dangerZoneDescription": "Once deleted, your account will be deactivated. You can restore it within 30 days.",
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirmTitle": "Delete account?",
+    "deleteAccountConfirmDescription": "This action will deactivate your account. You can restore it within 30 days by signing in again or contacting support. After 30 days, your profile and all data will be permanently deleted.",
+    "deleteAccountConfirmButton": "Yes, deactivate account",
+    "deleteAccountSuccess": "Account successfully deactivated.",
+    "deleteAccountError": "Failed to delete account. Please try again later.",
+    "deleting": "Deleting...",
+    "connectedAccountsTitle": "Connected Accounts",
+    "connectedAccountsSubtitle": "Third-party services for quick sign-in and notifications.",
+    "telegramLinked": "Telegram connected",
+    "telegramNotLinked": "Telegram not connected",
+    "telegramLinkDesc": "Link Telegram for one-click sign-in and interview notifications.",
+    "telegramFieldHint": "Linked and managed in the Connected Accounts section below.",
+    "telegramLinkButton": "Link Telegram",
+    "telegramUnlinkButton": "Unlink",
+    "telegramLinkDialogTitle": "Link Telegram Account",
+    "telegramLinkDialogDesc": "Confirm linking your Telegram account using the official widget below.",
+    "telegramLinkSuccess": "Telegram successfully linked!",
+    "telegramLinkError": "Failed to link Telegram.",
+    "telegramUnlinkSuccess": "Telegram unlinked.",
+    "telegramWidgetLoading": "Loading Telegram widget...",
+    "telegramWidgetError": "Failed to load Telegram widget. Please check your internet connection.",
+    "telegramNotConfigured": "Telegram widget is not configured (NEXT_PUBLIC_TELEGRAM_BOT_USERNAME is not set on the server).",
+    "githubLinked": "GitHub connected",
+    "githubNotLinked": "GitHub not connected",
+    "githubLinkDesc": "Link your GitHub account for sign-in and repository showcase.",
+    "githubFieldHint": "Linked and managed in the Connected Accounts section below.",
+    "githubConnectButton": "Connect GitHub",
+    "githubUnlinkButton": "Unlink",
+    "githubUnlinkSuccess": "GitHub unlinked.",
+    "githubLinkSuccess": "GitHub account successfully linked!",
+    "githubLinkError": "Failed to link GitHub account.",
+    "githubAlreadyLinked": "This GitHub account is already linked to another user.",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "securityTitle": "Security",
+    "securitySubtitle": "Change password and account security.",
+    "currentPassword": "Current password",
+    "currentPasswordPlaceholder": "Enter current password",
+    "newPassword": "New password",
+    "newPasswordPlaceholder": "Enter new password",
+    "newPasswordHint": "Minimum 12 characters",
+    "confirmNewPassword": "Confirm password",
+    "confirmNewPasswordPlaceholder": "Repeat new password",
+    "changePasswordButton": "Update password",
+    "changePasswordSaving": "Updating...",
+    "changePasswordSuccess": "Password successfully updated. Redirecting...",
+    "changePasswordError": "Failed to change password. Please check your data and try again.",
+    "wrongCurrentPassword": "Wrong current password",
+    "samePassword": "New password must be different from current password",
     "errors": {
       "displayNameMin": "Name must be at least 2 characters",
       "displayNameMax": "Name must be at most 50 characters",
@@ -79,5 +161,73 @@
     "open": "Open notifications",
     "deleteAria": "Delete notification: {{title}}",
     "updateError": "Could not update the notification. Please try again."
+  },
+  "loading": {
+    "title": "MockInterview AI",
+    "landingTitle": "DEVSYNC",
+    "badges": {
+      "system": "SYSTEM INITIALIZATION",
+      "auth": "AUTHENTICATION",
+      "workspace": "WORKSPACE",
+      "redirect": "REDIRECTING",
+      "sync": "SYNCHRONIZATION",
+      "access": "ACCESS VERIFICATION"
+    },
+    "descriptions": {
+      "default": "Preparing workspace...",
+      "landing": "Loading technical AI interview platform...",
+      "auth": "Loading account services...",
+      "workspace": "Loading protected workspace...",
+      "sessionRestore": "Restoring secure session...",
+      "accessCheck": "Verifying page access permissions...",
+      "redirectLogin": "Redirecting to login page...",
+      "redirectDashboard": "Redirecting to dashboard..."
+    },
+    "steps": {
+      "landing": [
+        "Initializing platform services",
+        "Preparing interactive components",
+        "Launching live platform overview"
+      ],
+      "root": [
+        "Checking system environment",
+        "Synchronizing platform services",
+        "Loading user interface",
+        "Launching workspace"
+      ],
+      "guest": [
+        "Connecting to authentication gateway",
+        "Verifying secure connection",
+        "Preparing login form"
+      ],
+      "protected": [
+        "Verifying workspace access rights",
+        "Synchronizing profile and active sessions",
+        "Initializing AI interviewer and sandbox",
+        "Ready to practice"
+      ],
+      "sessionRestore": [
+        "Verifying authentication parameters",
+        "Synchronizing developer profile",
+        "Preparing workspace"
+      ],
+      "accessCheck": [
+        "Checking session status",
+        "Routing request",
+        "Preparing interface"
+      ],
+      "redirectLogin": [
+        "Session not authorized",
+        "Preparing authentication form",
+        "Navigating to login page"
+      ],
+      "redirectDashboard": [
+        "Session confirmed",
+        "Loading developer profile",
+        "Navigating to workspace"
+      ]
+    },
+    "systemActive": "AI SYSTEM ACTIVE",
+    "brandLabel": "MOCK INTERVIEW AI"
   }
 }

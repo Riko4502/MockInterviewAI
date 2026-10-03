@@ -18,3 +18,16 @@ export function sessionMembersKey(sessionId: string): string {
 export function sessionInviteKey(sessionId: string): string {
   return `session:${sessionId}:invite`;
 }
+
+/** Ключ хэша маркеров засеянных задач сессии: `{session:{id}}:seeded_tasks` */
+export function sessionSeededTasksKey(sessionId: string): string {
+  return `{session:${sessionId}}:seeded_tasks`;
+}
+
+/** Ключ стрима дельт конкретной задачи: `{session:{id}}:task:{taskKey}:updates` */
+export function sessionTaskUpdatesKey(
+  sessionId: string,
+  taskKey: string,
+): string {
+  return `{session:${sessionId}}:task:${taskKey}:updates`;
+}

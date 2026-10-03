@@ -26,6 +26,10 @@ export default defineConfig({
         import.meta.dirname,
         "../../packages/dto/src",
       ),
+      "@packages/hooks": path.resolve(
+        import.meta.dirname,
+        "../../packages/hooks/src",
+      ),
       "@packages/utils": path.resolve(
         import.meta.dirname,
         "../../packages/utils/src",
@@ -33,7 +37,6 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
       "@app": path.resolve(import.meta.dirname, "./src/app"),
       "@pages": path.resolve(import.meta.dirname, "./src/pages"),
-      "@views": path.resolve(import.meta.dirname, "./src/views"),
       "@widgets": path.resolve(import.meta.dirname, "./src/widgets"),
       "@features": path.resolve(import.meta.dirname, "./src/features"),
       "@entities": path.resolve(import.meta.dirname, "./src/entities"),

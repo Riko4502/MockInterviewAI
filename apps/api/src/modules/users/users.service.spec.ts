@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   InternalServerErrorException,
@@ -19,6 +20,12 @@ describe("UsersService", () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    userDeviceSettings: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      upsert: jest.Mock;
+      deleteMany: jest.Mock;
+    };
     role: {
       findUnique: jest.Mock;
     };
@@ -26,6 +33,7 @@ describe("UsersService", () => {
       create: jest.Mock;
       delete: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let storageServiceMock: jest.Mocked<Partial<StorageService>>;
@@ -43,7 +51,10 @@ describe("UsersService", () => {
     username: "ivan_dev",
     avatarUrl: "https://example.com/avatar.webp",
     telegramUsername: "ivan_tg",
+    telegramLinkVerified: false,
     gitUrl: "https://github.com/ivan_dev",
+    theme: "DARK",
+    locale: "ru",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
@@ -73,6 +84,13 @@ describe("UsersService", () => {
         }),
         delete: jest.fn().mockResolvedValue({}),
       },
+      userDeviceSettings: {
+        findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn(),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: mockUser.id }]),
       $transaction: jest.fn().mockImplementation((arg) => {
         if (typeof arg === "function") {
           return arg(prismaMock);
@@ -145,14 +163,18 @@ describe("UsersService", () => {
         generation: ___,
         createdAt: ____,
         updatedAt: _____,
+        theme: _______,
         ...safeProfile
       } = mockUser;
       expect(result).toEqual({
         ...safeProfile,
+        theme: "dark",
         createdAt: mockUser.createdAt.toISOString(),
         updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
         permissions: SystemPermission.USERS_READ.toString(),
+        telegramLinkVerified: false,
+        githubLinkVerified: false,
       });
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
@@ -184,6 +206,92 @@ describe("UsersService", () => {
 
       expect(result.displayName).toBe("New Name");
       expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("успешно обновляет тему и язык пользователя", async () => {
+      const updatedProfile = {
+        ...mockUser,
+        theme: "LIGHT",
+        locale: "en",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        theme: "light",
+        locale: "en",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            theme: "LIGHT",
+            locale: "en",
+          }),
+        }),
+      );
+      expect(result.theme).toBe("light");
+      expect(result.locale).toBe("en");
+    });
+
+    it("сбрасывает telegramId, telegramChatId и telegramLinkVerified при отвязке telegramUsername: null", async () => {
+      const userWithTg = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramChatId: "987654321",
+        telegramLinkVerified: true,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithTg);
+      prismaMock.user.update.mockResolvedValue({
+        ...userWithTg,
+        telegramUsername: null,
+        telegramId: null,
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await service.updateProfile(userWithTg.id, {
+        telegramUsername: null,
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            telegramUsername: null,
+            telegramId: null,
+            telegramChatId: null,
+            telegramLinkVerified: false,
+          }),
+        }),
+      );
+    });
+
+    it("выбрасывает BadRequestException при попытке ручной установки telegramUsername без верифицированной привязки", async () => {
+      const userWithoutTg = {
+        ...mockUser,
+        telegramLinkVerified: false,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithoutTg);
+
+      await expect(
+        service.updateProfile(userWithoutTg.id, {
+          telegramUsername: "new_username",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("выбрасывает BadRequestException при попытке ручной установки gitUrl без привязанного githubId", async () => {
+      const userWithoutGithub = {
+        ...mockUser,
+        githubId: null,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithoutGithub);
+
+      await expect(
+        service.updateProfile(userWithoutGithub.id, {
+          gitUrl: "https://github.com/manual_dev",
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("выбрасывает ConflictException при попытке занять чужой username", async () => {
@@ -345,6 +453,177 @@ describe("UsersService", () => {
     });
   });
 
+  describe("linkTelegram", () => {
+    it("успешно привязывает Telegram аккаунт к пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        return null;
+      });
+      prismaMock.user.update.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      const result = await service.linkTelegram(mockUser.id, {
+        telegramId: BigInt(123456789),
+        telegramUsername: "new_tg",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          telegramId: BigInt(123456789),
+          telegramUsername: "new_tg",
+          telegramLinkVerified: true,
+        },
+      });
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.linkTelegram("non-existent", {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("выбрасывает ConflictException если пользователь уже имеет другой привязанный telegramId", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(999999999),
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+    });
+
+    it("выбрасывает BadRequestException при попытке подтвердить уже привязанный неподтвержденный telegramId (telegramLinkVerified: false)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: false,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Cannot verify unconfirmed Telegram link without independent email verification",
+        ),
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если тот же telegramId уже привязан и подтвержден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramLinkVerified: true,
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to this user");
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("выбрасывает ConflictException если telegramId уже привязан к другому пользователю", async () => {
+      prismaMock.user.findUnique.mockImplementation(async (args) => {
+        if (args.where.id) return { ...mockUser, telegramId: null };
+        if (args.where.telegramId)
+          return {
+            id: "22222222-2222-4222-a222-222222222222",
+            telegramId: BigInt(123456789),
+          };
+        return null;
+      });
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow("Telegram account is already linked to another user");
+    });
+
+    it("обрабатывает Prisma P2025 ошибки как NotFoundException", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        telegramId: null,
+      });
+      const p2025 = Object.assign(new Error("Record not found"), {
+        code: "P2025",
+      });
+      prismaMock.user.update.mockRejectedValue(p2025);
+
+      await expect(
+        service.linkTelegram(mockUser.id, {
+          telegramId: BigInt(123456789),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("findByTelegramId and createTelegramUser", () => {
+    it("ищет пользователя по telegramId", async () => {
+      const tgUser = { ...mockUser, telegramId: BigInt(123456789) };
+      prismaMock.user.findUnique.mockResolvedValue(tgUser);
+
+      const result = await service.findByTelegramId(BigInt(123456789));
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { telegramId: BigInt(123456789) },
+      });
+      expect(result).toEqual(tgUser);
+    });
+
+    it("создает нового пользователя через createTelegramUser", async () => {
+      const createdUser = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        username: null,
+      };
+      prismaMock.user.create.mockResolvedValue(createdUser);
+
+      const result = await service.createTelegramUser({
+        email: "tg@example.com",
+        passwordHash: "argon2id$hash",
+        telegramId: BigInt(123456789),
+        telegramUsername: "tg_user",
+        displayName: "Telegram User",
+        avatarUrl: "https://s3.local/avatar.webp",
+      });
+
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: "tg@example.com",
+          passwordHash: "argon2id$hash",
+          telegramId: BigInt(123456789),
+          telegramUsername: "tg_user",
+          telegramLinkVerified: false,
+          displayName: "Telegram User",
+          avatarUrl: "https://s3.local/avatar.webp",
+          username: null,
+          roleId: "00000000-0000-4000-a000-000000000002",
+        },
+      });
+      expect(result).toEqual(createdUser);
+    });
+  });
+
   describe("getPublicProfile", () => {
     it("ищет по UUID и игнорирует удаленные аккаунты", async () => {
       const publicData = {
@@ -368,6 +647,94 @@ describe("UsersService", () => {
         ...publicData,
         createdAt: mockUser.createdAt.toISOString(),
       });
+    });
+  });
+
+  describe("deviceSettings", () => {
+    const validUserId = "11111111-1111-4111-a111-111111111111";
+    const clientId = "client-device-1";
+
+    it("getDeviceSettings возвращает настройки по умолчанию, если записи нет в базе", async () => {
+      prismaMock.userDeviceSettings.findUnique.mockResolvedValue(null);
+
+      const result = await service.getDeviceSettings(validUserId, clientId);
+
+      expect(result).toEqual({
+        clientId,
+        deviceName: null,
+        audioVolume: 80,
+        speechVolume: 80,
+        micGain: 100,
+        preferredAudioInputLabel: null,
+        preferredAudioOutputLabel: null,
+        preferredVideoInputLabel: null,
+        isPersisted: false,
+      });
+    });
+
+    it("upsertDeviceSettings сериализует обновление через FOR UPDATE и удаляет лишние устройства при превышении лимита 10", async () => {
+      const mockRecord = {
+        id: "dev-new",
+        userId: validUserId,
+        clientId,
+        deviceName: "Chrome MacBook",
+        audioVolume: 75,
+        speechVolume: 85,
+        micGain: 90,
+        preferredAudioInputLabel: "Built-in Mic",
+        preferredAudioOutputLabel: "Built-in Speaker",
+        preferredVideoInputLabel: "FaceTime HD",
+        isPersisted: true,
+      };
+
+      prismaMock.userDeviceSettings.findUnique.mockResolvedValue(null);
+      prismaMock.userDeviceSettings.upsert.mockResolvedValue(mockRecord);
+      // Возвращаем 12 устройств для проверки очистки до 10
+      const mockDevicesList = Array.from({ length: 12 }, (_, i) => ({
+        id: `dev-${i}`,
+      }));
+      prismaMock.userDeviceSettings.findMany.mockResolvedValue(mockDevicesList);
+
+      const result = await service.upsertDeviceSettings(validUserId, {
+        clientId,
+        deviceName: "Chrome MacBook",
+        audioVolume: 75,
+        speechVolume: 85,
+        micGain: 90,
+      });
+
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
+      expect(prismaMock.userDeviceSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_clientId: {
+              userId: validUserId,
+              clientId,
+            },
+          },
+        }),
+      );
+      // Проверяем удаление самых старых устройств (dev-10, dev-11)
+      expect(prismaMock.userDeviceSettings.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["dev-10", "dev-11"] } },
+      });
+      expect(result.isPersisted).toBe(true);
+      expect(result.audioVolume).toBe(75);
+    });
+
+    it("upsertDeviceSettings выбрасывает NotFoundException, если пользователь не найден при FOR UPDATE блокировке", async () => {
+      prismaMock.$queryRaw.mockResolvedValue([]);
+
+      await expect(
+        service.upsertDeviceSettings(validUserId, { clientId }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("upsertDeviceSettings выбрасывает BadRequestException при невалидном userId", async () => {
+      await expect(
+        service.upsertDeviceSettings("not-a-uuid", { clientId }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

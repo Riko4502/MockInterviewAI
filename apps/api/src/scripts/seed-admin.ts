@@ -6,7 +6,12 @@ import { config } from "dotenv";
 import Redis from "ioredis";
 import { PrismaClient } from "../generated/prisma/client";
 
-config({ path: resolve(__dirname, "..", "..", "..", ".env") });
+config({
+  path: [
+    resolve(__dirname, "..", "..", "..", "..", ".env"),
+    resolve(__dirname, "..", "..", ".env"),
+  ],
+});
 
 /**
  * CLI-скрипт назначения роли системного администратора (ADMIN).
@@ -38,15 +43,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (!process.env.DATABASE_URL) {
+  if (!process.env.API_DATABASE_URL) {
     console.error(
-      "Error: DATABASE_URL environment variable is not set.\n" +
-        "Please provide a valid DATABASE_URL before running seed-admin.",
+      "Error: API_DATABASE_URL environment variable is not set.\n" +
+        "Please provide a valid API_DATABASE_URL before running seed-admin.",
     );
     process.exit(1);
   }
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.API_DATABASE_URL;
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });

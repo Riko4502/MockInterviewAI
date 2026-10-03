@@ -1,11 +1,13 @@
 import { HttpStatus, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import type { TelegramAuthDto, TelegramLinkDto } from "@packages/dto";
 import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { AuthSessionService } from "./services/auth-session.service";
 import type { GithubOAuthService } from "./services/github-oauth.service";
-import type { TokenPayload } from "./services/token.service";
+import type { TokenPayload, TokenService } from "./services/token.service";
 
 const DTO = {
   email: "user@example.com",
@@ -50,6 +52,9 @@ describe("AuthController", () => {
   let changePasswordMock: jest.Mock;
   let forgotPasswordMock: jest.Mock;
   let resetPasswordMock: jest.Mock;
+  let telegramAuthMock: jest.Mock;
+  let telegramCompleteMock: jest.Mock;
+  let telegramLinkMock: jest.Mock;
   let refreshMock: jest.Mock;
   let cookieMock: jest.Mock;
   let clearCookieMock: jest.Mock;
@@ -70,6 +75,14 @@ describe("AuthController", () => {
       message: "The password has been successfully changed",
     });
     refreshMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramAuthMock = jest.fn().mockResolvedValue({
+      status: "AUTHENTICATED",
+      ...AUTH_RESULT,
+    });
+    telegramCompleteMock = jest.fn().mockResolvedValue(AUTH_RESULT);
+    telegramLinkMock = jest
+      .fn()
+      .mockResolvedValue({ message: "Telegram account linked successfully" });
     cookieMock = jest.fn();
     clearCookieMock = jest.fn();
     statusMock = jest.fn();
@@ -91,9 +104,14 @@ describe("AuthController", () => {
         forgotPassword: forgotPasswordMock,
         resetPassword: resetPasswordMock,
         refresh: refreshMock,
+        telegramAuth: telegramAuthMock,
+        telegramComplete: telegramCompleteMock,
+        telegramLink: telegramLinkMock,
       } as unknown as AuthService,
       createConfigService(cookieSecure),
       {} as GithubOAuthService,
+      {} as TokenService,
+      {} as AuthSessionService,
     );
   }
 
@@ -614,6 +632,92 @@ describe("AuthController", () => {
     });
   });
 
+  describe("POST /auth/telegram", () => {
+    const tgDto = {
+      id: 123456789,
+      auth_date: 1700000000,
+      hash: "hash",
+    };
+
+    it("при статсуе AUTHENTICATED выставляет refresh cookie и возвращает accessToken", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
+      const result = await createController().telegramAuth(
+        request,
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(telegramAuthMock).toHaveBeenCalledWith(tgDto, tgDto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        status: "AUTHENTICATED",
+        accessToken: "raw.access.token",
+      });
+    });
+
+    it("при статусе NEED_EMAIL возвращает onboardingToken без вызова cookie", async () => {
+      const request = createRequest();
+      request.body = tgDto;
+
+      telegramAuthMock.mockResolvedValue({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+
+      const result = await createController().telegramAuth(
+        request,
+        tgDto as TelegramAuthDto,
+        response,
+      );
+
+      expect(cookieMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        status: "NEED_EMAIL",
+        onboardingToken: "onboarding_123",
+      });
+    });
+  });
+
+  describe("POST /auth/telegram/complete", () => {
+    it("выставляет refresh cookie и возвращает accessToken", async () => {
+      const dto = { onboardingToken: "token_123", email: "test@example.com" };
+      const result = await createController().telegramComplete(dto, response);
+
+      expect(telegramCompleteMock).toHaveBeenCalledWith(dto);
+      expect(cookieMock).toHaveBeenCalledWith(
+        "refresh_token",
+        "raw.refresh.token",
+        expect.any(Object),
+      );
+      expect(statusMock).toHaveBeenCalledWith(201);
+      expect(result).toEqual({ accessToken: "raw.access.token" });
+    });
+  });
+
+  describe("POST /auth/telegram/link", () => {
+    it("привязывает Telegram аккаунт к авторизованному пользователю", async () => {
+      const request = createRequestWithUser({ sub: "user-uuid" });
+      const tgDto = { id: 123456789, auth_date: 1700000000, hash: "hash" };
+      request.body = tgDto;
+
+      const result = await createController().telegramLink(
+        request,
+        tgDto as TelegramLinkDto,
+      );
+
+      expect(telegramLinkMock).toHaveBeenCalledWith("user-uuid", tgDto, tgDto);
+      expect(result).toEqual({
+        message: "Telegram account linked successfully",
+      });
+    });
+  });
+
   describe("POST /auth/reset-password", () => {
     it("200 OK при успешной смене пароля, сбрасывает refresh cookie", async () => {
       const controller = createController();
@@ -691,10 +795,18 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
       })[key],
     getOrThrow: () => "https://web.example.com",
   };
+  const tokenService = {
+    verifyRefreshToken: jest.fn(),
+  };
+  const sessionService = {
+    getSession: jest.fn(),
+  };
   const controller = new AuthController(
     auth as unknown as AuthService,
     config as unknown as ConfigService,
     oauth as unknown as GithubOAuthService,
+    tokenService as unknown as TokenService,
+    sessionService as unknown as AuthSessionService,
   );
   const response = responseMock as unknown as Response;
   it.each([
@@ -801,6 +913,98 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
     expect(responseMock.redirect).toHaveBeenCalledWith(
       302,
       "https://web.example.com/login?error=github",
+    );
+  });
+  it("при action=link проверяет refresh cookie и сессию в Redis, передаёт userId в authorize", async () => {
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce({ userId: "user-1" });
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(tokenService.verifyRefreshToken).toHaveBeenCalledWith(
+      "valid-refresh",
+    );
+    expect(sessionService.getSession).toHaveBeenCalledWith("sess-1");
+    expect(oauth.authorize).toHaveBeenCalledWith("user-1");
+  });
+  it("при action=link без refresh cookie перенаправляет на login", async () => {
+    const req = { cookies: {} } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=unauthorized",
+    );
+  });
+  it("при action=link с недействительной сессией в Redis перенаправляет на login", async () => {
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce(null);
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=unauthorized",
+    );
+  });
+  it("при успешном link перенаправляет на /profile?github=success", async () => {
+    oauth.callback.mockResolvedValueOnce({ type: "link", userId: "user-1" });
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?github=success",
+    );
+  });
+  it("при конфликте link (аккаунт привязан к другому) перенаправляет на /profile?error=github_already_linked", async () => {
+    const { GitHubLinkConflictException } = await import(
+      "./services/github-oauth.service"
+    );
+    oauth.callback.mockRejectedValueOnce(
+      new GitHubLinkConflictException(
+        "GitHub account is already linked to another user",
+      ),
+    );
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?error=github_already_linked",
+    );
+  });
+  it("при ошибке callback для авторизованного пользователя перенаправляет на /profile?error=github_failed", async () => {
+    oauth.callback.mockRejectedValueOnce(
+      new UnauthorizedException("Invalid OAuth state"),
+    );
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce({ userId: "user-1" });
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.githubCallback("code", "state", req, response);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?error=github_failed",
     );
   });
 });
