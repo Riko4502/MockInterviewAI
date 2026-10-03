@@ -5,7 +5,7 @@ import { AlertCircleIcon, ArrowLeftIcon, InfoIcon } from "@packages/icons";
 import { Button, Skeleton } from "@packages/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/entities/user";
@@ -53,6 +53,18 @@ export function CreateCardView() {
     defaultValues,
     mode: "onTouched",
   });
+
+  useEffect(() => {
+    if (user?.targetRole || user?.targetLevel) {
+      form.reset((prev) => ({
+        ...prev,
+        specialization:
+          (user.targetRole as ShowcaseFormValues["specialization"]) ||
+          prev.specialization,
+        level: (user.targetLevel as ShowcaseFormValues["level"]) || prev.level,
+      }));
+    }
+  }, [user?.targetRole, user?.targetLevel, form]);
 
   const { watch } = form;
   const watchedValues = watch();

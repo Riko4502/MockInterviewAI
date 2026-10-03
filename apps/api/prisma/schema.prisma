@@ -58,6 +58,13 @@ model User {
   locale           String          @default("ru")
   deletedAt        DateTime?
   generation       Int       @default(1)
+  onboardingCompleted Boolean          @default(false) @map("onboarding_completed")
+  targetRole          Specialization?  @map("target_role")
+  targetLevel         ExperienceLevel? @map("target_level")
+  targetCompanies     String[]         @default([]) @map("target_companies")
+  targetTimeline      String?          @map("target_timeline") @db.VarChar(50)
+  preferredFormat     String?          @map("preferred_format") @db.VarChar(50)
+  onboardingAt        DateTime?        @map("onboarding_at")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -77,6 +84,7 @@ model User {
   @@index([deletedAt])
   @@index([telegramId])
   @@index([createdAt])
+  @@index([onboardingCompleted])
   @@map("users")
 }
 

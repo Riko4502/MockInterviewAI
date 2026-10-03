@@ -1,4 +1,5 @@
 import type { ConfigService } from "@nestjs/config";
+import type { CompleteOnboardingDto } from "@packages/dto";
 import type { Response } from "express";
 import { ProfileController } from "./profile.controller";
 import type { UsersService } from "./users.service";
@@ -13,6 +14,7 @@ describe("ProfileController", () => {
     restoreAccount: jest.Mock;
     getDeviceSettings: jest.Mock;
     upsertDeviceSettings: jest.Mock;
+    completeOnboarding: jest.Mock;
   };
   let configServiceMock: jest.Mocked<Partial<ConfigService>>;
   let responseMock: { clearCookie: jest.Mock };
@@ -45,6 +47,7 @@ describe("ProfileController", () => {
       restoreAccount: jest.fn().mockResolvedValue(mockProfile),
       getDeviceSettings: jest.fn(),
       upsertDeviceSettings: jest.fn(),
+      completeOnboarding: jest.fn(),
     };
     configServiceMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -174,5 +177,31 @@ describe("ProfileController", () => {
       mockProfile.id,
     );
     expect(result.profile).toEqual(mockProfile);
+  });
+
+  it("completeOnboarding передает DTO онбординга в usersService", async () => {
+    const onboardingDto: CompleteOnboardingDto = {
+      role: "FRONTEND",
+      level: "MIDDLE",
+      companies: ["yandex"],
+      timeline: "soon",
+      format: "ai",
+      isSkipped: false,
+    };
+    usersServiceMock.completeOnboarding.mockResolvedValue({
+      ...mockProfile,
+      onboardingCompleted: true,
+    });
+
+    const result = await controller.completeOnboarding(
+      mockProfile.id,
+      onboardingDto,
+    );
+
+    expect(usersServiceMock.completeOnboarding).toHaveBeenCalledWith(
+      mockProfile.id,
+      onboardingDto,
+    );
+    expect(result.onboardingCompleted).toBe(true);
   });
 });
