@@ -252,5 +252,36 @@
       "error": "Could not check the device. Please try again."
     },
     "widgetDescription": "Check your camera and microphone before the interview."
+  },
+  "createShowcase": {
+    "trigger": "Create profile card",
+    "title": "New showcase profile",
+    "description": "Tell us about yourself to find an interview partner. Your profile stays active for 15 days.",
+    "profileHint": "Add your display name and username before publishing.",
+    "profileLink": "Open profile",
+    "headline": "Title (optional, 3–100 characters)",
+    "specialization": "Specialization",
+    "level": "Experience level",
+    "choose": "Select",
+    "language": "Interview language",
+    "languages": {
+      "RU": "Russian",
+      "EN": "English",
+      "ANY": "Any"
+    },
+    "skills": "Skills",
+    "skillsHint": "Enter 1–20 comma-separated skills, up to 30 characters each.",
+    "bio": "About you (optional, up to 500 characters)",
+    "schedule": "Availability (optional, up to 300 characters)",
+    "urgent": "Available for an interview today",
+    "autoRenew": "Automatically renew this profile",
+    "cancel": "Cancel",
+    "publish": "Publish",
+    "publishing": "Publishing…",
+    "success": "Profile published",
+    "invalid": "Check the value and the listed limits.",
+    "duplicate": "You already have an active profile with this specialization and level.",
+    "rejected": "Could not publish. Check your display name, username, form fields and the limit of 5 active profiles.",
+    "failed": "Could not publish the profile. Please try again."
   }
 }

@@ -12,6 +12,7 @@ import {
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "@/shared/lib/i18n";
+import { CreateShowcaseDialog } from "@/features/create-showcase";
 import { useShowcaseBumpMutation } from "../../model/use-dashboard-mutations";
 import { useShowcaseStatus } from "../../model/use-dashboard-queries";
 
@@ -71,6 +72,7 @@ export function DashboardShowcaseBanner() {
           <p className="text-sm text-muted-foreground">
             {t("emptyStates.showcase")}
           </p>
+          <CreateShowcaseDialog />
         </>
       ) : (
         <>
