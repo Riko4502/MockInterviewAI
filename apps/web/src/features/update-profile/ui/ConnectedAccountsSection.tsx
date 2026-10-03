@@ -218,7 +218,7 @@ export function ConnectedAccountsSection({
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500 dark:bg-sky-500/20">
-                  <TelegramIcon size={16} aria-hidden="true" />
+                  <TelegramIcon size={8} aria-hidden="true" />
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export function ConnectedAccountsSection({
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                  <GithubIcon size={16} aria-hidden="true" />
+                  <GithubIcon size={8} aria-hidden="true" />
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
