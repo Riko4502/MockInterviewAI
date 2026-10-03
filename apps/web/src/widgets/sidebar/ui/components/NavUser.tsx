@@ -16,7 +16,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar, useCurrentUser, usePreferences } from "@/entities/user";
 import { useLogout } from "@/features/auth";
-import { MediaSettingsDialog } from "@/features/media-settings";
+import { MediaSettingsDialogLazy } from "@/features/media-settings";
 import { paths } from "@/shared/config";
 
 export function NavUser() {
@@ -118,10 +118,12 @@ export function NavUser() {
           </DropdownMenu.Content>
         </DropdownMenu>
       </UiSidebar.MenuItem>
-      <MediaSettingsDialog
-        open={isMediaSettingsOpen}
-        onOpenChange={setIsMediaSettingsOpen}
-      />
+      {isMediaSettingsOpen && (
+        <MediaSettingsDialogLazy
+          open={isMediaSettingsOpen}
+          onOpenChange={setIsMediaSettingsOpen}
+        />
+      )}
     </UiSidebar.Menu>
   );
 }

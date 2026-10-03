@@ -61,7 +61,7 @@ export function DeleteAccountSection() {
           className="shrink-0 self-start sm:self-auto"
           onClick={() => setIsOpen(true)}
         >
-          <TrashIcon size={14} aria-hidden="true" />
+          <TrashIcon size="sm" aria-hidden="true" />
           {t("profile.deleteAccount")}
         </Button>
       </div>
@@ -99,7 +99,7 @@ export function DeleteAccountSection() {
               {isDeleting ? (
                 <Spin size="sm" variant="current" aria-hidden="true" />
               ) : (
-                <TrashIcon size={16} aria-hidden="true" />
+                <TrashIcon size="sm" aria-hidden="true" />
               )}
               {isDeleting
                 ? t("profile.deleting")

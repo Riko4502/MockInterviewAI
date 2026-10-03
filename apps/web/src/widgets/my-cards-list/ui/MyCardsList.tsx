@@ -10,7 +10,7 @@ import {
   ShowcaseCardSkeleton,
   useMyShowcaseCards,
 } from "@/entities/showcase-card";
-import { DeleteCardConfirmDialog } from "@/features/manage-showcase-card";
+import { DeleteCardConfirmDialogLazy } from "@/features/manage-showcase-card";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { MyCardItem } from "./MyCardItem";
@@ -114,14 +114,16 @@ export function MyCardsList({ className }: MyCardsListProps) {
       )}
 
       {/* Диалоги */}
-      <DeleteCardConfirmDialog
-        cardId={deletingCardId}
-        open={!!deletingCardId}
-        onOpenChange={(open) => {
-          if (!open) setDeletingCardId(null);
-        }}
-        onSuccess={() => refetch()}
-      />
+      {deletingCardId && (
+        <DeleteCardConfirmDialogLazy
+          cardId={deletingCardId}
+          open={!!deletingCardId}
+          onOpenChange={(open) => {
+            if (!open) setDeletingCardId(null);
+          }}
+          onSuccess={() => refetch()}
+        />
+      )}
     </div>
   );
 }

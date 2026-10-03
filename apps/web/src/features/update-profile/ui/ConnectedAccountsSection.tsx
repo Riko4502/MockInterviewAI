@@ -216,16 +216,17 @@ export function ConnectedAccountsSection({
           <div className="flex flex-col divide-y divide-border rounded-lg border border-border/60">
             {/* Telegram Item */}
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500 dark:bg-sky-500/20">
-                  <TelegramIcon size={8} aria-hidden="true" />
+                  <TelegramIcon size="sm" aria-hidden="true" />
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-foreground">
                       Telegram
                     </span>
                     <Badge
+                      className="shrink-0"
                       variant={isTelegramLinked ? "statusSuccess" : "waiting"}
                     >
                       {isTelegramLinked
@@ -233,7 +234,7 @@ export function ConnectedAccountsSection({
                         : t("profile.notConnected")}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground break-words">
                     {isTelegramLinked
                       ? `@${user.telegramUsername?.replace(/^@/, "")}`
                       : t("profile.telegramLinkDesc")}
@@ -263,7 +264,7 @@ export function ConnectedAccountsSection({
                     disabled={isPending}
                     onClick={() => setIsTgDialogOpen(true)}
                   >
-                    <TelegramIcon size={14} aria-hidden="true" />
+                    <TelegramIcon size="sm" aria-hidden="true" />
                     {t("profile.telegramLinkButton")}
                   </Button>
                 )}
@@ -272,16 +273,17 @@ export function ConnectedAccountsSection({
 
             {/* GitHub Item */}
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                  <GithubIcon size={8} aria-hidden="true" />
+                  <GithubIcon size="sm" aria-hidden="true" />
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-foreground">
                       GitHub
                     </span>
                     <Badge
+                      className="shrink-0"
                       variant={isGithubLinked ? "statusSuccess" : "waiting"}
                     >
                       {isGithubLinked
@@ -289,7 +291,7 @@ export function ConnectedAccountsSection({
                         : t("profile.notConnected")}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground break-words">
                     {isGithubLinked ? (
                       <a
                         href={user.gitUrl ?? undefined}
@@ -323,7 +325,7 @@ export function ConnectedAccountsSection({
                 ) : oauthProviders?.github ? (
                   <Button asChild variant="outline" size="sm">
                     <a href={githubOAuthHref}>
-                      <GithubIcon size={14} aria-hidden="true" />
+                      <GithubIcon size="sm" aria-hidden="true" />
                       {t("profile.githubConnectButton")}
                     </a>
                   </Button>

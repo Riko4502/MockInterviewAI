@@ -12,7 +12,7 @@ import {
   useShowcaseCatalog,
 } from "@/entities/showcase-card";
 import { useCurrentUser } from "@/entities/user";
-import { SendMatchRequestDialog } from "@/features/send-match-request";
+import { SendMatchRequestDialogLazy } from "@/features/send-match-request";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { ShowcaseEmptyState } from "./ShowcaseEmptyState";
@@ -254,16 +254,18 @@ export function ShowcaseFeed({ className }: ShowcaseFeedProps) {
       )}
 
       {/* Диалог отправки заявки на интервью */}
-      <SendMatchRequestDialog
-        card={respondingCard}
-        open={!!respondingCard}
-        onOpenChange={(open) => {
-          if (!open) setRespondingCard(null);
-        }}
-        onSuccess={() => {
-          refetch();
-        }}
-      />
+      {respondingCard && (
+        <SendMatchRequestDialogLazy
+          card={respondingCard}
+          open={!!respondingCard}
+          onOpenChange={(open) => {
+            if (!open) setRespondingCard(null);
+          }}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -236,19 +236,19 @@ export function GeneralTab({ user }: GeneralTabProps) {
                       <Select.Content>
                         <Select.Item value="light">
                           <span className="flex items-center gap-2">
-                            <SunIcon size={16} />
+                            <SunIcon size="sm" />
                             {t("profile.themeLight")}
                           </span>
                         </Select.Item>
                         <Select.Item value="dark">
                           <span className="flex items-center gap-2">
-                            <MoonIcon size={16} />
+                            <MoonIcon size="sm" />
                             {t("profile.themeDark")}
                           </span>
                         </Select.Item>
                         <Select.Item value="system">
                           <span className="flex items-center gap-2">
-                            <SlidersIcon size={16} />
+                            <SlidersIcon size="sm" />
                             {t("profile.themeSystem")}
                           </span>
                         </Select.Item>
@@ -278,7 +278,7 @@ export function GeneralTab({ user }: GeneralTabProps) {
                         {locales.map((loc) => (
                           <Select.Item key={loc} value={loc}>
                             <span className="flex items-center gap-2">
-                              <GlobeIcon size={16} />
+                              <GlobeIcon size="sm" />
                               {localeLabels[loc]}
                             </span>
                           </Select.Item>

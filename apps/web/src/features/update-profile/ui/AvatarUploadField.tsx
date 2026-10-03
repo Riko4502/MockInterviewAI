@@ -5,8 +5,7 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/entities/user";
 import { useUploadAvatar } from "../model/use-profile-mutations";
-
-import { AvatarCropDialog } from "./AvatarCropDialog";
+import { AvatarCropDialogLazy } from "./AvatarCropDialog.lazy";
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -98,7 +97,7 @@ export function AvatarUploadField({
       </div>
 
       {imageFile ? (
-        <AvatarCropDialog
+        <AvatarCropDialogLazy
           imageSrc={imageSrc}
           triggerRef={uploadButtonRef}
           isSubmitting={uploadAvatar.isPending}

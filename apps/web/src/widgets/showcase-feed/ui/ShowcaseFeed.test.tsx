@@ -35,6 +35,7 @@ vi.mock("@/entities/showcase-card", () => ({
 
 vi.mock("@/features/send-match-request", () => ({
   SendMatchRequestDialog: () => <div data-testid="send-dialog" />,
+  SendMatchRequestDialogLazy: () => <div data-testid="send-dialog" />,
 }));
 
 vi.mock("react-i18next", async (importOriginal) => {
