@@ -36,7 +36,7 @@ export function DashboardRecentSessions() {
         </p>
       ) : (
         <ul className="divide-y divide-border">
-          {query.data.items.slice(0, 5).map((session) => (
+          {query.data.items.map((session) => (
             <li
               key={session.id}
               className="min-w-0 space-y-2 py-4 first:pt-0 last:pb-0"
