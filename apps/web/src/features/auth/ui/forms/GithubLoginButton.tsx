@@ -9,10 +9,10 @@ import "@/shared/lib/i18n";
 
 export function GithubLoginButton() {
   const { t } = useTranslation("auth");
-  const { data, isError } = useAuthControllerOauthProviders({
+  const { data } = useAuthControllerOauthProviders({
     query: { retry: false },
   });
-  if (isError || data?.github !== true) return null;
+  if (data?.github === false) return null;
 
   const href = `${getApiUrl().replace(/\/+$/, "")}/api/v1/auth/github`;
 
