@@ -1,0 +1,256 @@
+{
+  "greeting": {
+    "title": "Hello, {{name}}!",
+    "fallback": "Welcome",
+    "subtitle": "Continue preparing for interviews",
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "named": "{{greeting}}, {{name}}!"
+  },
+  "quickActions": {
+    "title": "Quick actions",
+    "startInterview": "Start an interview",
+    "findPartner": "Find a partner",
+    "practice": "Practice",
+    "editProfile": "Edit profile",
+    "aiInterview": "AI interview",
+    "aiDescription": "Choose a topic and difficulty for individual practice",
+    "partnersDescription": "Find a partner for a mutual interview",
+    "sandbox": "Code sandbox",
+    "sandboxDescription": "Practice solving problems in the editor"
+  },
+  "readiness": {
+    "title": "Interview readiness",
+    "progress": "{{percentage}}% complete",
+    "complete": "You're ready",
+    "steps": {
+      "EMAIL_PROVIDED": "Add your email",
+      "MEDIA_CONFIGURED": "Set up camera and microphone",
+      "TELEGRAM_LINKED": "Connect Telegram",
+      "SHOWCASE_CREATED": "Create a showcase profile",
+      "FIRST_MOCK_COMPLETED": "Complete your first interview"
+    },
+    "heading": "Profile readiness for interviews: {{percentage}}%",
+    "ready": "Your profile is 100% ready for interviews ✨",
+    "loading": "Loading profile readiness",
+    "loadError": "Could not load profile readiness",
+    "empty": "The checklist is not available yet",
+    "completed": "Completed",
+    "incomplete": "Incomplete",
+    "descriptions": {
+      "EMAIL_PROVIDED": "Email is needed for account recovery and notifications.",
+      "MEDIA_CONFIGURED": "Check camera and microphone access before your interview.",
+      "TELEGRAM_LINKED": "Connect a verified Telegram account for notifications.",
+      "SHOWCASE_CREATED": "Share your experience to find a partner.",
+      "FIRST_MOCK_COMPLETED": "Complete a practice interview with a partner."
+    },
+    "actions": {
+      "EMAIL_PROVIDED": "Confirm email",
+      "MEDIA_CONFIGURED": "Check camera and audio",
+      "TELEGRAM_LINKED": "Link Telegram",
+      "SHOWCASE_CREATED": "Create a showcase profile",
+      "FIRST_MOCK_COMPLETED": "Take your first practice interview"
+    }
+  },
+  "dailyChallenge": {
+    "title": "Daily challenge",
+    "solve": "Solve challenge",
+    "solved": "Solved",
+    "resetIn": "Until the challenge changes:",
+    "reward": "Reward: {{points}}",
+    "difficulty": {
+      "EASY": "Easy",
+      "MEDIUM": "Medium",
+      "HARD": "Hard"
+    },
+    "topics": "Challenge topics",
+    "moreTopics": "{{count}} more topics",
+    "solveWithReward": "Solve in Sandbox (+{{points}} XP, 🔥 toward your streak)",
+    "streak": "toward your streak",
+    "solvedToday": "Solved today! Your streak is extended"
+  },
+  "upcomingSession": {
+    "title": "Upcoming interview",
+    "join": "Join",
+    "startsAt": "Starts: {{date}}, {{time}}",
+    "startsIn": "Until start:",
+    "date": "Date",
+    "time": "Time",
+    "joinUnavailable": "Join will be available closer to the start",
+    "checkMedia": "Check connection",
+    "emptyTitle": "No upcoming sessions",
+    "emptyDescription": "Create a room or turn on partner search.",
+    "createRoom": "Create a room",
+    "findPartner": "Find a partner",
+    "partnerFallback": "Interviewer",
+    "loading": "Loading upcoming session",
+    "roles": {
+      "CANDIDATE": "Candidate",
+      "INTERVIEWER": "Interviewer",
+      "OBSERVER": "Observer"
+    }
+  },
+  "liveMatch": {
+    "title": "Live match",
+    "start": "Start searching",
+    "stop": "Stop searching",
+    "unknown": "Search status unknown",
+    "IDLE": "Search is off",
+    "SEARCHING": "Searching for a partner",
+    "MATCHED": "Partner found",
+    "description": "Turn on search to find an interview partner right now.",
+    "switchLabel": "Instant partner search",
+    "specialization": "Specialization",
+    "level": "Experience level",
+    "choose": "Choose",
+    "parametersRequired": "Choose a specialization and level to start searching.",
+    "join": "Go to interview",
+    "matchFoundTitle": "Partner found!",
+    "matchFoundRedirect": "Redirecting to the sandbox in {{countdown}} sec"
+  },
+  "matchRequests": {
+    "title": "Interview requests",
+    "accept": "Accept",
+    "reject": "Reject",
+    "rejectReason": "Reason for rejection",
+    "pending": "Awaiting response: {{count}}",
+    "loading": "Loading requests",
+    "senderFallback": "Participant",
+    "timeUnspecified": "Preferred time: not specified"
+  },
+  "statistics": {
+    "title": "Statistics",
+    "totalInterviews": "Total interviews",
+    "completedInterviews": "Completed interviews",
+    "averageScore": "Average score",
+    "currentStreak": "Current streak in days",
+    "maxStreak": "Best streak in days",
+    "solvedTasks": "Tasks solved",
+    "practiceTime": "Practice time",
+    "noScore": "No score yet",
+    "completedCount": "Completed: {{count}}",
+    "streakUnit": "Consecutive days",
+    "scoreScale": "On a scale from 0 to 10"
+  },
+  "aiInsights": {
+    "title": "AI insights",
+    "practice": "Start practicing",
+    "categories": {
+      "ALGORITHMS": "Algorithms",
+      "SYSTEM_DESIGN": "System design",
+      "COMMUNICATION": "Communication",
+      "CODE_QUALITY": "Code quality"
+    }
+  },
+  "recentSessions": {
+    "title": "Recent interviews",
+    "report": "View report",
+    "noReport": "Report not available yet",
+    "duration": "Duration: {{minutes}} min",
+    "score": "Score",
+    "reportUnavailable": "Report viewing is not available yet"
+  },
+  "showcase": {
+    "title": "My showcase profile",
+    "bump": "Bump profile",
+    "edit": "Edit profile",
+    "create": "Create profile",
+    "daysLeft": "Profile active for {{count}} more days",
+    "views": "Views: {{count}}",
+    "bumpUnavailable": "Bumping is not available yet",
+    "active": "Profile active",
+    "inactive": "Profile inactive",
+    "loading": "Loading showcase profile",
+    "bumpSuccess": "Profile bumped successfully",
+    "requests": "Incoming requests: {{count}}"
+  },
+  "loading": {
+    "dashboard": "Loading dashboard data",
+    "section": "Loading…",
+    "mutation": "Saving…"
+  },
+  "errors": {
+    "load": "Could not load data",
+    "retry": "Try again",
+    "liveMatch": "Could not change partner search",
+    "acceptMatch": "Could not accept request",
+    "rejectMatch": "Could not reject request",
+    "showcaseBump": "Could not bump profile",
+    "profile": "Could not load your profile. Quick actions are still available.",
+    "dailyChallenge": "Could not load today's challenge",
+    "upcomingSession": "Could not load the upcoming session",
+    "matchRequests": "Could not load requests",
+    "showcase": "Could not load showcase profile",
+    "page": "Could not open the dashboard",
+    "pageDescription": "Try loading the page again."
+  },
+  "emptyStates": {
+    "upcomingSession": "No interviews scheduled yet",
+    "dailyChallenge": "The daily challenge is not available yet",
+    "matchRequests": "No new requests",
+    "statistics": "Start practicing to see your statistics",
+    "aiInsights": "Complete an interview to receive insights",
+    "recentSessions": "No completed interviews yet",
+    "showcase": "You have no active showcase profile"
+  },
+  "specializations": {
+    "FRONTEND": "Frontend",
+    "BACKEND": "Backend",
+    "FULLSTACK": "Full stack",
+    "DEVOPS": "DevOps",
+    "QA": "Quality assurance",
+    "MOBILE": "Mobile development",
+    "DATA_ML": "Data and machine learning",
+    "SYSTEM_DESIGN": "System design"
+  },
+  "levels": {
+    "JUNIOR": "Junior",
+    "MIDDLE": "Middle",
+    "SENIOR": "Senior",
+    "LEAD": "Lead"
+  },
+  "aiDialog": {
+    "title": "Quick AI interview",
+    "description": "Choose a topic and difficulty for your practice.",
+    "topic": "Topic",
+    "difficulty": "Difficulty",
+    "chooseTopic": "Choose a topic",
+    "chooseDifficulty": "Choose a difficulty",
+    "topics": {
+      "algorithms": "Algorithms",
+      "systemDesign": "System design",
+      "frontend": "Frontend"
+    },
+    "difficulties": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    },
+    "unavailable": "AI interviews are not available yet. You can choose your preferences; starting an interview will be available later.",
+    "close": "Close",
+    "start": "Start interview"
+  },
+  "mediaCheck": {
+    "title": "Quick camera and audio check",
+    "description": "Allow access to your devices. Video stays on this device; audio is not recorded or transmitted.",
+    "preview": "Camera preview",
+    "camera": "Camera",
+    "microphone": "Microphone",
+    "save": "Save checked devices",
+    "retry": "Check again",
+    "saved": "Devices saved. Readiness will refresh from server data.",
+    "saveError": "Could not save devices. Please try again.",
+    "status": {
+      "idle": "Not checked yet",
+      "checking": "Waiting for device access…",
+      "granted": "Access granted, device found",
+      "denied": "Access denied. Allow access in your browser settings.",
+      "missing": "Device not found. Check its connection.",
+      "busy": "Device is busy or unavailable. Close other applications.",
+      "unsupported": "Checking is unavailable in this browser or connection. Use HTTPS.",
+      "error": "Could not check the device. Please try again."
+    },
+    "widgetDescription": "Check your camera and microphone before the interview."
+  }
+}
