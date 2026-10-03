@@ -15,6 +15,11 @@ function readPackage(pkg) {
     pkg.dependencies["fast-uri"] = "^3.1.8";
   }
 
+  // Исправление уязвимостей next (GHSA-vcvr-r3jv-pc5j)
+  if (pkg.dependencies?.next && pkg.dependencies.next.startsWith("16.3.3")) {
+    pkg.dependencies.next = "16.3.8";
+  }
+
   // Исправление уязвимостей js-yaml
   if (pkg.dependencies?.["js-yaml"]) {
     const version = pkg.dependencies["js-yaml"];
