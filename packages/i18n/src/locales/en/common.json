@@ -69,6 +69,16 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
+    "goalsTitle": "Preparation Goals",
+    "goalsSubtitle": "Your target role, level, and companies for platform personalization.",
+    "goalsEmpty": "Preparation goals are not configured yet.",
+    "goalsSetup": "Complete onboarding",
+    "goalsChange": "Change goals",
+    "targetRole": "Specialization",
+    "targetLevel": "Target Level",
+    "targetCompanies": "Target Companies",
+    "targetTimeline": "Preparation Timeline",
+    "preferredFormat": "Preferred Format",
     "dangerZoneTitle": "Danger Zone",
     "dangerZoneSubtitle": "Irreversible actions for your account.",
     "dangerZoneDescription": "Once deleted, your account will be deactivated. You can restore it within 30 days.",
@@ -229,5 +239,126 @@
     },
     "systemActive": "AI SYSTEM ACTIVE",
     "brandLabel": "MOCK INTERVIEW AI"
+  },
+  "onboarding": {
+    "stepCounter": "Step {{current}} of {{total}}",
+    "skip": "Skip",
+    "next": "Continue",
+    "back": "Back",
+    "finish": "Complete & start practicing",
+    "step1": {
+      "title": "Choose your specialization",
+      "subtitle": "We will personalize relevant tasks, interview questions, and suitable study partners"
+    },
+    "step2": {
+      "title": "Target level & companies",
+      "subtitle": "Set your benchmark and target company type to tailor your preparation plan",
+      "levelTitle": "Target level",
+      "companiesTitle": "Where do you want to work? (select one or more)",
+      "timelineTitle": "Interview timeline"
+    },
+    "step3": {
+      "title": "Preferred practice format",
+      "subtitle": "Choose your primary preparation method — you can switch between them anytime",
+      "previewBadge": "Personalized track ready",
+      "previewTitle": "Your preparation plan has been created",
+      "previewSubtitle": "Based on your preferences, here is your recommended starting kit:"
+    },
+    "roles": {
+      "FRONTEND": {
+        "title": "Frontend",
+        "desc": "React, Vue, Next.js, Web APIs, performance, and modern UI architecture"
+      },
+      "BACKEND": {
+        "title": "Backend",
+        "desc": "Service architecture, databases, REST/gRPC, scalability, and microservices"
+      },
+      "FULLSTACK": {
+        "title": "Fullstack",
+        "desc": "End-to-end development from client-side UI to backend APIs and databases"
+      },
+      "DEVOPS": {
+        "title": "DevOps / SRE",
+        "desc": "CI/CD, Kubernetes, Docker, cloud infrastructure, IaC, and observability"
+      },
+      "QA": {
+        "title": "QA Engineering",
+        "desc": "Test automation (E2E, API), test design, and software quality assurance"
+      },
+      "MOBILE": {
+        "title": "Mobile",
+        "desc": "iOS, Android, React Native, Flutter, and mobile performance"
+      },
+      "DATA_ML": {
+        "title": "Data Science / ML",
+        "desc": "Machine learning, data analytics, neural networks, and ML pipelines"
+      },
+      "SYSTEM_DESIGN": {
+        "title": "System Design",
+        "desc": "High-throughput distributed systems, partitioning, caching, and message queues"
+      }
+    },
+    "levels": {
+      "JUNIOR": {
+        "title": "Junior",
+        "desc": "Core algorithms, language basics, fundamental data structures, and simple tasks"
+      },
+      "MIDDLE": {
+        "title": "Middle",
+        "desc": "In-depth stack mastery, component design, optimization, and practical problem-solving"
+      },
+      "SENIOR": {
+        "title": "Senior",
+        "desc": "System architecture, advanced algorithms, trade-off analysis, and technical leadership"
+      },
+      "LEAD": {
+        "title": "Lead / Staff",
+        "desc": "Large-scale technical solutions, technology roadmap, and cross-team alignment"
+      }
+    },
+    "companies": {
+      "bigtech": {
+        "title": "BigTech / FAANG",
+        "desc": "Google, Meta, Amazon, Apple, Microsoft"
+      },
+      "fintech": {
+        "title": "FinTech & Banking",
+        "desc": "Stripe, Revolut, Robinhood, digital banking"
+      },
+      "startup": {
+        "title": "High-growth Startups",
+        "desc": "Fast-paced environment, full product ownership"
+      },
+      "enterprise": {
+        "title": "Enterprise & Corporations",
+        "desc": "Robust ecosystems, scalable processes, enterprise scale"
+      }
+    },
+    "timelines": {
+      "now": "Actively interviewing right now",
+      "soon": "Within the next 1-3 months",
+      "passive": "Practicing to keep skills sharp"
+    },
+    "formats": {
+      "ai": {
+        "title": "AI Mock Interview",
+        "desc": "Interview with a virtual AI interviewer 24/7 with instant evaluation and feedback",
+        "tag": "AI 24/7"
+      },
+      "peer": {
+        "title": "Peer-to-peer interviews",
+        "desc": "1-on-1 practice with fellow developers from the community with mutual feedback",
+        "tag": "Community"
+      },
+      "sandbox": {
+        "title": "Sandbox & Problem Bank",
+        "desc": "Self-paced coding practice with live code execution and automated test runners",
+        "tag": "Live Coding"
+      }
+    },
+    "toasts": {
+      "success": "Preparation goals successfully saved.",
+      "error": "Failed to save goals. Please try again."
+    }
   }
 }
