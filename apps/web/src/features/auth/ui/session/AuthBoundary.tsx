@@ -17,9 +17,12 @@ export interface AuthBoundaryProps {
   children: React.ReactNode;
 }
 
-export function getSafeReturnTo(returnTo: string | null): string {
+export function getSafeReturnTo(
+  returnTo: string | null,
+  fallback: string = paths.dashboard,
+): string {
   if (!returnTo) {
-    return paths.dashboard;
+    return fallback;
   }
 
   // Безопасный локальный returnTo: начинается с '/', не с '//', без внешних схем/протоколов
@@ -32,7 +35,7 @@ export function getSafeReturnTo(returnTo: string | null): string {
     return returnTo;
   }
 
-  return paths.dashboard;
+  return fallback;
 }
 
 export function AuthBoundary({
@@ -56,7 +59,12 @@ export function AuthBoundary({
     } else if (mode === "guest") {
       if (status === SESSION_STATUS.AUTHENTICATED) {
         const rawReturnTo = searchParams?.get("returnTo") ?? null;
-        const targetUrl = getSafeReturnTo(rawReturnTo);
+        const defaultDestination =
+          pathname &&
+          (pathname === paths.register || pathname.startsWith(paths.register))
+            ? paths.onboarding
+            : paths.dashboard;
+        const targetUrl = getSafeReturnTo(rawReturnTo, defaultDestination);
         router.replace(targetUrl);
       }
     }

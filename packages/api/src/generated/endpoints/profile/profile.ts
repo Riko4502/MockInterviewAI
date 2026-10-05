@@ -31,6 +31,7 @@ import type {
 import type {
   AvatarDeleteResponseDto,
   AvatarUploadResponseDto,
+  CompleteOnboardingDto,
   DeviceSettingsDto,
   MessageResponseDto,
   ProfileControllerGetDeviceSettingsParams,
@@ -318,6 +319,85 @@ export const useProfileControllerDeleteMyProfile = <TError = void,
         TContext
       > => {
       return useMutation(getProfileControllerDeleteMyProfileMutationOptions(options), queryClient);
+    }
+    export const getProfileControllerCompleteOnboardingUrl = () => {
+
+
+
+
+  return `/api/v1/profile/onboarding`
+}
+
+/**
+ * @summary Завершить онбординг и сохранить цели подготовки
+ */
+export const profileControllerCompleteOnboarding = async (completeOnboardingDto: CompleteOnboardingDto, options?: Parameters<typeof customInstance>[1]): Promise<UserProfileDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<UserProfileDto>(getProfileControllerCompleteOnboardingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(completeOnboardingDto)
+  }
+);}
+
+
+
+
+
+export const getProfileControllerCompleteOnboardingMutationKey = () => ['profileControllerCompleteOnboarding'] as const;
+
+export const getProfileControllerCompleteOnboardingMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>, TError,ProfileControllerCompleteOnboardingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>, TError,ProfileControllerCompleteOnboardingMutationVariables, TContext> => {
+
+const mutationKey = getProfileControllerCompleteOnboardingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>, ProfileControllerCompleteOnboardingMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  profileControllerCompleteOnboarding(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProfileControllerCompleteOnboardingMutationResult = NonNullable<Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>>
+    export type ProfileControllerCompleteOnboardingMutationBody = CompleteOnboardingDto
+    export type ProfileControllerCompleteOnboardingMutationError = void
+    export type ProfileControllerCompleteOnboardingMutationVariables = {data: CompleteOnboardingDto}
+
+    /**
+ * @summary Завершить онбординг и сохранить цели подготовки
+ */
+export const useProfileControllerCompleteOnboarding = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>, TError,ProfileControllerCompleteOnboardingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof profileControllerCompleteOnboarding>>,
+        TError,
+        ProfileControllerCompleteOnboardingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getProfileControllerCompleteOnboardingMutationOptions(options), queryClient);
     }
     export const getProfileControllerGetDeviceSettingsUrl = (params: ProfileControllerGetDeviceSettingsParams,) => {
   const normalizedParams = new URLSearchParams();

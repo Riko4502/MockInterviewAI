@@ -7,6 +7,7 @@ export const paths = {
   forbidden: "/forbidden",
   sandbox: "/dashboard/sandbox",
   notifications: "/dashboard/notifications",
+  onboarding: "/onboarding",
   interviews: "/dashboard/interviews",
   partners: "/dashboard/partners",
   partnersMy: "/dashboard/partners/my",

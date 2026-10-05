@@ -76,6 +76,10 @@ export {
   updateMediaSettingsSchema,
 } from "./profile/media-settings.dto";
 export {
+  type CompleteOnboardingDto,
+  completeOnboardingSchema,
+} from "./profile/onboarding.dto";
+export {
   GIT_URL_REGEX,
   type Locale,
   localeLabels,
