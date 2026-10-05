@@ -5,7 +5,7 @@ import { AlertCircleIcon, ArrowLeftIcon, InfoIcon } from "@packages/icons";
 import { Button, Skeleton } from "@packages/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/entities/user";
@@ -37,6 +37,8 @@ export function CreateCardView() {
   const { data: user, isLoading } = useCurrentUser();
   const { createCard, isCreating } = useShowcaseMutations();
 
+  const isProfilePrefilledRef = useRef(false);
+
   const schema = useMemo(
     () =>
       createShowcaseFormSchema(
@@ -55,16 +57,18 @@ export function CreateCardView() {
   });
 
   useEffect(() => {
-    if (user?.targetRole || user?.targetLevel) {
+    if (isProfilePrefilledRef.current || !user) return;
+
+    isProfilePrefilledRef.current = true;
+
+    if (user.targetRole || user.targetLevel) {
       form.reset((prev) => ({
         ...prev,
-        specialization:
-          (user.targetRole as ShowcaseFormValues["specialization"]) ||
-          prev.specialization,
-        level: (user.targetLevel as ShowcaseFormValues["level"]) || prev.level,
+        specialization: user?.targetRole || prev.specialization,
+        level: user?.targetLevel || prev.level,
       }));
     }
-  }, [user?.targetRole, user?.targetLevel, form]);
+  }, [user, form]);
 
   const { watch } = form;
   const watchedValues = watch();

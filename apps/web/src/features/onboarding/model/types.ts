@@ -41,9 +41,8 @@ export function getInitialOnboardingState(
     level:
       (user.targetLevel as OnboardingLevel) || DEFAULT_ONBOARDING_STATE.level,
     companies:
-      user.targetCompanies && user.targetCompanies.length > 0
-        ? (user.targetCompanies as TargetCompanyId[])
-        : DEFAULT_ONBOARDING_STATE.companies,
+      (user.targetCompanies as TargetCompanyId[] | undefined) ??
+      DEFAULT_ONBOARDING_STATE.companies,
     timeline:
       (user.targetTimeline as TimelineId) || DEFAULT_ONBOARDING_STATE.timeline,
     format:

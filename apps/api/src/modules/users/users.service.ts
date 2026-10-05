@@ -877,11 +877,15 @@ export class UsersService {
       where: { id: userId },
       data: {
         onboardingCompleted: true,
-        targetRole: dto.role ?? null,
-        targetLevel: dto.level ?? null,
-        targetCompanies: dto.companies ?? [],
-        targetTimeline: dto.timeline ?? null,
-        preferredFormat: dto.format ?? null,
+        ...(dto.isSkipped
+          ? {}
+          : {
+              targetRole: dto.role ?? null,
+              targetLevel: dto.level ?? null,
+              targetCompanies: dto.companies ?? [],
+              targetTimeline: dto.timeline ?? null,
+              preferredFormat: dto.format ?? null,
+            }),
         onboardingAt: new Date(),
       },
       select: USER_PROFILE_SELECT,

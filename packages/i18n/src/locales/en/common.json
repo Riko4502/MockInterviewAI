@@ -357,8 +357,13 @@
       }
     },
     "toasts": {
-      "success": "Preparation goals successfully saved.",
-      "error": "Failed to save goals. Please try again."
+      "saving": "Saving...",
+      "savedTitle": "Settings saved",
+      "savedDesc": "Settings saved successfully! Redirecting...",
+      "errorTitle": "Failed to save settings",
+      "errorDesc": "Please try again.",
+      "skippedTitle": "Profile skipped",
+      "skippedDesc": "You can complete your profile later in the settings."
     }
   }
 }

@@ -141,12 +141,8 @@ export function OnboardingWizard() {
           });
           toast.push({
             status: "success",
-            title: t("onboarding.toasts.savedTitle", {
-              defaultValue: "Цели сохранены",
-            }),
-            description: t("onboarding.toasts.savedDesc", {
-              defaultValue: "Персональный план подготовки обновлен",
-            }),
+            title: t("onboarding.toasts.savedTitle"),
+            description: t("onboarding.toasts.savedDesc"),
           });
           if (state.format === "sandbox") {
             router.replace(paths.sandbox);
@@ -159,12 +155,8 @@ export function OnboardingWizard() {
         onError: () => {
           toast.push({
             status: "error",
-            title: t("onboarding.toasts.errorTitle", {
-              defaultValue: "Ошибка сохранения",
-            }),
-            description: t("onboarding.toasts.errorDesc", {
-              defaultValue: "Не удалось сохранить цели, попробуйте еще раз",
-            }),
+            title: t("onboarding.toasts.errorTitle"),
+            description: t("onboarding.toasts.errorDesc"),
           });
         },
       },

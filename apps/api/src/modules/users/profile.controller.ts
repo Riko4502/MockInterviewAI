@@ -116,7 +116,7 @@ export class ProfileController {
   })
   @ZodBody(completeOnboardingSchema, "CompleteOnboardingDto")
   @ApiResponse({
-    status: 200,
+    status: 201,
     description: "Онбординг успешно завершен, профиль обновлен",
     schema: { $ref: "#/components/schemas/UserProfileDto" },
   })

@@ -7,7 +7,7 @@ import {
 /**
  * Zod-схема завершения онбординга пользователем.
  * Поддерживает сохранение выбранных целей подготовки,
- * санитизацию данных (лимит до 10 компаний) и Skip Flow (isSkipped).
+ * санитизацию данных (лимит до 10 компаний) и Skip Flow (`isSkipped` сохраняет текущие цели).
  */
 export const completeOnboardingSchema = z.object({
   role: specializationEnum.optional(),

@@ -2,7 +2,7 @@
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "target_role" "Specialization";
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "target_level" "ExperienceLevel";
-ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "target_companies" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "target_companies" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "target_timeline" VARCHAR(50);
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "preferred_format" VARCHAR(50);
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_at" TIMESTAMP(3);
