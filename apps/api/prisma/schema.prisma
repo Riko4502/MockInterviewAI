@@ -63,6 +63,9 @@ model User {
 
   deviceSettings        UserDeviceSettings[]
   notifications         Notification[]
+  createdNotificationCampaigns NotificationCampaign[] @relation("NotificationCampaignCreator")
+  cancelledNotificationCampaigns NotificationCampaign[] @relation("NotificationCampaignCanceller")
+  notificationCampaignRecipients NotificationCampaignRecipient[] @relation("NotificationCampaignRecipients")
   sessions              InterviewSession[]
   participations        InterviewParticipant[]
   revocationTasks       AuthRevocationTask[]
@@ -141,6 +144,18 @@ enum NotificationType {
   MESSAGE
 }
 
+model NotificationCampaignRecipient {
+  id         String               @id @default(uuid()) @db.Uuid
+  campaignId String               @map("campaign_id") @db.Uuid
+  campaign   NotificationCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId     String               @map("user_id") @db.Uuid
+  user       User                 @relation("NotificationCampaignRecipients", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime             @default(now()) @map("created_at")
+
+  @@unique([campaignId, userId])
+  @@index([userId])
+  @@map("notification_campaign_recipients")
+}
 model Notification {
   id        String           @id @default(uuid()) @db.Uuid
   userId    String           @db.Uuid
@@ -148,19 +163,68 @@ model Notification {
   title     String
   message   String
   actionUrl String?
+  campaignId String? @map("campaign_id") @db.Uuid
   readAt    DateTime?
   deletedAt DateTime?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([readAt])
   @@index([deletedAt])
+  @@index([campaignId])
+  @@unique([campaignId, userId])
   @@map("notifications")
 }
 
+enum NotificationTargetType {
+  ALL
+  SPECIFIC
+}
+
+enum NotificationCampaignStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+model NotificationCampaign {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  title               String                       @db.VarChar(200)
+  category            NotificationType
+  message             String                       @db.VarChar(2000)
+  actionUrl           String?                      @map("action_url")
+  targetType          NotificationTargetType       @map("target_type")
+  recipients          NotificationCampaignRecipient[]
+  status              NotificationCampaignStatus   @default(DRAFT)
+  scheduledAt         DateTime?                    @map("scheduled_at")
+  sentAt              DateTime?                    @map("sent_at")
+  completedAt         DateTime?                    @map("completed_at")
+  totalRecipients     Int                          @default(0) @map("total_recipients")
+  sentCount           Int                          @default(0) @map("sent_count")
+  lastProcessedUserId String?                      @map("last_processed_user_id") @db.Uuid
+  processingStartedAt DateTime?                    @map("processing_started_at")
+  creatorId           String?                      @map("creator_id") @db.Uuid
+  creator             User?                        @relation("NotificationCampaignCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  cancelledAt         DateTime?                    @map("cancelled_at")
+  cancelledById       String?                      @map("cancelled_by_id") @db.Uuid
+  cancelledBy         User?                        @relation("NotificationCampaignCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancellationReason  String?                      @map("cancellation_reason")
+  failureReason       String?                      @map("failure_reason")
+  notifications       Notification[]
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @updatedAt @map("updated_at")
+
+  @@index([status, scheduledAt])
+  @@index([creatorId, createdAt(sort: Desc)])
+  @@map("notification_campaigns")
+}
 enum ThemePreference {
   LIGHT
   DARK
@@ -303,4 +367,3 @@ model UserDeviceSettings {
   @@index([userId])
   @@map("user_device_settings")
 }
-
