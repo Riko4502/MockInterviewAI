@@ -201,6 +201,102 @@ export class NotificationsService {
     return notification;
   }
 
+  async createCampaignNotification(params: {
+    campaignId: string;
+    userId: string;
+    category: NotificationType;
+    title: string;
+    message: string;
+    actionUrl?: string;
+  }) {
+    const created = await this.prisma.notification.createMany({
+      data: [
+        {
+          campaignId: params.campaignId,
+          userId: params.userId,
+          category: params.category,
+          title: params.title,
+          message: params.message,
+          actionUrl: params.actionUrl,
+        },
+      ],
+      skipDuplicates: true,
+    });
+    const notification = await this.prisma.notification.findUnique({
+      where: {
+        campaignId_userId: {
+          campaignId: params.campaignId,
+          userId: params.userId,
+        },
+      },
+    });
+    if (!notification) {
+      throw new Error("Campaign notification could not be persisted");
+    }
+
+    if (created.count > 0) {
+      try {
+        await this.invalidateCache(params.userId);
+        await this.publishNotificationEvent(params.userId, "notification.new", {
+          id: notification.id,
+          title: notification.title,
+          message: notification.message,
+          category: notification.category,
+          actionUrl: notification.actionUrl,
+        });
+        await this.publishUnreadCount(params.userId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to publish campaign notification ${notification.id}: ${message}`,
+        );
+      }
+    }
+
+    return notification;
+  }
+  async syncCampaignNotifications(
+    notifications: Array<{
+      id: string;
+      userId: string;
+      title: string;
+      message: string;
+      category: NotificationType;
+      actionUrl: string | null;
+    }>,
+  ): Promise<void> {
+    const byUser = new Map<string, typeof notifications>();
+    for (const notification of notifications) {
+      const items = byUser.get(notification.userId) ?? [];
+      items.push(notification);
+      byUser.set(notification.userId, items);
+    }
+    await Promise.all(
+      [...byUser].map(async ([userId, items]) => {
+        try {
+          await this.invalidateCache(userId);
+          await Promise.all(
+            items.map((item) =>
+              this.publishNotificationEvent(userId, "notification.new", {
+                id: item.id,
+                title: item.title,
+                message: item.message,
+                category: item.category,
+                actionUrl: item.actionUrl,
+              }),
+            ),
+          );
+          await this.publishUnreadCount(userId);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          this.logger.error(
+            `Failed to sync campaign notifications for ${userId}: ${message}`,
+          );
+        }
+      }),
+    );
+  }
   private async scheduleNotificationSync(userId: string): Promise<void> {
     await this.retryRedisOperation(async () => {
       await this.invalidateCache(userId);
