@@ -1,4 +1,4 @@
-import type { Locale } from "@packages/i18n";
+import { getMessages, type Locale } from "@packages/i18n";
 import { Heading, Text } from "@react-email/components";
 
 import { Button } from "../components/button";
@@ -11,14 +11,14 @@ import { OtpCode } from "../components/otp-code";
  * Локализованные тексты для шаблона подтверждения email.
  */
 export interface VerifyEmailTexts {
-  previewText?: string;
-  title?: string;
-  greeting?: string;
-  description?: string;
-  buttonText?: string;
-  otpLabel?: string;
-  expirationNotice?: string;
-  ignoreNotice?: string;
+  previewText: string;
+  title: string;
+  greeting: string;
+  description: string;
+  buttonText: string;
+  otpLabel: string;
+  expirationNotice: string;
+  ignoreNotice: string;
 }
 
 /**
@@ -32,11 +32,11 @@ export interface VerifyEmailProps {
   /** Ссылка для прямого подтверждения по клику */
   verifyUrl?: string;
   /** Время жизни ссылки/кода в минутах */
-  expiresMinutes?: number;
+  expiresMinutes: number;
   /** Локаль письма */
-  lang?: Locale;
+  lang: Locale;
   /** Переопределение текстов (например, из @packages/i18n) */
-  texts?: VerifyEmailTexts;
+  texts?: Partial<VerifyEmailTexts>;
 }
 
 /**
@@ -46,26 +46,26 @@ export const VerifyEmailTemplate = ({
   username,
   code,
   verifyUrl,
-  expiresMinutes = 15,
-  lang,
-  texts,
+  expiresMinutes,
+  lang = "ru",
+  texts: userTexts,
 }: VerifyEmailProps) => {
-  const preview =
-    texts?.previewText ??
-    "Подтвердите адрес электронной почты для входа в MockInterviewAI";
-  const title = texts?.title ?? "Подтверждение email";
-  const greeting = texts?.greeting ?? `Здравствуйте, ${username}!`;
-  const description =
-    texts?.description ??
-    "Спасибо за регистрацию на платформе MockInterviewAI. Чтобы активировать ваш аккаунт и начать тренировочные собеседования, подтвердите ваш адрес электронной почты.";
-  const buttonText = texts?.buttonText ?? "Подтвердить email";
-  const otpLabel = texts?.otpLabel ?? "Введите проверочный код:";
-  const expirationNotice =
-    texts?.expirationNotice ??
-    `Ссылка и код действительны в течение ${expiresMinutes} минут.`;
-  const ignoreNotice =
-    texts?.ignoreNotice ??
-    "Если вы не регистрировались на нашей платформе, просто проигнорируйте это письмо.";
+  const texts: VerifyEmailTexts = {
+    ...getMessages(lang).email.verifyEmail,
+    ...userTexts,
+  };
+
+  const preview = texts.previewText;
+  const title = texts.title;
+  const greeting = texts.greeting.replace("{username}", username);
+  const description = texts.description;
+  const buttonText = texts.buttonText;
+  const otpLabel = texts.otpLabel;
+  const expirationNotice = texts.expirationNotice.replace(
+    "{expiresMinutes}",
+    String(expiresMinutes),
+  );
+  const ignoreNotice = texts.ignoreNotice;
 
   return (
     <Layout lang={lang}>
@@ -87,17 +87,18 @@ export const VerifyEmailTemplate = ({
       <Text style={styles.mutedText}>{expirationNotice}</Text>
       <Text style={styles.mutedText}>{ignoreNotice}</Text>
 
-      <Footer />
+      <Footer lang={lang} />
     </Layout>
   );
 };
 
 // Мок-данные для React Email Preview сервера
 VerifyEmailTemplate.PreviewProps = {
-  username: "Алексей",
+  username: "Alex",
   code: "482910",
   verifyUrl: "http://localhost:3000/auth/verify?token=mock-token-12345",
   expiresMinutes: 15,
+  lang: "en",
 } satisfies VerifyEmailProps;
 
 export default VerifyEmailTemplate;

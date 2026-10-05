@@ -1,52 +1,63 @@
+import { getMessages, type Locale } from "@packages/i18n";
 import { Hr, Link, Section, Text } from "@react-email/components";
 
 /**
  * Пропсы для подвала письма.
  */
 export interface FooterProps {
-  /** Ссылка на настройки уведомлений в профиле */
+  /** Ссылка на настройки уведомлений в профиле (если не передана, блок не выводится) */
   manageNotificationsUrl?: string;
   /** Текст ссылки на настройки */
   manageNotificationsText?: string;
   /** Название платформы */
   companyName?: string;
-  /** Локализованный текст дисклеймера */
+  /** Текст дисклеймера */
   disclaimerText?: string;
+  /** Текст копирайта */
+  copyrightText?: string;
+  /** Языковая локаль письма */
+  lang?: Locale;
 }
-
-const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL ?? "test-url";
 
 /**
  * Базовый футер с дисклеймером, ссылкой на настройки и копирайтом.
  */
 export const Footer = ({
-  manageNotificationsUrl = `${DEFAULT_FRONTEND_URL}/dashboard/profile`,
-  manageNotificationsText = "Управление уведомлениями в профиле",
-  companyName = "MockInterviewAI",
+  manageNotificationsUrl,
+  manageNotificationsText,
+  companyName,
   disclaimerText,
+  copyrightText,
+  lang = "ru",
 }: FooterProps) => {
+  const common = getMessages(lang).email.common;
   const currentYear = new Date().getFullYear();
-  const defaultDisclaimer = `Вы получили это письмо, потому что зарегистрированы на платформе ${companyName}. Если вы не совершали никаких действий, пожалуйста, проигнорируйте его.`;
+
+  const company = companyName ?? common.appName;
+  const disclaimer = (disclaimerText ?? common.footerNotice).replace(
+    "{companyName}",
+    company,
+  );
+  const copyright = (copyrightText ?? common.footerCopyright)
+    .replace("{year}", String(currentYear))
+    .replace("{companyName}", company);
+  const manageText = manageNotificationsText ?? common.footerSettings;
 
   return (
     <Section style={styles.container}>
       <Hr style={styles.hr} />
 
-      <Text style={styles.disclaimer}>
-        {disclaimerText ?? defaultDisclaimer}
-      </Text>
+      <Text style={styles.disclaimer}>{disclaimer}</Text>
 
       {manageNotificationsUrl && (
         <Text style={styles.linkWrapper}>
           <Link href={manageNotificationsUrl} style={styles.link}>
-            {manageNotificationsText}
+            {manageText}
           </Link>
         </Text>
       )}
 
-      <Text style={styles.copyright}>
-        © {currentYear} {companyName}. Все права защищены.
-      </Text>
+      <Text style={styles.copyright}>{copyright}</Text>
     </Section>
   );
 };

@@ -9,27 +9,31 @@ interface HeaderProps {
   homeUrl?: string;
 }
 
-const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL ?? "test-url";
+export const Header = ({ previewText, logoUrl, homeUrl }: HeaderProps) => {
+  const brandContent = (
+    <>
+      {logoUrl ? (
+        <Img src={logoUrl} alt="MockInterviewAI" width="36" height="36" />
+      ) : (
+        <span style={styles.logoBadge}>MI</span>
+      )}
+      <Text style={styles.brandText}>
+        Mock<span style={styles.accentText}>Interview</span>AI
+      </Text>
+    </>
+  );
 
-export const Header = ({
-  previewText,
-  logoUrl,
-  homeUrl = DEFAULT_FRONTEND_URL,
-}: HeaderProps) => {
   return (
     <>
       {previewText && <Preview>{previewText}</Preview>}
       <Section style={styles.header}>
-        <Link href={homeUrl} style={styles.brandLink}>
-          {logoUrl ? (
-            <Img src={logoUrl} alt="MockInterviewAI" width="36" height="36" />
-          ) : (
-            <span style={styles.logoBadge}>MI</span>
-          )}
-          <Text style={styles.brandText}>
-            Mock<span style={styles.accentText}>Interview</span>AI
-          </Text>
-        </Link>
+        {homeUrl ? (
+          <Link href={homeUrl} style={styles.brandLink}>
+            {brandContent}
+          </Link>
+        ) : (
+          <div style={styles.brandWrapper}>{brandContent}</div>
+        )}
       </Section>
     </>
   );
@@ -41,6 +45,12 @@ const styles = {
     textAlign: "center" as const,
   },
   brandLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    textDecoration: "none",
+    gap: "10px",
+  },
+  brandWrapper: {
     display: "inline-flex",
     alignItems: "center",
     textDecoration: "none",

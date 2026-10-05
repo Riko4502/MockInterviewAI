@@ -1,4 +1,4 @@
-import type { Locale } from "@packages/i18n";
+import { getMessages, type Locale } from "@packages/i18n";
 import { Heading, Section, Text } from "@react-email/components";
 
 import { Button } from "../components/button";
@@ -28,20 +28,21 @@ export interface SecurityAlertDetails {
  * Локализованные тексты для шаблона оповещения о безопасности.
  */
 export interface SecurityAlertTexts {
-  previewText?: string;
-  title?: string;
-  greeting?: string;
-  description?: string;
-  eventLabel?: string;
-  timeLabel?: string;
-  ipLabel?: string;
-  deviceLabel?: string;
-  locationLabel?: string;
-  newEmailLabel?: string;
-  oldEmailLabel?: string;
-  buttonText?: string;
-  warningNotice?: string;
-  supportNotice?: string;
+  previewText: string;
+  title: string;
+  badgeText: string;
+  greeting: string;
+  description: string;
+  timeLabel: string;
+  ipLabel: string;
+  deviceLabel: string;
+  locationLabel: string;
+  newEmailLabel: string;
+  oldEmailLabel: string;
+  buttonText: string;
+  confirmButtonText: string;
+  warningNotice: string;
+  supportNotice: string;
 }
 
 /**
@@ -70,27 +71,9 @@ export interface SecurityAlertProps {
   securityUrl?: string;
   /** Локаль письма */
   lang?: Locale;
-  /** Переопределение текстов */
-  texts?: SecurityAlertTexts;
+  /** Опциональное переопределение текстов */
+  texts?: Partial<SecurityAlertTexts>;
 }
-
-const EVENT_TITLES: Record<SecurityEventType, string> = {
-  PASSWORD_CHANGED: "Пароль был изменен",
-  EMAIL_CHANGE_REQUESTED: "Запрос на смену email",
-  EMAIL_CHANGED: "Email аккаунта изменен",
-  NEW_DEVICE_LOGIN: "Вход с нового устройства",
-};
-
-const EVENT_DESCRIPTIONS: Record<SecurityEventType, string> = {
-  PASSWORD_CHANGED:
-    "Пароль от вашего аккаунта MockInterviewAI был успешно изменен. Если это были вы, никаких дополнительных действий не требуется.",
-  EMAIL_CHANGE_REQUESTED:
-    "Был получен запрос на смену основного адреса электронной почты для вашего аккаунта.",
-  EMAIL_CHANGED:
-    "Основной адрес электронной почты вашего аккаунта MockInterviewAI был успешно обновлен.",
-  NEW_DEVICE_LOGIN:
-    "Был зафиксирован вход в ваш аккаунт MockInterviewAI с нового устройства или необычного местоположения.",
-};
 
 /**
  * Шаблон письма с оповещением о критических событиях безопасности.
@@ -105,37 +88,40 @@ export const SecurityAlertTemplate = ({
   device,
   location,
   details,
-  securityUrl = "http://localhost:3000/dashboard/profile",
-  lang,
-  texts,
+  securityUrl,
+  lang = "ru",
+  texts: userTexts,
 }: SecurityAlertProps) => {
-  const title = texts?.title ?? EVENT_TITLES[eventType];
-  const preview = texts?.previewText ?? `Безопасность аккаунта: ${title}`;
-  const greeting =
-    texts?.greeting ??
-    (username
-      ? `Здравствуйте, ${username}!`
-      : email
-        ? `Здравствуйте (${email})!`
-        : "Здравствуйте!");
-  const description = texts?.description ?? EVENT_DESCRIPTIONS[eventType];
-  const timeLabel = texts?.timeLabel ?? "Время события:";
-  const ipLabel = texts?.ipLabel ?? "IP-адрес:";
-  const deviceLabel = texts?.deviceLabel ?? "Устройство / Браузер:";
-  const locationLabel = texts?.locationLabel ?? "Примерное место:";
-  const newEmailLabel = texts?.newEmailLabel ?? "Новый email:";
-  const oldEmailLabel = texts?.oldEmailLabel ?? "Прежний email:";
+  const dict = getMessages(lang).email.securityAlert;
+  const eventConfig = dict.events[eventType];
+  const texts: SecurityAlertTexts = {
+    ...dict,
+    title: eventConfig.title,
+    description: eventConfig.description,
+    ...userTexts,
+  };
+
+  const title = texts.title;
+  const preview = texts.previewText.replace("{title}", title);
+  const greeting = username
+    ? texts.greeting.replace("{username}", username)
+    : email
+      ? texts.greeting.replace("{username}", email)
+      : texts.greeting.replace(", {username}", "").replace(" {username}", "");
+  const description = texts.description;
+  const timeLabel = texts.timeLabel;
+  const ipLabel = texts.ipLabel;
+  const deviceLabel = texts.deviceLabel;
+  const locationLabel = texts.locationLabel;
+  const newEmailLabel = texts.newEmailLabel;
+  const oldEmailLabel = texts.oldEmailLabel;
 
   const primaryActionUrl = details?.confirmationUrl ?? securityUrl;
-  const buttonText =
-    texts?.buttonText ??
-    (details?.confirmationUrl
-      ? "Подтвердить изменение"
-      : "Проверить безопасность аккаунта");
+  const buttonText = details?.confirmationUrl
+    ? texts.confirmButtonText
+    : texts.buttonText;
 
-  const warningNotice =
-    texts?.warningNotice ??
-    "Если вы не совершали этих действий, немедленно смените пароль и завершите все активные сессии в настройках безопасности.";
+  const warningNotice = texts.warningNotice;
 
   const displayDevice = device ?? userAgent;
 
@@ -144,7 +130,7 @@ export const SecurityAlertTemplate = ({
       <Header previewText={preview} />
 
       <Section style={styles.alertBadge}>
-        <Text style={styles.alertBadgeText}>⚠️ Оповещение безопасности</Text>
+        <Text style={styles.alertBadgeText}>⚠️ {texts.badgeText}</Text>
       </Section>
 
       <Heading style={styles.heading}>{title}</Heading>
@@ -193,15 +179,17 @@ export const SecurityAlertTemplate = ({
         )}
       </Section>
 
-      <Button href={primaryActionUrl} variant="primary">
-        {buttonText}
-      </Button>
+      {primaryActionUrl && (
+        <Button href={primaryActionUrl} variant="primary">
+          {buttonText}
+        </Button>
+      )}
 
       <Section style={styles.warningBox}>
         <Text style={styles.warningText}>🔒 {warningNotice}</Text>
       </Section>
 
-      <Footer />
+      <Footer lang={lang} />
     </Layout>
   );
 };
@@ -216,6 +204,7 @@ SecurityAlertTemplate.PreviewProps = {
   device: "Chrome 128 / macOS Sonoma",
   location: "Москва, Россия",
   securityUrl: "http://localhost:3000/dashboard/profile",
+  lang: "en",
 } satisfies SecurityAlertProps;
 
 export default SecurityAlertTemplate;

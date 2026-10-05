@@ -1,4 +1,4 @@
-import type { Locale } from "@packages/i18n";
+import { getMessages, type Locale } from "@packages/i18n";
 import { Heading, Text } from "@react-email/components";
 import { Button } from "../components/button";
 import { Footer } from "../components/footer";
@@ -9,13 +9,13 @@ import { Layout } from "../components/layout";
  * Локализованные тексты для шаблона сброса пароля.
  */
 export interface ResetPasswordTexts {
-  previewText?: string;
-  title?: string;
-  greeting?: string;
-  description?: string;
-  buttonText?: string;
-  expirationNotice?: string;
-  ignoreNotice?: string;
+  previewText: string;
+  title: string;
+  greeting: string;
+  description: string;
+  buttonText: string;
+  expirationNotice: string;
+  ignoreNotice: string;
 }
 
 /**
@@ -27,11 +27,11 @@ export interface ResetPasswordProps {
   /** Одноразовая ссылка для установки нового пароля */
   resetUrl: string;
   /** Срок действия ссылки в минутах */
-  expiresMinutes?: number;
+  expiresMinutes: number;
   /** Локаль письма */
   lang?: Locale;
-  /** Переопределение текстов */
-  texts?: ResetPasswordTexts;
+  /** Опциональное переопределение текстов */
+  texts?: Partial<ResetPasswordTexts>;
 }
 
 /**
@@ -40,24 +40,23 @@ export interface ResetPasswordProps {
 export const ResetPasswordTemplate = ({
   username,
   resetUrl,
-  expiresMinutes = 15,
-  lang,
-  texts,
+  expiresMinutes,
+  lang = "ru",
+  texts: userTexts,
 }: ResetPasswordProps) => {
-  const preview =
-    texts?.previewText ?? "Запрос на сброс пароля в MockInterviewAI";
-  const title = texts?.title ?? "Восстановление пароля";
-  const greeting = texts?.greeting ?? `Здравствуйте, ${username}!`;
-  const description =
-    texts?.description ??
-    "Мы получили запрос на сброс пароля для вашего аккаунта на платформе MockInterviewAI. Чтобы задать новый пароль, нажмите кнопку ниже:";
-  const buttonText = texts?.buttonText ?? "Сбросить пароль";
-  const expirationNotice =
-    texts?.expirationNotice ??
-    `Ссылка действует в течение ${expiresMinutes} минут.`;
-  const ignoreNotice =
-    texts?.ignoreNotice ??
-    "Если вы не отправляли запрос на сброс пароля, проигнорируйте это письмо. Ваш пароль останется без изменений.";
+  const dict = getMessages(lang).email.resetPassword;
+  const texts: ResetPasswordTexts = { ...dict, ...userTexts };
+
+  const preview = texts.previewText;
+  const title = texts.title;
+  const greeting = texts.greeting.replace("{username}", username);
+  const description = texts.description;
+  const buttonText = texts.buttonText;
+  const expirationNotice = texts.expirationNotice.replace(
+    "{expiresMinutes}",
+    String(expiresMinutes),
+  );
+  const ignoreNotice = texts.ignoreNotice;
 
   return (
     <Layout lang={lang}>
@@ -75,7 +74,7 @@ export const ResetPasswordTemplate = ({
       <Text style={styles.mutedText}>{expirationNotice}</Text>
       <Text style={styles.mutedText}>{ignoreNotice}</Text>
 
-      <Footer />
+      <Footer lang={lang} />
     </Layout>
   );
 };
@@ -85,6 +84,7 @@ ResetPasswordTemplate.PreviewProps = {
   username: "Алексей",
   resetUrl: "http://localhost:3000/reset-password?token=mock-reset-token-12345",
   expiresMinutes: 15,
+  lang: "en",
 } satisfies ResetPasswordProps;
 
 export default ResetPasswordTemplate;

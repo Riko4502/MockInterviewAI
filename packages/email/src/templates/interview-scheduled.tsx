@@ -1,4 +1,4 @@
-import type { Locale } from "@packages/i18n";
+import { getMessages, type Locale } from "@packages/i18n";
 import { Heading, Section, Text } from "@react-email/components";
 
 import { Button } from "../components/button";
@@ -10,17 +10,17 @@ import { Layout } from "../components/layout";
  * Локализованные тексты для шаблона запланированного интервью.
  */
 export interface InterviewScheduledTexts {
-  previewText?: string;
-  title?: string;
-  greeting?: string;
-  description?: string;
-  partnerLabel?: string;
-  timeLabel?: string;
-  topicLabel?: string;
-  roleLabel?: string;
-  buttonText?: string;
-  preparationTip?: string;
-  rescheduleNotice?: string;
+  previewText: string;
+  title: string;
+  greeting: string;
+  description: string;
+  partnerLabel: string;
+  timeLabel: string;
+  topicLabel: string;
+  roleLabel: string;
+  buttonText: string;
+  preparationTip: string;
+  rescheduleNotice: string;
 }
 
 /**
@@ -41,8 +41,8 @@ export interface InterviewScheduledProps {
   topic?: string;
   /** Локаль письма */
   lang?: Locale;
-  /** Переопределение текстов */
-  texts?: InterviewScheduledTexts;
+  /** Опциональное переопределение текстов */
+  texts?: Partial<InterviewScheduledTexts>;
 }
 
 /**
@@ -55,29 +55,25 @@ export const InterviewScheduledTemplate = ({
   roomUrl,
   role,
   topic,
-  lang,
-  texts,
+  lang = "ru",
+  texts: userTexts,
 }: InterviewScheduledProps) => {
-  const preview =
-    texts?.previewText ?? `Собеседование запланировано: ${scheduledTime}`;
-  const title = texts?.title ?? "Интервью запланировано";
-  const greeting =
-    texts?.greeting ??
-    (username ? `Здравствуйте, ${username}!` : "Здравствуйте!");
-  const description =
-    texts?.description ??
-    "Для вас запланировано тренировочное собеседование на платформе MockInterviewAI. Детали предстоящей встречи:";
-  const partnerLabel = texts?.partnerLabel ?? "Партнер по интервью:";
-  const timeLabel = texts?.timeLabel ?? "Дата и время:";
-  const topicLabel = texts?.topicLabel ?? "Тема / Стек:";
-  const roleLabel = texts?.roleLabel ?? "Ваша роль:";
-  const buttonText = texts?.buttonText ?? "Перейти в комнату";
-  const preparationTip =
-    texts?.preparationTip ??
-    "Рекомендуем подключиться за 5 минут до начала для проверки микрофона, камеры и браузера.";
-  const rescheduleNotice =
-    texts?.rescheduleNotice ??
-    "Если у вас изменились планы, пожалуйста, отмените или перенесите встречу заранее в личном кабинете.";
+  const dict = getMessages(lang).email.interviewScheduled;
+  const texts: InterviewScheduledTexts = { ...dict, ...userTexts };
+
+  const preview = texts.previewText.replace("{scheduledTime}", scheduledTime);
+  const title = texts.title;
+  const greeting = username
+    ? texts.greeting.replace("{username}", username)
+    : texts.greeting.replace(", {username}", "").replace(" {username}", "");
+  const description = texts.description;
+  const partnerLabel = texts.partnerLabel;
+  const timeLabel = texts.timeLabel;
+  const topicLabel = texts.topicLabel;
+  const roleLabel = texts.roleLabel;
+  const buttonText = texts.buttonText;
+  const preparationTip = texts.preparationTip;
+  const rescheduleNotice = texts.rescheduleNotice;
 
   return (
     <Layout lang={lang}>
@@ -127,7 +123,7 @@ export const InterviewScheduledTemplate = ({
 
       <Text style={styles.mutedText}>{rescheduleNotice}</Text>
 
-      <Footer />
+      <Footer lang={lang} />
     </Layout>
   );
 };
@@ -140,6 +136,7 @@ InterviewScheduledTemplate.PreviewProps = {
   roomUrl: "http://localhost:3000/room/mock-room-abc-123",
   role: "Кандидат",
   topic: "Frontend: React, TypeScript, System Design",
+  lang: "en",
 } satisfies InterviewScheduledProps;
 
 export default InterviewScheduledTemplate;

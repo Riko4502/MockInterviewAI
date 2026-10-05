@@ -1,4 +1,4 @@
-import type { Locale } from "@packages/i18n";
+import { getMessages, type Locale } from "@packages/i18n";
 import { Heading, Section, Text } from "@react-email/components";
 
 import { Button } from "../components/button";
@@ -10,19 +10,19 @@ import { Layout } from "../components/layout";
  * Локализованные тексты для шаблона напоминания об интервью.
  */
 export interface InterviewReminderTexts {
-  previewText?: string;
-  title?: string;
-  greeting?: string;
-  description?: string;
-  partnerLabel?: string;
-  timeRemainingLabel?: string;
-  topicLabel?: string;
-  buttonText?: string;
-  checklistTitle?: string;
-  checklistMic?: string;
-  checklistCamera?: string;
-  checklistInternet?: string;
-  checklistQuiet?: string;
+  previewText: string;
+  title: string;
+  greeting: string;
+  description: string;
+  partnerLabel: string;
+  timeRemainingLabel: string;
+  topicLabel: string;
+  buttonText: string;
+  checklistTitle: string;
+  checklistMic: string;
+  checklistCamera: string;
+  checklistInternet: string;
+  checklistQuiet: string;
 }
 
 /**
@@ -34,15 +34,15 @@ export interface InterviewReminderProps {
   /** Имя партнера по собеседованию */
   partnerName: string;
   /** Оставшееся время до старта в минутах */
-  minutesUntilStart?: number;
+  minutesUntilStart: number;
   /** Прямая ссылка на комнату видеовстречи */
   roomUrl: string;
   /** Направление или тема собеседования */
   topic?: string;
   /** Локаль письма */
   lang?: Locale;
-  /** Переопределение текстов */
-  texts?: InterviewReminderTexts;
+  /** Опциональное переопределение текстов */
+  texts?: Partial<InterviewReminderTexts>;
 }
 
 /**
@@ -51,35 +51,35 @@ export interface InterviewReminderProps {
 export const InterviewReminderTemplate = ({
   username,
   partnerName,
-  minutesUntilStart = 15,
+  minutesUntilStart,
   roomUrl,
   topic,
-  lang,
-  texts,
+  lang = "ru",
+  texts: userTexts,
 }: InterviewReminderProps) => {
-  const preview =
-    texts?.previewText ??
-    `Напоминание: интервью с ${partnerName} начнется через ${minutesUntilStart} минут`;
-  const title = texts?.title ?? "Интервью скоро начнется";
-  const greeting =
-    texts?.greeting ??
-    (username ? `Здравствуйте, ${username}!` : "Здравствуйте!");
-  const description =
-    texts?.description ??
-    `Ваше тренировочное интервью начнется примерно через ${minutesUntilStart} минут. Партнер уже может ожидать вас в комнате.`;
-  const partnerLabel = texts?.partnerLabel ?? "Партнер:";
-  const timeRemainingLabel = texts?.timeRemainingLabel ?? "До начала осталось:";
-  const topicLabel = texts?.topicLabel ?? "Тема:";
-  const buttonText = texts?.buttonText ?? "Войти в комнату";
-  const checklistTitle = texts?.checklistTitle ?? "Чеклист перед подключением:";
-  const checklistMic =
-    texts?.checklistMic ?? "Проверьте микрофон и уровень громкости";
-  const checklistCamera =
-    texts?.checklistCamera ?? "Убедитесь в работоспособности веб-камеры";
-  const checklistInternet =
-    texts?.checklistInternet ?? "Проверьте стабильность интернет-соединения";
-  const checklistQuiet =
-    texts?.checklistQuiet ?? "Подготовьте спокойное место без шума";
+  const dict = getMessages(lang).email.interviewReminder;
+  const texts: InterviewReminderTexts = { ...dict, ...userTexts };
+
+  const preview = texts.previewText
+    .replace("{partnerName}", partnerName)
+    .replace("{minutesUntilStart}", String(minutesUntilStart));
+  const title = texts.title;
+  const greeting = username
+    ? texts.greeting.replace("{username}", username)
+    : texts.greeting.replace(", {username}", "").replace(" {username}", "");
+  const description = texts.description.replace(
+    "{minutesUntilStart}",
+    String(minutesUntilStart),
+  );
+  const partnerLabel = texts.partnerLabel;
+  const timeRemainingLabel = texts.timeRemainingLabel;
+  const topicLabel = texts.topicLabel;
+  const buttonText = texts.buttonText;
+  const checklistTitle = texts.checklistTitle;
+  const checklistMic = texts.checklistMic;
+  const checklistCamera = texts.checklistCamera;
+  const checklistInternet = texts.checklistInternet;
+  const checklistQuiet = texts.checklistQuiet;
 
   return (
     <Layout lang={lang}>
@@ -129,7 +129,7 @@ export const InterviewReminderTemplate = ({
         </ul>
       </Section>
 
-      <Footer />
+      <Footer lang={lang} />
     </Layout>
   );
 };
@@ -141,6 +141,7 @@ InterviewReminderTemplate.PreviewProps = {
   minutesUntilStart: 15,
   roomUrl: "http://localhost:3000/room/mock-room-abc-123",
   topic: "Frontend: React, TypeScript, System Design",
+  lang: "en",
 } satisfies InterviewReminderProps;
 
 export default InterviewReminderTemplate;
