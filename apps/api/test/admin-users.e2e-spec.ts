@@ -12,6 +12,14 @@ const ADMIN_USERS_PATH = "/api/v1/admin/users";
 const LOGIN_PATH = "/api/v1/auth/login";
 const REGISTER_PATH = "/api/v1/auth/register";
 
+/**
+ * Роль, принадлежащая только этому набору.
+ *
+ * Системную `ADMIN` набор не трогает: она сидовая и общая с `rbac.e2e-spec.ts`,
+ * который рассчитывает на сид-бит `ADMINISTRATOR`.
+ */
+const E2E_ADMIN_ROLE_SLUG = "E2E_ADMIN_ALL";
+
 describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
   let started: StartedApp;
   const usedEmails: string[] = [];
@@ -24,21 +32,14 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
   beforeAll(async () => {
     started = await startTestApp();
 
-    // Гарантируем наличие ролей ADMIN и USER
-    const adminRole = await started.prisma.role.upsert({
-      where: { slug: SystemRole.ADMIN },
-      create: {
-        id: "00000000-0000-4000-a000-000000000001",
-        slug: SystemRole.ADMIN,
-        name: "Администратор",
-        permissions: SystemPermission.ALL,
-        isSystem: true,
-      },
-      update: {
-        permissions: SystemPermission.ALL,
-      },
-    });
-
+    // Гарантируем наличие роли USER сида и заводим СВОЮ роль для админа.
+    //
+    // Системную роль `ADMIN` переписывать нельзя: её правят ещё и другие
+    // e2e-наборы (см. `rbac.e2e-spec.ts`, которому нужна сид-бита
+    // `ADMINISTRATOR`), а база общая. Набору нужны все права, потому что
+    // контроллер требует `@RequirePermissions(USERS_MANAGE)`, а superuser-bypass
+    // в `RolesGuard` работает только на ветке `@Roles` — поэтому роль своя и
+    // удаляется в `afterAll`.
     await started.prisma.role.upsert({
       where: { slug: SystemRole.USER },
       create: {
@@ -48,8 +49,20 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
         permissions: SystemPermission.NONE,
         isSystem: true,
       },
+      update: {},
+    });
+
+    const adminRole = await started.prisma.role.upsert({
+      where: { slug: E2E_ADMIN_ROLE_SLUG },
+      create: {
+        slug: E2E_ADMIN_ROLE_SLUG,
+        name: "Администратор (e2e)",
+        description: "Роль только для admin-users.e2e-spec.ts",
+        permissions: SystemPermission.ALL,
+        isSystem: false,
+      },
       update: {
-        permissions: SystemPermission.NONE,
+        permissions: SystemPermission.ALL,
       },
     });
 
@@ -102,6 +115,12 @@ describe("E2E: Admin Users Management API (/api/v1/admin/users)", () => {
   afterAll(async () => {
     await started.prisma.user.deleteMany({
       where: { email: { in: usedEmails } },
+    });
+    // Роль удаляем последней: на неё ссылаются пользователи, а у выше удалённых
+    // пользователей роль уже снята. Роль принадлежит набору, в общей базе ей
+    // не место — иначе она переживёт прогон и заденет соседние наборы.
+    await started.prisma.role.deleteMany({
+      where: { slug: E2E_ADMIN_ROLE_SLUG },
     });
     await stopTestApp(started);
   });
