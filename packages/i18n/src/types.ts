@@ -3,6 +3,7 @@ import type common from "./locales/ru/common.json";
 import type interview from "./locales/ru/interview.json";
 import type landing from "./locales/ru/landing.json";
 import type notifications from "./locales/ru/notifications.json";
+import type showcase from "./locales/ru/showcase.json";
 import type telegram from "./locales/ru/telegram.json";
 
 /**
@@ -14,6 +15,7 @@ export type AuthMessages = typeof auth;
 export type InterviewMessages = typeof interview;
 export type TelegramMessages = typeof telegram;
 export type NotificationsMessages = typeof notifications;
+export type ShowcaseMessages = typeof showcase;
 
 /**
  * Зарезервированные типы для будущих разделов (FR-014)
@@ -49,6 +51,7 @@ export interface Messages {
   interview: InterviewMessages;
   telegram: TelegramMessages;
   notifications: NotificationsMessages;
+  showcase: ShowcaseMessages;
   blog?: BlogMessages;
   roadmap?: RoadmapMessages;
   knowledge?: KnowledgeMessages;
