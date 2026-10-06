@@ -70,6 +70,13 @@ const envSchema = z
       .min(32)
       .default("dev-local-secret-change-me-0123456789"),
     LIVEKIT_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
+    MAIL_TRANSPORT: z.enum(["smtp", "dev-logger"]).default("dev-logger"),
+    SMTP_HOST: z.string().default("localhost"),
+    SMTP_PORT: z.coerce.number().int().positive().default(1025), // coerce - Делает явное привидение.
+    SMTP_SECURE: z.enum(["true", "false"]).default("false"),
+    SMTP_USER: z.string().default(""),
+    SMTP_PASSWORD: z.string().default(""),
+    SMTP_FROM: z.string().default("MockInterviewAI <noreply@mockinterview.ai>"),
     SENTRY_DSN: z.preprocess(
       (value) =>
         typeof value === "string" && value.trim() === "" ? undefined : value,

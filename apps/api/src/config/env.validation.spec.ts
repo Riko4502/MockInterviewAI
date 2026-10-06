@@ -131,3 +131,47 @@ describe("env.validation TELEGRAM_BOT_TOKEN", () => {
     );
   });
 });
+
+describe("Валидация переменных окружения Mail / SMTP", () => {
+  it("подставляет дефолтные значения почты, если они не заданы", () => {
+    const env = validate(requiredEnv);
+
+    expect(env.MAIL_TRANSPORT).toBe("dev-logger");
+    expect(env.SMTP_HOST).toBe("localhost");
+    expect(env.SMTP_PORT).toBe(1025);
+    expect(env.SMTP_SECURE).toBe("false");
+    expect(env.SMTP_USER).toBe("");
+    expect(env.SMTP_PASSWORD).toBe("");
+    expect(env.SMTP_FROM).toBe("MockInterviewAI <noreply@mockinterview.ai>");
+  });
+
+  it("валидирует и коэрсит кастомные параметры SMTP", () => {
+    const env = validate({
+      ...requiredEnv,
+      MAIL_TRANSPORT: "smtp",
+      SMTP_HOST: "smtp.resend.com",
+      SMTP_PORT: "465" as unknown as number,
+      SMTP_SECURE: "true",
+      SMTP_USER: "resend",
+      SMTP_PASSWORD: "re_secret_123",
+      SMTP_FROM: "Test <info@test.com>",
+    });
+
+    expect(env.MAIL_TRANSPORT).toBe("smtp");
+    expect(env.SMTP_HOST).toBe("smtp.resend.com");
+    expect(env.SMTP_PORT).toBe(465);
+    expect(env.SMTP_SECURE).toBe("true");
+    expect(env.SMTP_USER).toBe("resend");
+    expect(env.SMTP_PASSWORD).toBe("re_secret_123");
+    expect(env.SMTP_FROM).toBe("Test <info@test.com>");
+  });
+
+  it("отклоняет неподдерживаемый MAIL_TRANSPORT", () => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        MAIL_TRANSPORT: "sendgrid" as unknown as "smtp",
+      }),
+    ).toThrow();
+  });
+});

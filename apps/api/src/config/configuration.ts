@@ -1,3 +1,5 @@
+import * as process from "node:process";
+
 /**
  * Возвращает типизированную конфигурацию приложения.
  *
@@ -77,6 +79,17 @@ export const configuration = () => ({
       "http://localhost:9000/mock-interview-storage",
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== "false",
     maxAvatarSizeBytes: Number(process.env.MAX_AVATAR_SIZE_BYTES ?? 2_097_152),
+  },
+  mail: {
+    transport: (process.env.MAIL_TRANSPORT ?? "dev-logger") as
+      | "smtp"
+      | "dev-logger",
+    host: process.env.SMTP_HOST ?? "localhost",
+    port: Number(process.env.SMTP_PORT ?? 1025),
+    secure: process.env.SMTP_SECURE === "true",
+    user: process.env.SMTP_USER ?? "",
+    password: process.env.SMTP_PASSWORD ?? "",
+    from: process.env.SMTP_FROM ?? "MockInterviewAI <noreply@mockinterview.ai>",
   },
 });
 
