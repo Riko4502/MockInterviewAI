@@ -5,7 +5,7 @@ import {
   notificationEventCategory,
   parseNotificationEvent,
 } from "@packages/dto";
-
+import { MetricsService } from "../../common/metrics/metrics.service";
 import { type NotificationOutbox, Prisma } from "../../generated/prisma/client";
 import {
   NOTIFICATION_CHANNELS,
@@ -24,6 +24,7 @@ export class NotificationDispatcher {
   private readonly logger = new Logger(NotificationDispatcher.name);
 
   constructor(
+    private readonly metrics: MetricsService,
     @Inject(NOTIFICATION_CHANNELS)
     private readonly channels: NotificationChannel[],
   ) {}
@@ -61,8 +62,12 @@ export class NotificationDispatcher {
   /**
    * Доставляет одну строку outbox по всем каналам (ADR-003:49).
    *
-   * Канал, который отказал, не отменяет остальные: получателю лучше получить
-   * in-app без Telegram, чем не получить ничего.
+   * Обход прерывается на первом упавшем канале: строка возвращается в `PENDING`
+   * и будет доставлена целиком позже, когда канал оживёт. Поэтому порядок
+   * каналов значим — дешёвый и всегда доступный in-app должен идти первым,
+   * иначе отказ push-канала оставил бы получателя без уведомления в
+   * приложении. Частичная доставка не считается успехом: получателю лучше
+   * получить всё с задержкой, чем часть сразу.
    */
   async deliver(row: NotificationOutbox): Promise<void> {
     const event = parseNotificationEvent({
@@ -79,6 +84,7 @@ export class NotificationDispatcher {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        this.metrics.incOutboxPublishFailure(channel.name);
         this.logger.error(
           `Channel ${channel.name} failed for outbox ${row.id}: ${message}`,
         );

@@ -26,6 +26,7 @@ describe("NotificationDispatcher", () => {
 
   let prismaMock: { notificationOutbox: { create: jest.Mock } };
   let tx: { notificationOutbox: { create: jest.Mock } };
+  let metricsMock: { incOutboxPublishFailure: jest.Mock };
   let dispatcher: NotificationDispatcher;
 
   const welcomeEvent = { type: "system.welcome" as const, payload: {} };
@@ -36,11 +37,12 @@ describe("NotificationDispatcher", () => {
   });
 
   const makeDispatcher = (channels: NotificationChannel[]) =>
-    new NotificationDispatcher(channels);
+    new NotificationDispatcher(metricsMock as never, channels);
 
   beforeEach(() => {
     prismaMock = { notificationOutbox: { create: jest.fn() } };
     tx = { notificationOutbox: { create: jest.fn() } };
+    metricsMock = { incOutboxPublishFailure: jest.fn() };
     tx.notificationOutbox.create.mockResolvedValue(createdOutbox);
     dispatcher = makeDispatcher([buildChannel("in-app")]);
   });
@@ -169,6 +171,37 @@ describe("NotificationDispatcher", () => {
       await expect(
         makeDispatcher([failing]).deliver(createdOutbox as never),
       ).rejects.toThrow("queue down");
+    });
+
+    it("считает неудачную публикацию по имени канала", async () => {
+      const failing: NotificationChannel = {
+        name: "telegram",
+        deliver: jest.fn().mockRejectedValue(new Error("queue down")),
+      };
+
+      await expect(
+        makeDispatcher([failing]).deliver(createdOutbox as never),
+      ).rejects.toThrow("queue down");
+
+      expect(metricsMock.incOutboxPublishFailure).toHaveBeenCalledWith(
+        "telegram",
+      );
+    });
+  });
+
+  describe("порядок каналов", () => {
+    it("не доставляет вторым каналом после отказа первого", async () => {
+      const failing: NotificationChannel = {
+        name: "in-app",
+        deliver: jest.fn().mockRejectedValue(new Error("db down")),
+      };
+      const second = buildChannel("telegram");
+
+      await expect(
+        makeDispatcher([failing, second]).deliver(createdOutbox as never),
+      ).rejects.toThrow("db down");
+
+      expect(second.deliver).not.toHaveBeenCalled();
     });
   });
 
