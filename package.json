@@ -72,6 +72,10 @@
     "turbo": "^2.4.0"
   },
   "pnpm": {
+    "overrides": {
+      "proxy-addr": ">=2.0.8",
+      "source-map-js": ">=1.2.2"
+    },
     "auditConfig": {
       "ignoreCves": [
         "CVE-2026-93687"
