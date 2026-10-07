@@ -8,6 +8,7 @@ export {
   ResetPasswordForm,
   ResetPasswordPageClient,
 } from "./reset-password";
+export { CompleteTelegramPageClient } from "./telegram-login";
 export { AccessDenied } from "./ui/access-control/AccessDenied";
 export {
   RequirePermission,

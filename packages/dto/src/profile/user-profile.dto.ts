@@ -1,6 +1,10 @@
 import { locales } from "@packages/i18n";
 import { THEME_MODES } from "@packages/types";
 import { z } from "zod";
+import {
+  experienceLevelEnum,
+  specializationEnum,
+} from "../showcase/showcase.enums";
 
 /**
  * Zod-схема публичного профиля пользователя.
@@ -18,7 +22,7 @@ export const publicUserProfileSchema = z.object({
 export type PublicUserProfileDto = z.infer<typeof publicUserProfileSchema>;
 
 /**
- * Zod-схема полного профиля текущего пользователя (с email и role).
+ * Zod-схема полного профиля текущего пользователя (с email, role и целями онбординга).
  */
 export const userProfileSchema = publicUserProfileSchema.extend({
   email: z.string().email(),
@@ -27,6 +31,15 @@ export const userProfileSchema = publicUserProfileSchema.extend({
   theme: z.enum(THEME_MODES),
   locale: z.enum(locales),
   updatedAt: z.iso.datetime(),
+  telegramLinkVerified: z.boolean().default(false),
+  githubLinkVerified: z.boolean().default(false),
+  onboardingCompleted: z.boolean().default(false),
+  targetRole: specializationEnum.nullable().optional(),
+  targetLevel: experienceLevelEnum.nullable().optional(),
+  targetCompanies: z.array(z.string()).default([]),
+  targetTimeline: z.string().nullable().optional(),
+  preferredFormat: z.string().nullable().optional(),
+  onboardingAt: z.iso.datetime().nullable().optional(),
 });
 
 export type UserProfileDto = z.infer<typeof userProfileSchema>;

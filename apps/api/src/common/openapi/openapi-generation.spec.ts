@@ -146,7 +146,7 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       "ShowcaseCardListDto",
       "PaginatedShowcaseCardsDto",
       "MatchRequestResponseDto",
-      "PaginatedMatchRequestsDto",
+      "PaginatedMatchRequestResponseDto",
       "UnreadMatchRequestsCountDto",
     ];
 
@@ -271,14 +271,14 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       );
     });
 
-    it("GET /api/v1/matchmaking/requests/incoming: возвращает 200 (PaginatedMatchRequestsDto)", () => {
+    it("GET /api/v1/matchmaking/requests/incoming: возвращает 200 (PaginatedMatchRequestResponseDto)", () => {
       const op = document.paths["/api/v1/matchmaking/requests/incoming"]
         ?.get as OperationObject;
       const schema = (op.responses["200"] as ResponseObject)?.content?.[
         "application/json"
       ]?.schema as ReferenceObject;
       expect(schema?.$ref).toBe(
-        "#/components/schemas/PaginatedMatchRequestsDto",
+        "#/components/schemas/PaginatedMatchRequestResponseDto",
       );
     });
 

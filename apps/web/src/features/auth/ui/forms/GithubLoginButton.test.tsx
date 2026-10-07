@@ -63,13 +63,25 @@ describe("Переход к авторизации через GitHub", () => {
     LoginForm,
     RegisterForm,
   ])("availability on both forms", (Form) => {
+    it("hides GitHub only when the API explicitly disables it", async () => {
+      vi.mocked(fetch).mockResolvedValue(Response.json({ github: false }));
+      const client = new QueryClient();
+      render(
+        <QueryClientProvider client={client}>
+          <Form />
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(client.isFetching()).toBe(0));
+      expect(
+        screen.queryByRole("link", { name: /GitHub/ }),
+      ).not.toBeInTheDocument();
+      cleanup();
+      client.clear();
+    });
     it.each([
-      "disabled",
       "error",
       "loading",
-    ])("hides GitHub while %s", async (state) => {
-      if (state === "disabled")
-        vi.mocked(fetch).mockResolvedValue(Response.json({ github: false }));
+    ])("keeps GitHub visible while availability is %s", async (state) => {
       if (state === "error")
         vi.mocked(fetch).mockRejectedValue(new Error("unavailable"));
       if (state === "loading")
@@ -80,12 +92,7 @@ describe("Переход к авторизации через GitHub", () => {
           <Form />
         </QueryClientProvider>,
       );
-      if (state !== "loading") {
-        await waitFor(() => expect(client.isFetching()).toBe(0));
-      }
-      expect(
-        screen.queryByRole("link", { name: /GitHub/ }),
-      ).not.toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: /GitHub/ })).toBeVisible();
       expect(screen.getByLabelText("Email")).toBeVisible();
       cleanup();
       client.clear();

@@ -77,6 +77,33 @@ paths:
       security: *a1
       summary: Деактивировать аккаунт текущего пользователя
       tags: *a2
+  /api/v1/profile/onboarding:
+    post:
+      operationId: ProfileController_completeOnboarding
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteOnboardingDto"
+      responses:
+        "201":
+          description: Онбординг успешно завершен, профиль обновлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDto"
+        "400":
+          description: Ошибка валидации данных онбординга
+        "401":
+          description: Не авторизован
+        "429":
+          description: Слишком много запросов
+      security: *a1
+      summary: Завершить онбординг и сохранить цели подготовки
+      tags: *a2
   /api/v1/profile/device-settings:
     get:
       operationId: ProfileController_getDeviceSettings
@@ -476,11 +503,16 @@ paths:
   /api/v1/auth/github:
     get:
       operationId: AuthController_github
-      parameters: []
+      parameters:
+        - name: action
+          required: false
+          in: query
+          schema:
+            type: string
       responses:
         "302":
           description: Redirect to GitHub
-      summary: Start GitHub OAuth login
+      summary: Start GitHub OAuth login or account linking
       tags: *a3
   /api/v1/auth/github/callback:
     get:
@@ -498,8 +530,8 @@ paths:
             type: string
       responses:
         "302":
-          description: Refresh cookie and redirect to dashboard
-      summary: Complete GitHub OAuth login
+          description: Refresh cookie and redirect to dashboard or profile
+      summary: Complete GitHub OAuth login or account linking
       tags: *a3
   /api/v1/auth/telegram:
     post:
@@ -1772,7 +1804,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaginatedMatchRequestsDto"
+                $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
       security: *a16
       summary: Получить список входящих заявок текущего пользователя
       tags: *a17
@@ -1810,7 +1842,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaginatedMatchRequestsDto"
+                $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
       security: *a16
       summary: Получить список исходящих заявок текущего пользователя
       tags: *a17
@@ -2073,6 +2105,51 @@ components:
           type: string
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        telegramLinkVerified:
+          default: false
+          type: boolean
+        githubLinkVerified:
+          default: false
+          type: boolean
+        onboardingCompleted:
+          default: false
+          type: boolean
+        targetRole:
+          nullable: true
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        targetLevel:
+          nullable: true
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        targetCompanies:
+          default: []
+          type: array
+          items:
+            type: string
+        targetTimeline:
+          nullable: true
+          type: string
+        preferredFormat:
+          nullable: true
+          type: string
+        onboardingAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - displayName
@@ -2122,6 +2199,50 @@ components:
             - en
         timezone:
           type: string
+    CompleteOnboardingDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        companies:
+          default: []
+          maxItems: 10
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        timeline:
+          type: string
+          enum:
+            - now
+            - soon
+            - passive
+        format:
+          type: string
+          enum:
+            - ai
+            - peer
+            - sandbox
+        isSkipped:
+          default: false
+          type: boolean
     DeviceSettingsDto:
       type: object
       properties:
@@ -3818,6 +3939,13 @@ components:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        sessionStatus:
+          nullable: true
+          type: string
+          enum:
+            - CREATED
+            - ACTIVE
+            - CLOSED
         status:
           type: string
           enum:
@@ -3857,6 +3985,7 @@ components:
         - senderCard
         - slot
         - sessionId
+        - sessionStatus
         - status
         - message
         - preferredTopic
@@ -3864,7 +3993,7 @@ components:
         - createdAt
         - updatedAt
         - expiresAt
-    PaginatedMatchRequestsDto:
+    PaginatedMatchRequestResponseDto:
       type: object
       properties:
         data:
@@ -4303,6 +4432,13 @@ components:
                 type: string
                 format: uuid
                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              sessionStatus:
+                nullable: true
+                type: string
+                enum:
+                  - CREATED
+                  - ACTIVE
+                  - CLOSED
               status:
                 type: string
                 enum:
@@ -4342,6 +4478,7 @@ components:
               - senderCard
               - slot
               - sessionId
+              - sessionStatus
               - status
               - message
               - preferredTopic
@@ -4806,6 +4943,7 @@ components:
       type: object
       properties:
         title:
+          nullable: true
           type: string
           minLength: 3
           maxLength: 100
@@ -5044,6 +5182,7 @@ components:
       type: object
       properties:
         title:
+          nullable: true
           type: string
           minLength: 3
           maxLength: 100

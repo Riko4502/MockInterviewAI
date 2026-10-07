@@ -44,4 +44,6 @@ export const MATCHMAKING_EXPIRY_LOCK_TTL_SECONDS = 3600;
  * Конфликт безопасен: он означает откат, а не частичную запись. Повтор нужен
  * лишь для того, чтобы конкуренция с `accept` не откладывала чистку до конца часа.
  */
+export const REDIS_MATCHMAKING_EVENTS_CHANNEL = "matchmaking:events";
+
 export const MATCHMAKING_CRON_MAX_RETRIES = 3;

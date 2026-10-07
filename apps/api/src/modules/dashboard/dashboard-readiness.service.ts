@@ -59,7 +59,7 @@ export class DashboardReadinessService {
         description:
           "Необходимо для восстановления доступа и важных системных уведомлений",
         isCompleted: emailProvided,
-        actionUrl: "/dashboard/profile",
+        actionUrl: "/profile",
       },
       {
         key: "MEDIA_CONFIGURED",
@@ -67,7 +67,7 @@ export class DashboardReadinessService {
         description:
           "Убедитесь, что качество звука и видео готово к онлайн-собеседованию",
         isCompleted: mediaConfigured,
-        actionUrl: "/dashboard/profile#media",
+        actionUrl: "/profile#media",
       },
       {
         key: "TELEGRAM_LINKED",
@@ -75,7 +75,7 @@ export class DashboardReadinessService {
         description:
           "Мгновенные уведомления о приглашениях на мок-интервью прямо в мессенджер",
         isCompleted: telegramLinked,
-        actionUrl: "/dashboard/profile#telegram",
+        actionUrl: "/profile?tab=accounts",
       },
       {
         key: "SHOWCASE_CREATED",

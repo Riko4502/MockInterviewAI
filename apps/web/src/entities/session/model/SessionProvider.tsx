@@ -28,6 +28,7 @@ import { SESSION_STATUS, type SessionStatus } from "./constants";
 import { SessionContext } from "./context";
 
 export interface SessionProviderProps extends PropsWithChildren {
+  initialLocale?: Locale;
   minDuration?: number;
   fadeDuration?: number;
   oncePerSession?: boolean;
@@ -35,6 +36,7 @@ export interface SessionProviderProps extends PropsWithChildren {
 
 export function SessionProvider({
   children,
+  initialLocale,
   minDuration: customMinDuration,
   fadeDuration: customFadeDuration,
   oncePerSession: customOncePerSession,
@@ -129,7 +131,8 @@ export function SessionProvider({
   };
 
   const { i18n } = useTranslation();
-  const currentLocale = (i18n.language as Locale) || defaultLocale;
+  const currentLocale =
+    initialLocale ?? ((i18n.language as Locale) || defaultLocale);
   const t = getMessages(currentLocale).common.loading;
 
   const isReady = status !== SESSION_STATUS.INITIALIZING;

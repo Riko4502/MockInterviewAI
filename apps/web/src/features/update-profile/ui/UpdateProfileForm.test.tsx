@@ -12,9 +12,25 @@ import i18n from "i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateProfileForm } from "./UpdateProfileForm";
 
-const mutateMock = vi.fn();
-const toastPushMock = vi.fn();
-const setThemeMock = vi.fn();
+const {
+  mutateMock,
+  profileMutation,
+  toastPushMock,
+  setPreferenceCookiesMock,
+  refreshMock,
+  setThemeMock,
+} = vi.hoisted(() => ({
+  mutateMock: vi.fn(),
+  toastPushMock: vi.fn(),
+  setPreferenceCookiesMock: vi.fn(),
+  refreshMock: vi.fn(),
+  setThemeMock: vi.fn(),
+  profileMutation: {
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+  },
+}));
 
 vi.mock("@packages/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@packages/ui")>();
@@ -30,20 +46,19 @@ vi.mock("@packages/ui", async (importOriginal) => {
   };
 });
 
-let mockUserData = {
+const initialUser = {
   id: "11111111-1111-1111-1111-111111111111",
   email: "dev@example.com",
   displayName: "Иван",
   username: "ivan",
-  avatarUrl: null,
-  telegramUsername: null,
-  gitUrl: null,
-  theme: "dark",
-  locale: "ru",
+  avatarUrl: null as string | null,
+  telegramUsername: null as string | null,
+  gitUrl: null as string | null,
+  theme: "dark" as "dark" | "light" | "system",
+  locale: "ru" as "ru" | "en",
 };
 
-const setPreferenceCookiesMock = vi.fn();
-const refreshMock = vi.fn();
+let mockUserData = { ...initialUser };
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -51,7 +66,7 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
     refresh: refreshMock,
   }),
-  usePathname: () => "/dashboard/profile",
+  usePathname: () => "/profile",
 }));
 
 vi.mock("@/entities/user", () => ({
@@ -69,14 +84,21 @@ vi.mock("@/entities/user", () => ({
 vi.mock("../model/use-profile-mutations", () => ({
   useUpdateProfile: () => ({
     mutate: mutateMock,
-    isPending: false,
-    isError: false,
-    isSuccess: false,
+    isPending: profileMutation.isPending,
+    isError: profileMutation.isError,
+    isSuccess: profileMutation.isSuccess,
   }),
   useUploadAvatar: () => ({
     mutate: vi.fn(),
+    reset: vi.fn(),
     isPending: false,
     isError: false,
+  }),
+  useChangePassword: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
   }),
 }));
 
@@ -88,32 +110,25 @@ function renderForm() {
     },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <UpdateProfileForm />
-    </QueryClientProvider>,
-  );
+  return render(<UpdateProfileForm />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 describe("UpdateProfileForm", () => {
   beforeEach(() => {
     mutateMock.mockClear();
     toastPushMock.mockClear();
+    profileMutation.isPending = false;
+    profileMutation.isError = false;
+    profileMutation.isSuccess = false;
     setPreferenceCookiesMock.mockClear();
     setThemeMock.mockClear();
     refreshMock.mockClear();
     void i18n.changeLanguage("ru");
-    mockUserData = {
-      id: "11111111-1111-1111-1111-111111111111",
-      email: "dev@example.com",
-      displayName: "Иван",
-      username: "ivan",
-      avatarUrl: null,
-      telegramUsername: null,
-      gitUrl: null,
-      theme: "dark",
-      locale: "ru",
-    };
+    mockUserData = { ...initialUser };
   });
 
   it("заполняет форму текущим профилем и отправляет только измененные поля", async () => {
@@ -145,9 +160,9 @@ describe("UpdateProfileForm", () => {
       );
     });
 
-    // Проверяем вызов toast при onSuccess
-    const lastCall = mutateMock.mock.calls[0];
-    const options = lastCall[1];
+    const options = mutateMock.mock.calls[0]?.[1] as {
+      onSuccess: (profile: typeof initialUser) => void;
+    };
     act(() => {
       options.onSuccess({
         ...mockUserData,
@@ -160,11 +175,95 @@ describe("UpdateProfileForm", () => {
     });
   });
 
+  it("после сохранения показывает значения сервера и снова блокирует кнопку", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.clear(nameInput);
+    await user.type(nameInput, "  Иван Петров  ");
+    const usernameInput = screen.getByDisplayValue("ivan");
+    await user.clear(usernameInput);
+    await user.type(usernameInput, "IVAN");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalled();
+    });
+
+    const onSuccess = mutateMock.mock.calls[0]?.[1]?.onSuccess as (profile: {
+      displayName: string | null;
+      username: string | null;
+      telegramUsername: string | null;
+      gitUrl: string | null;
+      theme: "dark";
+      locale: "ru";
+    }) => void;
+
+    act(() => {
+      onSuccess({
+        displayName: "Иван Петров",
+        username: "ivan",
+        telegramUsername: "ivan_dev",
+        gitUrl: "https://github.com/ivan_dev",
+        theme: "dark",
+        locale: "ru",
+      });
+    });
+
+    expect(screen.getByRole("textbox", { name: "Имя" })).toHaveValue(
+      "Иван Петров",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Имя пользователя" }),
+    ).toHaveValue("ivan");
+    expect(
+      screen.getByRole("textbox", { name: "GitHub / GitLab" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Telegram" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+  });
+
+  it("поле Telegram отображается в режиме только для чтения с подсказкой", () => {
+    mockUserData = {
+      ...mockUserData,
+      telegramUsername: "my_tg_user",
+    };
+    renderForm();
+
+    const tgInput = screen.getByRole("textbox", { name: "Telegram" });
+    expect(tgInput).toBeDisabled();
+    expect(tgInput).toHaveAttribute("readonly");
+    expect(tgInput).toHaveValue("@my_tg_user");
+    expect(
+      screen.getAllByText(
+        "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("поле GitHub отображается в режиме только для чтения с подсказкой", () => {
+    mockUserData = {
+      ...mockUserData,
+      gitUrl: "https://github.com/my_git_user",
+    };
+    renderForm();
+
+    const gitInput = screen.getByRole("textbox", { name: "GitHub / GitLab" });
+    expect(gitInput).toBeDisabled();
+    expect(gitInput).toHaveAttribute("readonly");
+    expect(gitInput).toHaveValue("https://github.com/my_git_user");
+    expect(
+      screen.getAllByText(
+        "Привязка и управление осуществляются в блоке «Связанные аккаунты» ниже.",
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
   it("синхронизирует значения формы при обновлении профиля и не отправляет устаревшие предпочтения", async () => {
     const user = userEvent.setup();
     const { rerender } = renderForm();
 
-    // Симулируем обновление темы в другой вкладке (в кэше профиля)
     mockUserData = {
       ...mockUserData,
       theme: "light",
@@ -176,13 +275,11 @@ describe("UpdateProfileForm", () => {
       </QueryClientProvider>,
     );
 
-    // Пользователь меняет только имя
     const nameInput = screen.getByDisplayValue("Иван");
     await user.clear(nameInput);
     await user.type(nameInput, "Иван Сидоров");
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
-    // Отправляется только измененное поле displayName, устаревшие предпочтения не перезаписываются
     await waitFor(() => {
       expect(mutateMock).toHaveBeenCalledWith(
         {
@@ -198,17 +295,48 @@ describe("UpdateProfileForm", () => {
     });
   });
 
-  it("не отправляет запрос, если ни одно поле не было изменено", async () => {
+  it("не отправляет запрос, если ни одно поле не было изменено", () => {
+    renderForm();
+
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("блокирует сохранение, пока поля не изменились", async () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    const saveButton = screen.getByRole("button", { name: "Сохранить" });
+    expect(saveButton).toBeDisabled();
 
-    expect(mutateMock).not.toHaveBeenCalled();
-    expect(toastPushMock).toHaveBeenCalledWith({
-      status: "success",
-      title: "Профиль сохранён.",
+    const nameInput = screen.getByDisplayValue("Иван");
+    await user.type(nameInput, "а");
+    expect(saveButton).toBeEnabled();
+
+    await user.type(nameInput, "{backspace}");
+    expect(saveButton).toBeDisabled();
+  });
+
+  it("показывает лоадер на кнопке сохранения во время обновления", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderForm();
+    const nameInput = screen.getByDisplayValue("Иван");
+    const saveButton = screen.getByRole("button", { name: "Сохранить" });
+
+    await user.type(nameInput, "а");
+    expect(saveButton).toBeEnabled();
+
+    profileMutation.isPending = true;
+    rerender(<UpdateProfileForm />);
+
+    const pendingButton = screen.getByRole("button", {
+      name: "Сохранение...",
     });
+    expect(pendingButton).toBeDisabled();
+    expect(pendingButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(nameInput).toBeDisabled();
+    expect(screen.getByDisplayValue("ivan")).toBeDisabled();
   });
 
   it("обновляет язык интерфейса, куки и вызывает router.refresh() при сохранении нового языка", async () => {
@@ -309,5 +437,43 @@ describe("UpdateProfileForm", () => {
     // После успешного сохранения тема и куки применяются
     expect(setThemeMock).toHaveBeenCalledWith("light");
     expect(setPreferenceCookiesMock).toHaveBeenCalledWith({ theme: "light" });
+  });
+
+  it("рендерит вертикальные вкладки и переключает контент при клике", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const tabsList = screen.getByRole("tablist");
+    expect(tabsList).toHaveAttribute("aria-orientation", "vertical");
+
+    const generalTab = screen.getByRole("tab", { name: /профиль/i });
+    const accountsTab = screen.getByRole("tab", {
+      name: /связанные аккаунты/i,
+    });
+    const securityTab = screen.getByRole("tab", { name: /безопасность/i });
+
+    expect(generalTab).toHaveAttribute("aria-selected", "true");
+    expect(accountsTab).toHaveAttribute("aria-selected", "false");
+    expect(securityTab).toHaveAttribute("aria-selected", "false");
+
+    // Переключаемся на вкладку «Связанные аккаунты»
+    await user.click(accountsTab);
+    expect(accountsTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("heading", { name: /связанные аккаунты/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /привязать telegram/i }),
+    ).toBeInTheDocument();
+
+    // Переключаемся на вкладку «Безопасность»
+    await user.click(securityTab);
+    expect(securityTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("heading", { name: /безопасность/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /обновить пароль/i }),
+    ).toBeInTheDocument();
   });
 });

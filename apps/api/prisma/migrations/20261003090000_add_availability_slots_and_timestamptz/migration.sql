@@ -30,8 +30,9 @@ ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMPTZ(3),
 ALTER COLUMN "updatedAt" SET DATA TYPE TIMESTAMPTZ(3);
 
 -- AlterTable
-ALTER TABLE "match_requests" ADD COLUMN     "session_id" UUID,
-ADD COLUMN     "slot_id" UUID,
+-- Колонка "session_id" добавлялась миграцией
+-- 20261001111900_add_session_id_to_match_request (ветка dev).
+ALTER TABLE "match_requests" ADD COLUMN     "slot_id" UUID,
 ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3),
 ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMPTZ(3),
 ALTER COLUMN "expires_at" SET DATA TYPE TIMESTAMPTZ(3);
@@ -147,7 +148,8 @@ ALTER TABLE "availability_slots" ADD CONSTRAINT "availability_slots_card_id_fkey
 -- относится, иначе отмена расписания стирала бы историю откликов.
 ALTER TABLE "match_requests" ADD CONSTRAINT "match_requests_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "availability_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "match_requests" ADD CONSTRAINT "match_requests_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "interview_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- FK match_requests.session_id добавляется в миграции
+-- 20261001111900_add_session_id_to_match_request (ветка dev).
 
 -- Трингамные индексы users_*_trgm_idx намеренно не удаляются. Prisma их не
 -- описывает (в схеме их нет), поэтому `migrate diff` предлагает их DROP; они

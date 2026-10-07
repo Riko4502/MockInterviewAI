@@ -60,6 +60,74 @@ function readPackage(pkg) {
     }
   }
 
+  // Исправление уязвимостей joi
+  if (pkg.dependencies?.joi) {
+    const version = pkg.dependencies.joi;
+    if (
+      version.startsWith("^17") ||
+      version.startsWith("~17") ||
+      version.startsWith("17")
+    ) {
+      pkg.dependencies.joi = "^17.13.7";
+    } else if (
+      version.startsWith("^18") ||
+      version.startsWith("~18") ||
+      version.startsWith("18")
+    ) {
+      pkg.dependencies.joi = "^18.2.9";
+    }
+  }
+
+  // Исправление уязвимостей brace-expansion
+  if (pkg.dependencies?.["brace-expansion"]) {
+    const version = pkg.dependencies["brace-expansion"];
+    if (
+      version.startsWith("^1") ||
+      version.startsWith("~1") ||
+      version.startsWith("1")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^1.1.21";
+    } else if (
+      version.startsWith("^2") ||
+      version.startsWith("~2") ||
+      version.startsWith("2")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^2.1.7";
+    } else if (
+      version.startsWith("^4") ||
+      version.startsWith("~4") ||
+      version.startsWith("4") ||
+      version.startsWith("^5") ||
+      version.startsWith("~5") ||
+      version.startsWith("5")
+    ) {
+      pkg.dependencies["brace-expansion"] = "^5.0.12";
+    }
+  }
+
+  // Исправление уязвимостей proxy-addr (IP spoofing, GHSA-jqcg-44mw-7w3h)
+  if (pkg.dependencies?.["proxy-addr"]) {
+    pkg.dependencies["proxy-addr"] = "^2.0.8";
+  }
+
+  // Исправление уязвимостей shell-quote (command injection, GHSA-pqg4-j6r4-53mv)
+  if (pkg.dependencies?.["shell-quote"]) {
+    pkg.dependencies["shell-quote"] = "^1.11.0";
+  }
+
+  // Исправление уязвимостей source-map-js (DoS, GHSA-68fv-2mgg-jv7q)
+  if (pkg.dependencies?.["source-map-js"]) {
+    pkg.dependencies["source-map-js"] = "^1.2.2";
+  }
+
+  // Исправление уязвимостей sharp (CVE-2026-96889)
+  if (pkg.dependencies?.["sharp"]) {
+    pkg.dependencies["sharp"] = "^0.35.5";
+  }
+  if (pkg.optionalDependencies?.["sharp"]) {
+    pkg.optionalDependencies["sharp"] = "^0.35.5";
+  }
+
   return pkg;
 }
 

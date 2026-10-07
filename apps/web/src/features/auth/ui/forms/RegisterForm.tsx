@@ -10,7 +10,7 @@ import { useSession } from "@/entities/session";
 import { paths } from "@/shared/config";
 import { getErrorMessage } from "../../lib/getErrorMessage";
 import type { RegisterFormValues } from "../../lib/schemas";
-
+import { TelegramLoginButton } from "../../telegram-login";
 import { GithubLoginButton } from "./GithubLoginButton";
 
 export function RegisterForm() {
@@ -22,7 +22,7 @@ export function RegisterForm() {
     mutation: {
       onSuccess: (data) => {
         startSession(data.accessToken);
-        router.replace(paths.dashboard);
+        router.replace(paths.onboarding);
       },
     },
   });
@@ -97,6 +97,7 @@ export function RegisterForm() {
       </Button>
 
       <GithubLoginButton />
+      <TelegramLoginButton />
 
       {registerMutation.isError && (
         <Typography.P className="text-sm text-destructive">

@@ -35,15 +35,15 @@ export class DashboardStatsService {
       Array<{ activityDate: string | Date }>
     >`
       SELECT DISTINCT
-        TO_CHAR(COALESCE(s.started_at, s.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS "activityDate"
+        TO_CHAR(COALESCE(s."startedAt", s."createdAt") AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS "activityDate"
       FROM "interview_sessions" s
       WHERE s.status::text = 'CLOSED'
         AND (
-          s.user_id = ${userId}::uuid
+          s."userId" = ${userId}::uuid
           OR EXISTS (
             SELECT 1
             FROM "interview_participants" p
-            WHERE p.session_id = s.id AND p.user_id = ${userId}::uuid
+            WHERE p."sessionId" = s.id AND p."userId" = ${userId}::uuid
           )
         )
       ORDER BY "activityDate" DESC
@@ -57,8 +57,8 @@ export class DashboardStatsService {
         COALESCE(
           SUM(
             CASE
-              WHEN s.started_at IS NOT NULL AND s.ended_at IS NOT NULL THEN
-                GREATEST(0, ROUND(EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 60))
+              WHEN s."startedAt" IS NOT NULL AND s."endedAt" IS NOT NULL THEN
+                GREATEST(0, ROUND(EXTRACT(EPOCH FROM (s."endedAt" - s."startedAt")) / 60))
               ELSE 45
             END
           ),
@@ -67,11 +67,11 @@ export class DashboardStatsService {
       FROM "interview_sessions" s
       WHERE s.status::text = 'CLOSED'
         AND (
-          s.user_id = ${userId}::uuid
+          s."userId" = ${userId}::uuid
           OR EXISTS (
             SELECT 1
             FROM "interview_participants" p
-            WHERE p.session_id = s.id AND p.user_id = ${userId}::uuid
+            WHERE p."sessionId" = s.id AND p."userId" = ${userId}::uuid
           )
         )
     `;

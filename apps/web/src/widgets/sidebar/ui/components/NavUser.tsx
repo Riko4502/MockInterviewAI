@@ -9,25 +9,18 @@ import {
   SlidersIcon,
   SunIcon,
 } from "@packages/icons";
-import {
-  Badge,
-  DropdownMenu,
-  Skeleton,
-  Sidebar as UiSidebar,
-} from "@packages/ui";
+import { DropdownMenu, Skeleton, Sidebar as UiSidebar } from "@packages/ui";
 import { cn } from "@packages/utils";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useIsAdmin } from "@/entities/session";
 import { UserAvatar, useCurrentUser, usePreferences } from "@/entities/user";
 import { useLogout } from "@/features/auth";
-import { MediaSettingsDialog } from "@/features/media-settings";
+import { MediaSettingsDialogLazy } from "@/features/media-settings";
 import { paths } from "@/shared/config";
 
 export function NavUser() {
   const { t } = useTranslation("common");
-  const isAdmin = useIsAdmin();
   const { data: user, isLoading } = useCurrentUser();
   const { logout, isPending } = useLogout();
   const [isMediaSettingsOpen, setIsMediaSettingsOpen] = useState(false);
@@ -59,7 +52,7 @@ export function NavUser() {
             <UiSidebar.MenuButton
               size="lg"
               tooltip={displayName}
-              className="overflow-visible data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/80 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-0!"
+              className="h-auto gap-3 py-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/80 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-0!"
             >
               <div className="relative flex shrink-0 items-center justify-center p-0.5">
                 <UserAvatar
@@ -70,13 +63,8 @@ export function NavUser() {
                 />
                 <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-sidebar" />
               </div>
-              <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+              <div className="grid min-w-0 flex-1 gap-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">{displayName}</span>
-                {isAdmin && (
-                  <Badge variant="statusInfo" className="w-fit">
-                    {t("roles.administrator")}
-                  </Badge>
-                )}
                 {email ? (
                   <span className="truncate text-xs text-muted-foreground">
                     {email}
@@ -130,10 +118,12 @@ export function NavUser() {
           </DropdownMenu.Content>
         </DropdownMenu>
       </UiSidebar.MenuItem>
-      <MediaSettingsDialog
-        open={isMediaSettingsOpen}
-        onOpenChange={setIsMediaSettingsOpen}
-      />
+      {isMediaSettingsOpen && (
+        <MediaSettingsDialogLazy
+          open={isMediaSettingsOpen}
+          onOpenChange={setIsMediaSettingsOpen}
+        />
+      )}
     </UiSidebar.Menu>
   );
 }

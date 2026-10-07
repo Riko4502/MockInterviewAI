@@ -1,5 +1,6 @@
 import type auth from "./locales/ru/auth.json";
 import type common from "./locales/ru/common.json";
+import type dashboard from "./locales/ru/dashboard.json";
 import type interview from "./locales/ru/interview.json";
 import type landing from "./locales/ru/landing.json";
 import type notifications from "./locales/ru/notifications.json";
@@ -9,6 +10,7 @@ import type telegram from "./locales/ru/telegram.json";
 /**
  * Типы словарей активных пространств имен
  */
+export type DashboardMessages = typeof dashboard;
 export type CommonMessages = typeof common;
 export type LandingMessages = typeof landing;
 export type AuthMessages = typeof auth;
@@ -32,6 +34,8 @@ export type KnowledgeMessages = Record<string, unknown>;
 export const translationNamespaces = [
   "landing",
   "common",
+  "dashboard",
+  "showcase",
   "blog",
   "roadmap",
   "knowledge",
@@ -45,6 +49,7 @@ export const namespaces = translationNamespaces;
  * Структура словарей сообщений
  */
 export interface Messages {
+  dashboard: DashboardMessages;
   common: CommonMessages;
   landing: LandingMessages;
   auth: AuthMessages;

@@ -33,7 +33,7 @@ import type {
   MatchRequestResponseDto,
   MatchmakingControllerFindIncomingParams,
   MatchmakingControllerFindOutgoingParams,
-  PaginatedMatchRequestsDto,
+  PaginatedMatchRequestResponseDto,
   RejectMatchRequestDto,
   UnreadMatchRequestsCountDto
 } from '../../model';
@@ -261,9 +261,9 @@ export const useMatchmakingControllerCreate = <TError = void,
 /**
  * @summary Получить список входящих заявок текущего пользователя
  */
-export const matchmakingControllerFindIncoming = async (params?: MatchmakingControllerFindIncomingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestsDto> => {
+export const matchmakingControllerFindIncoming = async (params?: MatchmakingControllerFindIncomingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestResponseDto> => {
 
-  return customInstance<PaginatedMatchRequestsDto>(getMatchmakingControllerFindIncomingUrl(params),
+  return customInstance<PaginatedMatchRequestResponseDto>(getMatchmakingControllerFindIncomingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -368,9 +368,9 @@ export const getMatchmakingControllerFindOutgoingUrl = (params?: MatchmakingCont
 /**
  * @summary Получить список исходящих заявок текущего пользователя
  */
-export const matchmakingControllerFindOutgoing = async (params?: MatchmakingControllerFindOutgoingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestsDto> => {
+export const matchmakingControllerFindOutgoing = async (params?: MatchmakingControllerFindOutgoingParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedMatchRequestResponseDto> => {
 
-  return customInstance<PaginatedMatchRequestsDto>(getMatchmakingControllerFindOutgoingUrl(params),
+  return customInstance<PaginatedMatchRequestResponseDto>(getMatchmakingControllerFindOutgoingUrl(params),
   {
     ...options,
     method: 'GET'

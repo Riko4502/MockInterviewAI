@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { SessionsModule } from "../sessions/sessions.module";
 import { MatchmakingController } from "./matchmaking.controller";
 import { MatchmakingService } from "./matchmaking.service";
 import { MatchmakingCronService } from "./matchmaking-cron.service";
@@ -15,9 +16,12 @@ import { MatchmakingCronService } from "./matchmaking-cron.service";
  * `NotificationsModule` подключён ради `NotificationDispatcher`: предложение
  * слота и подтверждение брони — доменные события, и они должны попадать в
  * outbox в той же транзакции, что и сама заявка (ADR-003:65-66).
+ *
+ * `SessionsModule` (ветка dev) предоставляет управление сессиями интервью,
+ * на которые ведут принятые заявки.
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, SessionsModule],
   controllers: [MatchmakingController],
   providers: [MatchmakingService, MatchmakingCronService],
   exports: [MatchmakingService],

@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -18,13 +19,21 @@ import {
 } from "@packages/dto";
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
+import {
+  LiveMatchPostCommitError,
+  SessionsService,
+} from "../sessions/sessions.service";
 import {
   CARD_SLOTS_INCLUDE,
   PUBLIC_USER_SELECT,
 } from "../showcase/showcase.constants";
 import { toShowcaseCardResponse } from "../showcase/showcase.mapper";
-import { MATCHMAKING_LIMITS } from "./matchmaking.constants";
+import {
+  MATCHMAKING_LIMITS,
+  REDIS_MATCHMAKING_EVENTS_CHANNEL,
+} from "./matchmaking.constants";
 
 /**
  * Внутренняя структура выборки заявки из базы данных с авторами и карточками.
@@ -65,6 +74,7 @@ const MATCH_REQUEST_INCLUDE = {
       status: true,
     },
   },
+  session: true,
 } as const;
 
 type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
@@ -86,9 +96,13 @@ const SLOT_SELECT = {
 
 @Injectable()
 export class MatchmakingService {
+  private readonly logger = new Logger(MatchmakingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationDispatcher: NotificationDispatcher,
+    private readonly redisService: RedisService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   /**
@@ -248,8 +262,9 @@ export class MatchmakingService {
     let retries = 0;
 
     while (true) {
+      let createdLiveSessionId: string | null = null;
       try {
-        const { createdRequest } = await this.prisma.$transaction(
+        const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
           async (tx) => {
             // 7. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
             const incomingPendingCount = await tx.matchRequest.count({
@@ -348,19 +363,30 @@ export class MatchmakingService {
 
             // Если есть встречная заявка — оформляем взаимный Auto-Match
             if (crossRequest) {
-              // Атомарно переводим встречную заявку в ACCEPTED только при условии, что она всё ещё в статусе PENDING и не истекла
+              // 1. Создаем общую интерактивную сессию интервью для обоих участников
+              const liveSession =
+                await this.sessionsService.createLiveMatchSession(
+                  crossRequest.senderId,
+                  senderId,
+                );
+              createdLiveSessionId = liveSession.sessionId;
+
+              // 2. Атомарно переводим встречную заявку в ACCEPTED с привязкой sessionId
               const updateResult = await tx.matchRequest.updateMany({
                 where: {
                   id: crossRequest.id,
                   status: "PENDING",
                   expiresAt: { gt: now },
                 },
-                data: { status: "ACCEPTED" },
+                data: {
+                  status: "ACCEPTED",
+                  sessionId: liveSession.sessionId,
+                },
               });
 
               // Если встречная заявка всё ещё была PENDING и успешно обновлена
               if (updateResult.count === 1) {
-                // Создаём текущую заявку сразу в статусе ACCEPTED
+                // Создаём текущую заявку сразу в статусе ACCEPTED с той же сессией
                 const newRequest = await tx.matchRequest.create({
                   data: {
                     senderId,
@@ -370,12 +396,21 @@ export class MatchmakingService {
                     message: dto.message,
                     preferredTopic: dto.preferredTopic,
                     status: "ACCEPTED",
+                    sessionId: liveSession.sessionId,
                     expiresAt,
                   },
                   include: MATCH_REQUEST_INCLUDE,
                 });
 
-                return { createdRequest: newRequest };
+                // Успешно сохранено — очистка не требуется
+                createdLiveSessionId = null;
+                return { createdRequest: newRequest, isAutoMatch: true };
+              } else {
+                // Встречная заявка больше не активна — очищаем созданную сессию
+                await this.sessionsService.cleanupOrphanedSession(
+                  liveSession.sessionId,
+                );
+                createdLiveSessionId = null;
               }
             }
 
@@ -420,8 +455,21 @@ export class MatchmakingService {
           },
         );
 
+        if (isAutoMatch) {
+          // Публикуем событие подтверждения матча в Redis Pub/Sub (best-effort)
+          await this.publishMatchAcceptedEvent(createdRequest);
+        }
+
         return this.formatMatchRequest(createdRequest);
       } catch (error) {
+        const orphanId =
+          createdLiveSessionId ??
+          (error instanceof LiveMatchPostCommitError ? error.sessionId : null);
+        if (orphanId) {
+          await this.sessionsService.cleanupOrphanedSession(orphanId);
+          createdLiveSessionId = null;
+        }
+
         // При конфликте сериализации параллельных транзакций (P2034) повторяем транзакцию
         if (
           (error instanceof Prisma.PrismaClientKnownRequestError ||
@@ -917,7 +965,10 @@ export class MatchmakingService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    // 6. Возвращаем заявку с открытыми контактами
+    // 6. Публикуем событие подтверждения матча в Redis Pub/Sub (best-effort)
+    await this.publishMatchAcceptedEvent(updated);
+
+    // 7. Возвращаем заявку с открытыми контактами
     return this.formatMatchRequest(updated);
   }
 
@@ -1071,6 +1122,39 @@ export class MatchmakingService {
   }
 
   /**
+   * Публикация события подтверждения матча в шину событий Redis Pub/Sub.
+   *
+   * Уведомляет сервис уведомлений и сторонние realtime-обработчики о взаимном согласии.
+   * Best-effort: падение публикации не ломает бизнес-транзакцию.
+   */
+  private async publishMatchAcceptedEvent(
+    request: MatchRequestWithRelations,
+  ): Promise<void> {
+    try {
+      await this.redisService.publish(
+        REDIS_MATCHMAKING_EVENTS_CHANNEL,
+        JSON.stringify({
+          event: "match.accepted",
+          requestId: request.id,
+          senderId: request.senderId,
+          receiverId: request.receiverId,
+          targetCardId: request.targetCardId,
+          senderCardId: request.senderCardId,
+          sessionId: request.sessionId,
+          preferredTopic: request.preferredTopic,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    } catch (error) {
+      // Логируем ошибку для диагностики, сохраняя best-effort поведение без падения бизнес-транзакции
+      this.logger.error(
+        `Failed to publish match.accepted event for request ${request.id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  /**
    * Форматирование сущности заявки перед отправкой клиенту.
    *
    * Защита приватности:
@@ -1119,6 +1203,8 @@ export class MatchmakingService {
         : null,
       sessionId: request.sessionId,
       status: request.status,
+      sessionStatus:
+        request.session?.status || (request.sessionId ? "ACTIVE" : null),
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,

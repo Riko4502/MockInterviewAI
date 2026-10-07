@@ -137,7 +137,7 @@ export class MatchmakingController {
     status: 200,
     description: "Пагинированный список входящих заявок",
     schema: registerSchema(
-      "PaginatedMatchRequestsDto",
+      "PaginatedMatchRequestResponseDto",
       paginatedMatchRequestsSchema,
     ),
   })
@@ -178,7 +178,7 @@ export class MatchmakingController {
     status: 200,
     description: "Пагинированный список исходящих заявок",
     schema: registerSchema(
-      "PaginatedMatchRequestsDto",
+      "PaginatedMatchRequestResponseDto",
       paginatedMatchRequestsSchema,
     ),
   })

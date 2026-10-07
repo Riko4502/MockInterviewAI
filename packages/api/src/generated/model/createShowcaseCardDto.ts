@@ -18,8 +18,9 @@ export interface CreateShowcaseCardDto {
   /**
      * @minLength 3
      * @maxLength 100
+     * @nullable
      */
-  title?: string;
+  title?: string | null;
   specialization: CreateShowcaseCardDtoSpecialization;
   level: CreateShowcaseCardDtoLevel;
   language?: CreateShowcaseCardDtoLanguage;

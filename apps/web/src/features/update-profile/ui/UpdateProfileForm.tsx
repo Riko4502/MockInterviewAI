@@ -1,317 +1,50 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { UserProfileDto } from "@packages/api";
-import { GlobeIcon, MoonIcon, SlidersIcon, SunIcon } from "@packages/icons";
-import {
-  Button,
-  Card,
-  Field,
-  Input,
-  Select,
-  Skeleton,
-  useTheme,
-  useToast,
-} from "@packages/ui";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { HubConnectionIcon, SettingsIcon, UserIcon } from "@packages/icons";
+import { Skeleton, Tabs } from "@packages/ui";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { setPreferenceCookies, useCurrentUser } from "@/entities/user";
+import { useCurrentUser } from "@/entities/user";
 import "@/shared/lib/i18n";
-import { localeLabels, locales, THEME_MODES } from "@packages/dto";
-import {
-  createProfileFormSchema,
-  type ProfileFormValues,
-  toUpdateProfileDto,
-} from "../model/profile-form-schema";
-import { useUpdateProfile } from "../model/use-profile-mutations";
-import { AvatarUploadField } from "./AvatarUploadField";
+import { AccountsTab } from "./AccountsTab";
+import { GeneralTab } from "./GeneralTab";
+import { SecurityTab } from "./SecurityTab";
 
-function ProfileFields({ user }: { user: UserProfileDto }) {
-  const { t, i18n } = useTranslation("common");
-  const { setTheme } = useTheme();
-  const router = useRouter();
-  const updateProfile = useUpdateProfile();
-  const toast = useToast();
-  const schema = useMemo(() => createProfileFormSchema(t), [t]);
+type ProfileTab = "general" | "accounts" | "security";
 
-  const defaultValues = useMemo<ProfileFormValues>(
-    () => ({
-      displayName: user.displayName ?? "",
-      username: user.username ?? "",
-      telegramUsername: user.telegramUsername ?? "",
-      gitUrl: user.gitUrl ?? "",
-      theme: user.theme ?? "dark",
-      locale: user.locale ?? "ru",
-    }),
-    [user],
-  );
+function resolveInitialTab(): ProfileTab {
+  if (typeof window === "undefined") return "general";
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors, dirtyFields },
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(schema),
-    defaultValues,
-  });
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get("tab") as ProfileTab | null;
+  if (tab && (tab === "general" || tab === "accounts" || tab === "security")) {
+    return tab;
+  }
 
-  useEffect(() => {
-    reset(defaultValues, { keepDirtyValues: true });
-  }, [defaultValues, reset]);
+  if (params.has("github") || params.has("error")) {
+    return "accounts";
+  }
 
-  const onSubmit = (values: ProfileFormValues) => {
-    const data = toUpdateProfileDto(values, dirtyFields);
-
-    if (Object.keys(data).length === 0) {
-      toast.push({
-        status: "success",
-        title: t("profile.saveSuccess"),
-      });
-      return;
-    }
-
-    updateProfile.mutate(
-      { data },
-      {
-        onSuccess: (updatedUser) => {
-          if (updatedUser.theme) {
-            setTheme(updatedUser.theme);
-            setPreferenceCookies({ theme: updatedUser.theme });
-          }
-          if (updatedUser.locale) {
-            void i18n.changeLanguage(updatedUser.locale);
-            setPreferenceCookies({ locale: updatedUser.locale });
-            if (typeof document !== "undefined") {
-              document.documentElement.lang = updatedUser.locale;
-            }
-          }
-          router.refresh();
-          reset({
-            displayName: updatedUser.displayName ?? "",
-            username: updatedUser.username ?? "",
-            telegramUsername: updatedUser.telegramUsername ?? "",
-            gitUrl: updatedUser.gitUrl ?? "",
-            theme: updatedUser.theme ?? "dark",
-            locale: updatedUser.locale ?? "ru",
-          });
-          toast.push({
-            status: "success",
-            title: i18n.t("profile.saveSuccess", {
-              lng: updatedUser.locale ?? undefined,
-            }),
-          });
-        },
-        onError: () => {
-          toast.push({
-            status: "error",
-            title: t("profile.saveError"),
-          });
-        },
-      },
-    );
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="mx-auto flex w-full max-w-3xl flex-col gap-6"
-    >
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold text-foreground">
-          {t("profile.title")}
-        </h1>
-        <p className="text-muted-foreground">{t("profile.subtitle")}</p>
-      </div>
-
-      <Card>
-        <Card.Content className="grid gap-6">
-          <AvatarUploadField
-            src={user.avatarUrl}
-            name={user.displayName}
-            email={user.email}
-          />
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <Field.Label>{t("profile.email")}</Field.Label>
-              <Field.Content>
-                <Input type="email" value={user.email} disabled readOnly />
-              </Field.Content>
-            </Field>
-
-            <Field invalid={!!errors.displayName}>
-              <Field.Label>{t("profile.displayName")}</Field.Label>
-              <Field.Content>
-                <Input
-                  data-invalid={!!errors.displayName}
-                  aria-invalid={!!errors.displayName}
-                  {...register("displayName")}
-                />
-                <Field.Error>{errors.displayName?.message}</Field.Error>
-              </Field.Content>
-            </Field>
-
-            <Field invalid={!!errors.username}>
-              <Field.Label>{t("profile.username")}</Field.Label>
-              <Field.Content>
-                <Input
-                  data-invalid={!!errors.username}
-                  aria-invalid={!!errors.username}
-                  {...register("username")}
-                />
-                <Field.Error>{errors.username?.message}</Field.Error>
-              </Field.Content>
-            </Field>
-
-            <Field invalid={!!errors.telegramUsername}>
-              <Field.Label>{t("profile.telegram")}</Field.Label>
-              <Field.Content>
-                <Input
-                  placeholder="@username"
-                  data-invalid={!!errors.telegramUsername}
-                  aria-invalid={!!errors.telegramUsername}
-                  {...register("telegramUsername")}
-                />
-                <Field.Error>{errors.telegramUsername?.message}</Field.Error>
-              </Field.Content>
-            </Field>
-
-            <Field invalid={!!errors.gitUrl} className="sm:col-span-2">
-              <Field.Label>{t("profile.gitUrl")}</Field.Label>
-              <Field.Content>
-                <Input
-                  placeholder="https://github.com/username"
-                  data-invalid={!!errors.gitUrl}
-                  aria-invalid={!!errors.gitUrl}
-                  {...register("gitUrl")}
-                />
-                <Field.Error>{errors.gitUrl?.message}</Field.Error>
-              </Field.Content>
-            </Field>
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <h2 className="text-base font-semibold text-foreground">
-              {t("profile.preferencesTitle")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t("profile.preferencesSubtitle")}
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <Field.Label>{t("profile.theme")}</Field.Label>
-              <Field.Content>
-                <Controller
-                  control={control}
-                  name="theme"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={(val: string) => {
-                        const theme = THEME_MODES.find((mode) => mode === val);
-                        if (!theme) return;
-                        field.onChange(theme);
-                      }}
-                    >
-                      <Select.Trigger className="w-full">
-                        <Select.Value />
-                      </Select.Trigger>
-                      <Select.Content>
-                        <Select.Item value="light">
-                          <span className="flex items-center gap-2">
-                            <SunIcon size={16} />
-                            {t("profile.themeLight")}
-                          </span>
-                        </Select.Item>
-                        <Select.Item value="dark">
-                          <span className="flex items-center gap-2">
-                            <MoonIcon size={16} />
-                            {t("profile.themeDark")}
-                          </span>
-                        </Select.Item>
-                        <Select.Item value="system">
-                          <span className="flex items-center gap-2">
-                            <SlidersIcon size={16} />
-                            {t("profile.themeSystem")}
-                          </span>
-                        </Select.Item>
-                      </Select.Content>
-                    </Select>
-                  )}
-                />
-              </Field.Content>
-            </Field>
-
-            <Field>
-              <Field.Label>{t("profile.language")}</Field.Label>
-              <Field.Content>
-                <Controller
-                  control={control}
-                  name="locale"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <Select.Trigger className="w-full">
-                        <Select.Value />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {locales.map((loc) => (
-                          <Select.Item key={loc} value={loc}>
-                            <span className="flex items-center gap-2">
-                              <GlobeIcon size={16} />
-                              {localeLabels[loc]}
-                            </span>
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  )}
-                />
-              </Field.Content>
-            </Field>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-h-5 text-sm">
-              {updateProfile.isError ? (
-                <p className="text-destructive">{t("profile.saveError")}</p>
-              ) : null}
-              {updateProfile.isSuccess ? (
-                <p className="text-muted-foreground">
-                  {t("profile.saveSuccess")}
-                </p>
-              ) : null}
-            </div>
-            <Button
-              type="submit"
-              className="sm:w-auto"
-              disabled={updateProfile.isPending}
-            >
-              {updateProfile.isPending
-                ? t("profile.saving")
-                : t("actions.save")}
-            </Button>
-          </div>
-        </Card.Content>
-      </Card>
-    </form>
-  );
+  return "general";
 }
 
 export function UpdateProfileForm() {
   const { t } = useTranslation("common");
   const { data: user, isLoading, isError } = useCurrentUser();
+  const [activeTab, setActiveTab] = useState<ProfileTab>("general");
+
+  useEffect(() => {
+    setActiveTab(resolveInitialTab());
+  }, []);
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-64 w-full" />
+        <div className="flex flex-col gap-6 sm:flex-row">
+          <Skeleton className="h-40 w-full sm:w-64 shrink-0" />
+          <Skeleton className="h-96 flex-1" />
+        </div>
       </div>
     );
   }
@@ -320,5 +53,60 @@ export function UpdateProfileForm() {
     return <p className="text-sm text-destructive">{t("profile.loadError")}</p>;
   }
 
-  return <ProfileFields user={user} />;
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold text-foreground">
+          {t("profile.title")}
+        </h1>
+        <p className="text-muted-foreground">{t("profile.subtitle")}</p>
+      </div>
+
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => setActiveTab(val as ProfileTab)}
+        orientation="vertical"
+        variant="pills"
+        className="w-full flex-col sm:flex-row gap-8 items-start"
+      >
+        <Tabs.List className="w-full sm:w-64 shrink-0 flex flex-col gap-1.5 bg-transparent p-0 border-0 h-auto items-stretch">
+          <Tabs.Trigger
+            value="general"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
+          >
+            <UserIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.general")}</span>
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="accounts"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
+          >
+            <HubConnectionIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.accounts")}</span>
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="security"
+            className="w-full justify-start gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium"
+          >
+            <SettingsIcon size="sm" className="size-4 shrink-0" />
+            <span>{t("profile.tabs.security")}</span>
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <div className="flex-1 w-full min-w-0">
+          <Tabs.Content value="general" className="mt-0">
+            <GeneralTab user={user} />
+          </Tabs.Content>
+
+          <Tabs.Content value="accounts" className="mt-0">
+            <AccountsTab user={user} />
+          </Tabs.Content>
+
+          <Tabs.Content value="security" className="mt-0 flex flex-col gap-6">
+            <SecurityTab />
+          </Tabs.Content>
+        </div>
+      </Tabs>
+    </div>
+  );
 }

@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import type { CompleteOnboardingDto } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
@@ -65,6 +66,13 @@ describe("UsersService", () => {
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
+    onboardingCompleted: false,
+    targetRole: null,
+    targetLevel: null,
+    targetCompanies: [] as string[],
+    targetTimeline: null,
+    preferredFormat: null,
+    onboardingAt: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   };
@@ -213,7 +221,6 @@ describe("UsersService", () => {
         passwordHash: _,
         deletedAt: __,
         generation: ___,
-        telegramLinkVerified: ______,
         createdAt: ____,
         updatedAt: _____,
         theme: _______,
@@ -226,11 +233,12 @@ describe("UsersService", () => {
         updatedAt: mockUser.updatedAt.toISOString(),
         role: SystemRole.USER,
         permissions: SystemPermission.USERS_READ.toString(),
+        telegramLinkVerified: false,
+        githubLinkVerified: false,
       });
       expect(result).not.toHaveProperty("passwordHash");
       expect(result).not.toHaveProperty("deletedAt");
       expect(result).not.toHaveProperty("generation");
-      expect(result).not.toHaveProperty("telegramLinkVerified");
     });
 
     it("выбрасывает NotFoundException если профиль не найден", async () => {
@@ -286,6 +294,66 @@ describe("UsersService", () => {
       expect(result.locale).toBe("en");
     });
 
+    it("сбрасывает telegramId, telegramChatId и telegramLinkVerified при отвязке telegramUsername: null", async () => {
+      const userWithTg = {
+        ...mockUser,
+        telegramId: BigInt(123456789),
+        telegramChatId: "987654321",
+        telegramLinkVerified: true,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithTg);
+      prismaMock.user.update.mockResolvedValue({
+        ...userWithTg,
+        telegramUsername: null,
+        telegramId: null,
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await service.updateProfile(userWithTg.id, {
+        telegramUsername: null,
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            telegramUsername: null,
+            telegramId: null,
+            telegramChatId: null,
+            telegramLinkVerified: false,
+          }),
+        }),
+      );
+    });
+
+    it("выбрасывает BadRequestException при попытке ручной установки telegramUsername без верифицированной привязки", async () => {
+      const userWithoutTg = {
+        ...mockUser,
+        telegramLinkVerified: false,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithoutTg);
+
+      await expect(
+        service.updateProfile(userWithoutTg.id, {
+          telegramUsername: "new_username",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("выбрасывает BadRequestException при попытке ручной установки gitUrl без привязанного githubId", async () => {
+      const userWithoutGithub = {
+        ...mockUser,
+        githubId: null,
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithoutGithub);
+
+      await expect(
+        service.updateProfile(userWithoutGithub.id, {
+          gitUrl: "https://github.com/manual_dev",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("выбрасывает ConflictException при попытке занять чужой username", async () => {
       prismaMock.user.findUnique
         .mockResolvedValueOnce(mockUser)
@@ -304,6 +372,65 @@ describe("UsersService", () => {
 
       await expect(
         service.updateProfile("non-existent-id", { displayName: "New Name" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("completeOnboarding", () => {
+    it("успешно завершает онбординг и инвалидирует кэш готовности", async () => {
+      const dto: CompleteOnboardingDto = {
+        role: "FRONTEND",
+        level: "MIDDLE",
+        companies: ["yandex", "tinkoff"],
+        timeline: "soon",
+        format: "ai",
+        isSkipped: false,
+      };
+      const updatedUser = {
+        ...mockUser,
+        onboardingCompleted: true,
+        targetRole: dto.role,
+        targetLevel: dto.level,
+        targetCompanies: dto.companies,
+        targetTimeline: dto.timeline,
+        preferredFormat: dto.format,
+        onboardingAt: new Date("2026-10-03T12:00:00Z"),
+      };
+
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.completeOnboarding(mockUser.id, dto);
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockUser.id },
+          data: expect.objectContaining({
+            onboardingCompleted: true,
+            targetRole: "FRONTEND",
+            targetLevel: "MIDDLE",
+            targetCompanies: ["yandex", "tinkoff"],
+            targetTimeline: "soon",
+            preferredFormat: "ai",
+          }),
+        }),
+      );
+      expect(result.onboardingCompleted).toBe(true);
+      expect(result.targetRole).toBe("FRONTEND");
+      expect(redisServiceMock.delete).toHaveBeenCalledWith(
+        `cache:dashboard:readiness:${mockUser.id}`,
+      );
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.completeOnboarding("non-existent-id", {
+          role: "FRONTEND",
+          companies: [],
+          isSkipped: false,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });

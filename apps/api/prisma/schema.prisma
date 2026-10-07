@@ -15,8 +15,8 @@ model Role {
   description String?
   permissions BigInt   @default(0)
   isSystem    Boolean  @default(false)
-  createdAt   DateTime @db.Timestamptz(3) @default(now())
-  updatedAt   DateTime @db.Timestamptz(3) @updatedAt
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 
   users User[]
 
@@ -30,38 +30,45 @@ model Permission {
   name        String   @db.VarChar(255)
   description String?
   bitValue    BigInt
-  createdAt   DateTime @db.Timestamptz(3) @default(now())
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([slug])
   @@map("permissions")
 }
 
 model User {
-  id               String    @id @default(uuid()) @db.Uuid
-  email            String    @unique
-  passwordHash     String?
-  githubId         String?   @unique
-  roleId           String?   @db.Uuid
-  role             Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  isActive         Boolean   @default(true)
-  deactivatedAt    DateTime? @db.Timestamptz(3)
-  firstLoginAt     DateTime? @db.Timestamptz(3)
-  displayName      String?
-  username         String?   @unique
-  avatarUrl        String?
-  telegramId           BigInt?   @unique
+  id                   String           @id @default(uuid()) @db.Uuid
+  email                String           @unique
+  passwordHash         String?
+  githubId             String?          @unique
+  roleId               String?          @db.Uuid
+  role                 Role?            @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  isActive             Boolean          @default(true)
+  deactivatedAt        DateTime?        @db.Timestamptz(3)
+  firstLoginAt         DateTime?        @db.Timestamptz(3)
+  displayName          String?
+  username             String?          @unique
+  avatarUrl            String?
+  telegramId           BigInt?          @unique
   telegramUsername     String?
-  telegramChatId       String?   @unique
+  telegramChatId       String?          @unique
   telegramLocale       String?
-  telegramLinkVerified Boolean   @default(false)
-  gitUrl           String?
-  theme            ThemePreference @default(DARK)
-  locale           String          @default("ru")
-  timezone         String          @default("Europe/Moscow")
-  deletedAt        DateTime? @db.Timestamptz(3)
-  generation       Int       @default(1)
-  createdAt        DateTime  @db.Timestamptz(3) @default(now())
-  updatedAt        DateTime  @db.Timestamptz(3) @updatedAt
+  telegramLinkVerified Boolean          @default(false)
+  gitUrl               String?
+  theme                ThemePreference  @default(DARK)
+  locale               String           @default("ru")
+  timezone             String           @default("Europe/Moscow")
+  deletedAt            DateTime?        @db.Timestamptz(3)
+  generation           Int              @default(1)
+  onboardingCompleted  Boolean          @default(false) @map("onboarding_completed")
+  targetRole           Specialization?  @map("target_role")
+  targetLevel          ExperienceLevel? @map("target_level")
+  targetCompanies      String[]         @default([]) @map("target_companies")
+  targetTimeline       String?          @map("target_timeline") @db.VarChar(50)
+  preferredFormat      String?          @map("preferred_format") @db.VarChar(50)
+  onboardingAt         DateTime?        @map("onboarding_at")
+  createdAt            DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime         @updatedAt @db.Timestamptz(3)
 
   deviceSettings        UserDeviceSettings[]
   notifications         Notification[]
@@ -78,6 +85,7 @@ model User {
   @@index([isActive])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([onboardingCompleted])
   @@map("users")
 }
 
@@ -86,7 +94,7 @@ model AuthRevocationTask {
   userId     String   @db.Uuid
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   generation Int?
-  createdAt  DateTime @db.Timestamptz(3) @default(now())
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([userId])
   @@index([createdAt])
@@ -113,11 +121,11 @@ model InterviewSession {
   inviteToken  String?                @map("invite_token") @db.VarChar(128)
   /// Запланированное время встречи (ADR-002:62).
   /// Заполняется при принятии заявки витрины из слота; для обычных сессий NULL.
-  scheduledAt DateTime? @db.Timestamptz(3) @map("scheduled_at")
-  startedAt   DateTime? @db.Timestamptz(3)
-  endedAt     DateTime? @db.Timestamptz(3)
-  createdAt    DateTime               @db.Timestamptz(3) @default(now())
-  updatedAt    DateTime               @db.Timestamptz(3) @updatedAt
+  scheduledAt  DateTime?              @map("scheduled_at") @db.Timestamptz(3)
+  startedAt    DateTime?              @db.Timestamptz(3)
+  endedAt      DateTime?              @db.Timestamptz(3)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
   participants InterviewParticipant[]
 
   /// Заявка витрины, принятие которой создало сессию; обратная ссылка на
@@ -150,24 +158,24 @@ enum NotificationType {
 }
 
 model Notification {
-  id              String           @id @default(uuid()) @db.Uuid
-  userId          String           @db.Uuid
-  category        NotificationType
-  type            String
-  payload         Json
-  renderedTitle   String?
-  renderedMessage String?
-  renderedLocale  String?
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @db.Uuid
+  category         NotificationType
+  type             String
+  payload          Json
+  renderedTitle    String?
+  renderedMessage  String?
+  renderedLocale   String?
   renderedTimezone String?
-  dedupKey        String?          @unique
-  actionUrl       String?
-  readAt          DateTime? @db.Timestamptz(3)
-  deletedAt       DateTime? @db.Timestamptz(3)
-  createdAt       DateTime         @db.Timestamptz(3) @default(now())
-  updatedAt       DateTime         @db.Timestamptz(3) @updatedAt
-  
+  dedupKey         String?          @unique
+  actionUrl        String?
+  readAt           DateTime?        @db.Timestamptz(3)
+  deletedAt        DateTime?        @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
   @@index([readAt])
   @@index([deletedAt])
@@ -182,19 +190,19 @@ enum NotificationOutboxStatus {
 
 /// Запись outbox: событие, ожидающее доставки по каналам (ADR-003:70).
 model NotificationOutbox {
-  id            String                    @id @default(uuid()) @db.Uuid
+  id            String                   @id @default(uuid()) @db.Uuid
   type          String
   payload       Json
-  recipientId   String                    @db.Uuid
+  recipientId   String                   @db.Uuid
   category      NotificationType
   actionUrl     String?
-  status        NotificationOutboxStatus  @default(PENDING)
-  attempts      Int                       @default(0)
-  nextAttemptAt DateTime                  @db.Timestamptz(3) @default(now())
-  processedAt   DateTime? @db.Timestamptz(3)
+  status        NotificationOutboxStatus @default(PENDING)
+  attempts      Int                      @default(0)
+  nextAttemptAt DateTime                 @default(now()) @db.Timestamptz(3)
+  processedAt   DateTime?                @db.Timestamptz(3)
   lastError     String?
-  createdAt     DateTime                  @db.Timestamptz(3) @default(now())
-  updatedAt     DateTime                  @db.Timestamptz(3) @updatedAt
+  createdAt     DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime                 @updatedAt @db.Timestamptz(3)
 
   @@index([status, nextAttemptAt])
   @@map("notification_outbox")
@@ -275,8 +283,8 @@ enum AvailabilitySlotStatus {
 /// а индекс остаётся страховкой от гонок, которые приложение не поймало
 /// (ADR-002:74).
 model AvailabilitySlot {
-  id     String @id @default(uuid()) @db.Uuid
-  cardId String @map("card_id") @db.Uuid
+  id     String       @id @default(uuid()) @db.Uuid
+  cardId String       @map("card_id") @db.Uuid
   card   ShowcaseCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   /// Начало интервала в UTC (ADR-002:60).
@@ -290,7 +298,7 @@ model AvailabilitySlot {
   /// принадлежит не пользователю, а конкретной заявке.
   bookedByRequestId String? @map("booked_by_request_id") @db.Uuid
 
-  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   requests MatchRequest[]
 
@@ -318,14 +326,14 @@ model ShowcaseCard {
   status    ShowcaseCardStatus @default(ACTIVE)
   autoRenew Boolean            @default(false) @map("auto_renew") // Авто-продление каждые 15 дней
 
-  bumpedAt  DateTime @db.Timestamptz(3) @default(now()) @map("bumped_at") // Время последнего поднятия в топ
-  expiresAt DateTime @db.Timestamptz(3) @map("expires_at") // now() + 15 days
+  bumpedAt  DateTime @default(now()) @map("bumped_at") @db.Timestamptz(3) // Время последнего поднятия в топ
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3) // now() + 15 days
 
-  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
-  updatedAt DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  receivedRequests MatchRequest[] @relation("TargetCardRequests")
-  senderRequests   MatchRequest[] @relation("SenderCardRequests")
+  receivedRequests MatchRequest[]     @relation("TargetCardRequests")
+  senderRequests   MatchRequest[]     @relation("SenderCardRequests")
   slots            AvailabilitySlot[]
 
   @@unique([userId, specialization, level], map: "unique_active_user_specialization_level", where: { status: "ACTIVE" })
@@ -362,11 +370,12 @@ model MatchRequest {
 
   // Выбранный слот расписания (ADR-002:62).
   // Слот резервируется вместе с заявкой и освобождается, если заявка не была принята.
-  slotId String?          @map("slot_id") @db.Uuid
+  slotId String?           @map("slot_id") @db.Uuid
   slot   AvailabilitySlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
 
   // Сессия интервью, созданная при принятии заявки со слотом (ADR-002:62).
-  sessionId String?          @unique @map("session_id") @db.Uuid
+  // Уникальна: принятие заявки создаёт ровно одну сессию.
+  sessionId String?           @unique @map("session_id") @db.Uuid
   session   InterviewSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   status         MatchRequestStatus @default(PENDING)
@@ -374,15 +383,16 @@ model MatchRequest {
   preferredTopic String?            @map("preferred_topic") @db.VarChar(100)
   rejectReason   String?            @map("reject_reason") @db.VarChar(200) // Причина отклонения
 
-  createdAt DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
-  updatedAt DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
-  expiresAt DateTime @db.Timestamptz(3) @map("expires_at") // now() + 72h
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3) // now() + 72h
 
   @@unique([senderId, targetCardId], map: "unique_pending_match_request_per_card", where: { status: "PENDING" })
   @@index([receiverId, status])
   @@index([senderId, status])
   @@index([targetCardId, status])
   @@index([status, expiresAt])
+  @@index([sessionId])
   @@map("match_requests")
 }
 
@@ -398,11 +408,10 @@ model UserDeviceSettings {
   preferredAudioInputLabel  String?  @map("preferred_audio_input_label") @db.VarChar(255)
   preferredAudioOutputLabel String?  @map("preferred_audio_output_label") @db.VarChar(255)
   preferredVideoInputLabel  String?  @map("preferred_video_input_label") @db.VarChar(255)
-  createdAt                 DateTime @db.Timestamptz(3) @default(now()) @map("created_at")
-  updatedAt                 DateTime @db.Timestamptz(3) @updatedAt @map("updated_at")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([userId, clientId])
   @@index([userId])
   @@map("user_device_settings")
 }
-

@@ -14,7 +14,8 @@ const baseShowcaseCardFields = {
     .min(3, "Заголовок должен содержать минимум 3 символа")
     .max(100, "Заголовок не должен превышать 100 символов")
     .transform(stripHtmlTags)
-    .optional(),
+    .optional()
+    .nullable(),
   specialization: specializationEnum,
   level: experienceLevelEnum,
   language: interviewLanguageEnum,

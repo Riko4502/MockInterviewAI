@@ -12,6 +12,7 @@
 import type { MatchRequestResponseDtoReceiver } from './matchRequestResponseDtoReceiver';
 import type { MatchRequestResponseDtoSender } from './matchRequestResponseDtoSender';
 import type { MatchRequestResponseDtoSenderCard } from './matchRequestResponseDtoSenderCard';
+import type { MatchRequestResponseDtoSessionStatus } from './matchRequestResponseDtoSessionStatus';
 import type { MatchRequestResponseDtoSlot } from './matchRequestResponseDtoSlot';
 import type { MatchRequestResponseDtoStatus } from './matchRequestResponseDtoStatus';
 import type { MatchRequestResponseDtoTargetCard } from './matchRequestResponseDtoTargetCard';
@@ -35,6 +36,8 @@ export interface MatchRequestResponseDto {
      * @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
      */
   sessionId: string | null;
+  /** @nullable */
+  sessionStatus: MatchRequestResponseDtoSessionStatus;
   status: MatchRequestResponseDtoStatus;
   /** @nullable */
   message: string | null;

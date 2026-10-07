@@ -5,8 +5,9 @@ import type { Request, Response } from "express";
 import { AuthController } from "./auth.controller";
 import type { AuthService } from "./auth.service";
 import { AuthThrottlerGuard } from "./guards/auth-throttler.guard";
+import type { AuthSessionService } from "./services/auth-session.service";
 import type { GithubOAuthService } from "./services/github-oauth.service";
-import type { TokenPayload } from "./services/token.service";
+import type { TokenPayload, TokenService } from "./services/token.service";
 
 const DTO = {
   email: "user@example.com",
@@ -109,6 +110,8 @@ describe("AuthController", () => {
       } as unknown as AuthService,
       createConfigService(cookieSecure),
       {} as GithubOAuthService,
+      {} as TokenService,
+      {} as AuthSessionService,
     );
   }
 
@@ -792,10 +795,18 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
       })[key],
     getOrThrow: () => "https://web.example.com",
   };
+  const tokenService = {
+    verifyRefreshToken: jest.fn(),
+  };
+  const sessionService = {
+    getSession: jest.fn(),
+  };
   const controller = new AuthController(
     auth as unknown as AuthService,
     config as unknown as ConfigService,
     oauth as unknown as GithubOAuthService,
+    tokenService as unknown as TokenService,
+    sessionService as unknown as AuthSessionService,
   );
   const response = responseMock as unknown as Response;
   it.each([
@@ -902,6 +913,98 @@ describe("Авторизация через GitHub OAuth в AuthController", () 
     expect(responseMock.redirect).toHaveBeenCalledWith(
       302,
       "https://web.example.com/login?error=github",
+    );
+  });
+  it("при action=link проверяет refresh cookie и сессию в Redis, передаёт userId в authorize", async () => {
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce({ userId: "user-1" });
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(tokenService.verifyRefreshToken).toHaveBeenCalledWith(
+      "valid-refresh",
+    );
+    expect(sessionService.getSession).toHaveBeenCalledWith("sess-1");
+    expect(oauth.authorize).toHaveBeenCalledWith("user-1");
+  });
+  it("при action=link без refresh cookie перенаправляет на login", async () => {
+    const req = { cookies: {} } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=unauthorized",
+    );
+  });
+  it("при action=link с недействительной сессией в Redis перенаправляет на login", async () => {
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce(null);
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.github(response, req, "link");
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/login?error=unauthorized",
+    );
+  });
+  it("при успешном link перенаправляет на /profile?github=success", async () => {
+    oauth.callback.mockResolvedValueOnce({ type: "link", userId: "user-1" });
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?github=success",
+    );
+  });
+  it("при конфликте link (аккаунт привязан к другому) перенаправляет на /profile?error=github_already_linked", async () => {
+    const { GitHubLinkConflictException } = await import(
+      "./services/github-oauth.service"
+    );
+    oauth.callback.mockRejectedValueOnce(
+      new GitHubLinkConflictException(
+        "GitHub account is already linked to another user",
+      ),
+    );
+    await controller.githubCallback(
+      "code",
+      "state",
+      { cookies: { github_oauth_state: "binding" } } as unknown as Request,
+      response,
+    );
+    expect(auth.loginUser).not.toHaveBeenCalled();
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?error=github_already_linked",
+    );
+  });
+  it("при ошибке callback для авторизованного пользователя перенаправляет на /profile?error=github_failed", async () => {
+    oauth.callback.mockRejectedValueOnce(
+      new UnauthorizedException("Invalid OAuth state"),
+    );
+    tokenService.verifyRefreshToken.mockReturnValueOnce({
+      sub: "user-1",
+      sid: "sess-1",
+    });
+    sessionService.getSession.mockResolvedValueOnce({ userId: "user-1" });
+    const req = {
+      cookies: { custom_refresh: "valid-refresh" },
+    } as unknown as Request;
+    await controller.githubCallback("code", "state", req, response);
+    expect(responseMock.redirect).toHaveBeenCalledWith(
+      302,
+      "https://web.example.com/profile?error=github_failed",
     );
   });
 });

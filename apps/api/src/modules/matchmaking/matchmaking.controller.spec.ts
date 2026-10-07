@@ -77,6 +77,7 @@ describe("MatchmakingController", () => {
     slot: null,
     sessionId: null,
     status: "PENDING",
+    sessionStatus: null,
     message: "Привет, давай потренируем алгоритмы!",
     preferredTopic: "Алгоритмы и структуры данных",
     rejectReason: null,

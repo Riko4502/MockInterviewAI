@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 import {
-  MediaSettingsDialog,
+  MediaSettingsDialogLazy,
   useMediaSettings,
 } from "@/features/media-settings";
 import { useLiveKitRoom } from "@/features/realtime";
@@ -380,13 +380,15 @@ export function SandboxMediaProvider({
   return (
     <SandboxMediaContext.Provider value={value}>
       {children}
-      <MediaSettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        onAudioDeviceChange={handleSwitchAudioDevice}
-        onVideoDeviceChange={handleSwitchVideoDevice}
-        onAudioOutputChange={handleSwitchAudioOutput}
-      />
+      {isSettingsOpen && (
+        <MediaSettingsDialogLazy
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
+          onAudioDeviceChange={handleSwitchAudioDevice}
+          onVideoDeviceChange={handleSwitchVideoDevice}
+          onAudioOutputChange={handleSwitchAudioOutput}
+        />
+      )}
     </SandboxMediaContext.Provider>
   );
 }

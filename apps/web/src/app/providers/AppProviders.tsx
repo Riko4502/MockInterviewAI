@@ -1,5 +1,6 @@
 "use client";
 
+import type { Locale } from "@packages/i18n";
 import { UIProvider } from "@packages/ui";
 import type { PropsWithChildren } from "react";
 import { useEffect } from "react";
@@ -12,7 +13,7 @@ import { QueryProvider } from "./QueryProvider";
 
 export interface AppProvidersProps extends PropsWithChildren {
   initialTheme?: string;
-  initialLocale?: string;
+  initialLocale?: Locale;
 }
 
 export function AppProviders({
@@ -30,14 +31,14 @@ export function AppProviders({
 
   return (
     <QueryProvider>
-      <SessionProvider>
-        <UIProvider defaultTheme={initialTheme}>
+      <UIProvider defaultTheme={initialTheme}>
+        <SessionProvider initialLocale={initialLocale}>
           <UserPreferencesSync />
           <ApiErrorNotifications />
           <NotificationRealtime />
           {children}
-        </UIProvider>
-      </SessionProvider>
+        </SessionProvider>
+      </UIProvider>
     </QueryProvider>
   );
 }

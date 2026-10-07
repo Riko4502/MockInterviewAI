@@ -34,6 +34,8 @@ export const matchRequestResponseSchema = z.object({
   slot: showcaseSlotResponseSchema.nullable(),
   /** Сессия интервью, созданная при принятии заявки со слотом (ADR-002:62). */
   sessionId: z.uuid().nullable(),
+  /** Статус созданной сессии интервью (ветка dev: dashboard и показ витрины). */
+  sessionStatus: z.enum(["CREATED", "ACTIVE", "CLOSED"]).nullable(),
 
   // Статус заявки и сообщения участников
   status: matchRequestStatusEnum,
@@ -54,6 +56,9 @@ export const matchRequestResponseSchema = z.object({
 export type MatchRequestResponseDto = z.infer<
   typeof matchRequestResponseSchema
 >;
+
+/** Статус сессии интервью, привязанной к принятой заявке. */
+export type SessionStatus = "CREATED" | "ACTIVE" | "CLOSED";
 
 /** [Response] Пагинированный список заявок (GET /matchmaking/requests/*). */
 export const paginatedMatchRequestsSchema = paginatedResponseSchema(

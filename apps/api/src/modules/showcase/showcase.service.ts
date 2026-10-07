@@ -493,19 +493,27 @@ export class ShowcaseService {
       );
     }
 
-    // 3. Вычисляем будущие специализацию и уровень после обновления
-    const nextSpecialization = dto.specialization ?? card.specialization;
-    const nextLevel = dto.level ?? card.level;
+    // 3. Запрещаем изменение специализации после создания анкеты
+    if (
+      dto.specialization !== undefined &&
+      dto.specialization !== card.specialization
+    ) {
+      throw new BadRequestException(
+        "Специализацию анкеты нельзя изменять после создания",
+      );
+    }
 
-    // 4. Если анкета активна и меняются специализация/уровень — проверяем отсутствие дубликата
+    // 4. Если анкета активна и меняется уровень — проверяем отсутствие дубликата
+    const nextLevel = dto.level ?? card.level;
     if (
       card.status === "ACTIVE" &&
-      (dto.specialization !== undefined || dto.level !== undefined)
+      dto.level !== undefined &&
+      dto.level !== card.level
     ) {
       const duplicate = await this.prisma.showcaseCard.findFirst({
         where: {
           userId,
-          specialization: nextSpecialization,
+          specialization: card.specialization,
           level: nextLevel,
           status: "ACTIVE",
           id: { not: id }, // исключаем саму редактируемую карточку

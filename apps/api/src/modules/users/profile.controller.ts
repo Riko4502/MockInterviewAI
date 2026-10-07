@@ -10,6 +10,7 @@ import {
   Query,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -23,8 +24,11 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { ThrottlerGuard } from "@nestjs/throttler";
 import {
+  type CompleteOnboardingDto,
   clientIdSchema,
+  completeOnboardingSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
   type UpdateDeviceSettingsDto,
@@ -96,6 +100,38 @@ export class ProfileController {
     @Body(new ZodValidationPipe(updateProfileSchema)) dto: UpdateProfileDto,
   ): Promise<UserProfileDto> {
     return this.usersService.updateProfile(userId, dto);
+  }
+
+  /**
+   * Завершает онбординг пользователя и сохраняет целевые параметры подготовки.
+   *
+   * @param userId - UUID пользователя из JWT токена.
+   * @param dto - Данные онбординга (роль, грейд, компании, формат).
+   * @returns Обновленный профиль пользователя.
+   */
+  @Post("onboarding")
+  @UseGuards(ThrottlerGuard)
+  @ApiOperation({
+    summary: "Завершить онбординг и сохранить цели подготовки",
+  })
+  @ZodBody(completeOnboardingSchema, "CompleteOnboardingDto")
+  @ApiResponse({
+    status: 201,
+    description: "Онбординг успешно завершен, профиль обновлен",
+    schema: { $ref: "#/components/schemas/UserProfileDto" },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Ошибка валидации данных онбординга",
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 429, description: "Слишком много запросов" })
+  async completeOnboarding(
+    @CurrentUser("sub") userId: string,
+    @Body(new ZodValidationPipe(completeOnboardingSchema))
+    dto: CompleteOnboardingDto,
+  ): Promise<UserProfileDto> {
+    return this.usersService.completeOnboarding(userId, dto);
   }
 
   /**
