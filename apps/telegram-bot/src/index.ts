@@ -49,7 +49,7 @@ export async function main(): Promise<void> {
     // Сигнальный обработчик не может быть async, но завершение процессов
     // инициируем: бот и консьюмер закроют каналы/соединения сами.
     void (async () => {
-      await Promise.allSettled([bot.stop(), push?.stop() ?? Promise.resolve()]);
+      await Promise.allSettled([bot.stop(), push?.stop()]);
       if (server !== undefined) {
         await new Promise<void>((resolve) => server?.close(() => resolve()));
       }
