@@ -49,7 +49,9 @@ export async function main(): Promise<void> {
     // Сигнальный обработчик не может быть async, но завершение процессов
     // инициируем: бот и консьюмер закроют каналы/соединения сами.
     void (async () => {
-      await Promise.allSettled([bot.stop(), push?.stop()]);
+      // Остановка очереди до приём updates — как в описании graceful shutdown.
+      await push?.stop();
+      await bot.stop();
       if (server !== undefined) {
         await new Promise<void>((resolve) => server?.close(() => resolve()));
       }
