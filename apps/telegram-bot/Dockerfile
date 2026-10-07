@@ -14,19 +14,36 @@ COPY packages ./packages
 
 RUN pnpm install --frozen-lockfile
 
-# Runner stage (бот запускается через tsx, без собранного dist)
+# Builder stage: собираем shared-пакеты (@packages/i18n, @packages/dto и т.д.)
+FROM base AS builder
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/telegram-bot/node_modules ./apps/telegram-bot/node_modules
+COPY --from=deps /app/packages ./packages
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
+COPY types/ ./types/
+COPY packages/ ./packages/
+COPY apps/telegram-bot/ ./apps/telegram-bot/
+
+RUN pnpm turbo run build --filter=...@apps/telegram-bot
+
+# Runner stage (бот запускается через tsx)
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PATH="/app/apps/telegram-bot/node_modules/.bin:$PATH"
+ENV PATH="/app/apps/telegram-bot/node_modules/.bin:/app/node_modules/.bin:$PATH"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 bot
 
-COPY --from=deps --chown=bot:nodejs /app/node_modules ./node_modules
-COPY --from=deps --chown=bot:nodejs /app/apps/telegram-bot/node_modules ./apps/telegram-bot/node_modules
-COPY --from=deps --chown=bot:nodejs /app/packages ./packages
+COPY --from=builder --chown=bot:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=bot:nodejs /app/apps/telegram-bot/node_modules ./apps/telegram-bot/node_modules
+COPY --from=builder --chown=bot:nodejs /app/packages ./packages
 
 COPY --chown=bot:nodejs package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .pnpmfile.cjs* tsconfig*.json ./
 COPY --chown=bot:nodejs types ./types

@@ -112,6 +112,8 @@ services:
           type: web
           name: devsync-livekit
           envVarKey: LIVEKIT_API_SECRET
+      - key: RABBITMQ_URL
+        sync: false # e.g. amqps://... (CloudAMQP) или amqp://guest:guest@rabbitmq:5672
 
   # -------------------------------------------------------------
   # Realtime WebSocket & SSE Server (Go)
@@ -220,6 +222,8 @@ services:
         sync: false # https://devsync-telegram-bot.onrender.com/telegram/webhook
       - key: TELEGRAM_WEBHOOK_SECRET
         sync: false # Произвольная строка, проверяется в X-Telegram-Bot-Api-Secret-Token
+      - key: RABBITMQ_URL
+        sync: false # e.g. amqps://... (CloudAMQP) или amqp://guest:guest@rabbitmq:5672
       # TELEGRAM_WEBHOOK_PORT не задаём: в проде подхватывается $PORT (config.ts)
 
   # -------------------------------------------------------------
