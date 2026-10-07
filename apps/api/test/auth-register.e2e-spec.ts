@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import {
+  countRedisCalls,
   type RedisDownHandles,
   type StartedApp,
   startTestApp,
@@ -158,7 +159,10 @@ describe("E2E-04: Redis недоступен (§48 SPEC.md)", () => {
     expect(res.body).not.toHaveProperty("accessToken");
     expect(JSON.stringify(res.body)).not.toContain("ECONNREFUSED");
 
-    expect(handles.redisMock.set).toHaveBeenCalledTimes(1);
+    // Redis обязан быть запрошен и отказать: без этой проверки тест проходил бы
+    // и при коде, который вообще перестал писать сессию в Redis, — компенсация
+    // удаляла бы несуществующего пользователя, а `500` был бы правдоподобным.
+    expect(countRedisCalls(handles.redisMock)).toBeGreaterThan(0);
 
     const user = await handles.prisma.user.findUnique({ where: { email } });
     expect(user).toBeNull();

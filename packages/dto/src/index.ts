@@ -38,9 +38,13 @@ export {
 } from "./auth/telegram.dto";
 // Dashboard
 export * from "./dashboard";
-export type {
-  MatchRequestResponseDto,
-  UnreadMatchRequestsCountDto,
+export {
+  type MatchRequestResponseDto,
+  matchRequestResponseSchema,
+  type PaginatedMatchRequestsDto,
+  paginatedMatchRequestsSchema,
+  type UnreadMatchRequestsCountDto,
+  unreadMatchRequestsCountSchema,
 } from "./matchmaking/match-request-response.dto";
 // Matchmaking
 export {
@@ -62,6 +66,25 @@ export {
   type UnreadNotificationsCountDto,
   unreadNotificationsCountSchema,
 } from "./notifications/notification.dto";
+export {
+  buildDedupKey,
+  type InterviewMatchProposedEvent,
+  type InterviewSlotBookedEvent,
+  interviewMatchProposedEventSchema,
+  interviewMatchProposedPayloadSchema,
+  interviewSlotBookedEventSchema,
+  interviewSlotBookedPayloadSchema,
+  type NotificationEvent,
+  type NotificationEventCategory,
+  type NotificationEventPayloads,
+  type NotificationEventType,
+  notificationEventCategory,
+  notificationEventSchema,
+  parseNotificationEvent,
+  type SystemWelcomeEvent,
+  systemWelcomeEventSchema,
+  systemWelcomePayloadSchema,
+} from "./notifications/notification-event";
 export {
   clientIdSchema,
   type DeviceSettingsDto,
@@ -103,6 +126,35 @@ export {
   type MediaTokenResponseDto,
   mediaTokenRequestSchema,
 } from "./realtime/media-token.dto";
+export {
+  type AccountUpdatedPayload,
+  type AIReportReadyPayload,
+  type AuthRevokedPayload,
+  accountUpdatedPayloadSchema,
+  aiReportReadyPayloadSchema,
+  authRevokedPayloadSchema,
+  type CodeRunnerStatusPayload,
+  codeRunnerStatusPayloadSchema,
+  type NotificationBadgePayload,
+  type NotificationNewPayload,
+  notificationBadgePayloadSchema,
+  notificationNewPayloadSchema,
+  parseSseEventPayload,
+  type SessionInvitedPayload,
+  type SseEventEnvelope,
+  type SseEventPayloads,
+  type SseEventType,
+  type SseSeverity,
+  type SystemBroadcastPayload,
+  sessionInvitedPayloadSchema,
+  sseEventDescriptions,
+  sseEventEnvelopeSchema,
+  sseEventPayloadSchemas,
+  sseEventTypeSchema,
+  sseEventTypes,
+  sseSeveritySchema,
+  systemBroadcastPayloadSchema,
+} from "./realtime/sse-event.dto";
 export { type TicketDto, ticketSchema } from "./realtime/ticket.dto";
 export type {
   AISuggestionPayload,
@@ -219,12 +271,35 @@ export {
   type ShowcaseQueryDto,
   showcaseQuerySchema,
 } from "./showcase/showcase-query.dto";
-export type {
-  PaginatedResponseDto,
-  PublicUserCardDto,
-  ShowcaseCardResponseDto,
-  ShowcaseCardStatsDto,
+export {
+  type PaginatedListMetaDto,
+  type PaginatedResponseDto,
+  type PaginatedShowcaseCardsDto,
+  type PublicUserCardDto,
+  paginatedListMetaSchema,
+  paginatedResponseSchema,
+  paginatedShowcaseCardsSchema,
+  publicUserCardSchema,
+  type ShowcaseCardListDto,
+  type ShowcaseCardResponseDto,
+  type ShowcaseCardStatsDto,
+  showcaseCardListSchema,
+  showcaseCardResponseSchema,
+  showcaseCardStatsSchema,
 } from "./showcase/showcase-response.dto";
+export {
+  type AvailabilitySlotStatusDto,
+  availabilitySlotStatusEnum,
+  localSlotDateTimeSchema,
+  MAX_SLOTS_PER_CARD,
+  type ShowcaseSlotInputDto,
+  type ShowcaseSlotResponseDto,
+  type ShowcaseSlotsInputDto,
+  SLOT_DURATION_LIMITS,
+  showcaseSlotInputSchema,
+  showcaseSlotResponseSchema,
+  showcaseSlotsInputSchema,
+} from "./showcase/showcase-slot.dto";
 export {
   type TelegramInterviewDto,
   type TelegramInterviewsListDto,

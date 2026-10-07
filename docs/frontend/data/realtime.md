@@ -301,18 +301,39 @@ export interface SystemAckPayload {
 
 ## 4. Справочник контрактов SSE (Глобальные уведомления)
 
+Источник правды по формам кадров — Zod-словарь `packages/dto/src/realtime/sse-event.dto.ts` (ADR-004:86). Клиент не дублирует схемы: `apps/web/src/features/notification-realtime/model/schemas.ts` импортирует `notificationNewPayloadSchema` и `notificationBadgePayloadSchema` оттуда, а имена событий, на которые подписан поток, проверяются на этапе компиляции через `satisfies readonly SseEventType[]`. Go-константы имён событий генерируются из того же словаря (`apps/realtime/internal/sse/events_gen.go`). Фрагменты ниже иллюстрируют контракт; при расхождении с файлом словаря правильным считается словарь.
+
 ```typescript
-export type NotificationCategory = "info" | "success" | "warning" | "error";
+/**
+ * Категория уведомления — доменный словарь, совпадает с
+ * NotificationType в БД и с категорией фильтра в центре уведомлений.
+ *
+ * Имя `NotificationType`, а не `NotificationCategory`: в `category`
+ * приходит доменный тип из БД, а визуальная severity живёт в отдельном
+ * поле `severity` (ADR-004:87). До разделения оба словаря занимали одно
+ * поле, и имя означало разное в зависимости от слоя.
+ */
+export type NotificationType = "SYSTEM" | "INTERVIEW" | "MESSAGE";
+
+/** Визуальная severity отрисовки; по проводу необязательна. */
+export type NotificationSeverity = "info" | "success" | "warning" | "error";
 
 /** Событие "notification.new": тосты и список колокольчика */
 export interface NotificationNewPayload {
   id: string;
-  category: NotificationCategory;
+  /** Доменный словарь, см. NotificationType. */
+  category: NotificationType;
   title: string;
   message: string;
-  actionUrl?: string;
+  actionUrl?: string | null;
   createdAt: string;
   read: boolean;
+  /**
+   * Визуальная severity по ADR-004:87. Поле необязательное: сейчас его
+   * не заполняет ни один producer. Клиент иконку выбирает по `category`
+   * из REST-DTO уведомления, а не по кадру.
+   */
+  severity?: NotificationSeverity;
 }
 
 /** Событие "notification.badge": число непрочитанных */
@@ -325,18 +346,16 @@ export interface SessionInvitedPayload {
   sessionId: string;
   sessionTitle: string;
   inviterName: string;
-  role: "candidate" | "interviewer";
+  role: string;
   joinUrl: string;
   expiresAt: string;
 }
 
 /** Событие "code_runner.status": статус прогона тестов */
-export type CodeRunnerExecutionStatus = "success" | "failed" | "timeout" | "memory_limit";
-
 export interface CodeRunnerStatusPayload {
   taskId: string;
   sessionId: string;
-  status: CodeRunnerExecutionStatus;
+  status: string;
   passedCount: number;
   totalCount: number;
   executionTimeMs: number;
@@ -354,20 +373,29 @@ export interface AIReportReadyPayload {
 /** Событие "account.updated": изменение баланса токенов/тарифа */
 export interface AccountUpdatedPayload {
   remainingCredits: number;
-  plan: "free" | "pro" | "enterprise";
+  plan: string;
   reason?: string;
 }
 
-/** Событие "system.broadcast": системные алерты */
+/** Событие "system.broadcast": системные оповещения */
 export interface SystemBroadcastPayload {
-  severity: "info" | "warning" | "critical";
+  severity: NotificationSeverity;
   message: string;
   maintenanceWindow?: {
     startsAt: string;
     endsAt: string;
   };
 }
+
+/** Событие "auth.revoked": причина разрыва потока при отзыве авторизации */
+export interface AuthRevokedPayload {
+  reason: string;
+}
 ```
+
+Значения `role`, `status` и `plan` в словаре описаны как строки, а не как закрытые перечисления: их наполняют продюсеры, которые ещё не написаны (`session.invited`, `code_runner.status`, `account.updated` не имеют продюсеров на 02.10.2026). Сузить их до unions следует вместе с появлением продюсера, а не заранее: пересечение со словарём проверяется Zod-схемой на границе публикации, а не догадкой в документации.
+
+Значения `session.invited.role` и `account.updated.plan`, описанные в предыдущей редакции этого документа как закрытые перечисления, сузить до unions следует вместе с появлением продюсера этих событий.
 
 ---
 

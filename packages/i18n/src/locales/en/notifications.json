@@ -1,0 +1,20 @@
+{
+  "events": {
+    "system.welcome": {
+      "title": "Welcome",
+      "message": "Complete your profile to start matching interviews."
+    },
+    "interview.match_proposed": {
+      "title": "Slot proposed",
+      "message": "{{senderName}} proposed an interview at {{proposedStartUtc}}."
+    },
+    "interview.slot_booked": {
+      "title": "Slot confirmed",
+      "message": "{{otherParticipantName}} confirmed the interview at {{startUtc}}."
+    }
+  },
+  "fallback": {
+    "title": "Notification",
+    "message": "Something was updated"
+  }
+}

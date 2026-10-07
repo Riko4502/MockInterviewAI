@@ -57,6 +57,28 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(() => Number(process.env.PORT ?? 8443)),
+  // Push-консьюмер очереди уведомлений (ADR-004:113). В dev переменная
+  // необязательна, чтобы бот поднимался без брокера; в проде отсутствие
+  // RABBITMQ_URL означало бы, что push-доставка молча выключена.
+  RABBITMQ_URL: z
+    .string()
+    .refine((value) => {
+      try {
+        const { protocol } = new URL(value);
+        return protocol === "amqp:" || protocol === "amqps:";
+      } catch {
+        return false;
+      }
+    }, "RABBITMQ_URL должен быть корректным amqp(s)-URL")
+    .optional(),
+  RABBITMQ_QUEUE_NOTIFICATIONS: z
+    .string()
+    .min(1)
+    .default("telegram.notifications"),
+  // Сколько сообщений берётся из очереди без ack. Небольшое значение держит
+  // в памяти одну реплику бота: при prefetch больше десятка ретраи occupy
+  // канал и не дают доставить остальные сообщения.
+  RABBITMQ_PREFETCH: z.coerce.number().int().positive().default(10),
   NODE_ENV: z.string().min(1).default("development"),
 });
 
@@ -83,6 +105,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): Env {
     ...raw,
     TELEGRAM_WEBHOOK_URL: toOptional(raw.TELEGRAM_WEBHOOK_URL),
     TELEGRAM_WEBHOOK_SECRET: toOptional(raw.TELEGRAM_WEBHOOK_SECRET),
+    RABBITMQ_URL: toOptional(raw.RABBITMQ_URL),
   });
 
   if (!result.success) {
@@ -99,6 +122,13 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(
       "TELEGRAM_WEBHOOK_SECRET обязателен при заданном TELEGRAM_WEBHOOK_URL",
     );
+  }
+
+  if (
+    result.data.NODE_ENV === "production" &&
+    result.data.RABBITMQ_URL === undefined
+  ) {
+    throw new Error("RABBITMQ_URL обязателен в production");
   }
 
   return result.data;

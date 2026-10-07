@@ -357,14 +357,33 @@ data: {"id":"1724500001000-0","type":"session.invited","timestamp":"2024-08-24T1
 
 ## 9. Справочник типов SSE-событий платформы
 
+Словарь типов и форм payload хранится в `packages/dto/src/realtime/sse-event.dto.ts`
+и является источником правды (ADR-004:86). Go-константы имён событий
+генерируются из него генератором `pnpm --filter @packages/dto run generate:go`,
+актуальность артефакта проверяет CI. Клиент импортирует Zod-схемы payload оттуда
+же, а CLI `scripts/send-sse.mjs` строит кадр по тем же схемам, поэтому ручное
+расхождение с таблицей означает расхождение со словарём, а не наоборот.
+`apps/realtime` имя события не проверяет и пересылает payload как есть.
+
 | Тип события (`event:`) | Инициатор (Producer) | Описание | Payload DTO |
 |---|---|---|---|
-| `notification.new` | `apps/api` | Новое персональное уведомление (колокольчик/тост) | `id`, `title`, `message`, `category`, `actionUrl` |
+| `notification.new` | `apps/api` | Новое персональное уведомление (колокольчик/тост) | `id`, `category`, `severity?`, `title`, `message`, `actionUrl`, `createdAt`, `read` |
 | `notification.badge` | `apps/api` | Обновление счетчика непрочитанных | `unreadCount` |
-| `session.invited` | `apps/api` | Приглашение в активную комнату собеседования | `sessionId`, `sessionTitle`, `inviterName`, `joinUrl` |
-| `code_runner.status` | `apps/code-runner` | Статус фонового запуска автотестов кандидата | `taskId`, `status` ("running"/"passed"/"failed"), `passedCount`, `totalCount` |
-| `ai.report_ready` | `apps/realtime` / AI Worker | Готовность итогового аналитического отчета | `sessionId`, `reportId`, `score`, `reportUrl` |
-| `system.broadcast` | Redis Pub/Sub | Общесистемное оповещение (техработы) | `severity` ("info"/"warn"/"crit"), `message` |
+| `session.invited` | `apps/api` | Приглашение в активную комнату собеседования | `sessionId`, `sessionTitle`, `inviterName`, `role`, `joinUrl`, `expiresAt` |
+| `code_runner.status` | `apps/code-runner` | Статус фонового запуска автотестов кандидата | `taskId`, `sessionId`, `status`, `passedCount`, `totalCount`, `executionTimeMs` |
+| `ai.report_ready` | AI Worker | Готовность итогового аналитического отчета | `sessionId`, `reportId`, `score`, `summary`, `reportUrl` |
+| `account.updated` | `apps/api` | Смена баланса кредитов / тарифа | `remainingCredits`, `plan`, `reason?` |
+| `system.broadcast` | CLI `scripts/send-sse.mjs` (CLI пишет в Redis Pub/Sub, hub рассылает его всем вкладкам) | Общесистемное оповещение (техработы) | `severity` (`info`/`success`/`warning`/`error`), `message`, `maintenanceWindow?` |
+| `auth.revoked` | `apps/realtime` по каналу `auth:revocations` | Разрыв потока при отзыве авторизации | `reason` |
+
+`ping` в таблице не значится намеренно: это SSE-комментарий `": ping <timestamp>\n\n"`, а не событие — у него нет ни `event:`, ни payload, и клиентский парсер его игнорирует.
+
+Продюсеры на 02.10.2026: `notification.new` и `notification.badge` публикует
+`apps/api` (`NotificationsService.publishNotificationEvent`), `auth.revoked`
+формирует realtime-хаб, `system.broadcast` — CLI. У `session.invited`,
+`code_runner.status`, `ai.report_ready` и `account.updated` продюсеров пока нет:
+события описаны в словаре как контракт, чтобы их появление не изменило форму
+кадра задним числом.
 
 ---
 
@@ -376,11 +395,12 @@ data: {"id":"1724500001000-0","type":"session.invited","timestamp":"2024-08-24T1
 Продюсер формирует JSON и делает `XADD` в Redis Stream целевого пользователя:
 ```go
 payload := map[string]any{
-    "taskId":      taskID,
-    "sessionId":   sessionID,
-    "status":      "passed",
-    "passedCount": 15,
-    "totalCount":  15,
+    "taskId":           taskID,
+    "sessionId":        sessionID,
+    "status":           "passed",
+    "passedCount":      15,
+    "totalCount":       15,
+    "executionTimeMs":  812,
 }
 payloadBytes, _ := json.Marshal(payload)
 
@@ -492,13 +512,20 @@ The Go consumer reads `payload`; `Envelope.Frame()` sends this envelope
 in SSE `data:`:
 
 ```json
-{"id":"1724500000000-0","type":"notification.new","timestamp":"2024-08-24T11:46:40Z","payload":{"id":"notification-id","title":"Test SSE","message":"Notification delivered"}}
+{"id":"1724500000000-0","type":"notification.new","timestamp":"2024-08-24T11:46:40Z","payload":{"id":"notification-id","category":"SYSTEM","title":"Test SSE","message":"Notification delivered","actionUrl":null,"createdAt":"2024-08-24T11:46:39Z","read":false}}
 ```
 
 The outer `id` is the Redis Stream cursor; `payload.id` identifies the notification.
 Frontend validates `type` and `payload.id/title/message`. Invalid JSON/payload
 is ignored with a development-only warning containing the event type and Zod
 issues, without logging the notification body.
+
+`pnpm sse:send` builds the frame from the same dictionary and validates it with
+`parseSseEventPayload` before publishing, so `--category`, `--severity` and the
+event type cannot drift from the contract. `notification.new`,
+`notification.badge` and `system.broadcast` are built from flags; every other
+event type requires `--raw '<json>'`. It requires `pnpm build:dto`, because the
+script loads the dictionary from the built package.
 
 `pnpm sse:send` writes only to Redis, not PostgreSQL. An empty GET /notifications
 is expected after a CLI event. Refetching unread-count can reset the immediate

@@ -11,5 +11,9 @@
  */
 
 export interface UnreadMatchRequestsCountDto {
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
   pendingCount: number;
 }

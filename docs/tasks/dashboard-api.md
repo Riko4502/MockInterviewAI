@@ -128,6 +128,7 @@ sequenceDiagram
         LMSvc-->>Ctrl: { status: 'MATCHED', sessionId }
         Ctrl-->>CandidateA: 200 OK { status: 'MATCHED', sessionId }
         Note over CandidateA, CandidateB: Оба получают переход в активную сессию интервью
+        Note over CandidateB: PUBLISH никем не читается: канал live_match:notify<br/>не имеет подписчика, CandidateB узнаёт о спаривании при следующем<br/>запросе дашборда (см. п. 4.2 и ADR-004)
     end
 ```
 
@@ -444,6 +445,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
   - При нахождении партнера создается сессия в БД через транзакцию `prisma.$transaction` со статусом `ACTIVE` (инициатор — `CANDIDATE`, партнер — `INTERVIEWER`).
   - Сервис прогревает зеркало сессии в Redis для Go realtime service (`session:{id}:active = true`, `session:{id}:members`, `session:{id}:invite`).
   - Партнеру отправляется Pub/Sub уведомление через Redis-канал `PUBLISH live_match:notify:{partnerId} {sessionId}`.
+  - **Ограничение контракта, проверено 02.10.2026:** подписчика этого канала нет ни в `apps/api`, ни в `apps/realtime`, ни в `apps/telegram-bot`, поэтому уведомление не доставляется никому — партнёр узнаёт о спаривании только при следующем запросе данных дашборда. Это тот же write-only контракт, который был удалён у `matchmaking:events` (ADR-004, фаза 3); замена — `NotificationDispatcher` и outbox (ADR-003) с событием в общем словаре.
 
 ### 4.3 Алгоритм выбора задачи дня (`DailyChallenge`)
 * На входе: системный список алгоритмических задач из базы.
@@ -465,7 +467,7 @@ export function calculateStreakFromDates(activityDates: Date[], clientTimeZone =
 | `cache:dashboard:insights:{userId}` | String (JSON) | 30 мин | Добавление фидбека по сессии |
 | `cache:dashboard:showcase:{userId}` | String (JSON) | 60 сек | Обновление анкеты, нажатие `bump` |
 | `live_queue:{spec}:{level}` | Sorted Set (ZSET: userId, score=ms) | 600 сек (ключ), 5 мин (активность заявки) | Отмена поиска, нахождение пары, таймаут (`zremrangebyscore`) |
-| `live_match:notify:{userId}` | Pub/Sub Channel | — | Уведомление партнера о создании сессии при Live Match |
+| `live_match:notify:{userId}` | Pub/Sub Channel | — | Уведомление партнера о создании сессии при Live Match. Канал не читается ни одним сервисом: запись есть, консьюмера нет, доставки не происходит (ADR-004) |
 
 
 ---

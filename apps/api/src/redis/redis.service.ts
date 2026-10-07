@@ -426,7 +426,8 @@ end
    * Событие сохраняется в формате:
    *
    * type: <event type>
-   * data: <JSON payload>
+   * payload: <JSON payload>
+   * timestamp: <RFC 3339>
    *
    * Опционально ограничивает длину стрима через
    * `MAXLEN ~` и выставляет TTL на ключ.
@@ -439,6 +440,11 @@ end
    * @param data - Payload события.
    * @param maxLength - Максимальная примерная длина стрима.
    * @param ttlSeconds - TTL стрима в секундах (опционально).
+   * @param timestamp - Время события в формате RFC 3339 (опционально).
+   * Читается `apps/realtime` при доставке. Поле необязательное, потому что
+   * `parseTimestamp` восстанавливает время по ID записи, но любой новый
+   * producer' должен его передавать: иначе контракт из ADR-004:44
+   * выполняется только наполовину.
    * @returns ID созданной записи Redis Stream.
    * @throws {Error} При ошибке Redis.
    */
@@ -448,9 +454,9 @@ end
     data: unknown,
     maxLength = 100,
     ttlSeconds?: number,
+    timestamp?: string,
   ): Promise<string | null> {
-    const id = await this.client.xadd(
-      stream,
+    const fields: (string | number)[] = [
       "MAXLEN",
       "~",
       maxLength,
@@ -459,7 +465,13 @@ end
       type,
       "payload",
       JSON.stringify(data),
-    );
+    ];
+
+    if (timestamp !== undefined) {
+      fields.push("timestamp", timestamp);
+    }
+
+    const id = await this.client.xadd(stream, ...fields);
 
     if (ttlSeconds !== undefined) {
       await this.client.expire(stream, ttlSeconds);

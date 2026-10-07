@@ -9,7 +9,7 @@ import (
 func TestEnvelopeFrameFormat(t *testing.T) {
 	env, err := NewEnvelope("1724500000000-0", EventNotificationNew, NotificationNewPayload{
 		ID:       "ntf_1",
-		Category: CategoryInfo,
+		Severity: SeverityInfo,
 		Title:    "Приглашение",
 		Message:  "Вас пригласили на интервью",
 		Read:     false,

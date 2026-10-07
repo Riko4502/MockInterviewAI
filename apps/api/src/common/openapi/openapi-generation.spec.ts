@@ -19,10 +19,34 @@ const REQUIRED_MOCK_ENV: Record<string, string> = {
   REFRESH_TOKEN_HASH_SECRET: "mock-test-refresh-hash-secret-at-least-32-chars",
 };
 
+/**
+ * Свойство компонентной схемы как `SchemaObject`.
+ *
+ * `SchemaObject.properties` типизирован как `Record<string, SchemaObject |
+ * ReferenceObject>`, потому что в OpenAPI свойство может быть ссылкой. Здесь
+ * проверяется форма обёртки, а не ссылки, поэтому `$ref` считается ошибкой
+ * контракта, а не поводом молча пропустить проверку.
+ */
+function propertySchema(
+  schema: SchemaObject | undefined,
+  name: string,
+): SchemaObject {
+  const property = schema?.properties?.[name];
+  if (!property || "$ref" in property) {
+    throw new Error(`Expected an inline schema for property "${name}"`);
+  }
+  return property;
+}
+
 describe("OpenAPI Generation & Contract Verification (T030)", () => {
   let app: INestApplication;
   let document: OpenAPIObject;
   const envRestorations = new Map<string, string | undefined>();
+
+  // Хук поднимает весь AppModule, а не один модуль: только этот спек
+  // проверяет документ целиком. Стандартных 30 с не хватает даже на CI, где
+  // ts-jest компилирует приложение с нуля.
+  const APP_BOOT_TIMEOUT_MS = 120_000;
 
   beforeAll(async () => {
     for (const [key, value] of Object.entries(REQUIRED_MOCK_ENV)) {
@@ -50,7 +74,7 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
     await app.init();
 
     document = buildOpenApiDocument(app);
-  });
+  }, APP_BOOT_TIMEOUT_MS);
 
   afterAll(async () => {
     if (app) {
@@ -63,7 +87,7 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
         process.env[key] = originalValue;
       }
     }
-  });
+  }, APP_BOOT_TIMEOUT_MS);
 
   describe("Базовая структура и метаданные документа", () => {
     it("содержит валидную версию OpenAPI и базовую информацию", () => {
@@ -118,6 +142,12 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       "ValidationErrorResponseDto",
       "CreateSessionResponseDto",
       "AddParticipantDto",
+      "ShowcaseCardResponseDto",
+      "ShowcaseCardListDto",
+      "PaginatedShowcaseCardsDto",
+      "MatchRequestResponseDto",
+      "PaginatedMatchRequestResponseDto",
+      "UnreadMatchRequestsCountDto",
     ];
 
     it.each(expectedSchemas)("содержит схему %s", (schemaName) => {
@@ -190,6 +220,75 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       expect(op.responses["400"]).toBeDefined();
       expect(op.responses["401"]).toBeDefined();
       expect(op.responses["429"]).toBeDefined();
+    });
+
+    it("GET /api/v1/showcase: возвращает 200 (PaginatedShowcaseCardsDto) с непустой схемой", () => {
+      const op = document.paths["/api/v1/showcase"]?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/PaginatedShowcaseCardsDto",
+      );
+
+      // Схема без `data`/`meta` описала бы пагинацию словами: именно форма
+      // обёртки проверяется здесь, иначе типизированный клиент по эндпоинту
+      // снова станет `Promise<void>` (ADR-003:102).
+      const paginated = document.components?.schemas
+        ?.PaginatedShowcaseCardsDto as SchemaObject;
+      expect(propertySchema(paginated, "data").type).toBe("array");
+      const meta = propertySchema(paginated, "meta");
+      expect(propertySchema(meta, "hasPrevPage").type).toBe("boolean");
+      expect(propertySchema(meta, "hasNextPage").type).toBe("boolean");
+    });
+
+    it("GET /api/v1/showcase/my: возвращает 200 массивом карточек", () => {
+      const op = document.paths["/api/v1/showcase/my"]?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/ShowcaseCardListDto");
+    });
+
+    it("GET /api/v1/showcase/{id}: возвращает 200 (ShowcaseCardResponseDto) и 404", () => {
+      const op = document.paths["/api/v1/showcase/{id}"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/ShowcaseCardResponseDto");
+      expect(op.responses["404"]).toBeDefined();
+    });
+
+    it("GET /api/v1/matchmaking/requests/unread-count: возвращает 200 (UnreadMatchRequestsCountDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/unread-count"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/UnreadMatchRequestsCountDto",
+      );
+    });
+
+    it("GET /api/v1/matchmaking/requests/incoming: возвращает 200 (PaginatedMatchRequestResponseDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/incoming"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/PaginatedMatchRequestResponseDto",
+      );
+    });
+
+    it("POST /api/v1/matchmaking/requests/{id}/accept: возвращает 200 (MatchRequestResponseDto)", () => {
+      const op = document.paths["/api/v1/matchmaking/requests/{id}/accept"]
+        ?.post as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe("#/components/schemas/MatchRequestResponseDto");
     });
   });
 

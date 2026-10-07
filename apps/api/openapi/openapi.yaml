@@ -89,7 +89,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CompleteOnboardingDto"
       responses:
-        "200":
+        "201":
           description: Онбординг успешно завершен, профиль обновлен
           content:
             application/json:
@@ -646,6 +646,123 @@ paths:
         - bearer: []
       summary: Привязка Telegram аккаунта
       tags: *a3
+  /api/v1/notifications:
+    get:
+      operationId: NotificationsController_getNotifications
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number. Minimum value is 1.
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: "Number of notifications per page. Allowed range: 1–100."
+        - name: category
+          required: false
+          in: query
+          description: Notification category. Omit to include all categories.
+          schema:
+            enum:
+              - SYSTEM
+              - INTERVIEW
+              - MESSAGE
+            type: string
+      responses:
+        "200":
+          description: Paginated notifications list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationsListDto"
+        "400":
+          description: Invalid pagination or category parameters
+      security: &a4
+        - bearer: []
+      summary: Get user notifications
+      tags: &a5
+        - Notifications
+  /api/v1/notifications/unread-count:
+    get:
+      operationId: NotificationsController_getUnreadCount
+      parameters: []
+      responses:
+        "200":
+          description: Unread notifications count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadNotificationsCountDto"
+      security: *a4
+      summary: Get unread notifications count
+      tags: *a5
+  /api/v1/notifications/read-all:
+    post:
+      operationId: NotificationsController_markAllAsRead
+      parameters: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationActionResponseDto"
+      security: *a4
+      summary: Mark all notifications as read
+      tags: *a5
+  /api/v1/notifications/{id}/read:
+    patch:
+      operationId: NotificationsController_markAsRead
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationActionResponseDto"
+        "404":
+          description: Notification not found
+      security: *a4
+      summary: Mark notification as read
+      tags: *a5
+  /api/v1/notifications/{id}:
+    delete:
+      operationId: NotificationsController_markAsDeleted
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Notification deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationActionResponseDto"
+        "404":
+          description: Notification not found
+      security: *a4
+      summary: Delete notification
+      tags: *a5
   /api/v1/admin/users:
     get:
       operationId: AdminUsersController_getUsersList
@@ -719,10 +836,10 @@ paths:
           description: Не авторизован
         "403":
           description: Доступ запрещен (недостаточно прав)
-      security: &a4
+      security: &a6
         - bearer: []
       summary: Получить пагинированный список пользователей с фильтрами и поиском
-      tags: &a5
+      tags: &a7
         - Admin / Users
     post:
       operationId: AdminUsersController_createUser
@@ -749,9 +866,9 @@ paths:
           description: Доступ запрещен
         "409":
           description: Email или username уже заняты
-      security: *a4
+      security: *a6
       summary: Создать нового пользователя администратором
-      tags: *a5
+      tags: *a7
   /api/v1/admin/users/{id}:
     get:
       operationId: AdminUsersController_getUserById
@@ -776,9 +893,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security: *a6
       summary: Получить детальную информацию о пользователе со статистикой
-      tags: *a5
+      tags: *a7
     patch:
       operationId: AdminUsersController_updateUser
       parameters:
@@ -813,9 +930,9 @@ paths:
           description: Пользователь не найден
         "409":
           description: Email или username уже заняты
-      security: *a4
+      security: *a6
       summary: Обновить данные и/или роль пользователя
-      tags: *a5
+      tags: *a7
     delete:
       operationId: AdminUsersController_deleteUser
       parameters:
@@ -841,9 +958,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security: *a6
       summary: Удалить (деактивировать) пользователя администратором
-      tags: *a5
+      tags: *a7
   /api/v1/admin/users/{id}/status:
     patch:
       operationId: AdminUsersController_updateStatus
@@ -877,9 +994,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security: *a6
       summary: Активировать или деактивировать аккаунт пользователя
-      tags: *a5
+      tags: *a7
   /api/v1/admin/users/{id}/reset-password:
     post:
       operationId: AdminUsersController_resetPassword
@@ -904,9 +1021,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security: *a6
       summary: Сбросить пароль пользователя и сгенерировать временный
-      tags: *a5
+      tags: *a7
   /api/v1/admin/users/{id}/restore:
     post:
       operationId: AdminUsersController_restoreUser
@@ -933,9 +1050,9 @@ paths:
           description: Доступ запрещен
         "404":
           description: Пользователь не найден
-      security: *a4
+      security: *a6
       summary: Восстановить удаленного пользователя администратором
-      tags: *a5
+      tags: *a7
   /api/v1/dashboard/upcoming:
     get:
       operationId: DashboardController_getUpcoming
@@ -947,10 +1064,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UpcomingSessionResponseDto"
-      security: &a6
+      security: &a8
         - bearer: []
       summary: Получить ближайшее запланированное или активное интервью
-      tags: &a7
+      tags: &a9
         - Dashboard
   /api/v1/dashboard/readiness:
     get:
@@ -963,9 +1080,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardReadinessResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить процент готовности профиля и статус шагов онбординга
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/daily-challenge:
     get:
       operationId: DashboardController_getDailyChallenge
@@ -977,9 +1094,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DailyChallengeResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить сегодняшнюю задачу дня по алгоритмам
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/live-match/toggle:
     post:
       operationId: DashboardController_toggleLiveMatch
@@ -998,9 +1115,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LiveMatchStatusResponseDto"
-      security: *a6
+      security: *a8
       summary: Включить или выключить режим мгновенного поиска напарника
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/match-requests:
     get:
       operationId: DashboardController_getMatchRequests
@@ -1019,9 +1136,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardMatchRequestsResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить входящие запросы на собеседование с витрины
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/stats:
     get:
       operationId: DashboardController_getStats
@@ -1033,9 +1150,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardStatsResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить сводные показатели активности и стрик кандидата
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/recent-sessions:
     get:
       operationId: DashboardController_getRecentSessions
@@ -1054,9 +1171,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecentSessionsResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить список последних завершенных интервью
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/insights:
     get:
       operationId: DashboardController_getInsights
@@ -1068,9 +1185,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardInsightsResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить рекомендации AI по зонам роста на основе прошлых интервью
-      tags: *a7
+      tags: *a9
   /api/v1/dashboard/showcase-status:
     get:
       operationId: DashboardController_getShowcaseStatus
@@ -1082,9 +1199,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ShowcaseStatusResponseDto"
-      security: *a6
+      security: *a8
       summary: Получить статус анкеты на витрине поиска напарников
-      tags: *a7
+      tags: *a9
   /api/v1/sessions:
     post:
       operationId: SessionsController_createSession
@@ -1098,10 +1215,10 @@ paths:
                 $ref: "#/components/schemas/CreateSessionResponseDto"
         "401":
           description: Не авторизован
-      security: &a8
+      security: &a10
         - bearer: []
       summary: Создать новую интервью-сессию
-      tags: &a9
+      tags: &a11
         - Sessions
   /api/v1/sessions/{id}/join:
     post:
@@ -1135,9 +1252,9 @@ paths:
             участником)
         "404":
           description: Сессия не найдена
-      security: *a8
+      security: *a10
       summary: Присоединиться к интервью-сессии
-      tags: *a9
+      tags: *a11
   /api/v1/sessions/{id}/participants:
     post:
       operationId: SessionsController_addParticipant
@@ -1167,9 +1284,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a8
+      security: *a10
       summary: Добавить участника в сессию
-      tags: *a9
+      tags: *a11
   /api/v1/sessions/{id}/participants/{userId}:
     delete:
       operationId: SessionsController_removeParticipant
@@ -1197,9 +1314,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия или участник не найдены
-      security: *a8
+      security: *a10
       summary: Удалить участника из сессии
-      tags: *a9
+      tags: *a11
   /api/v1/sessions/{id}/close:
     post:
       operationId: SessionsController_closeSession
@@ -1220,9 +1337,9 @@ paths:
           description: Доступ запрещен (не владелец)
         "404":
           description: Сессия не найдена
-      security: *a8
+      security: *a10
       summary: Закрыть интервью-сессию
-      tags: *a9
+      tags: *a11
   /api/v1/sessions/{id}/rotate-invite:
     post:
       operationId: SessionsController_rotateInviteToken
@@ -1247,9 +1364,9 @@ paths:
           description: Доступ запрещен (не владелец или сессия закрыта)
         "404":
           description: Сессия не найдена
-      security: *a8
+      security: *a10
       summary: Ротировать инвайт-токен сессии
-      tags: *a9
+      tags: *a11
   /api/v1/realtime/ticket:
     post:
       operationId: RealtimeController_getTicket
@@ -1276,10 +1393,10 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: &a10
+      security: &a12
         - bearer: []
       summary: Выдать одноразовый тикет для подключения к WebSocket комнате
-      tags: &a11
+      tags: &a13
         - Realtime
   /api/v1/realtime/media-token:
     post:
@@ -1307,125 +1424,8 @@ paths:
           description: Сессия не активна или пользователь не является участником
         "429":
           description: Превышен лимит запросов (rate limit)
-      security: *a10
+      security: *a12
       summary: Выдать LiveKit join-токен для WebRTC медиа
-      tags: *a11
-  /api/v1/notifications:
-    get:
-      operationId: NotificationsController_getNotifications
-      parameters:
-        - name: page
-          required: false
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number. Minimum value is 1.
-        - name: limit
-          required: false
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-          description: "Number of notifications per page. Allowed range: 1–100."
-        - name: category
-          required: false
-          in: query
-          description: Notification category. Omit to include all categories.
-          schema:
-            enum:
-              - SYSTEM
-              - INTERVIEW
-              - MESSAGE
-            type: string
-      responses:
-        "200":
-          description: Paginated notifications list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationsListDto"
-        "400":
-          description: Invalid pagination or category parameters
-      security: &a12
-        - bearer: []
-      summary: Get user notifications
-      tags: &a13
-        - Notifications
-  /api/v1/notifications/unread-count:
-    get:
-      operationId: NotificationsController_getUnreadCount
-      parameters: []
-      responses:
-        "200":
-          description: Unread notifications count
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UnreadNotificationsCountDto"
-      security: *a12
-      summary: Get unread notifications count
-      tags: *a13
-  /api/v1/notifications/read-all:
-    post:
-      operationId: NotificationsController_markAllAsRead
-      parameters: []
-      responses:
-        "200":
-          description: All notifications marked as read
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationActionResponseDto"
-      security: *a12
-      summary: Mark all notifications as read
-      tags: *a13
-  /api/v1/notifications/{id}/read:
-    patch:
-      operationId: NotificationsController_markAsRead
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            format: uuid
-            type: string
-      responses:
-        "200":
-          description: Notification marked as read
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationActionResponseDto"
-        "404":
-          description: Notification not found
-      security: *a12
-      summary: Mark notification as read
-      tags: *a13
-  /api/v1/notifications/{id}:
-    delete:
-      operationId: NotificationsController_markAsDeleted
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            format: uuid
-            type: string
-      responses:
-        "200":
-          description: Notification deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationActionResponseDto"
-        "404":
-          description: Notification not found
-      security: *a12
-      summary: Delete notification
       tags: *a13
   /api/v1/showcase:
     get:
@@ -1511,6 +1511,10 @@ paths:
       responses:
         "200":
           description: Пагинированный список анкет
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedShowcaseCardsDto"
         "400":
           description: Некорректные параметры query
       security: &a14
@@ -1531,6 +1535,10 @@ paths:
       responses:
         "201":
           description: Анкета успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "400":
           description: Не заполнен профиль или превышен лимит 5 анкет
         "409":
@@ -1545,6 +1553,10 @@ paths:
       responses:
         "200":
           description: Список анкет пользователя
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardListDto"
       security: *a14
       summary: Получить анкеты текущего пользователя со статистикой заявок
       tags: *a15
@@ -1562,6 +1574,10 @@ paths:
       responses:
         "200":
           description: Данные анкеты
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "404":
           description: Анкета не найдена
       security: *a14
@@ -1587,6 +1603,10 @@ paths:
       responses:
         "200":
           description: Анкета успешно обновлена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "403":
           description: Недостаточно прав для редактирования
         "404":
@@ -1637,6 +1657,10 @@ paths:
       responses:
         "200":
           description: Статус успешно изменен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "400":
           description: Превышен лимит 5 активных карточек или анкета просрочена
         "403":
@@ -1660,6 +1684,10 @@ paths:
       responses:
         "200":
           description: Анкета поднята в топ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "400":
           description: Не прошёл кулдаун 24 часа или анкета не активна
         "403":
@@ -1683,6 +1711,10 @@ paths:
       responses:
         "200":
           description: Анкета продлена на 15 дней
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "400":
           description: Анкета не в статусе EXPIRED или достигнут лимит 5 анкет
         "403":
@@ -1862,6 +1894,10 @@ paths:
       responses:
         "200":
           description: Заявка успешно отклонена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchRequestResponseDto"
         "400":
           description: Заявка не в статусе ожидания
         "403":
@@ -1885,6 +1921,10 @@ paths:
       responses:
         "200":
           description: Заявка успешно отменена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchRequestResponseDto"
         "400":
           description: Заявка не в статусе ожидания
         "403":
@@ -1914,6 +1954,108 @@ components:
       bearerFormat: JWT
       type: http
   schemas:
+    NotificationsListDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              userId:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              category:
+                type: string
+                enum:
+                  - SYSTEM
+                  - INTERVIEW
+                  - MESSAGE
+              type:
+                type: string
+                minLength: 1
+              payload: {}
+              title:
+                type: string
+              message:
+                type: string
+              actionUrl:
+                nullable: true
+                type: string
+              readAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              deletedAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - userId
+              - category
+              - type
+              - payload
+              - title
+              - message
+              - actionUrl
+              - readAt
+              - deletedAt
+              - createdAt
+              - updatedAt
+        page:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalPages:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - items
+        - page
+        - limit
+        - total
+        - totalPages
+    UnreadNotificationsCountDto:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - count
+    NotificationActionResponseDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
     UserProfileDto:
       type: object
       properties:
@@ -2055,6 +2197,8 @@ components:
           enum:
             - ru
             - en
+        timezone:
+          type: string
     CompleteOnboardingDto:
       type: object
       properties:
@@ -3329,144 +3473,479 @@ components:
       required:
         - status
         - db
-    PublicUserCardDto:
+    UnreadMatchRequestsCountDto:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        displayName:
-          type: string
-          nullable: true
-        username:
-          type: string
-          nullable: true
-        avatarUrl:
-          type: string
-          nullable: true
-        telegramUsername:
-          type: string
-          nullable: true
-        gitUrl:
-          type: string
-          nullable: true
+        pendingCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
       required:
-        - id
-        - displayName
-        - username
-        - avatarUrl
-        - telegramUsername
-        - gitUrl
-    ShowcaseCardResponseDto:
+        - pendingCount
+    CreateMatchRequestDto:
       type: object
       properties:
-        id:
+        targetCardId:
           type: string
           format: uuid
-        userId:
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        senderCardId:
           type: string
           format: uuid
-        user:
-          $ref: "#/components/schemas/PublicUserCardDto"
-        title:
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        slotId:
           type: string
-          nullable: true
-        specialization:
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        message:
           type: string
-          enum:
-            - FRONTEND
-            - BACKEND
-            - FULLSTACK
-            - DEVOPS
-            - QA
-            - MOBILE
-            - DATA_ML
-            - SYSTEM_DESIGN
-        level:
+          maxLength: 300
+        preferredTopic:
           type: string
-          enum:
-            - JUNIOR
-            - MIDDLE
-            - SENIOR
-            - LEAD
-        language:
-          type: string
-          enum:
-            - RU
-            - EN
-            - ANY
-        skills:
-          type: array
-          items:
-            type: string
-        bio:
-          type: string
-          nullable: true
-        scheduleInfo:
-          type: string
-          nullable: true
-        isUrgent:
-          type: boolean
-        status:
-          type: string
-          enum:
-            - ACTIVE
-            - INACTIVE
-            - EXPIRED
-        autoRenew:
-          type: boolean
-        bumpedAt:
-          type: string
-          format: date-time
-        expiresAt:
-          type: string
-          format: date-time
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+          maxLength: 100
       required:
-        - id
-        - userId
-        - user
-        - title
-        - specialization
-        - level
-        - language
-        - skills
-        - bio
-        - scheduleInfo
-        - isUrgent
-        - status
-        - autoRenew
-        - bumpedAt
-        - expiresAt
-        - createdAt
-        - updatedAt
+        - targetCardId
     MatchRequestResponseDto:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         senderId:
           type: string
           format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         receiverId:
           type: string
           format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         sender:
-          $ref: "#/components/schemas/PublicUserCardDto"
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            displayName:
+              nullable: true
+              type: string
+            username:
+              nullable: true
+              type: string
+            avatarUrl:
+              nullable: true
+              type: string
+            telegramUsername:
+              nullable: true
+              type: string
+            gitUrl:
+              nullable: true
+              type: string
+          required:
+            - id
+            - displayName
+            - username
+            - avatarUrl
+            - telegramUsername
+            - gitUrl
         receiver:
-          $ref: "#/components/schemas/PublicUserCardDto"
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            displayName:
+              nullable: true
+              type: string
+            username:
+              nullable: true
+              type: string
+            avatarUrl:
+              nullable: true
+              type: string
+            telegramUsername:
+              nullable: true
+              type: string
+            gitUrl:
+              nullable: true
+              type: string
+          required:
+            - id
+            - displayName
+            - username
+            - avatarUrl
+            - telegramUsername
+            - gitUrl
         targetCard:
-          $ref: "#/components/schemas/ShowcaseCardResponseDto"
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            userId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                displayName:
+                  nullable: true
+                  type: string
+                username:
+                  nullable: true
+                  type: string
+                avatarUrl:
+                  nullable: true
+                  type: string
+                telegramUsername:
+                  nullable: true
+                  type: string
+                gitUrl:
+                  nullable: true
+                  type: string
+              required:
+                - id
+                - displayName
+                - username
+                - avatarUrl
+                - telegramUsername
+                - gitUrl
+            title:
+              nullable: true
+              type: string
+            specialization:
+              type: string
+              enum:
+                - FRONTEND
+                - BACKEND
+                - FULLSTACK
+                - DEVOPS
+                - QA
+                - MOBILE
+                - DATA_ML
+                - SYSTEM_DESIGN
+            level:
+              type: string
+              enum:
+                - JUNIOR
+                - MIDDLE
+                - SENIOR
+                - LEAD
+            language:
+              type: string
+              enum:
+                - RU
+                - EN
+                - ANY
+            skills:
+              type: array
+              items:
+                type: string
+            bio:
+              nullable: true
+              type: string
+            scheduleInfo:
+              nullable: true
+              type: string
+            slots:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
+            isUrgent:
+              type: boolean
+            status:
+              type: string
+              enum:
+                - ACTIVE
+                - INACTIVE
+                - EXPIRED
+            autoRenew:
+              type: boolean
+            bumpedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            expiresAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            createdAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            updatedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            stats:
+              type: object
+              properties:
+                pendingRequestsCount:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                acceptedRequestsCount:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+              required:
+                - pendingRequestsCount
+                - acceptedRequestsCount
+          required:
+            - id
+            - userId
+            - user
+            - title
+            - specialization
+            - level
+            - language
+            - skills
+            - bio
+            - scheduleInfo
+            - slots
+            - isUrgent
+            - status
+            - autoRenew
+            - bumpedAt
+            - expiresAt
+            - createdAt
+            - updatedAt
         senderCard:
-          allOf:
-            - $ref: "#/components/schemas/ShowcaseCardResponseDto"
           nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            userId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                displayName:
+                  nullable: true
+                  type: string
+                username:
+                  nullable: true
+                  type: string
+                avatarUrl:
+                  nullable: true
+                  type: string
+                telegramUsername:
+                  nullable: true
+                  type: string
+                gitUrl:
+                  nullable: true
+                  type: string
+              required:
+                - id
+                - displayName
+                - username
+                - avatarUrl
+                - telegramUsername
+                - gitUrl
+            title:
+              nullable: true
+              type: string
+            specialization:
+              type: string
+              enum:
+                - FRONTEND
+                - BACKEND
+                - FULLSTACK
+                - DEVOPS
+                - QA
+                - MOBILE
+                - DATA_ML
+                - SYSTEM_DESIGN
+            level:
+              type: string
+              enum:
+                - JUNIOR
+                - MIDDLE
+                - SENIOR
+                - LEAD
+            language:
+              type: string
+              enum:
+                - RU
+                - EN
+                - ANY
+            skills:
+              type: array
+              items:
+                type: string
+            bio:
+              nullable: true
+              type: string
+            scheduleInfo:
+              nullable: true
+              type: string
+            slots:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
+            isUrgent:
+              type: boolean
+            status:
+              type: string
+              enum:
+                - ACTIVE
+                - INACTIVE
+                - EXPIRED
+            autoRenew:
+              type: boolean
+            bumpedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            expiresAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            createdAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            updatedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            stats:
+              type: object
+              properties:
+                pendingRequestsCount:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                acceptedRequestsCount:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+              required:
+                - pendingRequestsCount
+                - acceptedRequestsCount
+          required:
+            - id
+            - userId
+            - user
+            - title
+            - specialization
+            - level
+            - language
+            - skills
+            - bio
+            - scheduleInfo
+            - slots
+            - isUrgent
+            - status
+            - autoRenew
+            - bumpedAt
+            - expiresAt
+            - createdAt
+            - updatedAt
+        slot:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            startsAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            durationMinutes:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            status:
+              type: string
+              enum:
+                - OPEN
+                - BOOKED
+                - CANCELLED
+          required:
+            - id
+            - startsAt
+            - durationMinutes
+            - status
+        sessionId:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        sessionStatus:
+          nullable: true
+          type: string
+          enum:
+            - CREATED
+            - ACTIVE
+            - CLOSED
         status:
           type: string
           enum:
@@ -3475,35 +3954,27 @@ components:
             - REJECTED
             - CANCELLED
             - EXPIRED
-        sessionId:
-          type: string
-          format: uuid
-          nullable: true
-        sessionStatus:
-          type: string
-          enum:
-            - CREATED
-            - ACTIVE
-            - CLOSED
-          nullable: true
         message:
-          type: string
           nullable: true
+          type: string
         preferredTopic:
-          type: string
           nullable: true
+          type: string
         rejectReason:
-          type: string
           nullable: true
+          type: string
         createdAt:
           type: string
           format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         updatedAt:
           type: string
           format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
         expiresAt:
           type: string
           format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       required:
         - id
         - senderId
@@ -3512,8 +3983,10 @@ components:
         - receiver
         - targetCard
         - senderCard
-        - status
+        - slot
         - sessionId
+        - sessionStatus
+        - status
         - message
         - preferredTopic
         - rejectReason
@@ -3526,18 +3999,514 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/MatchRequestResponseDto"
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              senderId:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              receiverId:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              sender:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  displayName:
+                    nullable: true
+                    type: string
+                  username:
+                    nullable: true
+                    type: string
+                  avatarUrl:
+                    nullable: true
+                    type: string
+                  telegramUsername:
+                    nullable: true
+                    type: string
+                  gitUrl:
+                    nullable: true
+                    type: string
+                required:
+                  - id
+                  - displayName
+                  - username
+                  - avatarUrl
+                  - telegramUsername
+                  - gitUrl
+              receiver:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  displayName:
+                    nullable: true
+                    type: string
+                  username:
+                    nullable: true
+                    type: string
+                  avatarUrl:
+                    nullable: true
+                    type: string
+                  telegramUsername:
+                    nullable: true
+                    type: string
+                  gitUrl:
+                    nullable: true
+                    type: string
+                required:
+                  - id
+                  - displayName
+                  - username
+                  - avatarUrl
+                  - telegramUsername
+                  - gitUrl
+              targetCard:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  userId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      displayName:
+                        nullable: true
+                        type: string
+                      username:
+                        nullable: true
+                        type: string
+                      avatarUrl:
+                        nullable: true
+                        type: string
+                      telegramUsername:
+                        nullable: true
+                        type: string
+                      gitUrl:
+                        nullable: true
+                        type: string
+                    required:
+                      - id
+                      - displayName
+                      - username
+                      - avatarUrl
+                      - telegramUsername
+                      - gitUrl
+                  title:
+                    nullable: true
+                    type: string
+                  specialization:
+                    type: string
+                    enum:
+                      - FRONTEND
+                      - BACKEND
+                      - FULLSTACK
+                      - DEVOPS
+                      - QA
+                      - MOBILE
+                      - DATA_ML
+                      - SYSTEM_DESIGN
+                  level:
+                    type: string
+                    enum:
+                      - JUNIOR
+                      - MIDDLE
+                      - SENIOR
+                      - LEAD
+                  language:
+                    type: string
+                    enum:
+                      - RU
+                      - EN
+                      - ANY
+                  skills:
+                    type: array
+                    items:
+                      type: string
+                  bio:
+                    nullable: true
+                    type: string
+                  scheduleInfo:
+                    nullable: true
+                    type: string
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        startsAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        durationMinutes:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - OPEN
+                            - BOOKED
+                            - CANCELLED
+                      required:
+                        - id
+                        - startsAt
+                        - durationMinutes
+                        - status
+                  isUrgent:
+                    type: boolean
+                  status:
+                    type: string
+                    enum:
+                      - ACTIVE
+                      - INACTIVE
+                      - EXPIRED
+                  autoRenew:
+                    type: boolean
+                  bumpedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  createdAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  stats:
+                    type: object
+                    properties:
+                      pendingRequestsCount:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      acceptedRequestsCount:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - pendingRequestsCount
+                      - acceptedRequestsCount
+                required:
+                  - id
+                  - userId
+                  - user
+                  - title
+                  - specialization
+                  - level
+                  - language
+                  - skills
+                  - bio
+                  - scheduleInfo
+                  - slots
+                  - isUrgent
+                  - status
+                  - autoRenew
+                  - bumpedAt
+                  - expiresAt
+                  - createdAt
+                  - updatedAt
+              senderCard:
+                nullable: true
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  userId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      displayName:
+                        nullable: true
+                        type: string
+                      username:
+                        nullable: true
+                        type: string
+                      avatarUrl:
+                        nullable: true
+                        type: string
+                      telegramUsername:
+                        nullable: true
+                        type: string
+                      gitUrl:
+                        nullable: true
+                        type: string
+                    required:
+                      - id
+                      - displayName
+                      - username
+                      - avatarUrl
+                      - telegramUsername
+                      - gitUrl
+                  title:
+                    nullable: true
+                    type: string
+                  specialization:
+                    type: string
+                    enum:
+                      - FRONTEND
+                      - BACKEND
+                      - FULLSTACK
+                      - DEVOPS
+                      - QA
+                      - MOBILE
+                      - DATA_ML
+                      - SYSTEM_DESIGN
+                  level:
+                    type: string
+                    enum:
+                      - JUNIOR
+                      - MIDDLE
+                      - SENIOR
+                      - LEAD
+                  language:
+                    type: string
+                    enum:
+                      - RU
+                      - EN
+                      - ANY
+                  skills:
+                    type: array
+                    items:
+                      type: string
+                  bio:
+                    nullable: true
+                    type: string
+                  scheduleInfo:
+                    nullable: true
+                    type: string
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        startsAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        durationMinutes:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - OPEN
+                            - BOOKED
+                            - CANCELLED
+                      required:
+                        - id
+                        - startsAt
+                        - durationMinutes
+                        - status
+                  isUrgent:
+                    type: boolean
+                  status:
+                    type: string
+                    enum:
+                      - ACTIVE
+                      - INACTIVE
+                      - EXPIRED
+                  autoRenew:
+                    type: boolean
+                  bumpedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  createdAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  stats:
+                    type: object
+                    properties:
+                      pendingRequestsCount:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      acceptedRequestsCount:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - pendingRequestsCount
+                      - acceptedRequestsCount
+                required:
+                  - id
+                  - userId
+                  - user
+                  - title
+                  - specialization
+                  - level
+                  - language
+                  - skills
+                  - bio
+                  - scheduleInfo
+                  - slots
+                  - isUrgent
+                  - status
+                  - autoRenew
+                  - bumpedAt
+                  - expiresAt
+                  - createdAt
+                  - updatedAt
+              slot:
+                nullable: true
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  startsAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                  durationMinutes:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - OPEN
+                      - BOOKED
+                      - CANCELLED
+                required:
+                  - id
+                  - startsAt
+                  - durationMinutes
+                  - status
+              sessionId:
+                nullable: true
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              sessionStatus:
+                nullable: true
+                type: string
+                enum:
+                  - CREATED
+                  - ACTIVE
+                  - CLOSED
+              status:
+                type: string
+                enum:
+                  - PENDING
+                  - ACCEPTED
+                  - REJECTED
+                  - CANCELLED
+                  - EXPIRED
+              message:
+                nullable: true
+                type: string
+              preferredTopic:
+                nullable: true
+                type: string
+              rejectReason:
+                nullable: true
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              expiresAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - senderId
+              - receiverId
+              - sender
+              - receiver
+              - targetCard
+              - senderCard
+              - slot
+              - sessionId
+              - sessionStatus
+              - status
+              - message
+              - preferredTopic
+              - rejectReason
+              - createdAt
+              - updatedAt
+              - expiresAt
         meta:
           type: object
           properties:
             total:
-              type: number
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
             page:
-              type: number
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
             limit:
-              type: number
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
             totalPages:
-              type: number
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
             hasNextPage:
               type: boolean
             hasPrevPage:
@@ -3552,134 +4521,12 @@ components:
       required:
         - data
         - meta
-    UnreadMatchRequestsCountDto:
-      type: object
-      properties:
-        pendingCount:
-          type: number
-      required:
-        - pendingCount
-    CreateMatchRequestDto:
-      type: object
-      properties:
-        targetCardId:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-        senderCardId:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-        message:
-          type: string
-          maxLength: 300
-        preferredTopic:
-          type: string
-          maxLength: 100
-      required:
-        - targetCardId
     RejectMatchRequestDto:
       type: object
       properties:
         reason:
           type: string
           maxLength: 200
-    NotificationsListDto:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-                format: uuid
-                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-              userId:
-                type: string
-                format: uuid
-                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-              category:
-                type: string
-                enum:
-                  - SYSTEM
-                  - INTERVIEW
-                  - MESSAGE
-              title:
-                type: string
-              message:
-                type: string
-              actionUrl:
-                nullable: true
-                type: string
-              readAt:
-                nullable: true
-                type: string
-                format: date-time
-                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
-              deletedAt:
-                nullable: true
-                type: string
-                format: date-time
-                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
-              createdAt:
-                type: string
-                format: date-time
-                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
-              updatedAt:
-                type: string
-                format: date-time
-                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
-            required:
-              - id
-              - userId
-              - category
-              - title
-              - message
-              - actionUrl
-              - readAt
-              - deletedAt
-              - createdAt
-              - updatedAt
-        page:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 100
-        total:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-        totalPages:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - items
-        - page
-        - limit
-        - total
-        - totalPages
-    UnreadNotificationsCountDto:
-      type: object
-      properties:
-        count:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - count
-    NotificationActionResponseDto:
-      type: object
-      properties:
-        success:
-          type: boolean
-      required:
-        - success
     TicketDto:
       type: object
       properties:
@@ -3722,6 +4569,376 @@ components:
         - token
         - serverUrl
         - roomName
+    PaginatedShowcaseCardsDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              userId:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              user:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  displayName:
+                    nullable: true
+                    type: string
+                  username:
+                    nullable: true
+                    type: string
+                  avatarUrl:
+                    nullable: true
+                    type: string
+                  telegramUsername:
+                    nullable: true
+                    type: string
+                  gitUrl:
+                    nullable: true
+                    type: string
+                required:
+                  - id
+                  - displayName
+                  - username
+                  - avatarUrl
+                  - telegramUsername
+                  - gitUrl
+              title:
+                nullable: true
+                type: string
+              specialization:
+                type: string
+                enum:
+                  - FRONTEND
+                  - BACKEND
+                  - FULLSTACK
+                  - DEVOPS
+                  - QA
+                  - MOBILE
+                  - DATA_ML
+                  - SYSTEM_DESIGN
+              level:
+                type: string
+                enum:
+                  - JUNIOR
+                  - MIDDLE
+                  - SENIOR
+                  - LEAD
+              language:
+                type: string
+                enum:
+                  - RU
+                  - EN
+                  - ANY
+              skills:
+                type: array
+                items:
+                  type: string
+              bio:
+                nullable: true
+                type: string
+              scheduleInfo:
+                nullable: true
+                type: string
+              slots:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    startsAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                    durationMinutes:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    status:
+                      type: string
+                      enum:
+                        - OPEN
+                        - BOOKED
+                        - CANCELLED
+                  required:
+                    - id
+                    - startsAt
+                    - durationMinutes
+                    - status
+              isUrgent:
+                type: boolean
+              status:
+                type: string
+                enum:
+                  - ACTIVE
+                  - INACTIVE
+                  - EXPIRED
+              autoRenew:
+                type: boolean
+              bumpedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              expiresAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              stats:
+                type: object
+                properties:
+                  pendingRequestsCount:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  acceptedRequestsCount:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - pendingRequestsCount
+                  - acceptedRequestsCount
+            required:
+              - id
+              - userId
+              - user
+              - title
+              - specialization
+              - level
+              - language
+              - skills
+              - bio
+              - scheduleInfo
+              - slots
+              - isUrgent
+              - status
+              - autoRenew
+              - bumpedAt
+              - expiresAt
+              - createdAt
+              - updatedAt
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            page:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            limit:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            totalPages:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            hasNextPage:
+              type: boolean
+            hasPrevPage:
+              type: boolean
+          required:
+            - total
+            - page
+            - limit
+            - totalPages
+            - hasNextPage
+            - hasPrevPage
+      required:
+        - data
+        - meta
+    ShowcaseCardListDto:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          userId:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          user:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              displayName:
+                nullable: true
+                type: string
+              username:
+                nullable: true
+                type: string
+              avatarUrl:
+                nullable: true
+                type: string
+              telegramUsername:
+                nullable: true
+                type: string
+              gitUrl:
+                nullable: true
+                type: string
+            required:
+              - id
+              - displayName
+              - username
+              - avatarUrl
+              - telegramUsername
+              - gitUrl
+          title:
+            nullable: true
+            type: string
+          specialization:
+            type: string
+            enum:
+              - FRONTEND
+              - BACKEND
+              - FULLSTACK
+              - DEVOPS
+              - QA
+              - MOBILE
+              - DATA_ML
+              - SYSTEM_DESIGN
+          level:
+            type: string
+            enum:
+              - JUNIOR
+              - MIDDLE
+              - SENIOR
+              - LEAD
+          language:
+            type: string
+            enum:
+              - RU
+              - EN
+              - ANY
+          skills:
+            type: array
+            items:
+              type: string
+          bio:
+            nullable: true
+            type: string
+          scheduleInfo:
+            nullable: true
+            type: string
+          slots:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                startsAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                durationMinutes:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                status:
+                  type: string
+                  enum:
+                    - OPEN
+                    - BOOKED
+                    - CANCELLED
+              required:
+                - id
+                - startsAt
+                - durationMinutes
+                - status
+          isUrgent:
+            type: boolean
+          status:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+              - EXPIRED
+          autoRenew:
+            type: boolean
+          bumpedAt:
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          expiresAt:
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          createdAt:
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          updatedAt:
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          stats:
+            type: object
+            properties:
+              pendingRequestsCount:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              acceptedRequestsCount:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+            required:
+              - pendingRequestsCount
+              - acceptedRequestsCount
+        required:
+          - id
+          - userId
+          - user
+          - title
+          - specialization
+          - level
+          - language
+          - skills
+          - bio
+          - scheduleInfo
+          - slots
+          - isUrgent
+          - status
+          - autoRenew
+          - bumpedAt
+          - expiresAt
+          - createdAt
+          - updatedAt
     CreateShowcaseCardDto:
       type: object
       properties:
@@ -3777,10 +4994,190 @@ components:
         autoRenew:
           default: false
           type: boolean
+        slots:
+          minItems: 1
+          maxItems: 10
+          type: array
+          items:
+            type: object
+            properties:
+              startsAtLocal:
+                type: string
+                pattern: ^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$
+              durationMinutes:
+                type: integer
+                minimum: 15
+                maximum: 240
+            required:
+              - startsAtLocal
       required:
         - specialization
         - level
         - skills
+    ShowcaseCardResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        userId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            displayName:
+              nullable: true
+              type: string
+            username:
+              nullable: true
+              type: string
+            avatarUrl:
+              nullable: true
+              type: string
+            telegramUsername:
+              nullable: true
+              type: string
+            gitUrl:
+              nullable: true
+              type: string
+          required:
+            - id
+            - displayName
+            - username
+            - avatarUrl
+            - telegramUsername
+            - gitUrl
+        title:
+          nullable: true
+          type: string
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
+        language:
+          type: string
+          enum:
+            - RU
+            - EN
+            - ANY
+        skills:
+          type: array
+          items:
+            type: string
+        bio:
+          nullable: true
+          type: string
+        scheduleInfo:
+          nullable: true
+          type: string
+        slots:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              startsAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              durationMinutes:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              status:
+                type: string
+                enum:
+                  - OPEN
+                  - BOOKED
+                  - CANCELLED
+            required:
+              - id
+              - startsAt
+              - durationMinutes
+              - status
+        isUrgent:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - EXPIRED
+        autoRenew:
+          type: boolean
+        bumpedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        expiresAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        stats:
+          type: object
+          properties:
+            pendingRequestsCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            acceptedRequestsCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - pendingRequestsCount
+            - acceptedRequestsCount
+      required:
+        - id
+        - userId
+        - user
+        - title
+        - specialization
+        - level
+        - language
+        - skills
+        - bio
+        - scheduleInfo
+        - slots
+        - isUrgent
+        - status
+        - autoRenew
+        - bumpedAt
+        - expiresAt
+        - createdAt
+        - updatedAt
     UpdateShowcaseCardDto:
       type: object
       properties:
@@ -3833,6 +5230,22 @@ components:
           type: boolean
         autoRenew:
           type: boolean
+        slots:
+          minItems: 1
+          maxItems: 10
+          type: array
+          items:
+            type: object
+            properties:
+              startsAtLocal:
+                type: string
+                pattern: ^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$
+              durationMinutes:
+                type: integer
+                minimum: 15
+                maximum: 240
+            required:
+              - startsAtLocal
     UpdateShowcaseCardStatusDto:
       type: object
       properties:

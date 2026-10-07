@@ -13,6 +13,54 @@ on:
         value: ${{ jobs.test.outputs.coverage }}
 
 jobs:
+  sse-events-generated:
+    name: "Актуальность сгенерированных Go-констант SSE-событий"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Проверка наличия сервиса Realtime (go.mod)"
+        id: check_realtime
+        run: |
+          if [ -f "apps/realtime/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Установка pnpm"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: "Установка Node.js"
+        if: steps.check_realtime.outputs.exists == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'pnpm'
+
+      # Словарь событий живёт в packages/dto, а компилятором TypeScript и Go не
+      # связаны: без этой проверки изменение словаря без перегенерации прошло бы
+      # незамеченным (ADR-004:142). Генератор читает исходник напрямую, поэтому
+      # сборка пакетов здесь не нужна.
+      - name: "Установка зависимостей (frozen-lockfile)"
+        if: steps.check_realtime.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: "Перегенерация Go-констант из словаря событий"
+        if: steps.check_realtime.outputs.exists == 'true'
+        run: pnpm --filter @packages/dto run generate:go
+
+      - name: "Проверка, что events_gen.go совпадает со словарём"
+        if: steps.check_realtime.outputs.exists == 'true'
+        run: |
+          if ! git diff --quiet -- apps/realtime/internal/sse/events_gen.go; then
+            echo "::error::apps/realtime/internal/sse/events_gen.go разошёлся со словарём packages/dto/src/realtime/sse-event.dto.ts. Выполните pnpm --filter @packages/dto run generate:go и закоммитьте результат."
+            git --no-pager diff -- apps/realtime/internal/sse/events_gen.go
+            exit 1
+          fi
+
   test:
     name: "Unit-тесты Go"
     runs-on: ubuntu-latest
