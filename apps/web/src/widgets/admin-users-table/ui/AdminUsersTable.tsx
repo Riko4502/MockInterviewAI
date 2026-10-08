@@ -129,7 +129,7 @@ export function AdminUsersTable({
         onSortChange={handleSortChange}
         pagination={{
           mode: "server",
-          currentPage: filters.page,
+          page: filters.page,
           pageSize: filters.limit,
           totalItems: meta?.total,
           totalPages: meta?.totalPages,

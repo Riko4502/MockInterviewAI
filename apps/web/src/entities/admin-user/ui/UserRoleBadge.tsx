@@ -6,7 +6,7 @@ import { cn } from "@packages/utils";
 import { useTranslation } from "react-i18next";
 
 export interface UserRoleBadgeProps {
-  role: SystemRole;
+  role: SystemRole | string;
   className?: string;
 }
 

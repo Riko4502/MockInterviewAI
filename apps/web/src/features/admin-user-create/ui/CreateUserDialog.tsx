@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAdminUsersControllerCreateUser } from "@packages/api";
-import { type CreateUserAdminDto, createUserAdminSchema } from "@packages/dto";
+import { type CreateUserAdminDto, USERNAME_REGEX } from "@packages/dto";
 import { SystemRole } from "@packages/types";
 import { Button, Dialog, Input, Label, Select, useToast } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,21 +16,27 @@ export interface CreateUserDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
-
-const createUserFormSchema = createUserAdminSchema.extend({
-  username: z.preprocess(
-    emptyToUndefined,
-    createUserAdminSchema.shape.username,
-  ),
-  displayName: z.preprocess(
-    emptyToUndefined,
-    createUserAdminSchema.shape.displayName,
-  ),
+const createUserFormSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email обязателен")
+    .pipe(z.email("Некорректный email")),
+  role: z.string(),
+  username: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || USERNAME_REGEX.test(val.toLowerCase()),
+      "Username must be 3-30 characters (letters, numbers, underscore, hyphen)",
+    ),
+  displayName: z
+    .string()
+    .trim()
+    .max(100, "Display name must be at most 100 characters"),
 });
 
-type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
+export type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
 
 export function CreateUserDialog({
   open,

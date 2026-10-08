@@ -5,7 +5,12 @@ import {
   getAdminUsersControllerGetUserByIdQueryKey,
   useAdminUsersControllerUpdateUser,
 } from "@packages/api";
-import { type UpdateUserAdminDto, updateUserAdminSchema } from "@packages/dto";
+import {
+  GIT_URL_REGEX,
+  TELEGRAM_USERNAME_REGEX,
+  type UpdateUserAdminDto,
+  USERNAME_REGEX,
+} from "@packages/dto";
 import { SystemRole } from "@packages/types";
 import { Button, Dialog, Input, Label, Select, useToast } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,23 +27,36 @@ export interface EditUserDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const emptyToNull = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? null : val;
-
-const editUserFormSchema = updateUserAdminSchema.extend({
-  displayName: z.preprocess(
-    emptyToNull,
-    updateUserAdminSchema.shape.displayName,
-  ),
-  username: z.preprocess(emptyToNull, updateUserAdminSchema.shape.username),
-  telegramUsername: z.preprocess(
-    emptyToNull,
-    updateUserAdminSchema.shape.telegramUsername,
-  ),
-  gitUrl: z.preprocess(emptyToNull, updateUserAdminSchema.shape.gitUrl),
+const editUserFormSchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .max(100, "Display name must be at most 100 characters"),
+  username: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || USERNAME_REGEX.test(val.toLowerCase()),
+      "Username must be 3-30 characters (letters, numbers, underscore, hyphen)",
+    ),
+  telegramUsername: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || TELEGRAM_USERNAME_REGEX.test(val),
+      "Telegram username must be 5-32 characters",
+    ),
+  gitUrl: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || GIT_URL_REGEX.test(val),
+      "Git URL must be a valid GitHub or GitLab profile link",
+    ),
+  role: z.string(),
 });
 
-type EditUserFormValues = z.infer<typeof editUserFormSchema>;
+export type EditUserFormValues = z.infer<typeof editUserFormSchema>;
 
 export function EditUserDialog({
   user,

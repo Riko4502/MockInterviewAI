@@ -72,7 +72,9 @@ export function AdminUsersFilter({
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setSearchTerm(e.target.value)
+            }
             placeholder={t("admin.users.filters.searchPlaceholder")}
             className="pl-9 h-9 text-sm bg-card border-border/80"
             data-testid="admin-users-search-input"
