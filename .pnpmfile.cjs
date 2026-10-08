@@ -20,6 +20,10 @@ function readPackage(pkg) {
     pkg.dependencies.next = "16.3.8";
   }
 
+  if (pkg.dependencies?.["html-to-text"]) {
+    pkg.dependencies["html-to-text"] = "^10.0.1";
+  }
+
   if (pkg.dependencies?.multer) {
     pkg.dependencies.multer = "^2.4.0";
   }
