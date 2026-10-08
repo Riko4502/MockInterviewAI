@@ -54,7 +54,7 @@ describe("DataTable Component", () => {
     });
   });
 
-  describe("Клиентская пагинация (mode: 'client')", () => {
+  describe("Клиентская пагинация (по умолчанию)", () => {
     it("выполняет локальный срез данных и переключает страницы", () => {
       const onPageChange = vi.fn();
 
@@ -63,7 +63,6 @@ describe("DataTable Component", () => {
           data={mockUsers}
           columns={testColumns}
           pagination={{
-            mode: "client",
             page: 1,
             pageSize: 2,
             onPageChange,
@@ -87,7 +86,7 @@ describe("DataTable Component", () => {
     });
   });
 
-  describe("Серверная пагинация (mode: 'server')", () => {
+  describe("Серверная / внешняя пагинация (totalItems / totalPages)", () => {
     it("не делает локальный slice данных и использует переданные totalItems", () => {
       const onPageChange = vi.fn();
       // Сервер вернул только 2 записи для текущей страницы 2, но всего записей 10
@@ -106,7 +105,6 @@ describe("DataTable Component", () => {
           data={serverPageData}
           columns={testColumns}
           pagination={{
-            mode: "server",
             page: 2,
             pageSize: 2,
             totalItems: 10,
@@ -138,7 +136,6 @@ describe("DataTable Component", () => {
           data={mockUsers.slice(0, 2)}
           columns={testColumns}
           pagination={{
-            mode: "server",
             page: 1,
             pageSize: 2,
             totalPages: 8,

@@ -6,7 +6,6 @@ export { DataTable } from "./data-table";
 export type {
   DataTableColumn,
   DataTablePaginationConfig,
-  DataTablePaginationMode,
   DataTableProps,
   DataTableRow,
   DataTableSortDirection,

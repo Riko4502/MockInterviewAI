@@ -134,7 +134,9 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
   const isPaginationEnabled = Boolean(pagination);
   const paginationConfig: DataTablePaginationConfig =
     typeof pagination === "object" ? pagination : {};
-  const paginationMode = paginationConfig.mode ?? "client";
+  const isExternalPagination =
+    paginationConfig.totalItems !== undefined ||
+    paginationConfig.totalPages !== undefined;
 
   const [internalPage, setInternalPage] = React.useState(
     paginationConfig.page ?? 1,
@@ -227,11 +229,10 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
     });
   }, [filteredData, sortState, columns, onSortChange]);
 
-  // Постраничный срез данных
-  const totalItems =
-    paginationMode === "server"
-      ? (paginationConfig.totalItems ?? data.length)
-      : sortedData.length;
+  // Постраничный срез данных: если переданы totalItems или totalPages, пагинация внешняя (серверная)
+  const totalItems = isExternalPagination
+    ? (paginationConfig.totalItems ?? data.length)
+    : sortedData.length;
 
   const totalPages =
     paginationConfig.totalPages ??
@@ -239,12 +240,12 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
 
   const displayData = React.useMemo(() => {
     if (!isPaginationEnabled) return sortedData;
-    if (paginationMode === "server") {
+    if (isExternalPagination) {
       return sortedData;
     }
     const start = (page - 1) * pageSize;
     return sortedData.slice(start, start + pageSize);
-  }, [sortedData, isPaginationEnabled, paginationMode, page, pageSize]);
+  }, [sortedData, isPaginationEnabled, isExternalPagination, page, pageSize]);
 
   // 4. Выбор строк (Row Selection)
   const isAllSelected =

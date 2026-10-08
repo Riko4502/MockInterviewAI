@@ -157,13 +157,11 @@ apps/web/src/
 1. **Конфигурация пагинации (`DataTablePaginationConfig`):**
    ```ts
    export interface DataTablePaginationConfig {
-     /** Режим работы пагинации: 'client' (по умолчанию) или 'server'. */
-     mode?: "client" | "server";
      /** Текущая страница (начиная с 1). */
      page?: number;
      /** Количество строк на странице. */
      pageSize?: number;
-     /** Общее количество записей (обязательно в режиме 'server'). */
+     /** Общее количество записей (если передано, таблица работает во внешнем режиме без повторного среза). */
      totalItems?: number;
      /** Общее количество страниц (опционально, если передан totalItems). */
      totalPages?: number;
@@ -176,9 +174,9 @@ apps/web/src/
    }
    ```
 2. **Логика рендера строк (`displayData`):**
-   - Если `mode === "server"`: `displayData = data` (данные не нарезаются через `.slice()`, так как сервер уже вернул нужную страницу).
-   - Если `mode === "client"`: сохраняется текущее поведение с локальным срезом.
-   - Количество страниц в режиме `server` рассчитывается как `totalPages ?? Math.max(1, Math.ceil((totalItems ?? 0) / pageSize))`.
+   - Если переданы `totalItems` или `totalPages`, пагинация автоматически определяется как внешняя (`isExternalPagination`): `displayData = data` (данные не нарезаются через `.slice()`, так как сервер уже вернул нужную страницу). Никаких искусственных флагов `mode: "server"` не требуется.
+   - Если `totalItems` и `totalPages` не переданы, сохраняется стандартное поведение клиентской пагинации с локальным срезом `data.slice(start, start + pageSize)`.
+   - Количество страниц рассчитывается как `totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize))`.
 3. **Серверная сортировка (`sortState` и `onSortChange` в `DataTableProps`):**
    ```ts
    export interface DataTableProps<T extends DataTableRow = DataTableRow> {
@@ -195,7 +193,7 @@ apps/web/src/
 
 ### 3.2. Колонки таблицы пользователей (`AdminUsersTableColumns`)
 
-Таблица строится с помощью `DataTable` из `@packages/ui` в режиме `mode: "server"`:
+Таблица строится с помощью `DataTable` из `@packages/ui` с передачей параметров пагинации (`totalItems`, `totalPages`, `onPageChange`):
 
 | Колонка | Описание / Отображение | Сортировка API |
 | :--- | :--- | :---: |
@@ -311,10 +309,10 @@ apps/web/src/
 ### 🛠️ Часть 0: Доработка базовых пакетов (`@packages/ui`, `@packages/i18n`)
 
 - [x] **Расширение `@packages/ui/DataTable`:**
-  - Добавить `mode?: "client" | "server"`, `totalItems?: number`, `totalPages?: number` в `DataTablePaginationConfig`.
+  - Добавить поддержку внешней пагинации (`totalItems?: number`, `totalPages?: number`) в `DataTablePaginationConfig` без искусственного флага `mode: "server"`.
   - Добавить `sortState?: DataTableSortState | null` и `onSortChange?: (state: DataTableSortState | null) => void` в `DataTableProps`.
-  - Отключить клиентский `slice` и клиентскую сортировку при работе в режиме `mode: "server"`.
-  - Покрыть unit-тестами оба режима пагинации (`data-table.test.tsx`).
+  - Автоматически отключать клиентский `slice` при передаче `totalItems`/`totalPages` и клиентскую сортировку при наличии `onSortChange`.
+  - Покрыть unit-тестами локальную и внешнюю пагинацию (`data-table.test.tsx`).
 - [x] **Локализация `@packages/i18n`:**
   - Добавить секцию `admin.users.*` в `packages/i18n/src/locales/ru/common.json` и `packages/i18n/src/locales/en/common.json` (заголовки колонок, статусы, бейджи, кнопки, плейсхолдеры, диалоговые окна, тосты).
 
@@ -354,7 +352,7 @@ apps/web/src/
   - Блокировка пункта деактивации для текущего пользователя (`currentUserId === row.id`).
 - [x] **Виджет таблицы (`AdminUsersTable.tsx`):**
   - Интеграция с `useAdminUsersControllerGetUsersList` с обязательной передачей `isDeleted: false` по умолчанию (исключение soft-deleted пользователей).
-  - Интеграция с `DataTable` в режиме `mode: "server"` с явным отключением встроенного поиска (`searchable={false}`).
+  - Интеграция с `DataTable` с параметрами внешней пагинации (`totalItems`, `totalPages`) и явным отключением встроенного поиска (`searchable={false}`).
   - Централизованное состояние активного действия на уровне таблицы (`activeDialog: { type, user } | null`) — монтирование диалогов в единственном экземпляре для предотвращения DOM Bloat.
   - Отображение состояний: загрузка (Skeleton), пустой результат (Empty state), ошибка (Error state с кнопкой повтора).
   - Серверная пагинация с выбором лимита строк (`10, 20, 50, 100`).
@@ -401,7 +399,7 @@ apps/web/src/
 ### 🧪 Часть 6: Тестирование (Vitest & Playwright)
 
 - [x] **Unit & Component тесты (Vitest):**
-  - `DataTable`: корректная работа в режимах `client` и `server`.
+  - `DataTable`: корректная работа локальной пагинации и внешней пагинации с `totalItems` / `totalPages`.
   - `AdminUsersTable`: рендер строк, серверная пагинация, вызов сортировки, передача `isDeleted: false`, отсутствие дублирования поиска.
   - `AdminUsersFilter`: debounce поиска, сброс параметров, работа sentinel `"ALL"`, обновление URL с `{ scroll: false }`.
   - `CreateUserDialog`: валидация по Zod без пароля, нормализация пустых строк `"" -> undefined`.
@@ -417,7 +415,7 @@ apps/web/src/
 ## 5. Критерии приемки (Definition of Done)
 
 1. Раздел `/admin/users` доступен исключительно пользователям с ролью `SystemRole.ADMIN`.
-2. Компонент `DataTable` поддерживает режим `mode: "server"`, сохраняя обратную совместимость для всех существующих мест с `mode: "client"`.
+2. Компонент `DataTable` поддерживает внешнюю (серверную) пагинацию при передаче `totalItems`/`totalPages` без искусственных флагов режима, сохраняя полную обратную совместимость для локальной пагинации.
 3. Таблица отображает данные из контракта `UserAdminResponseDto` с серверной пагинацией, серверной сортировкой и поиском.
 4. Запрос пользователей по умолчанию исключает удалённые записи (`isDeleted: false`).
 5. Поиск работает с debounce (300ms) и синхронизируется с `URLSearchParams` без пустых параметров в URL и без скролла окна наверх (`{ scroll: false }`).

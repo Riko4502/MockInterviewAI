@@ -63,17 +63,14 @@ export interface DataTableColumn<T extends DataTableRow = DataTableRow> {
   className?: string;
 }
 
-export type DataTablePaginationMode = "client" | "server";
-
 /**
  * Настройки пагинации таблицы данных.
+ *
+ * Если переданы `totalItems` или `totalPages`, таблица работает во внешнем (серверном) режиме:
+ * данные `data` отображаются как текущая страница без повторного локального `.slice()`.
+ * Если эти свойства не переданы, таблица выполняет локальный срез переданного массива данных.
  */
 export interface DataTablePaginationConfig {
-  /**
-   * Режим пагинации: 'client' (по умолчанию) с локальным срезом данных или 'server' (без локального среза).
-   * @default "client"
-   */
-  mode?: DataTablePaginationMode;
   /**
    * Текущий номер страницы (начиная с 1).
    * @default 1
