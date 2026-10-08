@@ -364,8 +364,11 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
               )}
 
               {columns.map((column) => {
-                const isCurrentSorted = sortState?.columnKey === column.key;
-                const sortDir = isCurrentSorted ? sortState.direction : null;
+                const isCurrentSorted = Boolean(
+                  sortState && column.key && sortState.columnKey === column.key,
+                );
+                const sortDir =
+                  isCurrentSorted && sortState ? sortState.direction : null;
 
                 const headerContent =
                   typeof column.header === "function"

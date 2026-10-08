@@ -346,13 +346,13 @@ apps/web/src/
 
 ### 📊 Часть 3: Таблица пользователей (`widgets/admin-users-table`)
 
-- [ ] **Конфигурация колонок (`AdminUsersTableColumns.tsx`):**
+- [x] **Конфигурация колонок (`AdminUsersTableColumns.tsx`):**
   - Интерактивная сортировка по клику (`sortBy`, `sortOrder`).
   - Форматирование дат через `@packages/utils` / `Intl.DateTimeFormat` с защитой от SSR Hydration Mismatch (`suppressHydrationWarning` или фиксированный часовой пояс).
-- [ ] **Меню действий строки (`AdminUsersTableRowActions.tsx`):**
+- [x] **Меню действий строки (`AdminUsersTableRowActions.tsx`):**
   - Кнопка вызова действий (DropdownMenu) без монтирования диалогов внутри каждой строки: передача событий открытия наружу (`onAction(type, user)`).
   - Блокировка пункта деактивации для текущего пользователя (`currentUserId === row.id`).
-- [ ] **Виджет таблицы (`AdminUsersTable.tsx`):**
+- [x] **Виджет таблицы (`AdminUsersTable.tsx`):**
   - Интеграция с `useAdminUsersControllerGetUsersList` с обязательной передачей `isDeleted: false` по умолчанию (исключение soft-deleted пользователей).
   - Интеграция с `DataTable` в режиме `mode: "server"` с явным отключением встроенного поиска (`searchable={false}`).
   - Централизованное состояние активного действия на уровне таблицы (`activeDialog: { type, user } | null`) — монтирование диалогов в единственном экземпляре для предотвращения DOM Bloat.
