@@ -315,7 +315,7 @@ apps/web/src/
   - Добавить `sortState?: DataTableSortState | null` и `onSortChange?: (state: DataTableSortState | null) => void` в `DataTableProps`.
   - Отключить клиентский `slice` и клиентскую сортировку при работе в режиме `mode: "server"`.
   - Покрыть unit-тестами оба режима пагинации (`data-table.test.tsx`).
-- [ ] **Локализация `@packages/i18n`:**
+- [x] **Локализация `@packages/i18n`:**
   - Добавить секцию `admin.users.*` в `packages/i18n/src/locales/ru/common.json` и `packages/i18n/src/locales/en/common.json` (заголовки колонок, статусы, бейджи, кнопки, плейсхолдеры, диалоговые окна, тосты).
 
 ---
