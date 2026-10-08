@@ -2,7 +2,7 @@
 
 import { CloseIcon, SearchIcon } from "@packages/icons";
 import { SystemRole } from "@packages/types";
-import { Button, Input, Select } from "@packages/ui";
+import { Button, Input, InputGroup, Select } from "@packages/ui";
 import { cn } from "@packages/utils";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -67,19 +67,21 @@ export function AdminUsersFilter({
       )}
       data-testid="admin-users-filter"
     >
-      <div className="flex flex-1 items-center gap-2 min-w-[240px] max-w-md relative">
-        <div className="relative w-full">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+      <div className="flex flex-1 items-center gap-2 min-w-[240px] max-w-md">
+        <InputGroup>
+          <InputGroup.Prefix>
+            <SearchIcon />
+          </InputGroup.Prefix>
           <Input
             value={searchTerm}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setSearchTerm(e.target.value)
             }
             placeholder={t("admin.users.filters.searchPlaceholder")}
-            className="pl-9 h-9 text-sm bg-card border-border/80"
+            className="h-9 text-sm bg-card border-border/80"
             data-testid="admin-users-search-input"
           />
-        </div>
+        </InputGroup>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
