@@ -322,7 +322,7 @@ apps/web/src/
 
 ### 📦 Часть 1: Сущность пользователя (`entities/admin-user`)
 
-- [ ] **UI-компоненты сущности (`entities/admin-user/ui/`):**
+- [x] **UI-компоненты сущности (`entities/admin-user/ui/`):**
   - `UserRoleBadge`: акцентный фиолетовый для `SystemRole.ADMIN`, нейтральный серый для `SystemRole.USER`.
   - `UserStatusBadge`: зеленый для `Активен`, деструктивный красный для `Деактивирован`.
   - `UserAvatarCell`: аватар с инициалами-фоллбэком, отображаемое имя и `@username`.
