@@ -2,11 +2,29 @@
 
 import { CloseIcon, SearchIcon } from "@packages/icons";
 import { SystemRole } from "@packages/types";
-import { Button, Input, InputGroup, Select } from "@packages/ui";
+import {
+  Button,
+  Input,
+  InputGroup,
+  Select,
+  type SelectOption,
+} from "@packages/ui";
 import { cn } from "@packages/utils";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AdminUsersFilterParams } from "@/entities/admin-user";
+
+const ROLE_FILTER_CONFIG = [
+  { value: "ALL", labelKey: "admin.users.filters.allRoles" },
+  { value: SystemRole.ADMIN, labelKey: "admin.users.roles.ADMIN" },
+  { value: SystemRole.USER, labelKey: "admin.users.roles.USER" },
+] as const;
+
+const STATUS_FILTER_CONFIG = [
+  { value: "ALL", labelKey: "admin.users.filters.allStatuses" },
+  { value: "active", labelKey: "admin.users.filters.activeOnly" },
+  { value: "deactivated", labelKey: "admin.users.filters.deactivatedOnly" },
+] as const;
 
 export interface AdminUsersFilterProps {
   filters: AdminUsersFilterParams;
@@ -59,6 +77,24 @@ export function AdminUsersFilter({
         ? "deactivated"
         : "ALL";
 
+  const roleOptions: SelectOption[] = useMemo(
+    () =>
+      ROLE_FILTER_CONFIG.map((opt) => ({
+        value: opt.value,
+        label: t(opt.labelKey),
+      })),
+    [t],
+  );
+
+  const statusOptions: SelectOption[] = useMemo(
+    () =>
+      STATUS_FILTER_CONFIG.map((opt) => ({
+        value: opt.value,
+        label: t(opt.labelKey),
+      })),
+    [t],
+  );
+
   return (
     <div
       className={cn(
@@ -91,25 +127,11 @@ export function AdminUsersFilter({
           onValueChange={(val) =>
             onRoleChange(val === "ALL" ? undefined : (val as SystemRole))
           }
-        >
-          <Select.Trigger
-            className="w-[150px] h-9 text-xs bg-card border-border/80"
-            data-testid="admin-users-role-select"
-          >
-            <Select.Value placeholder={t("admin.users.filters.allRoles")} />
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Item value="ALL">
-              {t("admin.users.filters.allRoles")}
-            </Select.Item>
-            <Select.Item value={SystemRole.ADMIN}>
-              {t("admin.users.roles.ADMIN")}
-            </Select.Item>
-            <Select.Item value={SystemRole.USER}>
-              {t("admin.users.roles.USER")}
-            </Select.Item>
-          </Select.Content>
-        </Select>
+          placeholder={t("admin.users.filters.allRoles")}
+          options={roleOptions}
+          triggerClassName="w-[150px] h-9 text-xs bg-card border-border/80"
+          data-testid="admin-users-role-select"
+        />
 
         {/* Фильтр: Статус */}
         <Select
@@ -123,25 +145,11 @@ export function AdminUsersFilter({
                   : undefined,
             )
           }
-        >
-          <Select.Trigger
-            className="w-[170px] h-9 text-xs bg-card border-border/80"
-            data-testid="admin-users-status-select"
-          >
-            <Select.Value placeholder={t("admin.users.filters.allStatuses")} />
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Item value="ALL">
-              {t("admin.users.filters.allStatuses")}
-            </Select.Item>
-            <Select.Item value="active">
-              {t("admin.users.filters.activeOnly")}
-            </Select.Item>
-            <Select.Item value="deactivated">
-              {t("admin.users.filters.deactivatedOnly")}
-            </Select.Item>
-          </Select.Content>
-        </Select>
+          placeholder={t("admin.users.filters.allStatuses")}
+          options={statusOptions}
+          triggerClassName="w-[170px] h-9 text-xs bg-card border-border/80"
+          data-testid="admin-users-status-select"
+        />
 
         {/* Кнопка сброса */}
         {hasActiveFilters && (

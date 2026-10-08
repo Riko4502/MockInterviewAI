@@ -27,13 +27,53 @@ const SelectContext = React.createContext<SelectContextValue>({
   variant: "default",
 });
 
-function SelectRoot({ variant = "default", children, ...props }: SelectProps) {
+function SelectRoot({
+  variant = "default",
+  options,
+  placeholder,
+  triggerClassName,
+  triggerSize,
+  triggerProps,
+  contentProps,
+  children,
+  ...props
+}: SelectProps) {
   const contextValue = React.useMemo(() => ({ variant }), [variant]);
+  const rootProps = { ...props };
+  const testId = (props as { "data-testid"?: string })["data-testid"];
+  if ("data-testid" in rootProps) {
+    delete (rootProps as { "data-testid"?: string })["data-testid"];
+  }
 
   return (
     <SelectContext.Provider value={contextValue}>
-      <SelectPrimitive.Root data-slot="select" {...props}>
-        {children}
+      <SelectPrimitive.Root data-slot="select" {...rootProps}>
+        {options ? (
+          <>
+            <SelectTrigger
+              className={triggerClassName}
+              size={triggerSize}
+              data-testid={testId}
+              {...triggerProps}
+            >
+              <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent {...contentProps}>
+              {options.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.disabled}
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+            {children}
+          </>
+        ) : (
+          children
+        )}
       </SelectPrimitive.Root>
     </SelectContext.Provider>
   );
