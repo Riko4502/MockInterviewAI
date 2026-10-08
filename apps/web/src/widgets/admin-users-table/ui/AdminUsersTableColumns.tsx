@@ -1,6 +1,7 @@
 "use client";
 
 import type { DataTableColumn } from "@packages/ui";
+import { formatDateTime } from "@packages/utils";
 import {
   type AdminUser,
   UserAvatarCell,
@@ -12,22 +13,7 @@ import {
   AdminUsersTableRowActions,
 } from "./AdminUsersTableRowActions";
 
-export function formatAdminDate(dateStr?: string | null): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    return new Intl.DateTimeFormat("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "UTC",
-    }).format(d);
-  } catch {
-    return dateStr;
-  }
-}
+export const formatAdminDate = formatDateTime;
 
 export function createAdminUsersColumns(
   t: (key: string) => string,

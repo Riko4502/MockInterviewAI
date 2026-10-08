@@ -28,3 +28,57 @@ export function formatInstantInTimeZone(
 
   return format(date, pattern, { in: tz(timeZone) });
 }
+
+/**
+ * Опции форматирования даты и времени через `Intl.DateTimeFormat`.
+ */
+export interface FormatDateTimeOptions {
+  /** IANA часовой пояс (по умолчанию "UTC" для гарантии одинакового рендеринга на сервере и клиенте) */
+  timeZone?: string;
+  /** Локаль (по умолчанию "ru-RU") */
+  locale?: string;
+  /** Включать ли часы и минуты в форматированную строку (по умолчанию true) */
+  includeTime?: boolean;
+}
+
+/**
+ * Безопасное форматирование даты и времени в фиксированном часовом поясе.
+ * Предотвращает расхождения SSR-гидратации между сервером (Node.js UTC) и клиентом.
+ *
+ * @param date - Date, ISO-строка, timestamp или null/undefined
+ * @param options - параметры часового пояса, локали и отображения времени
+ * @returns Отформатированная дата (например "15.02.2026, 10:00") или "—" при отсутствии значения.
+ */
+export function formatDateTime(
+  date: Date | string | number | null | undefined,
+  options?: FormatDateTimeOptions,
+): string {
+  if (!date) return "—";
+
+  try {
+    const d = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(d.getTime())) return "—";
+
+    const {
+      timeZone = "UTC",
+      locale = "ru-RU",
+      includeTime = true,
+    } = options ?? {};
+
+    const formatOptions: Intl.DateTimeFormatOptions = {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone,
+    };
+
+    if (includeTime) {
+      formatOptions.hour = "2-digit";
+      formatOptions.minute = "2-digit";
+    }
+
+    return new Intl.DateTimeFormat(locale, formatOptions).format(d);
+  } catch {
+    return String(date);
+  }
+}

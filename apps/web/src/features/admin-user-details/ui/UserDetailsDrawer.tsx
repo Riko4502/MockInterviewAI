@@ -2,6 +2,7 @@
 
 import { useAdminUsersControllerGetUserById } from "@packages/api";
 import { Drawer, Skeleton } from "@packages/ui";
+import { formatDateTime } from "@packages/utils";
 import { useTranslation } from "react-i18next";
 import {
   UserAvatarCell,
@@ -31,23 +32,6 @@ export function UserDetailsDrawer({
       enabled: Boolean(userId && open),
     },
   });
-
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return "—";
-    try {
-      const d = new Date(dateStr);
-      return new Intl.DateTimeFormat("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "UTC",
-      }).format(d);
-    } catch {
-      return dateStr;
-    }
-  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -118,7 +102,7 @@ export function UserDetailsDrawer({
                   {t("admin.users.drawer.createdAt")}
                 </span>
                 <span suppressHydrationWarning className="font-medium">
-                  {formatDate(user.createdAt)}
+                  {formatDateTime(user.createdAt)}
                 </span>
               </div>
               {user.deactivatedAt && (
@@ -130,7 +114,7 @@ export function UserDetailsDrawer({
                     suppressHydrationWarning
                     className="text-destructive font-medium"
                   >
-                    {formatDate(user.deactivatedAt)}
+                    {formatDateTime(user.deactivatedAt)}
                   </span>
                 </div>
               )}
