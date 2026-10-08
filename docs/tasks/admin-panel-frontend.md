@@ -389,10 +389,10 @@ apps/web/src/
 
 ### 🧭 Часть 5: Страница и лейаут (`app/(protected)/admin`)
 
-- [ ] **Административный лейаут (`app/(protected)/admin/layout.tsx`):**
+- [x] **Административный лейаут (`app/(protected)/admin/layout.tsx`):**
   - Сохранение существующей проверки `<RoleBoundary allowedRoles={[SystemRole.ADMIN]}>` (уже протестирована в `admin-routing.test.tsx`).
   - Интеграция в стандартный каркас `<Sidebar headerActions={<NotificationBell />}>`.
-- [ ] **Страница пользователей (`app/(protected)/admin/users/page.tsx`):**
+- [x] **Страница пользователей (`app/(protected)/admin/users/page.tsx`):**
   - Заголовок с кнопкой "+ Добавить пользователя".
   - Размещение `AdminUsersFilter` и `AdminUsersTable`.
 
@@ -400,7 +400,7 @@ apps/web/src/
 
 ### 🧪 Часть 6: Тестирование (Vitest & Playwright)
 
-- [ ] **Unit & Component тесты (Vitest):**
+- [x] **Unit & Component тесты (Vitest):**
   - `DataTable`: корректная работа в режимах `client` и `server`.
   - `AdminUsersTable`: рендер строк, серверная пагинация, вызов сортировки, передача `isDeleted: false`, отсутствие дублирования поиска.
   - `AdminUsersFilter`: debounce поиска, сброс параметров, работа sentinel `"ALL"`, обновление URL с `{ scroll: false }`.
