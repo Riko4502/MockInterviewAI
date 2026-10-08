@@ -6,8 +6,10 @@ import {
   HttpStatus,
   NotFoundException,
 } from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { MailService } from "../mail/mail.service";
 import {
   LiveMatchPostCommitError,
   type SessionsService,
@@ -26,6 +28,7 @@ describe("MatchmakingService", () => {
   let prismaMock: {
     user: {
       findUnique: jest.Mock;
+      findMany: jest.Mock;
     };
     showcaseCard: {
       findUnique: jest.Mock;
@@ -48,6 +51,12 @@ describe("MatchmakingService", () => {
   let sessionsServiceMock: {
     createLiveMatchSession: jest.Mock;
     cleanupOrphanedSession: jest.Mock;
+  };
+  let mailServiceMock: {
+    sendTemplate: jest.Mock;
+  };
+  let configServiceMock: {
+    get: jest.Mock;
   };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
@@ -139,6 +148,10 @@ describe("MatchmakingService", () => {
     prismaMock = {
       user: {
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          { ...mockSenderUser, email: "sender@example.com" },
+          { ...mockReceiverUser, email: "receiver@example.com" },
+        ]),
       },
       showcaseCard: {
         findUnique: jest.fn(),
@@ -168,10 +181,20 @@ describe("MatchmakingService", () => {
       cleanupOrphanedSession: jest.fn().mockResolvedValue(undefined),
     };
 
+    mailServiceMock = {
+      sendTemplate: jest.fn().mockResolvedValue(undefined),
+    };
+
+    configServiceMock = {
+      get: jest.fn().mockReturnValue("http://localhost:3000"),
+    };
+
     service = new MatchmakingService(
       prismaMock as unknown as PrismaService,
       redisServiceMock as unknown as RedisService,
       sessionsServiceMock as unknown as SessionsService,
+      mailServiceMock as unknown as MailService,
+      configServiceMock as unknown as ConfigService,
     );
   });
 

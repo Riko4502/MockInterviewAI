@@ -107,6 +107,8 @@ export class AuthService implements OnModuleInit {
    * @param configService - Конфигурация приложения (секция `argon2`).
    * @param redisService - Глобальный `RedisService` для публикации ревокаций.
    * @param mailService - Сервис отправки почтовых сообщений.
+   * @param telegramOAuthService - Сервис валидации Telegram данных.
+   * @param storageService - Сервис работы с хранилищем S3.
    */
   constructor(
     private readonly usersService: UsersService,
@@ -321,7 +323,7 @@ export class AuthService implements OnModuleInit {
    * Все условия отказа 1–4 возвращают generic `401 Unauthorized` (§60 SPEC.md).
    * Ошибки Redis → `500 Internal Server Error`, cookie НЕ сбрасывается (§60).
    *
-   * @param refreshToken - Refresh token из cookie.
+   * @param user - Объект пользователя с ролями и правами.
    * @throws {UnauthorizedException} При невалидном токене или несовпадении сессии (§60).
    * @throws {InternalServerErrorException} При ошибке Redis (§60).
    */
@@ -572,6 +574,27 @@ export class AuthService implements OnModuleInit {
         error instanceof Error ? error.message : String(error),
       );
     }
+
+    try {
+      const username =
+        user.displayName || user.username || user.email.split("@")[0] || "User";
+
+      await this.mailService.sendTemplate({
+        to: user.email,
+        template: "security-alert",
+        props: {
+          eventType: "PASSWORD_CHANGED",
+          ipAddress: "N/A",
+          username,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send security-alert email to ${user.email} after password change`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   /**
@@ -726,8 +749,27 @@ export class AuthService implements OnModuleInit {
           PASSWORD_RESET_TOKEN_TTL_SECONDS,
         );
 
-        // TODO: Заменить мок-отправку на продакшн MailService с react-email шаблонами после настройки SMTP
-        await this.mailService.sendPasswordResetEmail(user.email, rawToken);
+        const webUrl =
+          this.configService.get<string>("app.webUrl") ??
+          this.configService.get<string>("webUrl") ??
+          "http://localhost:3000";
+
+        const resetUrl = `${webUrl}/reset-password#token=${encodeURIComponent(rawToken)}`;
+        const username =
+          user.displayName ||
+          user.username ||
+          user.email.split("@")[0] ||
+          "User";
+
+        await this.mailService.sendTemplate({
+          to: user.email,
+          template: "reset-password",
+          props: {
+            username,
+            resetUrl,
+            expiresMinutes: Math.round(PASSWORD_RESET_TOKEN_TTL_SECONDS / 60),
+          },
+        });
       } catch (error) {
         this.logger.error(
           "Failed to process forgotPassword background actions (Redis/Mail)",
@@ -908,6 +950,7 @@ export class AuthService implements OnModuleInit {
    * Выполняет аутентификацию или старт онбординга через Telegram Widget.
    *
    * @param dto - Валидированный payload от Telegram Widget.
+   * @param rawPayload - Опциональные сырые данные запроса для HMAC-проверки.
    * @returns Ибо токены при входе, либо onboardingToken при необходимости указания email.
    */
   async telegramAuth(
@@ -1108,6 +1151,7 @@ export class AuthService implements OnModuleInit {
    *
    * @param userId - UUID авторизованного пользователя.
    * @param dto - Валидированный payload Telegram Widget.
+   * @param rawPayload - Опциональные сырые данные запроса для HMAC-проверки.
    */
   async telegramLink(
     userId: string,

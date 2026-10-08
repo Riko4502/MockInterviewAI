@@ -243,6 +243,7 @@ pnpm sse:send -i
 * 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
+* 📧 **[Email Architecture](docs/EMAIL_ARCHITECTURE.md)** — архитектура сервиса отправки email-уведомлений, React Email шаблоны и транспорты.
 * 🌍 **[i18n Localization](docs/I18N.md)** — архитектура и руководство по интернационализации (`@packages/i18n`).
 * 🤖 **[Telegram Bot Architecture](docs/TELEGRAM_BOT_ARCHITECTURE.md)** — архитектура и интеграция Telegram-бота (`apps/telegram-bot`).
 

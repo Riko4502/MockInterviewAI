@@ -16,7 +16,7 @@ function readPackage(pkg) {
   }
 
   // Исправление уязвимостей next (GHSA-vcvr-r3jv-pc5j)
-  if (pkg.dependencies?.next && pkg.dependencies.next.startsWith("16.3.3")) {
+  if (pkg.dependencies?.next?.startsWith("16.3.3")) {
     pkg.dependencies.next = "16.3.8";
   }
 

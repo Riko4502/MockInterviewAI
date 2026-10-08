@@ -8,6 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   CreateMatchRequestDto,
   MatchRequestQueryDto,
@@ -20,6 +21,7 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { MailService } from "../mail/mail.service";
 import {
   LiveMatchPostCommitError,
   SessionsService,
@@ -69,6 +71,8 @@ export class MatchmakingService {
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     private readonly sessionsService: SessionsService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -588,14 +592,18 @@ export class MatchmakingService {
       // 7. Публикуем событие подтверждения матча в Redis Pub/Sub
       await this.publishMatchAcceptedEvent(updated);
 
-      // 8. Возвращаем заявку с открытыми контактами
+      // 8. Отправляем email-уведомления обоим участникам
+      await this.sendMatchAcceptedEmails(updated, liveSession.sessionId);
+
+      // 9. Возвращаем заявку с открытыми контактами
       return this.formatMatchRequest(updated);
     } catch (error) {
-      const orphanId =
-        liveSession?.sessionId ??
-        (error instanceof LiveMatchPostCommitError ? error.sessionId : null);
-      if (orphanId && !sessionLinked) {
-        await this.sessionsService.cleanupOrphanedSession(orphanId);
+      if (liveSession && !sessionLinked) {
+        await this.sessionsService.cleanupOrphanedSession(
+          liveSession.sessionId,
+        );
+      } else if (error instanceof LiveMatchPostCommitError) {
+        await this.sessionsService.cleanupOrphanedSession(error.sessionId);
       }
       throw error;
     }
@@ -829,5 +837,75 @@ export class MatchmakingService {
       throw new ConflictException(message);
     }
     throw error;
+  }
+
+  /**
+   * Отправляет email-уведомления обоим участникам при принятии заявки на интервью.
+   */
+  private async sendMatchAcceptedEmails(
+    request: MatchRequestWithRelations,
+    sessionId: string,
+  ): Promise<void> {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: [request.senderId, request.receiverId] } },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          username: true,
+        },
+      });
+
+      const sender = users.find((u) => u.id === request.senderId);
+      const receiver = users.find((u) => u.id === request.receiverId);
+
+      if (!sender || !receiver) {
+        return;
+      }
+
+      const webUrl =
+        this.configService.get<string>("app.webUrl") ??
+        this.configService.get<string>("webUrl") ??
+        "http://localhost:3000";
+
+      const roomUrl = `${webUrl}/dashboard/sandbox?room=${sessionId}`;
+      const scheduledTime = new Date().toLocaleString("ru-RU", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const topic = request.preferredTopic ?? "Тренировочное собеседование";
+
+      await Promise.allSettled([
+        this.mailService.sendTemplate({
+          to: sender.email,
+          template: "interview-scheduled",
+          props: {
+            username: sender.displayName || sender.username || "Пользователь",
+            partnerName: receiver.displayName || receiver.username || "Партнер",
+            scheduledTime,
+            roomUrl,
+            topic,
+          },
+        }),
+        this.mailService.sendTemplate({
+          to: receiver.email,
+          template: "interview-scheduled",
+          props: {
+            username:
+              receiver.displayName || receiver.username || "Пользователь",
+            partnerName: sender.displayName || sender.username || "Партнер",
+            scheduledTime,
+            roomUrl,
+            topic,
+          },
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send match accepted emails for request ${request.id}`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 }

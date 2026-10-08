@@ -1,39 +1,59 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { renderTemplate } from "@packages/email";
+import type { Locale } from "@packages/i18n";
+import type {
+  EmailTemplateKey,
+  IMailTransport,
+  SendTemplateOptions,
+} from "./interfaces";
+import { MAIL_TRANSPORT_TOKEN } from "./mail.constants";
 
 /**
- * Сервис отправки почтовых сообщений.
- *
- * На текущем этапе (отсутствие внешнего SMTP-сервера) работает в mock-режиме:
- * логирует детали отправки писем со ссылками и токенами.
+ * Сервис отправки почтовых сообщений платформы MockInterviewAI.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    @Inject(MAIL_TRANSPORT_TOKEN)
+    private readonly transport: IMailTransport,
+  ) {}
 
   /**
-   * Отправляет (логирует) письмо для сброса пароля.
-   *
-   * @param email - Адрес получателя.
-   * @param token - Одноразовый токен сброса пароля (raw token).
+   * Рендерит и отправляет письмо по указанному React Email шаблону с поддержкой i18n.
    */
-  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    const webUrl =
-      this.configService.get<string>("app.webUrl") ??
-      this.configService.get<string>("webUrl") ??
-      "http://localhost:3000";
+  async sendTemplate<K extends EmailTemplateKey>(
+    options: SendTemplateOptions<K>,
+  ): Promise<boolean> {
+    const locale: Locale = options.locale ?? "ru";
 
-    const resetUrl = `${webUrl}/reset-password#token=${encodeURIComponent(token)}`;
+    try {
+      const rendered = await renderTemplate(
+        options.template,
+        options.props,
+        locale,
+      );
 
-    // TODO: Заменить на реальную отправку через NodemailerTransport / @packages/email
-    // после развертывания почтового сервера (см. docs/tasks/email-service.md).
-    // Сейчас используется mock-режим с логированием ссылки и токена в консоль.
-    this.logger.log(
-      `[MOCK EMAIL] Password reset requested for: ${email}\n` +
-        `  -> Token: ${token}\n` +
-        `  -> Reset URL: ${resetUrl}`,
-    );
+      const subject = options.subject ?? rendered.subject;
+
+      await this.transport.send({
+        to: options.to,
+        subject,
+        html: rendered.html,
+        text: rendered.text,
+      });
+
+      this.logger.log(
+        `Template "${options.template}" successfully sent to ${options.to}`,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send email template "${options.template}" to ${options.to}: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      return false;
+    }
   }
 }
