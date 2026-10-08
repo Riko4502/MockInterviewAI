@@ -237,6 +237,25 @@ describe("AuthBoundary Component", () => {
       expect(replaceMock).toHaveBeenCalledWith(paths.dashboard);
     });
 
+    it("8b. AUTHENTICATED на странице регистрации: редирект на /onboarding", () => {
+      mockPathname = paths.register;
+      mockSessionValue = {
+        status: SESSION_STATUS.AUTHENTICATED,
+        isAuthenticated: true,
+        startSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
+
+      render(
+        <AuthBoundary mode="guest">
+          <div data-testid="guest-content">Register Form Content</div>
+        </AuthBoundary>,
+      );
+
+      expect(screen.queryByTestId("guest-content")).not.toBeInTheDocument();
+      expect(replaceMock).toHaveBeenCalledWith(paths.onboarding);
+    });
+
     it("9. AUTHENTICATED с валидным returnTo: редирект на returnTo", () => {
       mockSearchParams = new URLSearchParams({
         returnTo: "/dashboard/interviews",

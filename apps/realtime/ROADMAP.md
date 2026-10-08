@@ -82,7 +82,7 @@
 ### 3.4. Интеграция SSE-уведомлений в остальные сервисы
 Ядро SSE в `apps/realtime` реализовано (см. раздел 1.4). Осталась работа на стороне продюсеров и клиента — этапы 2–4 плана внедрения из [SSE_SPEC.md](./SSE_SPEC.md):
 * **Продюсеры (`apps/api`, `apps/code-runner`, AI worker):** сервис `NotificationPublisher` в NestJS, публикующий события через `XADD user:{userId}:notifications MAXLEN ~ 100`, и триггеры на создание сессии, инвайт, окончание прогона тестов и генерацию AI-отчета.
-* **Клиент (`apps/web`):** глобальный `NotificationProvider` на `@microsoft/fetch-event-source`, обработка `visibilitychange` / `online` в мобильных браузерах, тосты (`sonner`) и бейдж непрочитанных.
+* **Клиент (`apps/web`):** глобальный `NotificationProvider` на пакете `eventsource` с заголовком `Authorization` через переопределённый `fetch`, обработка `visibilitychange` / `online` в мобильных браузерах, тосты (`sonner`) и бейдж непрочитанных.
 * **Инфраструктура:** директивы `http2`, `proxy_buffering off` и `proxy_read_timeout 3600s` в Nginx, дашборд Grafana и алерт на рост `realtime_sse_dropped_messages_total`.
 * **Долгосрочная история:** сохранение уведомлений в PostgreSQL сервисом `apps/api` для шторки «Все уведомления» (Redis Streams остаётся только транспортным буфером).
 

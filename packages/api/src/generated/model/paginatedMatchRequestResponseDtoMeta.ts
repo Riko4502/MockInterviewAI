@@ -11,9 +11,25 @@
  */
 
 export type PaginatedMatchRequestResponseDtoMeta = {
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
   total: number;
+  /**
+     * @maximum 9007199254740991
+     * @exclusiveMinimum 0
+     */
   page: number;
+  /**
+     * @maximum 9007199254740991
+     * @exclusiveMinimum 0
+     */
   limit: number;
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
   totalPages: number;
   hasNextPage: boolean;
   hasPrevPage: boolean;

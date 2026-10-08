@@ -40,6 +40,36 @@ const envSchema = z
     REDIS_HOST: z.string().min(1).default("localhost"),
     REDIS_PORT: z.coerce.number().int().positive().default(6379),
     REDIS_PASSWORD: z.string().default(""),
+    // Транспорт доставки в Telegram (ADR-004:130). В dev и test не требуется:
+    // без него telegram-канал просто не регистрируется, а приложение
+    // работает на одном in-app канале.
+    // Пустая переменная в `.env` — это «брокер не настроен», а не ошибка
+    // формата: dev и тесты поднимаются без RabbitMQ (ADR-004:140). В
+    // production пустое значение отсекает superRefine ниже.
+    RABBITMQ_URL: z.preprocess(
+      (value) =>
+        typeof value === "string" && value.trim() === "" ? undefined : value,
+      z
+        .string()
+        .refine((value) => {
+          try {
+            const { protocol } = new URL(value);
+            return protocol === "amqp:" || protocol === "amqps:";
+          } catch {
+            return false;
+          }
+        }, "RABBITMQ_URL должен быть корректным amqp(s)-URL")
+        .optional(),
+    ),
+    RABBITMQ_TELEGRAM_QUEUE: z
+      .string()
+      .min(1)
+      .default("telegram.notifications"),
+    RABBITMQ_PUBLISH_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5000),
     COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
     REFRESH_TOKEN_COOKIE_NAME: z.string().min(1).default("refresh_token"),
     THROTTLE_TTL: z.coerce.number().int().positive().default(60000),
@@ -99,6 +129,20 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ["TELEGRAM_BOT_TOKEN"],
         message: "TELEGRAM_BOT_TOKEN is required in production environment",
+      });
+    }
+    // Прод уже требует RABBITMQ_URL в `docker-compose.prod.yml:72`, и до этой
+    // фазы переменная передавалась в контейнер, который её не читал. Теперь
+    // приложение её читает, поэтому отсутствие переменной — ошибка конфигурации,
+    // а не «прод без push-доставки».
+    if (
+      data.NODE_ENV === "production" &&
+      (data.RABBITMQ_URL === undefined || data.RABBITMQ_URL.trim() === "")
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["RABBITMQ_URL"],
+        message: "RABBITMQ_URL is required in production environment",
       });
     }
   });

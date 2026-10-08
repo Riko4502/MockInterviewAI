@@ -31,6 +31,125 @@ jobs:
           recursive: true
           failure-threshold: error
 
+  node-version:
+    name: "Единый источник версии Node.js"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Клонирование репозитория"
+        uses: actions/checkout@v7
+
+      - name: "Установка Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: "Проверка соответствия .node-version, engines.node, node-version-file и @types/node"
+        run: |
+          set -euo pipefail
+
+          file_version="$(tr -d '[:space:]' < .node-version)"
+          expected="${file_version}.x"
+
+          # Vercel берёт версию из engines.node корневого package.json, а в
+          # vercel.json такого поля нет: схема openapi.vercel.sh/vercel.json
+          # задаёт additionalProperties: false, и его нарушение валит деплой.
+          # ?.engines?.node: отсутствие engines должно давать внятное MISMATCH,
+          # а не TypeError из node -p.
+          value="$(node -p "require('./package.json')?.engines?.node ?? 'MISSING'")"
+
+          echo ".node-version = ${file_version}"
+          echo "package.json engines.node = ${value}"
+          if [ "${value}" != "${expected}" ]; then
+            echo "::error file=package.json::engines.node (${value}) does not match .node-version (${file_version})"
+            exit 1
+          fi
+
+          if grep -rnE '"engines"[[:space:]]*:' --include=vercel.json \
+            --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "::error::В vercel.json найдено поле engines. Его нет в схеме Vercel (additionalProperties: false), поэтому деплой падает. Версия Node задаётся в engines.node корневого package.json."
+            exit 1
+          fi
+
+          # Требуется значение после двоеточия, иначе под шаблон попадает сам
+          # ключ job `node-version:` в этом же файле и текст самой проверки.
+          if grep -rnE '^[[:space:]]*node-version:[[:space:]]*[^[:space:]]' .github/workflows/; then
+            echo "::error::В workflow найден литерал версии Node. Версия читается только из .node-version, иначе разнобой вернётся (ADR-006)."
+            exit 1
+          fi
+
+          cat > /tmp/check-types-node.mjs <<'JS'
+          import { existsSync, readFileSync, readdirSync } from "node:fs";
+          import { join } from "node:path";
+
+          const major = readFileSync(".node-version", "utf8").trim().split(".")[0];
+
+          // Манифесты берём из pnpm-workspace.yaml, а не рекурсивным обходом:
+          // в apps/*/.next лежат package.json из build-вывода, они не воркспейсы.
+          const lines = readFileSync("pnpm-workspace.yaml", "utf8").split("\n");
+          const globs = [];
+          for (let i = lines.findIndex((line) => /^packages:\s*$/.test(line)) + 1; i < lines.length; i += 1) {
+            if (/^\S/.test(lines[i])) break;
+            const match = lines[i].match(/^\s*-\s*"?([^"]+)"?\s*$/);
+            if (match) globs.push(match[1]);
+          }
+
+          const manifests = [];
+          const skipped = [];
+          for (const glob of globs) {
+            let dirs = [""];
+            for (const segment of glob.split("/")) {
+              dirs = dirs.flatMap((dir) => {
+                if (!segment.includes("*")) return [join(dir, segment)];
+                const base = dir || ".";
+                if (!existsSync(base)) {
+                  console.log(`::error::${glob}: каталог ${base} не существует`);
+                  process.exitCode = 1;
+                  return [];
+                }
+                return readdirSync(base, { withFileTypes: true })
+                  .filter((entry) => entry.isDirectory() && entry.name !== "node_modules")
+                  .map((entry) => join(dir, entry.name));
+              });
+            }
+            for (const dir of dirs) {
+              const manifest = join(dir, "package.json");
+              if (existsSync(manifest)) manifests.push(manifest);
+              // Каталог без package.json не воркспейс: apps/livekit держит только
+              // Dockerfile и entrypoint.sh, и pnpm пропускает его так же.
+              else skipped.push(dir);
+            }
+          }
+
+          if (manifests.length === 0) {
+            console.log("::error::Глобы pnpm-workspace.yaml не расширились ни в один манифест, проверка @types/node не проверила ничего");
+            process.exitCode = 1;
+          }
+
+          // Проверяем major, а не точную строку: ^24 и ^24.19.0 одинаково верны,
+          // а вот >=24 пропустил бы 25-й и нарушил бы инвариант.
+          const mismatches = [];
+          let checked = 0;
+          for (const manifest of manifests) {
+            const pkg = JSON.parse(readFileSync(manifest, "utf8"));
+            const range = pkg.devDependencies?.["@types/node"] ?? pkg.dependencies?.["@types/node"];
+            if (!range) continue;
+            checked += 1;
+            if (!new RegExp(`^\\^?${major}($|\\.)`).test(range)) {
+              mismatches.push({ manifest, range });
+            }
+          }
+
+          for (const { manifest, range } of mismatches) {
+            console.log(`::error file=${manifest}::@types/node (${range}) does not match .node-version (${major}). Типы должны соответствовать рантайму (ADR-006).`);
+          }
+          if (mismatches.length > 0) process.exitCode = 1;
+
+          console.log(`@types/node@${major}: ${checked} из ${manifests.length} манифестов воркспейсов, без @types/node или пропущено: ${manifests.length - checked}/${skipped.length}`);
+          JS
+          node /tmp/check-types-node.mjs
+
+          echo "Версия Node задана в одном месте: .node-version, engines.node и node-version-file согласованы, @types/node соответствует, vercel.json не переопределяет версию"
+
   dependency-audit:
     name: "Аудит безопасности зависимостей (pnpm audit)"
     runs-on: ubuntu-latest
@@ -44,7 +163,7 @@ jobs:
       - name: "Установка Node.js"
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .node-version
 
       - name: "Проверка уязвимостей в пакетах (pnpm audit)"
         run: pnpm audit --audit-level=high

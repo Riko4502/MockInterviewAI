@@ -10,21 +10,16 @@ import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import type { MailService } from "../mail/mail.service";
+import type { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import {
   LiveMatchPostCommitError,
   type SessionsService,
 } from "../sessions/sessions.service";
-import { REDIS_MATCHMAKING_EVENTS_CHANNEL } from "./matchmaking.constants";
 import { MatchmakingService } from "./matchmaking.service";
-
-type LoggerAccessor = {
-  logger: {
-    error: (...args: unknown[]) => void;
-  };
-};
 
 describe("MatchmakingService", () => {
   let service: MatchmakingService;
+  let notificationDispatcherMock: { dispatch: jest.Mock };
   let prismaMock: {
     user: {
       findUnique: jest.Mock;
@@ -42,6 +37,12 @@ describe("MatchmakingService", () => {
       create: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
+    };
+    availabilitySlot: {
+      updateMany: jest.Mock;
+    };
+    interviewSession: {
+      create: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -64,6 +65,8 @@ describe("MatchmakingService", () => {
   const targetCardId = "33333333-3333-4333-a333-333333333333";
   const senderCardId = "44444444-4444-4444-a444-444444444444";
   const requestId = "55555555-5555-4555-a555-555555555555";
+  const slotId = "66666666-6666-4666-a666-666666666666";
+  const sessionId = "77777777-7777-4777-a777-777777777777";
 
   const mockSenderUser = {
     id: senderId,
@@ -83,6 +86,13 @@ describe("MatchmakingService", () => {
     gitUrl: "https://github.com/receiver",
   };
 
+  const mockTargetSlot = {
+    id: slotId,
+    startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    durationMinutes: 60,
+    status: "OPEN",
+  } as const;
+
   const mockTargetCard = {
     id: targetCardId,
     userId: receiverId,
@@ -100,6 +110,7 @@ describe("MatchmakingService", () => {
     updatedAt: new Date(),
     bumpedAt: new Date(),
     expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+    slots: [],
     user: mockReceiverUser,
   };
 
@@ -120,6 +131,7 @@ describe("MatchmakingService", () => {
     updatedAt: new Date(),
     bumpedAt: new Date(),
     expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+    slots: [],
     user: mockSenderUser,
   };
 
@@ -129,11 +141,12 @@ describe("MatchmakingService", () => {
     receiverId,
     targetCardId,
     senderCardId: null,
+    slotId: null,
+    sessionId: null,
     status: "PENDING",
     message: "Привет, давай потренируем алгоритмы!",
     preferredTopic: "Алгоритмы",
     rejectReason: null,
-    sessionId: null,
     session: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -142,6 +155,7 @@ describe("MatchmakingService", () => {
     receiver: mockReceiverUser,
     targetCard: mockTargetCard,
     senderCard: null,
+    slot: null,
   };
 
   beforeEach(() => {
@@ -166,11 +180,17 @@ describe("MatchmakingService", () => {
         update: jest.fn(),
         updateMany: jest.fn(),
       },
+      availabilitySlot: {
+        updateMany: jest.fn(),
+      },
+      interviewSession: {
+        create: jest.fn(),
+      },
       $transaction: jest.fn((callback) => callback(prismaMock)),
     };
 
-    redisServiceMock = {
-      publish: jest.fn().mockResolvedValue(undefined),
+    notificationDispatcherMock = {
+      dispatch: jest.fn().mockResolvedValue({ id: "outbox-row-id" }),
     };
 
     sessionsServiceMock = {
@@ -189,8 +209,13 @@ describe("MatchmakingService", () => {
       get: jest.fn().mockReturnValue("http://localhost:3000"),
     };
 
+    redisServiceMock = {
+      publish: jest.fn().mockResolvedValue("published"),
+    };
+
     service = new MatchmakingService(
       prismaMock as unknown as PrismaService,
+      notificationDispatcherMock as unknown as NotificationDispatcher,
       redisServiceMock as unknown as RedisService,
       sessionsServiceMock as unknown as SessionsService,
       mailServiceMock as unknown as MailService,
@@ -449,50 +474,21 @@ describe("MatchmakingService", () => {
       const result = await service.create(senderId, validDto);
 
       expect(prismaMock.$transaction).toHaveBeenCalled();
-      expect(redisServiceMock.publish).toHaveBeenCalledWith(
-        REDIS_MATCHMAKING_EVENTS_CHANNEL,
-        expect.stringContaining("match.accepted"),
-      );
+      // Встречная заявка переводится в ACCEPTED атомарно с привязкой к общей
+      // живой сессии, а вторая создаётся сразу в ACCEPTED (ADR-002:109).
+      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "cross-request-id",
+          status: "PENDING",
+          expiresAt: { gt: expect.any(Date) },
+        },
+        data: { status: "ACCEPTED", sessionId: "mock-session-id-123" },
+      });
 
       expect(result.status).toBe("ACCEPTED");
       // При ACCEPTED контакты раскрываются
       expect(result.sender.telegramUsername).toBe("sender_tg");
       expect(result.receiver.telegramUsername).toBe("receiver_tg");
-    });
-
-    it("логирует ошибку и не прерывает операцию, если публикация в Redis Pub/Sub завершилась сбоем", async () => {
-      prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
-      prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(mockTargetCard);
-      prismaMock.matchRequest.count
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(0);
-      prismaMock.matchRequest.findFirst
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: "cross-request-id" });
-
-      const acceptedMockRequest = {
-        ...mockMatchRequest,
-        status: "ACCEPTED",
-      };
-
-      prismaMock.matchRequest.create.mockResolvedValueOnce(acceptedMockRequest);
-      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
-
-      const loggerSpy = jest.spyOn(
-        (service as unknown as LoggerAccessor).logger,
-        "error",
-      );
-      redisServiceMock.publish.mockRejectedValueOnce(
-        new Error("Redis offline"),
-      );
-
-      const result = await service.create(senderId, validDto);
-
-      expect(result.status).toBe("ACCEPTED");
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to publish match.accepted event"),
-        expect.any(String),
-      );
     });
 
     it("создает обычную PENDING заявку, если встречная заявка была отменена параллельно (updateMany count === 0)", async () => {
@@ -512,7 +508,6 @@ describe("MatchmakingService", () => {
       const result = await service.create(senderId, validDto);
 
       expect(result.status).toBe("PENDING");
-      expect(redisServiceMock.publish).not.toHaveBeenCalled();
     });
 
     it("очищает сессию при возникновении LiveMatchPostCommitError при встречном отклике", async () => {
@@ -625,11 +620,10 @@ describe("MatchmakingService", () => {
 
     it("бросает BadRequestException и переводит в EXPIRED, если срок заявки истёк", async () => {
       prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
-        id: requestId,
-        receiverId,
-        status: "PENDING",
+        ...mockMatchRequest,
         expiresAt: new Date(Date.now() - 1000), // в прошлом
       });
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
 
       await expect(service.accept(requestId, receiverId)).rejects.toThrow(
         BadRequestException,
@@ -638,6 +632,36 @@ describe("MatchmakingService", () => {
       expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
         where: { id: requestId, status: "PENDING" },
         data: { status: "EXPIRED" },
+      });
+    });
+
+    it("освобождает слот вместе с истёкшей заявкой", async () => {
+      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+        ...mockMatchRequest,
+        slotId,
+        slot: {
+          ...mockTargetSlot,
+          status: "BOOKED",
+          bookedByRequestId: requestId,
+        },
+        expiresAt: new Date(Date.now() - 1000),
+      });
+      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+      prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+        count: 1,
+      });
+
+      await expect(service.accept(requestId, receiverId)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: slotId,
+          status: "BOOKED",
+          bookedByRequestId: requestId,
+        },
+        data: { status: "OPEN", bookedByRequestId: null },
       });
     });
 
@@ -653,10 +677,6 @@ describe("MatchmakingService", () => {
 
       await expect(service.accept(requestId, receiverId)).rejects.toThrow(
         BadRequestException,
-      );
-
-      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
-        "mock-session-id-123",
       );
     });
 
@@ -680,33 +700,7 @@ describe("MatchmakingService", () => {
       expect(sessionsServiceMock.cleanupOrphanedSession).not.toHaveBeenCalled();
     });
 
-    it("очищает сессию при возникновении LiveMatchPostCommitError", async () => {
-      prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
-        id: requestId,
-        receiverId,
-        status: "PENDING",
-        expiresAt: new Date(Date.now() + 100000),
-      });
-
-      const postCommitError = new LiveMatchPostCommitError(
-        "post-commit-session-id",
-        "post-commit-token",
-        "Redis warm-up failed",
-      );
-      sessionsServiceMock.createLiveMatchSession.mockRejectedValueOnce(
-        postCommitError,
-      );
-
-      await expect(service.accept(requestId, receiverId)).rejects.toThrow(
-        LiveMatchPostCommitError,
-      );
-
-      expect(sessionsServiceMock.cleanupOrphanedSession).toHaveBeenCalledWith(
-        "post-commit-session-id",
-      );
-    });
-
-    it("успешно переводит заявку в ACCEPTED, публикует в Redis и открывает контакты", async () => {
+    it("успешно переводит заявку в ACCEPTED и открывает контакты", async () => {
       prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
         id: requestId,
         receiverId,
@@ -724,18 +718,13 @@ describe("MatchmakingService", () => {
 
       expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
         where: { id: requestId, status: "PENDING" },
-        data: { status: "ACCEPTED", sessionId: "mock-session-id-123" },
+        data: { status: "ACCEPTED" },
       });
 
       expect(prismaMock.matchRequest.findUniqueOrThrow).toHaveBeenCalledWith({
         where: { id: requestId },
         include: expect.any(Object),
       });
-
-      expect(redisServiceMock.publish).toHaveBeenCalledWith(
-        REDIS_MATCHMAKING_EVENTS_CHANNEL,
-        expect.stringContaining("match.accepted"),
-      );
 
       expect(result.status).toBe("ACCEPTED");
       expect(result.sender.telegramUsername).toBe("sender_tg");
@@ -879,6 +868,334 @@ describe("MatchmakingService", () => {
       });
 
       expect(result.status).toBe("CANCELLED");
+    });
+  });
+
+  describe("слоты расписания", () => {
+    const cardWithSlot = {
+      ...mockTargetCard,
+      slots: [mockTargetSlot],
+    };
+
+    const bookedRequest = {
+      ...mockMatchRequest,
+      slotId,
+      slot: {
+        ...mockTargetSlot,
+        status: "BOOKED",
+        bookedByRequestId: requestId,
+      },
+    };
+
+    beforeEach(() => {
+      prismaMock.matchRequest.count.mockResolvedValue(0);
+      prismaMock.matchRequest.findFirst.mockResolvedValue(null);
+    });
+
+    describe("create", () => {
+      it("требует slotId, если у целевой карточки есть расписание", async () => {
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(cardWithSlot);
+
+        await expect(
+          service.create(senderId, { targetCardId, message: "Привет" }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it("отклоняет слот, которого нет в расписании целевой карточки", async () => {
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(cardWithSlot);
+
+        await expect(
+          service.create(senderId, {
+            targetCardId,
+            message: "Привет",
+            slotId: "99999999-9999-4999-a999-999999999999",
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it("резервирует слот и кладёт предложение в outbox в той же транзакции", async () => {
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(cardWithSlot);
+        prismaMock.matchRequest.create.mockResolvedValueOnce({
+          ...mockMatchRequest,
+          slotId,
+          slot: { ...mockTargetSlot, status: "BOOKED" },
+        });
+        prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+          count: 1,
+        });
+
+        const result = await service.create(senderId, {
+          targetCardId,
+          message: "Привет",
+          slotId,
+        });
+
+        expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+          where: { id: slotId, status: "OPEN" },
+          data: { status: "BOOKED", bookedByRequestId: result.id },
+        });
+
+        expect(notificationDispatcherMock.dispatch).toHaveBeenCalledWith(
+          {
+            type: "interview.match_proposed",
+            payload: {
+              requestId: result.id,
+              proposedSlotId: slotId,
+              proposedStartUtc: mockTargetSlot.startsAt.toISOString(),
+              senderName: mockSenderUser.displayName,
+            },
+          },
+          receiverId,
+          prismaMock,
+          `/matchmaking/requests/${result.id}`,
+        );
+      });
+
+      it("бросает ConflictException, если слот успели занять", async () => {
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(cardWithSlot);
+        prismaMock.matchRequest.create.mockResolvedValueOnce(mockMatchRequest);
+        prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+          count: 0,
+        });
+
+        await expect(
+          service.create(senderId, {
+            targetCardId,
+            message: "Привет",
+            slotId,
+          }),
+        ).rejects.toThrow(ConflictException);
+
+        expect(notificationDispatcherMock.dispatch).not.toHaveBeenCalled();
+      });
+
+      it("не выполняет auto-match, если слоты есть у целевой карточки", async () => {
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce(cardWithSlot);
+        // Встречная заявка есть, но слоты есть — кросс-инвайт не выполняется.
+        prismaMock.matchRequest.findFirst
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: "cross-request-id" });
+        prismaMock.matchRequest.create.mockResolvedValueOnce({
+          ...mockMatchRequest,
+          slotId,
+          slot: { ...mockTargetSlot, status: "BOOKED" },
+        });
+        prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+          count: 1,
+        });
+
+        const result = await service.create(senderId, {
+          targetCardId,
+          message: "Привет",
+          slotId,
+        });
+
+        expect(prismaMock.matchRequest.updateMany).not.toHaveBeenCalled();
+        expect(result.status).toBe("PENDING");
+      });
+
+      it("переносит существующую PENDING-заявку на новый слот, сохраняя текст", async () => {
+        const nextSlot = {
+          ...mockTargetSlot,
+          id: "77777777-7777-4777-a777-777777777777",
+          startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        };
+
+        prismaMock.user.findUnique.mockResolvedValueOnce(mockSenderUser);
+        prismaMock.showcaseCard.findUnique.mockResolvedValueOnce({
+          ...mockTargetCard,
+          slots: [mockTargetSlot, nextSlot],
+        });
+        prismaMock.matchRequest.findFirst
+          .mockResolvedValueOnce(null) // кулдаун
+          .mockResolvedValueOnce(bookedRequest); // уже есть PENDING-заявка
+        prismaMock.availabilitySlot.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.matchRequest.update.mockResolvedValueOnce({
+          ...bookedRequest,
+          slotId: nextSlot.id,
+          slot: { ...nextSlot, status: "BOOKED" },
+        });
+
+        const result = await service.create(senderId, {
+          targetCardId,
+          message: "Другое сообщение",
+          slotId: nextSlot.id,
+        });
+
+        // Старый слот освобождён, новый занят.
+        expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: slotId,
+            status: "BOOKED",
+            bookedByRequestId: requestId,
+          },
+          data: { status: "OPEN", bookedByRequestId: null },
+        });
+        expect(prismaMock.matchRequest.create).not.toHaveBeenCalled();
+        expect(prismaMock.matchRequest.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: requestId },
+            data: expect.objectContaining({ slotId: nextSlot.id }),
+          }),
+        );
+        // Текст заявки сохраняется: клиент меняет время, а не содержание.
+        expect(result.message).toBe(bookedRequest.message);
+        expect(result.slot?.id).toBe(nextSlot.id);
+      });
+    });
+
+    describe("accept", () => {
+      it("создаёт InterviewSession на время слота и уведомляет обе стороны", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.interviewSession.create.mockResolvedValueOnce({
+          id: sessionId,
+        });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...bookedRequest,
+          status: "ACCEPTED",
+          sessionId,
+        });
+
+        const result = await service.accept(requestId, receiverId);
+
+        expect(prismaMock.interviewSession.create).toHaveBeenCalledWith({
+          data: {
+            userId: receiverId,
+            status: "CREATED",
+            scheduledAt: mockTargetSlot.startsAt,
+            participants: {
+              create: [
+                { userId: receiverId, role: "CANDIDATE" },
+                { userId: senderId, role: "INTERVIEWER" },
+              ],
+            },
+          },
+        });
+
+        // Бронь остаётся за принятой заявкой.
+        expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+
+        expect(result.sessionId).toBe(sessionId);
+        expect(notificationDispatcherMock.dispatch).toHaveBeenCalledWith(
+          {
+            type: "interview.slot_booked",
+            payload: {
+              sessionId,
+              slotId,
+              startUtc: mockTargetSlot.startsAt.toISOString(),
+              otherParticipantName: mockSenderUser.displayName,
+            },
+          },
+          receiverId,
+          prismaMock,
+          `/interviews/${sessionId}`,
+        );
+        expect(notificationDispatcherMock.dispatch).toHaveBeenCalledWith(
+          expect.objectContaining({ type: "interview.slot_booked" }),
+          senderId,
+          prismaMock,
+          `/interviews/${sessionId}`,
+        );
+      });
+
+      it("не создаёт сессию для заявки без слота", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(
+          mockMatchRequest,
+        );
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...mockMatchRequest,
+          status: "ACCEPTED",
+        });
+
+        await service.accept(requestId, receiverId);
+
+        expect(prismaMock.interviewSession.create).not.toHaveBeenCalled();
+        expect(notificationDispatcherMock.dispatch).not.toHaveBeenCalled();
+      });
+
+      it("отклоняет заявку, время слота которой уже прошло", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce({
+          ...bookedRequest,
+          slot: {
+            ...bookedRequest.slot,
+            startsAt: new Date(Date.now() - 60 * 60 * 1000),
+          },
+        });
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+
+        await expect(service.accept(requestId, receiverId)).rejects.toThrow(
+          BadRequestException,
+        );
+
+        expect(prismaMock.interviewSession.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("reject и cancel", () => {
+      it("освобождает слот при отклонении", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+          count: 1,
+        });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...bookedRequest,
+          status: "REJECTED",
+        });
+
+        await service.reject(requestId, receiverId, { reason: "Занят" });
+
+        expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: slotId,
+            status: "BOOKED",
+            bookedByRequestId: requestId,
+          },
+          data: { status: "OPEN", bookedByRequestId: null },
+        });
+      });
+
+      it("не освобождает слот, если заявку уже отклонили параллельно", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+
+        await expect(
+          service.reject(requestId, receiverId, { reason: "Занят" }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("освобождает слот при отмене заявки отправителем", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+          count: 1,
+        });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...bookedRequest,
+          status: "CANCELLED",
+        });
+
+        await service.cancel(requestId, senderId);
+
+        expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: slotId,
+            status: "BOOKED",
+            bookedByRequestId: requestId,
+          },
+          data: { status: "OPEN", bookedByRequestId: null },
+        });
+      });
     });
   });
 });

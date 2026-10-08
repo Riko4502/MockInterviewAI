@@ -8,10 +8,12 @@ import {
 } from "@nestjs/common";
 import {
   CreateShowcaseCardDto,
+  MAX_SLOTS_PER_CARD,
   normalizeSkill,
   PaginatedResponseDto,
   parseSearchQuery,
   ShowcaseCardResponseDto,
+  type ShowcaseCardStatsDto,
   ShowcaseQueryDto,
   sanitizeSearchTerm,
   UpdateShowcaseCardDto,
@@ -20,7 +22,23 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
-import { PUBLIC_USER_SELECT, SHOWCASE_LIMITS } from "./showcase.constants";
+import { type ResolvedSlot, resolveSlots } from "./availability-slots";
+import {
+  CARD_SLOTS_INCLUDE,
+  PUBLIC_USER_SELECT,
+  SHOWCASE_LIMITS,
+  SURVIVING_SLOT_STATUS,
+  slotIdentity,
+} from "./showcase.constants";
+import { toShowcaseCardResponse } from "./showcase.mapper";
+
+/**
+ * Слоты карточки целиком, без фильтра по статусу: пересборке расписания нужны и
+ * `BOOKED`, и `CANCELLED`, а ответ клиенту собирается из тех же строк.
+ */
+type CardSlots = Prisma.ShowcaseCardGetPayload<{
+  include: { slots: true };
+}>["slots"];
 
 @Injectable()
 export class ShowcaseService {
@@ -52,6 +70,9 @@ export class ShowcaseService {
    * - Лимит: не более 5 активных анкет на одного пользователя.
    * - Уникальность: запрещено создавать дубликат активной анкеты с теми же специализацией и уровнем.
    * - Срок жизни: автоматически выставляется expiresAt на 15 дней вперед.
+   * - Слоты расписания, если они присланы, пишутся в той же транзакции, что и
+   *   карточка: иначе карточка осталась бы в каталоге без расписания, о котором
+   *   клиент сообщил, что оно создано (ADR-002:104).
    */
   async create(
     userId: string,
@@ -60,7 +81,8 @@ export class ShowcaseService {
     // 1. Проверяем заполненность профиля автора
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: PUBLIC_USER_SELECT,
+      // Таймзона нужна для перевода слотов из локального времени в UTC
+      select: { ...PUBLIC_USER_SELECT, timezone: true },
     });
 
     if (!user) {
@@ -77,73 +99,126 @@ export class ShowcaseService {
       );
     }
 
-    // 2. Проверяем лимит активных анкет (максимум 5 на пользователя)
-    const activeCardsCount = await this.prisma.showcaseCard.count({
-      where: {
-        userId,
-        status: "ACTIVE",
-      },
-    });
-
-    if (activeCardsCount >= SHOWCASE_LIMITS.MAX_ACTIVE_CARDS_PER_USER) {
-      throw new BadRequestException(
-        `Достигнут лимит активных анкет (максимум ${SHOWCASE_LIMITS.MAX_ACTIVE_CARDS_PER_USER})`,
-      );
-    }
-
-    // 3. Проверяем отсутствие дубликата по специализации и уровню среди активных
-    const existingActiveCard = await this.prisma.showcaseCard.findFirst({
-      where: {
-        userId,
-        specialization: dto.specialization,
-        level: dto.level,
-        status: "ACTIVE",
-      },
-      select: { id: true },
-    });
-
-    if (existingActiveCard) {
-      throw new ConflictException(
-        "У вас уже есть активная анкета с такой специализацией и уровнем",
-      );
-    }
-
-    // 4. Вычисляем дату истечения срока жизни (текущее время + 15 дней)
+    // 2. Вычисляем дату истечения срока жизни (текущее время + 15 дней)
+    const now = new Date();
     const expiresAt = new Date(
-      Date.now() + SHOWCASE_LIMITS.CARD_TTL_DAYS * 24 * 60 * 60 * 1000,
+      now.getTime() + SHOWCASE_LIMITS.CARD_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    // 5. Сохраняем новую анкету в базе данных с публичными данными автора
+    // 3. Сохраняем новую анкету вместе со слотами в одной транзакции
     try {
-      const created = await this.prisma.showcaseCard.create({
-        data: {
-          userId,
-          title: dto.title,
-          specialization: dto.specialization,
-          level: dto.level,
-          language: dto.language,
-          skills: dto.skills,
-          bio: dto.bio,
-          scheduleInfo: dto.scheduleInfo,
-          isUrgent: dto.isUrgent,
-          autoRenew: dto.autoRenew,
-          expiresAt,
+      const created = await this.prisma.$transaction(
+        async (tx) => {
+          // 3.1. Лимит активных анкет (максимум 5 на пользователя)
+          const activeCardsCount = await tx.showcaseCard.count({
+            where: { userId, status: "ACTIVE" },
+          });
+
+          if (activeCardsCount >= SHOWCASE_LIMITS.MAX_ACTIVE_CARDS_PER_USER) {
+            throw new BadRequestException(
+              `Достигнут лимит активных анкет (максимум ${SHOWCASE_LIMITS.MAX_ACTIVE_CARDS_PER_USER})`,
+            );
+          }
+
+          // 3.2. Запрет дубликата по специализации и уровню среди активных
+          const existingActiveCard = await tx.showcaseCard.findFirst({
+            where: {
+              userId,
+              specialization: dto.specialization,
+              level: dto.level,
+              status: "ACTIVE",
+            },
+            select: { id: true },
+          });
+
+          if (existingActiveCard) {
+            throw new ConflictException(
+              "У вас уже есть активная анкета с такой специализацией и уровнем",
+            );
+          }
+
+          // 3.3. Анкета с публичными данными автора
+          const card = await tx.showcaseCard.create({
+            data: {
+              userId,
+              title: dto.title,
+              specialization: dto.specialization,
+              level: dto.level,
+              language: dto.language,
+              skills: dto.skills,
+              bio: dto.bio,
+              scheduleInfo: dto.scheduleInfo,
+              isUrgent: dto.isUrgent,
+              autoRenew: dto.autoRenew,
+              expiresAt,
+            },
+            include: { user: { select: PUBLIC_USER_SELECT } },
+          });
+
+          // 3.4. Слоты расписания в зоне владельца
+          const slots = dto.slots
+            ? await this.createSlots(tx, card.id, dto.slots, {
+                timeZone: user.timezone,
+                now,
+                cardExpiresAt: expiresAt,
+              })
+            : [];
+
+          return { ...card, slots };
         },
-        include: {
-          user: {
-            select: PUBLIC_USER_SELECT,
-          },
-        },
-      });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
 
       await this.invalidateShowcaseCache(userId);
-      return created;
+      return toShowcaseCardResponse(created);
     } catch (error) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException(
+          "Не удалось сохранить анкету из-за высокой конкуренции параллельных запросов. Пожалуйста, повторите попытку.",
+        );
+      }
+
       this.handleUniqueConflict(
         error,
         "У вас уже есть активная анкета с такой специализацией и уровнем",
       );
     }
+  }
+
+  /**
+   * Переводит слоты в UTC-инстанты и записывает их (ADR-002:65).
+   *
+   * Проверки живут в `resolveSlots`, запись — здесь: преобразование не должно
+   * молча пройти, а сохранение не должно произойти без преобразования.
+   */
+  private async createSlots(
+    tx: Prisma.TransactionClient,
+    cardId: string,
+    slots: CreateShowcaseCardDto["slots"],
+    context: {
+      timeZone: string;
+      now: Date;
+      cardExpiresAt: Date;
+    },
+  ) {
+    const resolved = resolveSlots(slots ?? [], { ...context, existing: [] });
+
+    // `createManyAndReturn` вместо `create` по одному: слотов максимум 10, а
+    // одним запросом к базе меньше шансов, что часть вставки пройдёт мимо
+    // `expiresAt`-проверки, если её придётся повторять.
+    return tx.availabilitySlot.createManyAndReturn({
+      data: resolved.map((slot) => this.slotCreateData(cardId, slot)),
+    });
+  }
+
+  /** Данные слота для вставки; `endsAt` проверяется CHECK-ограничением в БД. */
+  private slotCreateData(cardId: string, slot: ResolvedSlot) {
+    return {
+      cardId,
+      startsAt: slot.startsAt,
+      durationMinutes: slot.durationMinutes,
+      endsAt: slot.endsAt,
+    };
   }
 
   /**
@@ -251,6 +326,7 @@ export class ShowcaseService {
         take: limit,
         include: {
           user: { select: PUBLIC_USER_SELECT },
+          ...CARD_SLOTS_INCLUDE,
         },
       }),
     ]);
@@ -266,7 +342,7 @@ export class ShowcaseService {
 
     // 9. Возвращаем данные с мета-информацией для навигации
     return {
-      data: cards,
+      data: cards.map((card) => toShowcaseCardResponse(card)),
       meta: {
         total,
         page,
@@ -292,6 +368,7 @@ export class ShowcaseService {
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: PUBLIC_USER_SELECT },
+        ...CARD_SLOTS_INCLUDE,
       },
     });
 
@@ -314,10 +391,7 @@ export class ShowcaseService {
     });
 
     // 4. Раскладываем результат подсчёта в словарь Map для быстрого доступа O(1)
-    const statsMap = new Map<
-      string,
-      { pendingRequestsCount: number; acceptedRequestsCount: number }
-    >();
+    const statsMap = new Map<string, ShowcaseCardStatsDto>();
 
     for (const stat of requestStats) {
       const current = statsMap.get(stat.targetCardId) ?? {
@@ -335,13 +409,15 @@ export class ShowcaseService {
     }
 
     // 5. Прикрепляем объект stats к каждой карточке (с нулями по умолчанию)
-    return cards.map((card) => ({
-      ...card,
-      stats: statsMap.get(card.id) ?? {
-        pendingRequestsCount: 0,
-        acceptedRequestsCount: 0,
-      },
-    }));
+    return cards.map((card) =>
+      toShowcaseCardResponse(
+        card,
+        statsMap.get(card.id) ?? {
+          pendingRequestsCount: 0,
+          acceptedRequestsCount: 0,
+        },
+      ),
+    );
   }
 
   /**
@@ -362,6 +438,7 @@ export class ShowcaseService {
         user: {
           select: PUBLIC_USER_SELECT,
         },
+        ...CARD_SLOTS_INCLUDE,
       },
     });
 
@@ -378,7 +455,7 @@ export class ShowcaseService {
     // 4. Скрываем Telegram в публичном просмотре (открывается только после взаимного ACCEPTED)
     card.user.telegramUsername = null;
 
-    return card;
+    return toShowcaseCardResponse(card);
   }
 
   /**
@@ -388,15 +465,21 @@ export class ShowcaseService {
    * - Редактировать анкету может только её автор (иначе 403 Forbidden).
    * - При изменении specialization или level проверяет, чтобы у активной анкеты
    *   не возникло дубликата с другой активной анкетой того же пользователя.
+   * - `slots` — полная замена расписания: слоты, которых нет в запросе,
+   *   погашаются, а занятые заявками слоты сохраняются (ADR-002:62, :117).
    */
   async update(
     id: string,
     userId: string,
     dto: UpdateShowcaseCardDto,
   ): Promise<ShowcaseCardResponseDto> {
-    // 1. Ищем текущую карточку в базе
+    // 1. Ищем текущую карточку вместе со слотами: сравнение нового расписания
+    //    с текущим обязано видеть то же состояние, в котором будет запись.
     const card = await this.prisma.showcaseCard.findUnique({
       where: { id },
+      include: {
+        slots: { orderBy: { startsAt: "asc" } },
+      },
     });
 
     if (!card) {
@@ -445,35 +528,166 @@ export class ShowcaseService {
       }
     }
 
-    // 5. Применяем только переданные поля и сохраняем обновления
+    // 5. Пересборка расписания и запись полей анкеты — в одной транзакции:
+    //    частично применённое расписание выглядело бы валидным, хотя часть
+    //    слотов уже погашена (ADR-002:65, :104).
     try {
-      const updated = await this.prisma.showcaseCard.update({
-        where: { id },
-        data: {
-          ...(dto.title !== undefined && { title: dto.title }),
-          ...(dto.level !== undefined && { level: dto.level }),
-          ...(dto.language !== undefined && { language: dto.language }),
-          ...(dto.skills !== undefined && { skills: dto.skills }),
-          ...(dto.bio !== undefined && { bio: dto.bio }),
-          ...(dto.scheduleInfo !== undefined && {
-            scheduleInfo: dto.scheduleInfo,
-          }),
-          ...(dto.isUrgent !== undefined && { isUrgent: dto.isUrgent }),
-          ...(dto.autoRenew !== undefined && { autoRenew: dto.autoRenew }),
+      const updated = await this.prisma.$transaction(
+        async (tx) => {
+          const slots =
+            dto.slots === undefined
+              ? undefined
+              : await this.replaceSlots(tx, card, dto.slots);
+
+          const saved = await tx.showcaseCard.update({
+            where: { id },
+            data: {
+              ...(dto.title !== undefined && { title: dto.title }),
+              ...(dto.specialization !== undefined && {
+                specialization: dto.specialization,
+              }),
+              ...(dto.level !== undefined && { level: dto.level }),
+              ...(dto.language !== undefined && { language: dto.language }),
+              ...(dto.skills !== undefined && { skills: dto.skills }),
+              ...(dto.bio !== undefined && { bio: dto.bio }),
+              ...(dto.scheduleInfo !== undefined && {
+                scheduleInfo: dto.scheduleInfo,
+              }),
+              ...(dto.isUrgent !== undefined && { isUrgent: dto.isUrgent }),
+              ...(dto.autoRenew !== undefined && {
+                autoRenew: dto.autoRenew,
+              }),
+            },
+            include: {
+              user: { select: PUBLIC_USER_SELECT },
+              ...CARD_SLOTS_INCLUDE,
+            },
+          });
+
+          // Ответ собирается из прочитанных слотов: повторный include вернул бы
+          // слоты, прочитанные до записи анкеты, и не увидел бы новые.
+          return slots === undefined ? saved : { ...saved, slots };
         },
-        include: {
-          user: { select: PUBLIC_USER_SELECT },
-        },
-      });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
 
       await this.invalidateShowcaseCache(userId);
-      return updated;
+      return toShowcaseCardResponse(updated);
     } catch (error) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException(
+          "Не удалось сохранить анкету из-за высокой конкуренции параллельных запросов. Пожалуйста, повторите попытку.",
+        );
+      }
+
       this.handleUniqueConflict(
         error,
         "У вас уже есть активная анкета с такой специализацией и уровнем",
       );
     }
+  }
+
+  /**
+   * Пересобирает расписание карточки целиком (ADR-002:62, :117).
+   *
+   * Занятые слоты не трогаются: `BOOKED` означает, что время принадлежит уже
+   * созданной заявке, а не расписанию, поэтому снять его может только сама
+   * заявка. Остальные слоты, отсутствующие в запросе, гасятся, совпавшие — остаются,
+   * а новые добавляются. Погашенные слоты освобождают интервал: иначе удаление
+   * слота и добавление нового на его месте были бы невозможны в одном запросе.
+   */
+  private async replaceSlots(
+    tx: Prisma.TransactionClient,
+    card: {
+      id: string;
+      userId: string;
+      expiresAt: Date;
+      slots: CardSlots;
+    },
+    requested: NonNullable<UpdateShowcaseCardDto["slots"]>,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: card.userId },
+      select: { timezone: true },
+    });
+
+    // Зона владельца обязательна: без неё локальное время слота некуда переводить.
+    if (!user?.timezone) {
+      throw new BadRequestException(
+        "Укажите таймзону в профиле, чтобы добавить слоты расписания",
+      );
+    }
+
+    const takenByRequests = card.slots.filter(
+      (slot) => slot.status === SURVIVING_SLOT_STATUS,
+    );
+    const openSlots = card.slots.filter((slot) => slot.status === "OPEN");
+
+    // Пересечение с занятым слотом отклоняется здесь: освободить его может
+    // только сама заявка, поэтому «освободить» его здесь нечем — а exclusion
+    // constraint в БД всё равно отверг бы такую вставку.
+    const resolved = resolveSlots(requested, {
+      timeZone: user.timezone,
+      now: new Date(),
+      cardExpiresAt: card.expiresAt,
+      existing: takenByRequests,
+    });
+
+    const openByIdentity = new Map(
+      openSlots.map((slot) => [slotIdentity(slot), slot]),
+    );
+
+    const keptIdentities = new Set<string>();
+    const created: ResolvedSlot[] = [];
+
+    for (const slot of resolved) {
+      const identity = slotIdentity(slot);
+
+      // Совпавший слот не вставляется заново: exclusion constraint в БД считает
+      // два одинаковых интервала пересечением, то есть вернуть «тот же» слот
+      // без изменения не получилось бы.
+      if (openByIdentity.has(identity)) {
+        keptIdentities.add(identity);
+        continue;
+      }
+
+      created.push(slot);
+    }
+
+    if (keptIdentities.size + created.length > MAX_SLOTS_PER_CARD) {
+      throw new BadRequestException(
+        `На карточке может быть не более ${MAX_SLOTS_PER_CARD} слотов, с учётом занятых заявками`,
+      );
+    }
+
+    const removedIds = openSlots
+      .filter((slot) => !keptIdentities.has(slotIdentity(slot)))
+      .map((slot) => slot.id);
+
+    if (removedIds.length > 0) {
+      // `status: "OPEN"` в условии: погасить можно только свободный слот, иначе
+      // запрос отнял бы время у заявки, которая его заняла между чтением и записью.
+      await tx.availabilitySlot.updateMany({
+        where: { id: { in: removedIds }, status: "OPEN" },
+        data: { status: "CANCELLED" },
+      });
+    }
+
+    const kept = openSlots.filter((slot) =>
+      keptIdentities.has(slotIdentity(slot)),
+    );
+
+    if (created.length === 0) {
+      return kept;
+    }
+
+    const inserted = await tx.availabilitySlot.createManyAndReturn({
+      data: created.map((slot) => this.slotCreateData(card.id, slot)),
+    });
+
+    return [...kept, ...inserted].sort(
+      (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
+    );
   }
 
   /**
@@ -494,6 +708,7 @@ export class ShowcaseService {
       where: { id },
       include: {
         user: { select: PUBLIC_USER_SELECT },
+        ...CARD_SLOTS_INCLUDE,
       },
     });
 
@@ -514,7 +729,7 @@ export class ShowcaseService {
 
     // 3. Если статус совпадает с текущим — возвращаем данные владельца без повторной мутации
     if (card.status === dto.status) {
-      return card;
+      return toShowcaseCardResponse(card);
     }
 
     // 4. При включении (ACTIVE) проверяем лимит 5 активных анкет
@@ -540,11 +755,12 @@ export class ShowcaseService {
         data: { status: dto.status },
         include: {
           user: { select: PUBLIC_USER_SELECT },
+          ...CARD_SLOTS_INCLUDE,
         },
       });
 
       await this.invalidateShowcaseCache(userId);
-      return updated;
+      return toShowcaseCardResponse(updated);
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -610,11 +826,12 @@ export class ShowcaseService {
       data: { bumpedAt: new Date() },
       include: {
         user: { select: PUBLIC_USER_SELECT },
+        ...CARD_SLOTS_INCLUDE,
       },
     });
 
     await this.invalidateShowcaseCache(userId);
-    return updated;
+    return toShowcaseCardResponse(updated);
   }
 
   /**
@@ -680,11 +897,12 @@ export class ShowcaseService {
         },
         include: {
           user: { select: PUBLIC_USER_SELECT },
+          ...CARD_SLOTS_INCLUDE,
         },
       });
 
       await this.invalidateShowcaseCache(userId);
-      return renewed;
+      return toShowcaseCardResponse(renewed);
     } catch (error) {
       this.handleUniqueConflict(
         error,
@@ -726,6 +944,22 @@ export class ShowcaseService {
     });
 
     await this.invalidateShowcaseCache(userId);
+  }
+
+  /**
+   * Перехватывает конфликт сериализации (Prisma P2034).
+   *
+   * Отдельный тип ошибки, а не повтор: P2034 означает, что параллельная
+   * транзакция изменила те же строки, поэтому исход решения «кто первый» здесь
+   * нет — его должен повторить клиент.
+   */
+  private isSerializationConflict(error: unknown): boolean {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "P2034"
+    );
   }
 
   /**

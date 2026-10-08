@@ -84,7 +84,7 @@ function interpolate(
   locale: string,
   timeZone: string | undefined,
 ): string {
-  return template.replace(/\{\{(\w+)}}/g, (match, key: string) => {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
     if (!(key in payload)) {
       return match;
     }

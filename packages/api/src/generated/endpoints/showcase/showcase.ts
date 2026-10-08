@@ -30,6 +30,9 @@ import type {
 
 import type {
   CreateShowcaseCardDto,
+  PaginatedShowcaseCardsDto,
+  ShowcaseCardListDto,
+  ShowcaseCardResponseDto,
   ShowcaseControllerFindAllParams,
   UpdateShowcaseCardDto,
   UpdateShowcaseCardStatusDto
@@ -79,9 +82,9 @@ export const getShowcaseControllerFindAllUrl = (params?: ShowcaseControllerFindA
 /**
  * @summary Получить каталог активных карточек витрины
  */
-export const showcaseControllerFindAll = async (params?: ShowcaseControllerFindAllParams, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerFindAll = async (params?: ShowcaseControllerFindAllParams, options?: Parameters<typeof customInstance>[1]): Promise<PaginatedShowcaseCardsDto> => {
 
-  return customInstance<void>(getShowcaseControllerFindAllUrl(params),
+  return customInstance<PaginatedShowcaseCardsDto>(getShowcaseControllerFindAllUrl(params),
   {
     ...options,
     method: 'GET'
@@ -179,7 +182,7 @@ export const getShowcaseControllerCreateUrl = () => {
 /**
  * @summary Создать новую анкету на витрине
  */
-export const showcaseControllerCreate = async (createShowcaseCardDto: CreateShowcaseCardDto, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerCreate = async (createShowcaseCardDto: CreateShowcaseCardDto, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -187,7 +190,7 @@ export const showcaseControllerCreate = async (createShowcaseCardDto: CreateShow
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
-return customInstance<void>(getShowcaseControllerCreateUrl(),
+return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -258,9 +261,9 @@ export const useShowcaseControllerCreate = <TError = void,
 /**
  * @summary Получить анкеты текущего пользователя со статистикой заявок
  */
-export const showcaseControllerFindMy = async ( options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerFindMy = async ( options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardListDto> => {
 
-  return customInstance<void>(getShowcaseControllerFindMyUrl(),
+  return customInstance<ShowcaseCardListDto>(getShowcaseControllerFindMyUrl(),
   {
     ...options,
     method: 'GET'
@@ -358,9 +361,9 @@ export const getShowcaseControllerFindOneUrl = (id: string,) => {
 /**
  * @summary Получить детальную информацию об анкете по ID
  */
-export const showcaseControllerFindOne = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerFindOne = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
-  return customInstance<void>(getShowcaseControllerFindOneUrl(id),
+  return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerFindOneUrl(id),
   {
     ...options,
     method: 'GET'
@@ -459,7 +462,7 @@ export const getShowcaseControllerUpdateUrl = (id: string,) => {
  * @summary Редактировать анкету (только автор)
  */
 export const showcaseControllerUpdate = async (id: string,
-    updateShowcaseCardDto: UpdateShowcaseCardDto, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+    updateShowcaseCardDto: UpdateShowcaseCardDto, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -467,7 +470,7 @@ export const showcaseControllerUpdate = async (id: string,
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
-return customInstance<void>(getShowcaseControllerUpdateUrl(id),
+return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerUpdateUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -612,7 +615,7 @@ export const useShowcaseControllerRemove = <TError = void,
  * @summary Переключить статус анкеты ACTIVE <-> INACTIVE
  */
 export const showcaseControllerUpdateStatus = async (id: string,
-    updateShowcaseCardStatusDto: UpdateShowcaseCardStatusDto, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+    updateShowcaseCardStatusDto: UpdateShowcaseCardStatusDto, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -620,7 +623,7 @@ export const showcaseControllerUpdateStatus = async (id: string,
     if (Array.isArray(h)) return Object.fromEntries(h);
     return h;
   };
-return customInstance<void>(getShowcaseControllerUpdateStatusUrl(id),
+return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerUpdateStatusUrl(id),
   {
     ...options,
     method: 'PATCH',
@@ -691,9 +694,9 @@ export const useShowcaseControllerUpdateStatus = <TError = void,
 /**
  * @summary Поднять анкету в топ каталога (раз в 24 часа)
  */
-export const showcaseControllerBump = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerBump = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
-  return customInstance<void>(getShowcaseControllerBumpUrl(id),
+  return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerBumpUrl(id),
   {
     ...options,
     method: 'POST'
@@ -764,9 +767,9 @@ export const useShowcaseControllerBump = <TError = void,
 /**
  * @summary Продлить истекшую анкету (EXPIRED -> ACTIVE)
  */
-export const showcaseControllerRenew = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+export const showcaseControllerRenew = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<ShowcaseCardResponseDto> => {
 
-  return customInstance<void>(getShowcaseControllerRenewUrl(id),
+  return customInstance<ShowcaseCardResponseDto>(getShowcaseControllerRenewUrl(id),
   {
     ...options,
     method: 'POST'

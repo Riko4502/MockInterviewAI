@@ -2,6 +2,7 @@ import type { NotificationsListDtoItemsItem } from "@packages/api";
 import { Typography } from "@packages/ui";
 
 import { formatRelativeTime } from "@/shared/lib";
+import { NotificationCategoryIcon } from "./NotificationCategoryIcon";
 
 type NotificationItemProps = {
   notification: NotificationsListDtoItemsItem;
@@ -14,7 +15,7 @@ export const NotificationItem = ({
   onClick,
   disabled,
 }: NotificationItemProps) => {
-  const { title, message, readAt, createdAt } = notification;
+  const { title, message, category, readAt, createdAt } = notification;
 
   const isUnread = readAt === null;
 
@@ -22,6 +23,11 @@ export const NotificationItem = ({
     <div className="border-b border-border px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
+          <NotificationCategoryIcon
+            category={category}
+            className="size-4 shrink-0 text-muted-foreground"
+          />
+
           <Typography.Small>{title}</Typography.Small>
 
           {isUnread && (

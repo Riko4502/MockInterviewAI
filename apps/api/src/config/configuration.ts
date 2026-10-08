@@ -52,6 +52,15 @@ export const configuration = () => ({
       process.env.JWT_REFRESH_COOKIE_NAME ??
       "refresh_token",
   },
+  // Транспорт доставки в Telegram (ADR-004:126-131). Приложение — только
+  // продюсер: консьюмер очереди живёт в `apps/telegram-bot`.
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL ?? "",
+    queue: process.env.RABBITMQ_TELEGRAM_QUEUE ?? "telegram.notifications",
+    // Публикация подтверждается брокером, но не бесконечно ждёт его:
+    // иначе при недоступном брокере релей зависнет на первой же строке.
+    publishTimeoutMs: Number(process.env.RABBITMQ_PUBLISH_TIMEOUT_MS ?? 5000),
+  },
   throttle: {
     ttl: Number(process.env.THROTTLE_TTL ?? 60000),
     limit: Number(process.env.THROTTLE_LIMIT ?? 100),

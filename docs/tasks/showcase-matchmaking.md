@@ -12,7 +12,6 @@ sequenceDiagram
     actor Alice as 👩 Кандидат А (Инициатор)
     participant Web as 🌐 apps/web
     participant API as 🚀 apps/api (NestJS)
-    participant Redis as ⚡ Redis Pub/Sub
     participant DB as 🗄️ PostgreSQL
     actor Bob as 👨 Кандидат Б (Автор карточки)
 
@@ -29,13 +28,14 @@ sequenceDiagram
     API->>DB: 8. Создание MatchRequest (status: PENDING, expiresAt: now + 72h)
     API-->>Web: 9. 201 Created
 
-    Bob->>Web: 10. Просмотр входящих заявок (GET /matchmaking/requests/incoming)
+    Bob->>Web: 10. Открытие входящих (GET /matchmaking/requests/incoming)
     Web->>API: 11. POST /api/v1/matchmaking/requests/:id/accept
     
-    API->>DB: 12. Обновление статуса -> ACCEPTED
-    API->>Redis: 13. Publish 'matchmaking:events' { event: 'match.accepted', ... }
-    API-->>Web: 14. 200 OK (Возврат контактов Алисы: telegramUsername, email)
-    Web-->>Bob: 15. Отображение контактов для созвона!
+    API->>DB: 12. Атомарная смена статуса -> ACCEPTED
+    API-->>Web: 13. 200 OK (данные кандидата скрыты: telegramUsername, email)
+    Web-->>Bob: 14. Кандидат найден, перейти к диалогу!
+
+    Note over Web,API: Алисе событие о принятии доставляется по её SSE-потоку<br/>уведомлений как notification.new (payload проверяет общий словарь).<br/>Отдельного matchmaking-канала в Redis нет: ADR-003, фаза 3.<br/><br/>Целевое состояние (фаза 4, ADR-002): у MatchmakingService появляется<br/>продюсер interview.slot_booked в той же транзакции. Сейчас шага 14 нет:<br/>продюсера у матчмейкинга нет, канал matchmaking:events удалён как мёртвый.
 ```
 
 ---
@@ -157,8 +157,10 @@ apps/web/src/
 - [ ] **Фоновые воркеры (Cron):**
   - `ShowcaseCronService` (15 дней TTL / `autoRenew`).
   - `MatchmakingCronService` (72ч TTL заявок).
-- [ ] **Redis Pub/Sub:**
-  - Публикация события `match.accepted` в канал `matchmaking:events`.
+- [ ] **Доставка уведомления о принятии** — *перенесено в фазу 4 (ADR-002, п. 7.3 шаг 9); в текущем коде не выполнено:*
+  - Собственный канал матчмейкинга в Redis не используется: `matchmaking:events` удалён в фазе 3 как мёртвый (ADR-004, раздел «Что связывается между API и SSE»), подписчика у него не было.
+  - Требуется `MatchmakingService` → `NotificationDispatcher.dispatch` в той же транзакции, что и смена статуса: `interview.slot_booked` получателю, payload проверяется общим словарём, SSE-кадр `notification.new` уходит по контуру in-app (ADR-003). Блокер — `slotId` и UTC-инстант, они появляются с `AvailabilitySlot`.
+  - Пока шаг не выполнен, уведомления о принятии нет ни в одном транспорте, а не только в Telegram: fallback отсутствует, `refetchOnWindowFocus: false`, polling не используется.
 - [ ] **Тестирование:**
   - Unit-тесты для сервисов, контроллеров и парсера поиска (покрытие >= 85%).
 

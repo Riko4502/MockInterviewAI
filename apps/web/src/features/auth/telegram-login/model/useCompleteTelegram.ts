@@ -19,7 +19,7 @@ export function useCompleteTelegram() {
       onSuccess: (response) => {
         sessionStorage.removeItem(TELEGRAM_ONBOARDING_TOKEN_KEY);
         startSession(response.accessToken);
-        router.replace(paths.dashboard);
+        router.replace(paths.onboarding);
       },
     },
   });
