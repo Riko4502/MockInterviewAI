@@ -1,4 +1,4 @@
-﻿# @packages/email
+# @packages/email
 
 Пакет переиспользуемых транзакционных email-шаблонов и базовых компонентов платформы **MockInterviewAI** на базе [React Email](https://react.email).
 
@@ -59,29 +59,30 @@ pnpm --filter @packages/email dev
 pnpm email:dev
 ```
 
-Сервер откроет веб-интерфейс на `http://localhost:3000` со списком шаблонов, возможностью переключения мобильного/десктопного экранов и исходного кода.
+Сервер откроет веб-интерфейс на `http://localhost:3025` со списком шаблонов, возможностью переключения мобильного/десктопного экранов и исходного кода.
 
 ---
 
 ## Использование в бэкенде (`apps/api`)
 
 ```typescript
-import { renderEmail, ResetPasswordTemplate } from "@packages/email";
+import { renderTemplate } from "@packages/email";
 
-// Рендер шаблона в HTML и text
-const { html, text } = await renderEmail(
-  <ResetPasswordTemplate
-    username="Алексей"
-    resetUrl="https://mockinterview.tech/auth/reset-password?token=xyz"
-    expiresMinutes={15}
-    texts={textsFromI18n}
-  />
+// Рендер шаблона в HTML и text с поддержкой i18n
+const { html, text, subject } = await renderTemplate(
+  "reset-password",
+  {
+    username: "Алексей",
+    resetUrl: "https://mockinterview.tech/auth/reset-password?token=xyz",
+    expiresMinutes: 15,
+  },
+  "ru",
 );
 
 // Передача в почтовый транспорт
 await mailTransport.send({
   to: "user@example.com",
-  subject: "Восстановление пароля",
+  subject,
   html,
   text,
 });
@@ -94,7 +95,7 @@ await mailTransport.send({
 | Команда | Описание |
 |---|---|
 | `pnpm dev` | Запуск dev-сервера предпросмотра шаблонов React Email |
-| `pnpm build` | Проверка типов (`tsc --noEmit`) |
+| `pnpm build` | Сборка пакета в `dist/` (`tsc`) |
 | `pnpm typecheck` | Проверка типов TypeScript |
 | `pnpm lint` | Проверка кода линтером Biome |
 | `pnpm format` | Форматирование кода через Biome |

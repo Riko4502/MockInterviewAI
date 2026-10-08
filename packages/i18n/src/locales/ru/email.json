@@ -49,6 +49,7 @@
     "description": "Ваше тренировочное интервью начнется примерно через {minutesUntilStart} минут. Партнер уже может ожидать вас в комнате.",
     "partnerLabel": "Партнер:",
     "timeRemainingLabel": "До начала осталось:",
+    "timeRemainingValue": "~{minutesUntilStart} минут",
     "topicLabel": "Тема:",
     "buttonText": "Войти в комнату",
     "checklistTitle": "Чеклист перед подключением:",

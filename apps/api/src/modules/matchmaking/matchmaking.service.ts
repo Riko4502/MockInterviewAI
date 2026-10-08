@@ -1263,15 +1263,21 @@ export class MatchmakingService {
         return;
       }
 
+      if (!request.slot) {
+        return;
+      }
+
+      const isProduction =
+        this.configService.get<string>("env") === "production";
       const webUrl =
-        this.configService.get<string>("app.webUrl") ??
         this.configService.get<string>("webUrl") ??
-        "http://localhost:3000";
+        (isProduction ? "" : "http://localhost:3000");
 
       const roomUrl = `${webUrl}/dashboard/sandbox?room=${sessionId}`;
-      const scheduledTime = new Date().toLocaleString("ru-RU", {
+      const scheduledTime = request.slot.startsAt.toLocaleString("ru-RU", {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone: "Europe/Moscow",
       });
       const topic = request.preferredTopic ?? "Тренировочное собеседование";
 

@@ -44,13 +44,11 @@ export class MailService {
         text: rendered.text,
       });
 
-      this.logger.log(
-        `Template "${options.template}" successfully sent to ${options.to}`,
-      );
+      this.logger.log(`Template "${options.template}" successfully sent`);
       return true;
     } catch (error) {
       this.logger.error(
-        `Failed to send email template "${options.template}" to ${options.to}: ${(error as Error).message}`,
+        `Failed to send email template "${options.template}": ${(error as Error).message}`,
         (error as Error).stack,
       );
       return false;

@@ -123,11 +123,10 @@ export async function renderTemplate<K extends EmailTemplateKey>(
         ...p,
         timestamp: p.timestamp ?? new Date().toISOString(),
         lang: locale,
-        texts: emailDict.securityAlert,
       });
       subject = emailDict.securityAlert.subject.replace(
         "{title}",
-        emailDict.securityAlert.title,
+        emailDict.securityAlert.events[p.eventType].title,
       );
       break;
     }

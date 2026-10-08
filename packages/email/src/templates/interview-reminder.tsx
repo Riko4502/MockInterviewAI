@@ -16,6 +16,7 @@ export interface InterviewReminderTexts {
   description: string;
   partnerLabel: string;
   timeRemainingLabel: string;
+  timeRemainingValue: string;
   topicLabel: string;
   buttonText: string;
   checklistTitle: string;
@@ -94,7 +95,10 @@ export const InterviewReminderTemplate = ({
         <div style={styles.detailRow}>
           <span style={styles.detailLabel}>{timeRemainingLabel}</span>
           <span style={styles.detailValuePrimary}>
-            ~{minutesUntilStart} минут
+            {texts.timeRemainingValue.replace(
+              "{minutesUntilStart}",
+              String(minutesUntilStart),
+            )}
           </span>
         </div>
         <div style={styles.detailRow}>

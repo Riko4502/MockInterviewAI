@@ -749,10 +749,11 @@ export class AuthService implements OnModuleInit {
           PASSWORD_RESET_TOKEN_TTL_SECONDS,
         );
 
+        const isProduction =
+          this.configService.get<string>("env") === "production";
         const webUrl =
-          this.configService.get<string>("app.webUrl") ??
           this.configService.get<string>("webUrl") ??
-          "http://localhost:3000";
+          (isProduction ? "" : "http://localhost:3000");
 
         const resetUrl = `${webUrl}/reset-password#token=${encodeURIComponent(rawToken)}`;
         const username =
@@ -761,15 +762,22 @@ export class AuthService implements OnModuleInit {
           user.email.split("@")[0] ||
           "User";
 
-        await this.mailService.sendTemplate({
-          to: user.email,
-          template: "reset-password",
-          props: {
-            username,
-            resetUrl,
-            expiresMinutes: Math.round(PASSWORD_RESET_TOKEN_TTL_SECONDS / 60),
-          },
-        });
+        void this.mailService
+          .sendTemplate({
+            to: user.email,
+            template: "reset-password",
+            props: {
+              username,
+              resetUrl,
+              expiresMinutes: Math.round(PASSWORD_RESET_TOKEN_TTL_SECONDS / 60),
+            },
+          })
+          .catch((error) => {
+            this.logger.error(
+              "Failed to process forgotPassword background actions (Redis/Mail)",
+              error instanceof Error ? error.message : String(error),
+            );
+          });
       } catch (error) {
         this.logger.error(
           "Failed to process forgotPassword background actions (Redis/Mail)",

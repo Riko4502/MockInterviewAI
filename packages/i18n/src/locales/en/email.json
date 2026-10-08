@@ -49,6 +49,7 @@
     "description": "Your mock interview is starting in approximately {minutesUntilStart} minutes. Your partner may already be waiting in the room.",
     "partnerLabel": "Partner:",
     "timeRemainingLabel": "Time Remaining:",
+    "timeRemainingValue": "~{minutesUntilStart} minutes",
     "topicLabel": "Topic:",
     "buttonText": "Join Room",
     "checklistTitle": "Pre-flight Checklist:",

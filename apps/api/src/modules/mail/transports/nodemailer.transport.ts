@@ -32,6 +32,9 @@ export class NodemailerTransport implements IMailTransport {
             pass: mailConfig.password,
           }
         : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
   }
 
@@ -48,12 +51,10 @@ export class NodemailerTransport implements IMailTransport {
         text: options.text,
       });
 
-      this.logger.log(
-        `Email successfully sent to ${options.to} (MessageId: ${info.messageId})`,
-      );
+      this.logger.log(`Email successfully sent (MessageId: ${info.messageId})`);
     } catch (error) {
       this.logger.error(
-        `Failed to send email to ${options.to}: ${(error as Error).message}`,
+        `Failed to send email: ${(error as Error).message}`,
         (error as Error).stack,
       );
       throw error;

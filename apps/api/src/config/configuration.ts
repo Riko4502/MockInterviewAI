@@ -17,6 +17,7 @@ export const configuration = () => ({
   )
     .split(",")
     .map((origin) => origin.trim()),
+  webUrl: process.env.FRONTEND_URL,
   database: {
     url: process.env.API_DATABASE_URL ?? "",
   },

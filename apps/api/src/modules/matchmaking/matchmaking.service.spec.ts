@@ -1105,6 +1105,47 @@ describe("MatchmakingService", () => {
         );
       });
 
+      it("отправляет email-уведомления с временем слота в часовом поясе Europe/Moscow обоим участникам", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.interviewSession.create.mockResolvedValueOnce({
+          id: sessionId,
+        });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...bookedRequest,
+          status: "ACCEPTED",
+          sessionId,
+        });
+
+        await service.accept(requestId, receiverId);
+
+        const expectedScheduledTime = mockTargetSlot.startsAt.toLocaleString(
+          "ru-RU",
+          {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Europe/Moscow",
+          },
+        );
+
+        expect(mailServiceMock.sendTemplate).toHaveBeenCalledWith({
+          to: "sender@example.com",
+          template: "interview-scheduled",
+          props: expect.objectContaining({
+            scheduledTime: expectedScheduledTime,
+            roomUrl: `http://localhost:3000/dashboard/sandbox?room=${sessionId}`,
+          }),
+        });
+        expect(mailServiceMock.sendTemplate).toHaveBeenCalledWith({
+          to: "receiver@example.com",
+          template: "interview-scheduled",
+          props: expect.objectContaining({
+            scheduledTime: expectedScheduledTime,
+            roomUrl: `http://localhost:3000/dashboard/sandbox?room=${sessionId}`,
+          }),
+        });
+      });
+
       it("не создаёт сессию для заявки без слота", async () => {
         prismaMock.matchRequest.findUnique.mockResolvedValueOnce(
           mockMatchRequest,

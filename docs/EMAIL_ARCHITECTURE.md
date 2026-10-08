@@ -115,7 +115,7 @@ export declare function renderTemplate<K extends EmailTemplateKey>(
 - Сохраняет полный HTML письма в файл `apps/api/.mail-preview/<ISO-timestamp>_<subject>.html` для быстрой проверки верстки в браузере.
 
 ### 2. `NodemailerTransport` (`MAIL_TRANSPORT=smtp`)
-- Использует транспорт `nodemailer` с пулом соединений.
+- Использует транспорт `nodemailer` по протоколу SMTP.
 - Подходит для локального перехватчика писем (**Mailpit** / MailHog) и для production SMTP (SendGrid, Postmark, AWS SES, Mailgun, Яндекс 360).
 
 ---
