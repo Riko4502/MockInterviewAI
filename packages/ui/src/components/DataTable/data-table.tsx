@@ -161,8 +161,7 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
   const page = paginationConfig.page ?? internalPage;
   const pageSize = paginationConfig.pageSize ?? internalPageSize;
   const showPageSizeSelect = paginationConfig.showPageSizeSelect ?? true;
-  const pageSizeOptions =
-    paginationConfig.pageSizeOptions ?? DEFAULT_PAGE_SIZE_OPTIONS;
+  const pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS;
 
   const handlePageChange = (newPage: number) => {
     setInternalPage(newPage);

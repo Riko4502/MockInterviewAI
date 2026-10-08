@@ -133,7 +133,6 @@ export function AdminUsersTable({
           totalItems: meta?.total,
           totalPages: meta?.totalPages,
           showPageSizeSelect: true,
-          pageSizeOptions: [10, 20, 50, 100],
           onPageChange: (nextPage) => onFilterChange({ page: nextPage }),
           onPageSizeChange: (nextLimit) =>
             onFilterChange({ limit: nextLimit, page: 1 }),
