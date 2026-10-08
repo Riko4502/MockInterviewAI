@@ -34,6 +34,41 @@ function renderCellValue(value: unknown): React.ReactNode {
   return "—";
 }
 
+function getPaginationPages(
+  currentPage: number,
+  totalPagesCount: number,
+): Array<number | "ellipsis-start" | "ellipsis-end"> {
+  if (totalPagesCount <= 7) {
+    return Array.from({ length: totalPagesCount }, (_, i) => i + 1);
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", totalPagesCount];
+  }
+
+  if (currentPage >= totalPagesCount - 3) {
+    return [
+      1,
+      "ellipsis-start",
+      totalPagesCount - 4,
+      totalPagesCount - 3,
+      totalPagesCount - 2,
+      totalPagesCount - 1,
+      totalPagesCount,
+    ];
+  }
+
+  return [
+    1,
+    "ellipsis-start",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "ellipsis-end",
+    totalPagesCount,
+  ];
+}
+
 /**
  * Мощный типобезопасный компонент таблицы данных (DataTable).
  */
@@ -49,6 +84,8 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
   searchValue: controlledSearchValue,
   onSearchChange,
   filterFn,
+  sortState: controlledSortState,
+  onSortChange,
   selectable = false,
   selectedKeys = [],
   onSelectionChange,
@@ -71,26 +108,33 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
   };
 
   // 2. Сортировка (Sorting)
-  const [sortState, setSortState] = React.useState<DataTableSortState | null>(
-    null,
-  );
+  const [internalSortState, setInternalSortState] =
+    React.useState<DataTableSortState | null>(null);
+
+  const sortState =
+    controlledSortState !== undefined ? controlledSortState : internalSortState;
 
   const toggleSort = (columnKey: string) => {
-    setSortState((prev) => {
-      if (!prev || prev.columnKey !== columnKey) {
-        return { columnKey, direction: "asc" };
-      }
-      if (prev.direction === "asc") {
-        return { columnKey, direction: "desc" };
-      }
-      return null;
-    });
+    let nextSortState: DataTableSortState | null = null;
+    if (!sortState || sortState.columnKey !== columnKey) {
+      nextSortState = { columnKey, direction: "asc" };
+    } else if (sortState.direction === "asc") {
+      nextSortState = { columnKey, direction: "desc" };
+    } else {
+      nextSortState = null;
+    }
+
+    if (controlledSortState === undefined) {
+      setInternalSortState(nextSortState);
+    }
+    onSortChange?.(nextSortState);
   };
 
   // 3. Пагинация (Pagination)
   const isPaginationEnabled = Boolean(pagination);
   const paginationConfig: DataTablePaginationConfig =
     typeof pagination === "object" ? pagination : {};
+  const paginationMode = paginationConfig.mode ?? "client";
 
   const [internalPage, setInternalPage] = React.useState(
     paginationConfig.page ?? 1,
@@ -112,9 +156,11 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
     }
   }, [paginationConfig.pageSize]);
 
-  const page = internalPage;
-  const pageSize = internalPageSize;
+  const page = paginationConfig.page ?? internalPage;
+  const pageSize = paginationConfig.pageSize ?? internalPageSize;
   const showPageSizeSelect = paginationConfig.showPageSizeSelect ?? true;
+  const pageSizeOptions =
+    paginationConfig.pageSizeOptions ?? DEFAULT_PAGE_SIZE_OPTIONS;
 
   const handlePageChange = (newPage: number) => {
     setInternalPage(newPage);
@@ -148,6 +194,8 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
 
   // Сортировка данных
   const sortedData = React.useMemo(() => {
+    // В контролируемом / серверном режиме сортировки отключаем локальную сортировку
+    if (onSortChange) return filteredData;
     if (!sortState || !sortState.direction) return filteredData;
 
     const { columnKey, direction } = sortState;
@@ -177,17 +225,26 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
 
       return direction === "asc" ? comparison : -comparison;
     });
-  }, [filteredData, sortState, columns]);
+  }, [filteredData, sortState, columns, onSortChange]);
 
   // Постраничный срез данных
-  const totalItems = sortedData.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const totalItems =
+    paginationMode === "server"
+      ? (paginationConfig.totalItems ?? data.length)
+      : sortedData.length;
+
+  const totalPages =
+    paginationConfig.totalPages ??
+    Math.max(1, Math.ceil(totalItems / (pageSize || 10)));
 
   const displayData = React.useMemo(() => {
     if (!isPaginationEnabled) return sortedData;
+    if (paginationMode === "server") {
+      return sortedData;
+    }
     const start = (page - 1) * pageSize;
     return sortedData.slice(start, start + pageSize);
-  }, [sortedData, isPaginationEnabled, page, pageSize]);
+  }, [sortedData, isPaginationEnabled, paginationMode, page, pageSize]);
 
   // 4. Выбор строк (Row Selection)
   const isAllSelected =
@@ -442,7 +499,7 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
                     <Select.Value />
                   </Select.Trigger>
                   <Select.Content position="popper">
-                    {DEFAULT_PAGE_SIZE_OPTIONS.map((opt) => (
+                    {pageSizeOptions.map((opt) => (
                       <Select.Item
                         key={opt}
                         value={String(opt)}
@@ -463,6 +520,8 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
                 <Pagination.Content>
                   <Pagination.Item>
                     <Pagination.Previous
+                      href="#"
+                      role="button"
                       className={cn(
                         "cursor-pointer",
                         page <= 1 && "pointer-events-none opacity-40",
@@ -474,25 +533,37 @@ export function DataTable<T extends DataTableRow = DataTableRow>({
                     />
                   </Pagination.Item>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (p) => (
-                      <Pagination.Item key={p}>
+                  {getPaginationPages(page, totalPages).map((item) => {
+                    if (item === "ellipsis-start" || item === "ellipsis-end") {
+                      return (
+                        <Pagination.Item key={item}>
+                          <Pagination.Ellipsis />
+                        </Pagination.Item>
+                      );
+                    }
+
+                    return (
+                      <Pagination.Item key={item}>
                         <Pagination.Link
+                          href="#"
+                          role="button"
                           className="cursor-pointer"
-                          isActive={p === page}
+                          isActive={item === page}
                           onClick={(e: React.MouseEvent) => {
                             e.preventDefault();
-                            handlePageChange(p);
+                            handlePageChange(item);
                           }}
                         >
-                          {p}
+                          {item}
                         </Pagination.Link>
                       </Pagination.Item>
-                    ),
-                  )}
+                    );
+                  })}
 
                   <Pagination.Item>
                     <Pagination.Next
+                      href="#"
+                      role="button"
                       className={cn(
                         "cursor-pointer",
                         page >= totalPages && "pointer-events-none opacity-40",

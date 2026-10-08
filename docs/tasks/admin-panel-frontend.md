@@ -310,7 +310,7 @@ apps/web/src/
 
 ### 🛠️ Часть 0: Доработка базовых пакетов (`@packages/ui`, `@packages/i18n`)
 
-- [ ] **Расширение `@packages/ui/DataTable`:**
+- [x] **Расширение `@packages/ui/DataTable`:**
   - Добавить `mode?: "client" | "server"`, `totalItems?: number`, `totalPages?: number` в `DataTablePaginationConfig`.
   - Добавить `sortState?: DataTableSortState | null` и `onSortChange?: (state: DataTableSortState | null) => void` в `DataTableProps`.
   - Отключить клиентский `slice` и клиентскую сортировку при работе в режиме `mode: "server"`.

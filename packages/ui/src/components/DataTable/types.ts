@@ -63,10 +63,17 @@ export interface DataTableColumn<T extends DataTableRow = DataTableRow> {
   className?: string;
 }
 
+export type DataTablePaginationMode = "client" | "server";
+
 /**
  * Настройки пагинации таблицы данных.
  */
 export interface DataTablePaginationConfig {
+  /**
+   * Режим пагинации: 'client' (по умолчанию) с локальным срезом данных или 'server' (без локального среза).
+   * @default "client"
+   */
+  mode?: DataTablePaginationMode;
   /**
    * Текущий номер страницы (начиная с 1).
    * @default 1
@@ -78,10 +85,23 @@ export interface DataTablePaginationConfig {
    */
   pageSize?: number;
   /**
-   * Отображать ли выпадающий список выбора количества элементов (10, 20, 50).
+   * Общее количество записей (обязательно в режиме 'server' или рассчитывается из data.length в 'client').
+   */
+  totalItems?: number;
+  /**
+   * Общее количество страниц (опционально, рассчитывается из totalItems / pageSize).
+   */
+  totalPages?: number;
+  /**
+   * Отображать ли выпадающий список выбора количества элементов (10, 20, 50, 100).
    * @default true
    */
   showPageSizeSelect?: boolean;
+  /**
+   * Доступные варианты количества элементов на странице.
+   * @default [10, 20, 50, 100]
+   */
+  pageSizeOptions?: readonly number[];
   /**
    * Колбэк при изменении номера страницы.
    */
@@ -146,6 +166,14 @@ export interface DataTableProps<T extends DataTableRow = DataTableRow> {
    * Кастомная функция фильтрации строк по поисковому запросу.
    */
   filterFn?: (row: T, query: string) => boolean;
+  /**
+   * Внешнее состояние сортировки (для контролируемого/серверного режима).
+   */
+  sortState?: DataTableSortState | null;
+  /**
+   * Колбэк при изменении сортировки пользователем (при передаче отключает локальную сортировку).
+   */
+  onSortChange?: (sortState: DataTableSortState | null) => void;
   /**
    * Включить ли возможность выбора строк чекбоксами.
    * @default false
