@@ -121,11 +121,11 @@ function readPackage(pkg) {
   }
 
   // Исправление уязвимостей sharp (CVE-2026-96889)
-  if (pkg.dependencies?.["sharp"]) {
-    pkg.dependencies["sharp"] = "^0.35.5";
+  if (pkg.dependencies?.sharp) {
+    pkg.dependencies.sharp = "^0.35.5";
   }
-  if (pkg.optionalDependencies?.["sharp"]) {
-    pkg.optionalDependencies["sharp"] = "^0.35.5";
+  if (pkg.optionalDependencies?.sharp) {
+    pkg.optionalDependencies.sharp = "^0.35.5";
   }
 
   return pkg;

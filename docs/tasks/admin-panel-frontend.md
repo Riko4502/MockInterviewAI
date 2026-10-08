@@ -364,25 +364,25 @@ apps/web/src/
 
 ### 🪟 Часть 4: Диалоговые окна и Drawer (`features/admin-user-*`)
 
-- [ ] **Создание пользователя (`features/admin-user-create`):**
+- [x] **Создание пользователя (`features/admin-user-create`):**
   - `CreateUserDialog` с `react-hook-form` + `createUserAdminSchema` (без поля пароля).
   - Нормализация пустых строк: опциональные поля `username` и `displayName` при отсутствии ввода преобразуются в `undefined`, предотвращая ошибку Zod-валидации.
   - Мутация `useAdminUsersControllerCreateUser`, обработка 409 Conflict.
-- [ ] **Редактирование пользователя (`features/admin-user-edit`):**
+- [x] **Редактирование пользователя (`features/admin-user-edit`):**
   - `EditUserDialog` с `updateUserAdminSchema`.
   - Блокировка смены роли при `row.id === currentUserId` (Self-Role Protection).
   - Нормализация пустых полей `telegramUsername` и `gitUrl` в `null`.
   - Мутация `useAdminUsersControllerUpdateUser`.
-- [ ] **Управление статусом (`features/admin-user-status`):**
+- [x] **Управление статусом (`features/admin-user-status`):**
   - `ToggleStatusDialog` с подтверждением и блокировкой деактивации себя (Self-Lockout Protection).
   - Мутация `useAdminUsersControllerUpdateStatus`.
-- [ ] **Сброс пароля (`features/admin-user-reset-password`):**
+- [x] **Сброс пароля (`features/admin-user-reset-password`):**
   - `ResetPasswordDialog` с подтверждением.
   - Мутация `useAdminUsersControllerResetPassword` (без показа временного пароля в UI).
-- [ ] **Детальная информация (`features/admin-user-details`):**
+- [x] **Детальная информация (`features/admin-user-details`):**
   - `UserDetailsDrawer` с хуком `useAdminUsersControllerGetUserById`.
   - Явное указание `side="right"` для отображения боковой панели на десктопе.
-- [ ] **Инвалидация кэша TanStack Query:**
+- [x] **Инвалидация кэша TanStack Query:**
   - Инвалидация списка `['/api/v1/admin/users']` и деталей пользователя `['/api/v1/admin/users', id]`.
 
 ---
