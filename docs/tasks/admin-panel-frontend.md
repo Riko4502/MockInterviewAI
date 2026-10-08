@@ -331,12 +331,12 @@ apps/web/src/
 
 ### 🔍 Часть 2: Фильтрация и URL-синхронизация (`features/admin-users-filter`)
 
-- [ ] **Хук состояния фильтрации (`useAdminUsersFilterState`):**
+- [x] **Хук состояния фильтрации (`useAdminUsersFilterState`):**
   - Чтение и запись `page`, `limit`, `search`, `role`, `isActive`, `sortBy`, `sortOrder`.
   - Очистка пустых значений из строки запроса (`clean URL`).
   - Передача `{ scroll: false }` при `router.replace` для предотвращения автоскролла страницы наверх при вводе в поиск и пагинации.
   - Маппинг sentinel-значения `"ALL"` в `undefined` для корректной работы с Radix UI Select.
-- [ ] **Компонент фильтров (`AdminUsersFilter.tsx`):**
+- [x] **Компонент фильтров (`AdminUsersFilter.tsx`):**
   - Поисковый Input с debounce 300ms.
   - Селекторы роли (`SystemRole`) и активности (`isActive`) с использованием `value="ALL"` вместо запрещенного в Radix UI `value=""`.
   - Кнопка сброса фильтров.
