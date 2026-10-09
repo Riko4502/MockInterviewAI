@@ -37,3 +37,4 @@ coverage.out
 .agents
 .specify
 specs
+!docs/frontend/specs/
