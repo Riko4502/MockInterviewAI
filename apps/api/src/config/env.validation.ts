@@ -107,6 +107,8 @@ const envSchema = z
     SMTP_USER: z.string().default(""),
     SMTP_PASSWORD: z.string().default(""),
     SMTP_FROM: z.string().default("MockInterviewAI <noreply@mockinterview.ai>"),
+    CODE_RUNNER_URL: z.string().default("http://localhost:8090"),
+    CODE_RUNNER_AUTH_TOKEN: z.string().default(""),
     SENTRY_DSN: z.preprocess(
       (value) =>
         typeof value === "string" && value.trim() === "" ? undefined : value,

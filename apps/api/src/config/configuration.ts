@@ -101,6 +101,10 @@ export const configuration = () => ({
     password: process.env.SMTP_PASSWORD ?? "",
     from: process.env.SMTP_FROM ?? "MockInterviewAI <noreply@mockinterview.ai>",
   },
+  codeRunner: {
+    url: process.env.CODE_RUNNER_URL ?? "http://localhost:8090",
+    authToken: process.env.CODE_RUNNER_AUTH_TOKEN ?? "",
+  },
 });
 
 /** Тип конфигурации приложения (выводится из фабрики `configuration`). */
