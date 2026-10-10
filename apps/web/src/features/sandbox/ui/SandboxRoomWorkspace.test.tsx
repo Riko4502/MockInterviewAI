@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { codeRunnerControllerRun } from "@packages/api";
 import type { AnyWebSocketEnvelope } from "@packages/dto";
 import type { LanguageId } from "@packages/editor";
 import { act, render, screen, waitFor } from "@testing-library/react";
@@ -9,6 +10,14 @@ import { uint8ArrayToBase64 } from "../lib/RealtimeYjsProvider";
 import type { RunResult } from "../model/types";
 import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxRoomWorkspace } from "./SandboxRoomWorkspace";
+
+vi.mock("@packages/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@packages/api")>();
+  return {
+    ...actual,
+    codeRunnerControllerRun: vi.fn(),
+  };
+});
 
 vi.mock("@/shared/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared/api")>();
@@ -542,7 +551,11 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
       const runFetchPromise = new Promise<RunResult>((resolve) => {
         resolveRunFetch = resolve;
       });
-      vi.mocked(baseFetch).mockReturnValue(runFetchPromise as Promise<unknown>);
+      vi.mocked(codeRunnerControllerRun).mockReturnValue(
+        runFetchPromise as unknown as ReturnType<
+          typeof codeRunnerControllerRun
+        >,
+      );
 
       const props = {
         roomId,
@@ -588,7 +601,7 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
 
       // Проверяем, что состояние перешло в isRunning: true
       expect(useSandboxStore.getState().isRunning).toBe(true);
-      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(codeRunnerControllerRun).toHaveBeenCalledTimes(1);
 
       // 2. Пока запрос выполняется (in-flight), соавтор или кандидат продолжает ввод в редакторе
       const additionalDoc = new Y.Doc();
@@ -645,17 +658,11 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
       });
 
       // 4. Проверяем, что в POST /api/v1/code/run ушел исходный неизменяемый снимок, БЕЗ добавленного соавтором кода
-      expect(baseFetch).toHaveBeenCalledWith("/api/v1/code/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: "function solution() {\n  return 42;\n}",
-          taskKey: "two-sum:typescript",
-          taskId: "two-sum",
-          language: "typescript",
-        }),
+      expect(codeRunnerControllerRun).toHaveBeenCalledWith({
+        code: "function solution() {\n  return 42;\n}",
+        taskKey: "two-sum:typescript",
+        taskId: "two-sum",
+        language: "typescript",
       });
 
       // 5. Проверяем обновление стора и бродкаст результата
@@ -668,7 +675,7 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
     });
 
     it("handles code runner API error gracefully, stops spinner, and updates store with fallback result", async () => {
-      vi.mocked(baseFetch).mockRejectedValueOnce(
+      vi.mocked(codeRunnerControllerRun).mockRejectedValueOnce(
         new Error("Sandbox timeout exceeded"),
       );
 
@@ -795,17 +802,11 @@ describe("SandboxRoomWorkspace (T028, T032, T034 Integration Tests)", () => {
         runBtn.click();
       });
 
-      expect(baseFetch).toHaveBeenCalledWith("/api/v1/code/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: "def is_valid(s: str) -> bool:\n    return True",
-          taskKey: "valid-palindrome:python",
-          taskId: "valid-palindrome",
-          language: "python",
-        }),
+      expect(codeRunnerControllerRun).toHaveBeenCalledWith({
+        code: "def is_valid(s: str) -> bool:\n    return True",
+        taskKey: "valid-palindrome:python",
+        taskId: "valid-palindrome",
+        language: "python",
       });
 
       pyDoc.destroy();

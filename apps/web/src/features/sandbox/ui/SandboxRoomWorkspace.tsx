@@ -1,11 +1,11 @@
 "use client";
 
+import { codeRunnerControllerRun } from "@packages/api";
 import { CodeEditorLazy, type LanguageId } from "@packages/editor";
 import { Resizable, useTheme } from "@packages/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
-import { baseFetch } from "@/shared/api";
 import { getColorForUser } from "../lib/mapPeerToCollaborator";
 import { RealtimeYjsProvider } from "../lib/RealtimeYjsProvider";
 import { useSandboxRealtime } from "../lib/useSandboxRealtime";
@@ -201,18 +201,31 @@ export function SandboxRoomWorkspace({
     setIsRunning(true);
 
     try {
-      const result = await baseFetch<RunResult>("/api/v1/code/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: codeSnapshot,
-          taskKey,
-          taskId: currentTaskId,
-          language,
-        }),
+      const response = await codeRunnerControllerRun({
+        code: codeSnapshot,
+        taskKey,
+        taskId: currentTaskId,
+        language,
       });
+
+      const result: RunResult = {
+        success: response.success,
+        totalTests: response.totalTests,
+        passedTests: response.passedTests,
+        results: (response.results ?? []).map((r) => ({
+          testCaseId: (r as { testCaseId?: string }).testCaseId ?? "",
+          passed: Boolean((r as { passed?: boolean }).passed),
+          input: (r as { input?: string }).input ?? "",
+          expectedOutput:
+            (r as { expectedOutput?: string }).expectedOutput ?? "",
+          actualOutput: (r as { actualOutput?: string }).actualOutput ?? "",
+          executionTimeMs:
+            (r as { executionTimeMs?: number }).executionTimeMs ?? 0,
+          error: (r as { error?: string }).error,
+        })),
+        logs: response.logs ?? [],
+        totalTimeMs: response.totalTimeMs ?? 0,
+      };
 
       setRunResult(result);
       if (result.results && result.results.length > 0) {
