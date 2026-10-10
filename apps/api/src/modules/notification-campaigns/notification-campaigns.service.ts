@@ -1,4 +1,4 @@
-﻿import { randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   BadRequestException,
   Injectable,
@@ -448,9 +448,12 @@ export class NotificationCampaignsService {
           campaignId: id,
           userId,
           category: campaign.category,
-          title: campaign.title,
-          message: campaign.message,
+          type: "system.campaign",
+          payload: { title: campaign.title, message: campaign.message },
+          renderedTitle: campaign.title,
+          renderedMessage: campaign.message,
           actionUrl: campaign.actionUrl,
+          dedupKey: `campaign:${id}:${userId}`,
         })),
         skipDuplicates: true,
       });

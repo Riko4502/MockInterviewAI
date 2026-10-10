@@ -18,6 +18,8 @@ const notification = (
   id,
   userId: "user",
   category,
+  type: "system.welcome",
+  payload: {},
   title: id,
   message: `Текст ${id}`,
   actionUrl: null,
@@ -122,6 +124,24 @@ describe("NotificationsList", () => {
         .getByText("У вас пока нет уведомлений")
         .closest('[data-slot="empty"]'),
     ).toBeTruthy();
+  });
+
+  it("отображает иконку категории каждого уведомления", async () => {
+    items = [
+      notification("Интервью", "INTERVIEW"),
+      notification("Сообщение", "MESSAGE"),
+      notification("Системное", "SYSTEM"),
+    ];
+    const { container } = renderList();
+    await screen.findByText("Интервью");
+    const categories = Array.from(
+      container.querySelectorAll("[data-category]"),
+      (icon) => icon.getAttribute("data-category"),
+    );
+    expect(categories).toHaveLength(3);
+    expect(new Set(categories)).toEqual(
+      new Set(["INTERVIEW", "MESSAGE", "SYSTEM"]),
+    );
   });
 
   it("отмечает уведомление прочитанным до перехода", async () => {

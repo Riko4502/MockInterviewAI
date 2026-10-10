@@ -46,10 +46,11 @@ export function ShowcaseCardLivePreview({
     isUrgent: values.isUrgent ?? false,
     status: "ACTIVE",
     autoRenew: values.autoRenew ?? false,
-    bumpedAt: new Date(),
-    expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    bumpedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    slots: [],
   };
 
   return (

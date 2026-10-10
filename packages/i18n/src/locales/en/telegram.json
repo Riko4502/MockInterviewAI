@@ -49,6 +49,9 @@
     "persistError": "Could not save the language. Please try again later.",
     "notLinked": "Changing the language is only available after connecting your account.\n\nYou can get a connection link in your profile on the website."
   },
+  "push": {
+    "openButton": "Open"
+  },
   "errors": {
     "apiUnavailable": "The service is temporarily unavailable. Please try again later.",
     "unexpected": "An unexpected error occurred. Please try again later."

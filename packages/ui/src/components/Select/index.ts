@@ -10,6 +10,7 @@ export type {
   SelectGroupProps,
   SelectItemProps,
   SelectLabelProps,
+  SelectOption,
   SelectProps,
   SelectScrollDownButtonProps,
   SelectScrollUpButtonProps,

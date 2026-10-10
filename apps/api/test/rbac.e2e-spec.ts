@@ -16,6 +16,9 @@ const PASSWORD = "Str0ngPassw0rd!123";
 const REGISTER_PATH = "/api/v1/auth/register";
 const PROFILE_PATH = "/api/v1/profile/me";
 
+/** Бит суперпользователя: администратор проходит проверки безусловно. */
+const ADMIN_BIT = Number(SystemPermission.ADMINISTRATOR);
+
 @Controller("test-rbac")
 class TestRbacController {
   @Get("public")
@@ -49,34 +52,11 @@ describe("E2E: RBAC & Dynamic Bitmask Permissions Flow", () => {
   beforeAll(async () => {
     started = await startTestApp([TestRbacController]);
 
-    // Гарантируем наличие системных ролей с битовыми масками
-    await started.prisma.role.upsert({
-      where: { slug: SystemRole.ADMIN },
-      create: {
-        id: "00000000-0000-4000-a000-000000000001",
-        slug: SystemRole.ADMIN,
-        name: "Администратор",
-        permissions: SystemPermission.ADMINISTRATOR,
-        isSystem: true,
-      },
-      update: {
-        permissions: SystemPermission.ADMINISTRATOR,
-      },
-    });
-
-    await started.prisma.role.upsert({
-      where: { slug: SystemRole.USER },
-      create: {
-        id: "00000000-0000-4000-a000-000000000002",
-        slug: SystemRole.USER,
-        name: "Пользователь",
-        permissions: SystemPermission.NONE,
-        isSystem: true,
-      },
-      update: {
-        permissions: SystemPermission.NONE,
-      },
-    });
+    // Системные роли заводятся миграцией
+    // `20260914120000_add_dynamic_rbac_roles_permissions`, и набор их не
+    // переписывает: база общая, и запись в сид-строку конфликтует с наборами,
+    // которым нужны другие маски. Набор проверяет, что маска из БД доезжает
+    // в JWT, а значение выбирает миграция, а не тест.
   });
 
   afterAll(async () => {
@@ -181,7 +161,13 @@ describe("E2E: RBAC & Dynamic Bitmask Permissions Flow", () => {
     const adminDecoded = jwt.decode(adminToken) as {
       permissions: number | string;
     };
-    expect(Number(adminDecoded.permissions)).toBe(1);
+    // Сверяем JWT с маской, которая сейчас в БД, а не с константой: значение
+    // задаёт сид-миграция. Дополнительно проверяем, что бит суперпользователя
+    // доехал, — именно он открывает доступ админу.
+    expect(Number(adminDecoded.permissions)).toBe(
+      Number(adminRole.permissions),
+    );
+    expect(Number(adminDecoded.permissions) & ADMIN_BIT).not.toBe(0);
 
     // ADMIN получает 200 OK
     const adminAllowedRes = await request(started.app.getHttpServer())

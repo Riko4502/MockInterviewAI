@@ -8,57 +8,17 @@ import (
 	"time"
 )
 
-// EventType представляет строго типизированный тип события глобального SSE-потока уведомлений.
-type EventType string
+//go:generate pnpm --filter @packages/dto run generate:go
 
-const (
-	// EventNotificationNew содержит новое персональное уведомление пользователя.
-	EventNotificationNew EventType = "notification.new"
-
-	// EventNotificationBadge содержит обновление счетчика непрочитанных уведомлений.
-	EventNotificationBadge EventType = "notification.badge"
-
-	// EventSessionInvited содержит приглашение пользователя на собеседование.
-	EventSessionInvited EventType = "session.invited"
-
-	// EventCodeRunnerStatus содержит статус асинхронного прогона автотестов кандидата.
-	EventCodeRunnerStatus EventType = "code_runner.status"
-
-	// EventAIReportReady содержит уведомление о готовности итогового AI-отчета интервью.
-	EventAIReportReady EventType = "ai.report_ready"
-
-	// EventAccountUpdated содержит изменение баланса кредитов или тарифного плана.
-	EventAccountUpdated EventType = "account.updated"
-
-	// EventSystemBroadcast содержит общесистемный алерт или анонс технических работ.
-	EventSystemBroadcast EventType = "system.broadcast"
-
-	// EventAuthRevoked отправляется последним кадром перед принудительным разрывом
-	// потока при отзыве авторизации пользователя.
-	EventAuthRevoked EventType = "auth.revoked"
-)
+// Типы событий и визуальные severity объявлены в events_gen.go: они
+// генерируются из словаря packages/dto/src/realtime/sse-event.dto.ts,
+// поэтому правка констант вручную расходилась бы с продюсерами в apps/api
+// (ADR-004:86). Файл коммитится, и go build не требует Node.
 
 // String возвращает строковое представление типа события.
 func (e EventType) String() string {
 	return string(e)
 }
-
-// NotificationCategory описывает визуальную категорию персонального уведомления.
-type NotificationCategory string
-
-const (
-	// CategoryInfo — нейтральное информационное уведомление.
-	CategoryInfo NotificationCategory = "info"
-
-	// CategorySuccess — уведомление об успешно завершенной операции.
-	CategorySuccess NotificationCategory = "success"
-
-	// CategoryWarning — предупреждение, требующее внимания пользователя.
-	CategoryWarning NotificationCategory = "warning"
-
-	// CategoryError — уведомление об ошибке.
-	CategoryError NotificationCategory = "error"
-)
 
 // Envelope — канонический конверт SSE-события (BaseSSEEnvelope на стороне клиента).
 //

@@ -131,7 +131,7 @@ describe("NotificationCampaignsService.findOne", () => {
       {} as NotificationsService,
     );
 
-    const result = await service.update(campaignId, {
+    await service.update(campaignId, {
       recipientUserIds: nextIds,
     });
 
@@ -306,9 +306,12 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
         campaignId,
         userId,
         category: NotificationType.SYSTEM,
-        title: "Maintenance",
-        message: "Scheduled maintenance",
+        type: "system.campaign",
+        payload: { title: "Maintenance", message: "Scheduled maintenance" },
+        renderedTitle: "Maintenance",
+        renderedMessage: "Scheduled maintenance",
         actionUrl: null,
+        dedupKey: `campaign:${campaignId}:${userId}`,
       })),
       skipDuplicates: true,
     });
@@ -346,9 +349,12 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
         campaignId,
         userId,
         category: NotificationType.SYSTEM,
-        title: "Maintenance",
-        message: "Scheduled maintenance",
+        type: "system.campaign",
+        payload: { title: "Maintenance", message: "Scheduled maintenance" },
+        renderedTitle: "Maintenance",
+        renderedMessage: "Scheduled maintenance",
         actionUrl: null,
+        dedupKey: `campaign:${campaignId}:${userId}`,
       })),
       skipDuplicates: true,
     });
@@ -390,9 +396,12 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
         campaignId: secondCampaignId,
         userId,
         category: NotificationType.SYSTEM,
-        title: "Maintenance",
-        message: "Scheduled maintenance",
+        type: "system.campaign",
+        payload: { title: "Maintenance", message: "Scheduled maintenance" },
+        renderedTitle: "Maintenance",
+        renderedMessage: "Scheduled maintenance",
         actionUrl: null,
+        dedupKey: `campaign:${secondCampaignId}:${userId}`,
       })),
       skipDuplicates: true,
     });

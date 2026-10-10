@@ -79,24 +79,32 @@ flowchart TD
 1. В `apps/api` при наступлении события (создание сессии, крон-напоминание за 15 минут, системное оповещение) `NotificationsService` проверяет, привязан ли у пользователя `telegramChatId` и включен ли данный тип уведомлений.
 2. `apps/api` публикует компактное событие в очередь RabbitMQ `telegram.notifications`.
 3. `apps/telegram-bot` слушает очередь, получает сообщение, форматирует текст в соответствии с локалью пользователя через `@packages/i18n` и вызывает Telegram Bot API.
-4. В случае временной ошибки (например, сетевой сбой или Telegram Rate Limit 429), сообщение отправляется на повтор с экспоненциальной задержкой либо уходит в DLQ (Dead Letter Queue).
+4. В случае временной ошибки (сетевой сбой, Telegram Rate Limit 429) сообщение отправляется на повтор с экспоненциальной задержкой; невосстановимые ошибки (`bot.ban`, `chat not found`) и исчерпание повторов уводят сообщение в DLQ. В DLQ сообщение публикует консьюмер с подтверждением, а не брокер через DLX: основная очередь объявляется также продюсером в `apps/api`, и любые аргументы в объявлении развели бы контракты на `PRECONDITION_FAILED`.
 
 #### Формат payload в RabbitMQ:
 ```typescript
-export interface TelegramNotificationMessage {
-  telegramChatId: string;
+/**
+ * Конверт push-уведомления (ADR-004:129).
+ * `chatId` — адрес доставки, а не данные уведомления.
+ */
+export interface TelegramPushEnvelope {
+  event: NotificationEvent<'telegram'>;
+  chatId: string;
   locale: 'ru' | 'en';
-  type: 'INTERVIEW_REMINDER' | 'SESSION_INVITE' | 'FEEDBACK_READY' | 'SYSTEM_ALERT';
-  data: {
-    sessionId?: string;
-    interviewTitle?: string;
-    scheduledAt?: string;
-    role?: 'CANDIDATE' | 'INTERVIEWER';
-    actionUrl?: string;
-    [key: string]: unknown;
-  };
+  timeZone: string;
+  actionUrl?: string;
 }
 ```
+
+`messageId` сообщения — ID события (dedup-ключ, ADR-003): транспорт at-least-once, и повторные доставки бот гасит по нему вместе с сообщениями, уходящими в очередь повтора. Счётчик повторов переносится заголовком `x-push-retry`, причина ухода в DLQ — заголовком `x-push-dead-letter-reason`.
+
+#### Топология очередей (`{queue}` = `RABBITMQ_QUEUE_NOTIFICATIONS`):
+| Очередь | Аргументы | Назначение |
+|---|---|---|
+| `{queue}` | `durable: true` только (объявляется API и ботом) | основная доставка |
+| `{queue}.dlq` | `durable`, `messageTtl` 7 суток | разбор оператором |
+| `{queue}.retry.{1..5}` | `durable`, `messageTtl` 1/2/4/8/16 с, DLX → `{queue}` | повтор с backoff |
+| `{queue}.rate-limit` | `durable`, DLX → `{queue}`, TTL на сообщении | пауза `retry_after` при 429 |
 
 ---
 
@@ -157,8 +165,9 @@ API_INTERNAL_URL=http://localhost:3001/api/v1
 INTERNAL_SERVICE_KEY=change-me-internal-service-secret-key
 
 # RabbitMQ
-RABBITMQ_URL=amqp://guest:guest@localhost:5672
+RABBITMQ_URL=amqp://mock_interview:mock_interview_pass@localhost:5672
 RABBITMQ_QUEUE_NOTIFICATIONS=telegram.notifications
+RABBITMQ_PREFETCH=10 # сколько сообщений одновременно отправляются в Telegram
 
 # Frontend URL (для формирования ссылок на сессии)
 WEB_APP_URL=http://localhost:3000

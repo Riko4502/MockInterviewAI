@@ -68,6 +68,15 @@
 - `INTERNAL_SERVICE_KEY`: сервисный ключ (≥ 32 символа) для заголовка
   `X-Internal-Service-Key`. Задаётся вручную; `devsync-telegram-bot`
   автоматически получает его значение через `fromService` в Blueprint.
+- `RABBITMQ_URL`: строка подключения к брокеру сообщений (например бесплатный инстанс на [CloudAMQP](https://www.cloudamqp.com/): `amqps://<user>:<password>@<host>/<vhost>`).
+
+#### В `devsync-telegram-bot`:
+- `TELEGRAM_BOT_TOKEN`: токен бота от @BotFather.
+- `API_INTERNAL_URL`: URL API (например `https://devsync-api.onrender.com/api/v1`).
+- `WEB_APP_URL`: URL веб-приложения (например `https://devsync-web.onrender.com`).
+- `TELEGRAM_WEBHOOK_URL`: URL вебхука бота (например `https://devsync-telegram-bot.onrender.com/telegram/webhook`).
+- `TELEGRAM_WEBHOOK_SECRET`: произвольная секретная строка для проверки `X-Telegram-Bot-Api-Secret-Token`.
+- `RABBITMQ_URL`: строка подключения к брокеру сообщений (совпадает с `RABBITMQ_URL` в `devsync-api`).
 
 #### В `devsync-livekit`:
 - `LIVEKIT_API_KEY` (`devsync_key`) и `LIVEKIT_API_SECRET` (`generateValue: true`): Render автоматически генерирует криптографически надёжный случайный секрет и безопасно пробрасывает его в `devsync-api` и `devsync-realtime`. Ручной ввод не требуется.

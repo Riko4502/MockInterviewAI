@@ -20,11 +20,16 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import {
   LiveMatchPostCommitError,
   SessionsService,
 } from "../sessions/sessions.service";
-import { PUBLIC_USER_SELECT } from "../showcase/showcase.constants";
+import {
+  CARD_SLOTS_INCLUDE,
+  PUBLIC_USER_SELECT,
+} from "../showcase/showcase.constants";
+import { toShowcaseCardResponse } from "../showcase/showcase.mapper";
 import {
   MATCHMAKING_LIMITS,
   REDIS_MATCHMAKING_EVENTS_CHANNEL,
@@ -32,6 +37,11 @@ import {
 
 /**
  * Внутренняя структура выборки заявки из базы данных с авторами и карточками.
+ *
+ * `slot` нужен клиенту, чтобы показать, какое время уже занято, а `sessionId` —
+ * чтобы после `accept` открыть встречу одним запросом (ADR-002:62). Карточки
+ * читаются со слотами тем же `CARD_SLOTS_INCLUDE`, что и в витрине, иначе
+ * карточка в заявке и карточка в каталоге отвечали бы на разные вопросы.
  */
 const MATCH_REQUEST_INCLUDE = {
   sender: {
@@ -45,6 +55,7 @@ const MATCH_REQUEST_INCLUDE = {
       user: {
         select: PUBLIC_USER_SELECT,
       },
+      ...CARD_SLOTS_INCLUDE,
     },
   },
   senderCard: {
@@ -52,6 +63,15 @@ const MATCH_REQUEST_INCLUDE = {
       user: {
         select: PUBLIC_USER_SELECT,
       },
+      ...CARD_SLOTS_INCLUDE,
+    },
+  },
+  slot: {
+    select: {
+      id: true,
+      startsAt: true,
+      durationMinutes: true,
+      status: true,
     },
   },
   session: true,
@@ -61,12 +81,26 @@ type MatchRequestWithRelations = Prisma.MatchRequestGetPayload<{
   include: typeof MATCH_REQUEST_INCLUDE;
 }>;
 
+/**
+ * Проекция слота для проверок перед заявкой.
+ *
+ * Отдельная константа, а не `CARD_SLOTS_INCLUDE`: витрине нужен весь набор
+ * слотов карточки с сортировкой, а матчмейкингу — один конкретный слот и его
+ * состояние, чтобы решить, резервировать его или отклонить запрос.
+ */
+const SLOT_SELECT = {
+  id: true,
+  startsAt: true,
+  status: true,
+} as const;
+
 @Injectable()
 export class MatchmakingService {
   private readonly logger = new Logger(MatchmakingService.name);
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationDispatcher: NotificationDispatcher,
     private readonly redisService: RedisService,
     private readonly sessionsService: SessionsService,
   ) {}
@@ -97,7 +131,7 @@ export class MatchmakingService {
   /**
    * Отправка заявки (отклика) на карточку собеседования с витрины.
    *
-   * Выполняет 7 строгих бизнес-проверок:
+   * Выполняет 8 строгих бизнес-проверок:
    * 1. Профиль автора отклика должен быть заполнен (имя >= 2 символов, username).
    * 2. Целевая карточка витрины должна существовать, быть активной (ACTIVE) и не просроченной.
    * 3. Запрет отклика на собственную карточку (self-invite).
@@ -108,9 +142,15 @@ export class MatchmakingService {
    * 8. Логика авто-матча (Cross-invite): если получатель уже отправлял заявку автору,
    *    обе заявки сразу переходят в ACCEPTED и публикуется событие в Redis Pub/Sub.
    *
+   * Слоты (ADR-002:62):
+   * - Если у целевой карточки есть расписание, отклик обязан содержать `slotId`;
+   * - слот резервируется атомарно в той же транзакции, что и сама заявка;
+   * - повторный выбор слота обновляет существующую PENDING-заявку, а не создаёт вторую;
+   * - авто-матч не выполняется, если слоты есть хотя бы у одной из сторон.
+   *
    * @param senderId - ID отправителя отклика
-   * @param dto - Данные заявки (целевая карточка, своя карточка, сообщение, тема)
-   * @returns Созданная заявка
+   * @param dto - Данные заявки (целевая карточка, своя карточка, слот, сообщение, тема)
+   * @returns Созданная или обновлённая заявка
    */
   async create(
     senderId: string,
@@ -137,6 +177,9 @@ export class MatchmakingService {
     }
 
     // 2. Ищем целевую карточку витрины и проверяем её валидность
+    //    Слоты читаются здесь же: по их наличию определяется, обязателен ли
+    //    `slotId`, и именно они проверяются перед тем, как клиент увидит 409
+    //    на самом резервировании (ADR-002:62).
     const targetCard = await this.prisma.showcaseCard.findUnique({
       where: { id: dto.targetCardId },
       select: {
@@ -144,6 +187,7 @@ export class MatchmakingService {
         userId: true,
         status: true,
         expiresAt: true,
+        slots: { select: SLOT_SELECT },
       },
     });
 
@@ -162,7 +206,13 @@ export class MatchmakingService {
       );
     }
 
-    // 4. Если отправитель прикрепил свою карточку — проверяем её принадлежность и активность
+    const now = new Date();
+    // 4. Слот, если он есть, должен принадлежать целевой карточке и быть свободным
+    const targetSlot = this.validateRequestedSlot(targetCard, dto.slotId, now);
+
+    let senderCardHasSlots = false;
+
+    // 5. Если отправитель прикрепил свою карточку — проверяем её принадлежность и активность
     if (dto.senderCardId) {
       const senderCard = await this.prisma.showcaseCard.findUnique({
         where: { id: dto.senderCardId },
@@ -171,6 +221,7 @@ export class MatchmakingService {
           userId: true,
           status: true,
           expiresAt: true,
+          slots: { select: SLOT_SELECT },
         },
       });
 
@@ -188,12 +239,24 @@ export class MatchmakingService {
           "Прикрепленная карточка отправителя не активна или просрочена",
         );
       }
+
+      senderCardHasSlots = senderCard.slots.some(
+        (slot) => slot.status !== "CANCELLED",
+      );
     }
 
-    // Срок жизни новой заявки (текущее время + 72 часа)
+    // 6. Срок жизни новой заявки (текущее время + 72 часа)
     const expiresAt = new Date(
-      Date.now() + MATCHMAKING_LIMITS.REQUEST_TTL_HOURS * 60 * 60 * 1000,
+      now.getTime() + MATCHMAKING_LIMITS.REQUEST_TTL_HOURS * 60 * 60 * 1000,
     );
+
+    // Слоты есть хотя бы у одной из сторон — авто-матч не выполняется: слот
+    // является частью заявки, а в авто-матче он не выбирается, поэтому из
+    // такой записи нельзя построить InterviewSession (ADR-002:109-111).
+    const scheduleInvolved =
+      targetSlot !== undefined ||
+      senderCardHasSlots ||
+      targetCard.slots.some((slot) => slot.status !== "CANCELLED");
 
     const MAX_RETRIES = 3;
     let retries = 0;
@@ -203,7 +266,7 @@ export class MatchmakingService {
       try {
         const { createdRequest, isAutoMatch } = await this.prisma.$transaction(
           async (tx) => {
-            // 5. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
+            // 7. Проверяем лимит входящих заявок на карточку получателя (максимум 10 PENDING)
             const incomingPendingCount = await tx.matchRequest.count({
               where: {
                 targetCardId: dto.targetCardId,
@@ -220,7 +283,7 @@ export class MatchmakingService {
               );
             }
 
-            // 6. Проверяем лимит исходящих заявок от автора (максимум 5 PENDING -> 429 Too Many Requests)
+            // 8. Проверяем лимит исходящих заявок от автора (максимум 5 PENDING -> 429 Too Many Requests)
             const outgoingPendingCount = await tx.matchRequest.count({
               where: {
                 senderId,
@@ -238,9 +301,9 @@ export class MatchmakingService {
               );
             }
 
-            // 7. Проверяем 24-часовой кулдаун после предыдущего отклонения (REJECTED) от этого же адресата
+            // 9. Проверяем 24-часовой кулдаун после предыдущего отклонения (REJECTED) от этого же адресата
             const cooldownLimitDate = new Date(
-              Date.now() -
+              now.getTime() -
                 MATCHMAKING_LIMITS.REJECT_COOLDOWN_HOURS * 60 * 60 * 1000,
             );
 
@@ -260,16 +323,43 @@ export class MatchmakingService {
               );
             }
 
-            // 8. Проверяем наличие встречной заявки (Cross-invite -> Auto-match)
-            const crossRequest = await tx.matchRequest.findFirst({
-              where: {
-                senderId: targetCard.userId,
-                receiverId: senderId,
-                status: "PENDING",
-                expiresAt: { gt: new Date() },
-              },
-              include: MATCH_REQUEST_INCLUDE,
-            });
+            // 10. Повторный выбор слота обновляет существующую заявку, а не
+            //     создаёт вторую: частичный уникальный индекс
+            //     (senderId, targetCardId, status = PENDING) делает создание
+            //     второй такой заявки невозможным в принципе (ADR-002:113-117).
+            if (targetSlot) {
+              const existingRequest = await tx.matchRequest.findFirst({
+                where: {
+                  senderId,
+                  targetCardId: dto.targetCardId,
+                  status: "PENDING",
+                },
+                include: MATCH_REQUEST_INCLUDE,
+              });
+
+              if (existingRequest) {
+                const updatedRequest = await this.switchRequestSlot(
+                  tx,
+                  existingRequest,
+                  targetSlot,
+                );
+
+                return { createdRequest: updatedRequest };
+              }
+            }
+
+            // 11. Проверяем наличие встречной заявки (Cross-invite -> Auto-match)
+            const crossRequest = scheduleInvolved
+              ? null
+              : await tx.matchRequest.findFirst({
+                  where: {
+                    senderId: targetCard.userId,
+                    receiverId: senderId,
+                    status: "PENDING",
+                    expiresAt: { gt: now },
+                  },
+                  include: MATCH_REQUEST_INCLUDE,
+                });
 
             // Если есть встречная заявка — оформляем взаимный Auto-Match
             if (crossRequest) {
@@ -286,7 +376,7 @@ export class MatchmakingService {
                 where: {
                   id: crossRequest.id,
                   status: "PENDING",
-                  expiresAt: { gt: new Date() },
+                  expiresAt: { gt: now },
                 },
                 data: {
                   status: "ACCEPTED",
@@ -331,6 +421,7 @@ export class MatchmakingService {
                 receiverId: targetCard.userId,
                 targetCardId: dto.targetCardId,
                 senderCardId: dto.senderCardId,
+                slotId: targetSlot?.id,
                 message: dto.message,
                 preferredTopic: dto.preferredTopic,
                 status: "PENDING",
@@ -339,7 +430,25 @@ export class MatchmakingService {
               include: MATCH_REQUEST_INCLUDE,
             });
 
-            return { createdRequest: newRequest, isAutoMatch: false };
+            // 12. Резервируем слот: переход OPEN -> BOOKED выполняется только
+            //     для действительно свободного слота, поэтому два отклика на
+            //     одно и то же время не могут выиграть гонку (ADR-002:73).
+            //     Заявка создана раньше, потому что `bookedByRequestId` ссылается
+            //     на её id; при неудаче транзакция откатывает и заявку.
+            if (targetSlot) {
+              await this.claimSlot(tx, targetSlot.id, newRequest.id);
+              await this.notifySlotProposed(
+                tx,
+                targetSlot,
+                newRequest.id,
+                // displayName уже проверен выше на непустоту, но TypeScript
+                // не переносит это сужение внутрь замыкания транзакции.
+                senderUser.displayName ?? "Кандидат",
+                targetCard.userId,
+              );
+            }
+
+            return { createdRequest: newRequest };
           },
           {
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -347,7 +456,7 @@ export class MatchmakingService {
         );
 
         if (isAutoMatch) {
-          // Публикуем событие авто-матчинга в Redis Pub/Sub для уведомлений после коммита транзакции
+          // Публикуем событие подтверждения матча в Redis Pub/Sub (best-effort)
           await this.publishMatchAcceptedEvent(createdRequest);
         }
 
@@ -381,6 +490,212 @@ export class MatchmakingService {
           "Вы уже отправили активную заявку на эту анкету",
         );
       }
+    }
+  }
+
+  /**
+   * Проверяет слот, присланный вместе с заявкой.
+   *
+   * Проверка вне транзакции — только чтобы отклонить заведомо негодный слот
+   * (чужой карточки, отменённый, уже прошедший) с внятным сообщением. Само
+   * резервирование внутри транзакции повторяет проверку `OPEN` через
+   * `updateMany`: состояние слота между этими двумя точками может измениться,
+   * и доверять прочитанному ранее значению нельзя (ADR-002:73).
+   */
+  private validateRequestedSlot(
+    card: {
+      id: string;
+      expiresAt: Date;
+      slots: {
+        id: string;
+        startsAt: Date;
+        status: "OPEN" | "BOOKED" | "CANCELLED";
+      }[];
+    },
+    slotId: string | undefined,
+    now: Date,
+  ):
+    | { id: string; startsAt: Date; status: "OPEN" | "BOOKED" | "CANCELLED" }
+    | undefined {
+    // Отмена слотов не должна делать карточку «карточкой без расписания»:
+    // ориентиром служат только те слоты, которые ещё показываются клиенту.
+    const liveSlots = card.slots.filter((slot) => slot.status !== "CANCELLED");
+
+    if (liveSlots.length > 0 && !slotId) {
+      throw new BadRequestException(
+        "Выберите слот в расписании карточки: заявка без слота не объясняет, о каком времени идёт речь",
+      );
+    }
+
+    if (!slotId) {
+      return undefined;
+    }
+
+    const slot = liveSlots.find((candidate) => candidate.id === slotId);
+
+    if (!slot) {
+      throw new BadRequestException(
+        "Слот не найден в расписании этой карточки",
+      );
+    }
+
+    if (slot.startsAt.getTime() <= now.getTime()) {
+      throw new BadRequestException("Время слота уже прошло, выберите другое");
+    }
+
+    return slot;
+  }
+
+  /**
+   * Переносит существующую PENDING-заявку на другой слот (ADR-002:115).
+   *
+   * Текст заявки сохраняется: клиент меняет время, а не содержание обращения.
+   * Срок жизни обновляется, иначе заявка, созданная до выбора слота, могла бы
+   * истечь сразу после резервирования.
+   */
+  private async switchRequestSlot(
+    tx: Prisma.TransactionClient,
+    request: MatchRequestWithRelations,
+    slot: { id: string; startsAt: Date },
+  ): Promise<MatchRequestWithRelations> {
+    if (request.slotId === slot.id) {
+      return request;
+    }
+
+    // Старый слот освобождается до резервирования нового: пока старый числится
+    // BOOKED, exclusion constraint в БД считает новое пересечение конфликтом
+    // даже после того, как клиент от него отказался.
+    if (request.slotId) {
+      await this.releaseSlot(tx, request.slotId, request.id);
+    }
+
+    await this.claimSlot(tx, slot.id, request.id);
+
+    await this.notifySlotProposed(
+      tx,
+      slot,
+      request.id,
+      request.sender.displayName ?? "Кандидат",
+      request.receiverId,
+    );
+
+    return tx.matchRequest.update({
+      where: { id: request.id },
+      data: {
+        slotId: slot.id,
+        expiresAt: new Date(
+          Date.now() + MATCHMAKING_LIMITS.REQUEST_TTL_HOURS * 60 * 60 * 1000,
+        ),
+      },
+      include: MATCH_REQUEST_INCLUDE,
+    });
+  }
+
+  /**
+   * Атомарно резервирует слот: OPEN -> BOOKED.
+   *
+   * `updateMany` с условием по статусу — это и есть проверка «свободен ли
+   * слот», выполненная базой: `count === 0` означает, что параллельный отклик
+   * занял его раньше (ADR-002:73).
+   */
+  private async claimSlot(
+    tx: Prisma.TransactionClient,
+    slotId: string,
+    requestId: string,
+  ): Promise<void> {
+    const claimed = await tx.availabilitySlot.updateMany({
+      where: { id: slotId, status: "OPEN" },
+      data: { status: "BOOKED", bookedByRequestId: requestId },
+    });
+
+    if (claimed.count === 0) {
+      throw new ConflictException(
+        "Выбранный слот уже занят. Выберите другое время.",
+      );
+    }
+  }
+
+  /**
+   * Освобождает слот заявки: BOOKED -> OPEN.
+   *
+   * Условие по `bookedByRequestId` освобождает только тот слот, который
+   * зарезервировала именно эта заявка: слот мог быть уже переназначен, и тогда
+   * молчаливый `OPEN` отнял бы время у новой заявки.
+   */
+  private async releaseSlot(
+    tx: Prisma.TransactionClient,
+    slotId: string,
+    requestId: string,
+  ): Promise<void> {
+    await tx.availabilitySlot.updateMany({
+      where: { id: slotId, status: "BOOKED", bookedByRequestId: requestId },
+      data: { status: "OPEN", bookedByRequestId: null },
+    });
+  }
+
+  /**
+   * Кладёт в outbox предложение встречи.
+   *
+   * Payload несёт `requestId`, а не `sessionId`: на этом шаге сессии ещё нет,
+   * она создаётся на `accept` (ADR-002:62). Время уходит в UTC-инстанте,
+   * потому что рендер выполняется в зоне читателя (ADR-002:55).
+   */
+  private async notifySlotProposed(
+    tx: Prisma.TransactionClient,
+    slot: { id: string; startsAt: Date },
+    requestId: string,
+    senderName: string,
+    recipientId: string,
+  ): Promise<void> {
+    await this.notificationDispatcher.dispatch(
+      {
+        type: "interview.match_proposed",
+        payload: {
+          requestId,
+          proposedSlotId: slot.id,
+          proposedStartUtc: slot.startsAt.toISOString(),
+          senderName,
+        },
+      },
+      recipientId,
+      tx,
+      `/matchmaking/requests/${requestId}`,
+    );
+  }
+
+  /**
+   * Кладёт в outbox подтверждение брони слота обеим сторонам.
+   *
+   * Получатели различаются только именем другого участника, поэтому в payload
+   * каждому уходит его собственное имя собеседника, а не общее «кто-то».
+   */
+  private async notifySlotBooked(
+    tx: Prisma.TransactionClient,
+    slot: { id: string; startsAt: Date },
+    sessionId: string,
+    sender: { id: string; name: string },
+    receiver: { id: string; name: string },
+  ): Promise<void> {
+    const recipients = [
+      { userId: sender.id, otherName: receiver.name },
+      { userId: receiver.id, otherName: sender.name },
+    ];
+
+    for (const recipient of recipients) {
+      await this.notificationDispatcher.dispatch(
+        {
+          type: "interview.slot_booked",
+          payload: {
+            sessionId,
+            slotId: slot.id,
+            startUtc: slot.startsAt.toISOString(),
+            otherParticipantName: recipient.otherName,
+          },
+        },
+        recipient.userId,
+        tx,
+        `/interviews/${sessionId}`,
+      );
     }
   }
 
@@ -507,7 +822,11 @@ export class MatchmakingService {
    * - Принять заявку может только её прямой адресат (receiverId).
    * - Заявка должна находиться строго в статусе PENDING.
    * - Если срок жизни заявки истёк (expiresAt <= now) — переводит в EXPIRED и отклоняет операцию.
-   * - Публикует событие match.accepted в Redis Pub/Sub канал matchmaking:events.
+   * - Если заявка занимает слот, в той же транзакции создаётся `InterviewSession`
+   *   со `scheduledAt = slot.startsAt` и заявка связывается с ней (ADR-002:62).
+   * - Бронь подтверждается уведомлением `interview.slot_booked` обеим сторонам;
+   *   уведомление о записи в outbox происходит в той же транзакции, поэтому
+   *   принятая заявка без уведомления невозможна (ADR-003:65-66).
    * - Раскрывает контактные данные (telegramUsername) обоим участникам.
    *
    * @param requestId - ID заявки
@@ -518,16 +837,10 @@ export class MatchmakingService {
     requestId: string,
     userId: string,
   ): Promise<MatchRequestResponseDto> {
-    // 1. Ищем заявку по ID
+    // 1. Ищем заявку по ID со слотом и визитками обеих сторон
     const request = await this.prisma.matchRequest.findUnique({
       where: { id: requestId },
-      select: {
-        id: true,
-        senderId: true,
-        receiverId: true,
-        status: true,
-        expiresAt: true,
-      },
+      include: MATCH_REQUEST_INCLUDE,
     });
 
     if (!request) {
@@ -547,58 +860,116 @@ export class MatchmakingService {
     }
 
     // 4. Проверяем, не истек ли срок действия заявки
-    if (new Date(request.expiresAt).getTime() <= Date.now()) {
-      await this.prisma.matchRequest.updateMany({
-        where: { id: requestId, status: "PENDING" },
-        data: { status: "EXPIRED" },
+    const now = new Date();
+
+    if (request.expiresAt.getTime() <= now.getTime()) {
+      // Слот освобождается вместе с заявкой: иначе время, за которое никто не
+      // придёт, осталось бы занятым до конца резервирования.
+      await this.prisma.$transaction(async (tx) => {
+        const expired = await tx.matchRequest.updateMany({
+          where: { id: requestId, status: "PENDING" },
+          data: { status: "EXPIRED" },
+        });
+
+        if (expired.count === 1 && request.slotId) {
+          await this.releaseSlot(tx, request.slotId, request.id);
+        }
       });
 
       throw new BadRequestException("Срок действия заявки истек");
     }
 
-    // 5. Создаем общую сессию интервью для двоих участников со статусом ACTIVE
-    let liveSession: { sessionId: string; inviteToken: string } | null = null;
-    let sessionLinked = false;
+    // 5. Переводим статус в ACCEPTED, создаём сессию и подтверждаем бронь в одной
+    //    транзакции: сессия без ACCEPTED и ACCEPTED без сессии — оба состояния
+    //    означали бы, что встреча подтверждена, но встречи нет (ADR-002:62).
+    const updated = await this.prisma.$transaction(
+      async (tx) => {
+        // 5.1. Атомарный переход: параллельный accept второго получателя
+        //      проиграет на `count === 0`, а не создаст вторую сессию.
+        const accepted = await tx.matchRequest.updateMany({
+          where: { id: requestId, status: "PENDING" },
+          data: { status: "ACCEPTED" },
+        });
 
-    try {
-      liveSession = await this.sessionsService.createLiveMatchSession(
-        request.senderId,
-        request.receiverId,
-      );
+        if (accepted.count === 0) {
+          throw new BadRequestException(
+            "Можно принять только заявку в статусе ожидания (PENDING)",
+          );
+        }
 
-      // 6. Переводим статус в ACCEPTED атомарно и привязываем sessionId
-      const updateResult = await this.prisma.matchRequest.updateMany({
-        where: { id: requestId, status: "PENDING" },
-        data: { status: "ACCEPTED", sessionId: liveSession.sessionId },
-      });
+        // 5.2. Заявка без слота остаётся без сессии: это карточка, у которой
+        //      расписание не задано, и создавать встречу «без времени» значило бы
+        //      выдумать расписание, которого нет (ADR-002:62).
+        if (!request.slot) {
+          return tx.matchRequest.findUniqueOrThrow({
+            where: { id: requestId },
+            include: MATCH_REQUEST_INCLUDE,
+          });
+        }
 
-      if (updateResult.count === 0) {
-        throw new BadRequestException(
-          "Можно принять только заявку в статусе ожидания (PENDING)",
+        const slot = request.slot;
+
+        if (slot.startsAt.getTime() <= now.getTime()) {
+          throw new BadRequestException(
+            "Время слота уже прошло, принять заявку невозможно",
+          );
+        }
+
+        // Владелец карточки витрины — кандидат, отправитель заявки — интервьюер:
+        // так же назначаются роли в мгновенном матче (`createLiveMatchSession`),
+        // иначе одна и та же пара получила бы разные роли в двух сценариях.
+        const session = await tx.interviewSession.create({
+          data: {
+            userId: request.targetCard.userId,
+            status: "CREATED",
+            scheduledAt: slot.startsAt,
+            participants: {
+              create: [
+                {
+                  userId: request.targetCard.userId,
+                  role: "CANDIDATE",
+                },
+                {
+                  userId: request.senderId,
+                  role: "INTERVIEWER",
+                },
+              ],
+            },
+          },
+        });
+
+        await tx.matchRequest.update({
+          where: { id: requestId },
+          data: { sessionId: session.id },
+        });
+
+        await this.notifySlotBooked(
+          tx,
+          slot,
+          session.id,
+          {
+            id: request.senderId,
+            name: request.sender.displayName ?? "Собеседник",
+          },
+          {
+            id: request.receiverId,
+            name: request.receiver.displayName ?? "Собеседник",
+          },
         );
-      }
 
-      sessionLinked = true;
+        return tx.matchRequest.findUniqueOrThrow({
+          where: { id: requestId },
+          include: MATCH_REQUEST_INCLUDE,
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
-      const updated = await this.prisma.matchRequest.findUniqueOrThrow({
-        where: { id: requestId },
-        include: MATCH_REQUEST_INCLUDE,
-      });
+    // 6. Публикуем событие подтверждения матча в Redis Pub/Sub (best-effort)
+    await this.publishMatchAcceptedEvent(updated);
 
-      // 7. Публикуем событие подтверждения матча в Redis Pub/Sub
-      await this.publishMatchAcceptedEvent(updated);
-
-      // 8. Возвращаем заявку с открытыми контактами
-      return this.formatMatchRequest(updated);
-    } catch (error) {
-      const orphanId =
-        liveSession?.sessionId ??
-        (error instanceof LiveMatchPostCommitError ? error.sessionId : null);
-      if (orphanId && !sessionLinked) {
-        await this.sessionsService.cleanupOrphanedSession(orphanId);
-      }
-      throw error;
-    }
+    // 7. Возвращаем заявку с открытыми контактами
+    return this.formatMatchRequest(updated);
   }
 
   /**
@@ -609,6 +980,8 @@ export class MatchmakingService {
    * - Заявка должна быть в статусе PENDING.
    * - Опционально сохраняется вежливая причина отказа (rejectReason).
    * - Начиная с момента отклонения для отправителя начинает действовать 24-часовой кулдаун.
+   * - Занятый заявкой слот освобождается в той же транзакции: иначе отказ
+   *   оставлял бы время в расписании занятым навсегда (ADR-002:62).
    *
    * @param requestId - ID заявки
    * @param userId - ID текущего пользователя (получателя)
@@ -620,13 +993,14 @@ export class MatchmakingService {
     userId: string,
     dto: RejectMatchRequestDto,
   ): Promise<MatchRequestResponseDto> {
-    // 1. Ищем заявку по ID
+    // 1. Ищем заявку по ID вместе со ссылкой на занятый слот
     const request = await this.prisma.matchRequest.findUnique({
       where: { id: requestId },
       select: {
         id: true,
         receiverId: true,
         status: true,
+        slotId: true,
       },
     });
 
@@ -646,24 +1020,30 @@ export class MatchmakingService {
       );
     }
 
-    // 4. Обновляем статус на REJECTED атомарно и фиксируем причину
-    const updateResult = await this.prisma.matchRequest.updateMany({
-      where: { id: requestId, status: "PENDING" },
-      data: {
-        status: "REJECTED",
-        rejectReason: dto.reason ?? null,
-      },
-    });
+    // 4. Обновляем статус на REJECTED атомарно, фиксируем причину и освобождаем слот
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updateResult = await tx.matchRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
+        data: {
+          status: "REJECTED",
+          rejectReason: dto.reason ?? null,
+        },
+      });
 
-    if (updateResult.count === 0) {
-      throw new BadRequestException(
-        "Можно отклонить только заявку в статусе ожидания (PENDING)",
-      );
-    }
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          "Можно отклонить только заявку в статусе ожидания (PENDING)",
+        );
+      }
 
-    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
-      where: { id: requestId },
-      include: MATCH_REQUEST_INCLUDE,
+      if (request.slotId) {
+        await this.releaseSlot(tx, request.slotId, requestId);
+      }
+
+      return tx.matchRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: MATCH_REQUEST_INCLUDE,
+      });
     });
 
     return this.formatMatchRequest(updated);
@@ -675,6 +1055,8 @@ export class MatchmakingService {
    * Правила и проверки:
    * - Отменить заявку может только её инициатор (senderId).
    * - Заявка должна быть в статусе PENDING.
+   * - Занятый заявкой слот возвращается в расписание в той же транзакции
+   *   (ADR-002:62): отмена без освобождения лишала бы карточку этого времени.
    *
    * @param requestId - ID заявки
    * @param userId - ID отправителя
@@ -684,13 +1066,14 @@ export class MatchmakingService {
     requestId: string,
     userId: string,
   ): Promise<MatchRequestResponseDto> {
-    // 1. Ищем заявку по ID
+    // 1. Ищем заявку по ID вместе со ссылкой на занятый слот
     const request = await this.prisma.matchRequest.findUnique({
       where: { id: requestId },
       select: {
         id: true,
         senderId: true,
         status: true,
+        slotId: true,
       },
     });
 
@@ -712,21 +1095,27 @@ export class MatchmakingService {
       );
     }
 
-    // 4. Обновляем статус на CANCELLED атомарно
-    const updateResult = await this.prisma.matchRequest.updateMany({
-      where: { id: requestId, status: "PENDING" },
-      data: { status: "CANCELLED" },
-    });
+    // 4. Обновляем статус на CANCELLED атомарно и освобождаем слот
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updateResult = await tx.matchRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
 
-    if (updateResult.count === 0) {
-      throw new BadRequestException(
-        "Можно отменить только заявку в статусе ожидания (PENDING)",
-      );
-    }
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          "Можно отменить только заявку в статусе ожидания (PENDING)",
+        );
+      }
 
-    const updated = await this.prisma.matchRequest.findUniqueOrThrow({
-      where: { id: requestId },
-      include: MATCH_REQUEST_INCLUDE,
+      if (request.slotId) {
+        await this.releaseSlot(tx, request.slotId, requestId);
+      }
+
+      return tx.matchRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: MATCH_REQUEST_INCLUDE,
+      });
     });
 
     return this.formatMatchRequest(updated);
@@ -736,6 +1125,7 @@ export class MatchmakingService {
    * Публикация события подтверждения матча в шину событий Redis Pub/Sub.
    *
    * Уведомляет сервис уведомлений и сторонние realtime-обработчики о взаимном согласии.
+   * Best-effort: падение публикации не ломает бизнес-транзакцию.
    */
   private async publishMatchAcceptedEvent(
     request: MatchRequestWithRelations,
@@ -780,13 +1170,13 @@ export class MatchmakingService {
     const formatCard = (
       card: MatchRequestWithRelations["targetCard"],
     ): ShowcaseCardResponseDto => {
-      return {
+      return toShowcaseCardResponse({
         ...card,
         user: {
           ...card.user,
           telegramUsername: null,
         },
-      };
+      });
     };
 
     return {
@@ -803,16 +1193,24 @@ export class MatchmakingService {
       },
       targetCard: formatCard(request.targetCard),
       senderCard: request.senderCard ? formatCard(request.senderCard) : null,
+      slot: request.slot
+        ? {
+            id: request.slot.id,
+            startsAt: request.slot.startsAt.toISOString(),
+            durationMinutes: request.slot.durationMinutes,
+            status: request.slot.status,
+          }
+        : null,
+      sessionId: request.sessionId,
       status: request.status,
-      sessionId: request.sessionId || null,
       sessionStatus:
         request.session?.status || (request.sessionId ? "ACTIVE" : null),
       message: request.message,
       preferredTopic: request.preferredTopic,
       rejectReason: request.rejectReason,
-      createdAt: request.createdAt,
-      updatedAt: request.updatedAt,
-      expiresAt: request.expiresAt,
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+      expiresAt: request.expiresAt.toISOString(),
     };
   }
 

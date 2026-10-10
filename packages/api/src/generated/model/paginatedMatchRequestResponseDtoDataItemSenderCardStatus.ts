@@ -10,16 +10,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PublicUserCardDto {
-  id: string;
-  /** @nullable */
-  displayName: string | null;
-  /** @nullable */
-  username: string | null;
-  /** @nullable */
-  avatarUrl: string | null;
-  /** @nullable */
-  telegramUsername: string | null;
-  /** @nullable */
-  gitUrl: string | null;
-}
+export type PaginatedMatchRequestResponseDtoDataItemSenderCardStatus = typeof PaginatedMatchRequestResponseDtoDataItemSenderCardStatus[keyof typeof PaginatedMatchRequestResponseDtoDataItemSenderCardStatus];
+
+
+export const PaginatedMatchRequestResponseDtoDataItemSenderCardStatus = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  EXPIRED: 'EXPIRED',
+} as const;

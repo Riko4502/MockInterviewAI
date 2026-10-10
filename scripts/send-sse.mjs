@@ -3,18 +3,24 @@
 /**
  * CLI-скрипт для отправки различных типов SSE-уведомлений в сервис realtime через Redis.
  *
+ * Имена событий, значения `category` и `severity`, а также форма payload'а
+ * берутся из общего словаря `@packages/dto` — того же, которым пользуются
+ * `apps/api` и клиент. Своих перечислений у скрипта нет: `apps/realtime`
+ * payload не декодирует, поэтому расхождение со словарём уехало бы в браузер
+ * как валидный кадр (ADR-004:86-87).
+ *
  * Примеры использования:
- *   # Смена типа события:
+ *   # Персональное уведомление в шторку:
  *   pnpm sse:send --type notification.new --category INTERVIEW --title "Собеседование" --message "Вас пригласили"
- *   pnpm sse:send --type interview.invite --user user-123
- *   pnpm sse:send --type ai.report.ready --title "Отчет готов" --action-url "/reports/123"
+ *   pnpm sse:send --category INTERVIEW --severity warning --title "Собеседование" --message "Вас пригласили"
+ *   pnpm sse:send --user user-123 --raw '{"reason":"password_reset"}' --type auth.revoked
  *
  *   # Быстрые пресеты:
  *   pnpm sse:send --interview
  *   pnpm sse:send --system
  *   pnpm sse:send --message-preset
  *   pnpm sse:send --badge 5
- *   pnpm sse:broadcast --message "Технические работы"
+ *   pnpm sse:broadcast --severity warning --message "Технические работы"
  *
  *   # Интерактивный режим:
  *   pnpm sse:send -i
@@ -43,6 +49,40 @@ try {
   );
   process.exit(1);
 }
+
+// Словарь событий — тот же, что у apps/api и клиента. Резолвится из пакета
+// @packages/dto, поэтому требует его сборки (pnpm build:dto).
+const requireFromDto = createRequire(
+  path.join(rootDir, "packages", "dto", "package.json"),
+);
+let dictionary;
+try {
+  dictionary = requireFromDto("@packages/dto");
+} catch {
+  console.error(
+    "❌ Ошибка: не удалось загрузить словарь событий из @packages/dto.",
+  );
+  console.error("💡 Соберите пакет: pnpm build:dto");
+  process.exit(1);
+}
+
+const EVENT_TYPES = dictionary.sseEventTypes;
+const SEVERITIES = dictionary.sseSeveritySchema.options;
+const CATEGORIES = dictionary.notificationTypeSchema.options;
+
+/**
+ * Типы, payload которых скрипт умеет собрать из флагов.
+ *
+ * Остальные события требуют `--raw`: их payload состоит из доменных данных
+ * (идентификатор сессии, результаты прогона), которых у CLI нет, и подстановка
+ * туда формы `notification.new` отправляла бы в поток кадр, не соответствующий
+ * словарю.
+ */
+const BUILDABLE_TYPES = [
+  "notification.new",
+  "notification.badge",
+  "system.broadcast",
+];
 
 // Чтение .env файла
 function loadEnv() {
@@ -92,20 +132,6 @@ const PRESETS = {
     message: "Интервьюер оставил комментарий к вашей сессии",
     actionUrl: "/sessions/dev-session-1#chat",
   },
-  "ai-report": {
-    type: "ai.report.ready",
-    category: "SYSTEM",
-    title: "AI-отчет готов",
-    message: "Анализ сессии интервью успешно завершен. Посмотрите результаты.",
-    actionUrl: "/reports/report-dev-1",
-  },
-  "code-run": {
-    type: "code.run.completed",
-    category: "SYSTEM",
-    title: "Код успешно выполнен",
-    message: "Все 12 тестов пройдены успешно за 42мс",
-    actionUrl: null,
-  },
 };
 
 // Проверка на локальный или внутренний адрес хоста (Docker, Render, k8s, RFC 1918)
@@ -147,6 +173,7 @@ function parseArgs(args) {
     user: "dev-user-1",
     type: "notification.new",
     category: "SYSTEM",
+    severity: null,
     title: "Тестовое уведомление",
     message: "Это тестовое сообщение для проверки SSE в realtime",
     actionUrl: null,
@@ -174,6 +201,8 @@ function parseArgs(args) {
       result.type = args[++i];
     } else if (arg === "--category" || arg === "-c") {
       result.category = args[++i].toUpperCase();
+    } else if (arg === "--severity" || arg === "-s") {
+      result.severity = args[++i].toLowerCase();
     } else if (arg === "--title") {
       result.title = args[++i];
     } else if (arg === "--message" || arg === "-m") {
@@ -195,10 +224,6 @@ function parseArgs(args) {
       Object.assign(result, PRESETS.system);
     } else if (arg === "--message-preset") {
       Object.assign(result, PRESETS.message);
-    } else if (arg === "--ai-report") {
-      Object.assign(result, PRESETS["ai-report"]);
-    } else if (arg === "--code-run") {
-      Object.assign(result, PRESETS["code-run"]);
     } else if (arg === "--preset" || arg === "-p") {
       const presetName = args[++i];
       if (PRESETS[presetName]) {
@@ -225,15 +250,14 @@ function printHelp() {
 
 Опции:
   --user, -u <id>          ID пользователя (по умолчанию: dev-user-1)
-  --type, -t <type>        Тип события SSE:
-                             notification.new   (новое уведомление в шторку)
-                             notification.badge (счетчик непрочитанных)
-                             system.broadcast   (общесистемный алерт)
-                             interview.invite   (приглашение на интервью)
-                             ai.report.ready    (готовность AI отчета)
-                             code.run.completed (результат запуска кода)
-                             ...любой произвольный тип
-  --category, -c <cat>     Категория: SYSTEM | INTERVIEW | MESSAGE (или info, warning, error, success)
+  --type, -t <type>        Тип события SSE (обязателен в словаре @packages/dto):
+                             ${EVENT_TYPES.join(" ")}
+                             Типы вне этого списка отклоняются: apps/realtime
+                             payload не проверяет, и кадр с несуществующим именем
+                             уехал бы в браузер как валидный.
+  --category, -c <cat>     Доменный тип уведомления из БД: ${CATEGORIES.join(" | ")}
+  --severity, -s <sev>     Визуальная severity: ${SEVERITIES.join(" | ")}
+                             (для system.broadcast обязательна, по умолчанию info)
   --title <title>          Заголовок уведомления
   --message, -m <text>     Текст сообщения
   --action-url, -a <url>   Ссылка для перехода при клике (напр. /sessions/123)
@@ -241,7 +265,8 @@ function printHelp() {
   --broadcast, -b          Отправить как общесистемный бродкаст (Redis Pub/Sub)
   --tls                    Использовать TLS-шифрование для подключения к Redis
   --insecure               Разрешить незашифрованное подключение к внешнему Redis (не рекомендуется)
-  --raw <json>             Передать собственный JSON payload
+  --raw <json>             Передать собственный JSON payload (обязателен для
+                             остальных типов событий)
   --interactive, -i        Запустить интерактивный пошаговый мастер
   --help, -h               Показать эту справку
 
@@ -249,24 +274,22 @@ function printHelp() {
   --interview              Шаблон приглашения на интервью (INTERVIEW)
   --system                 Шаблон системного уведомления (SYSTEM)
   --message-preset         Шаблон текстового сообщения (MESSAGE)
-  --ai-report              Шаблон готовности AI-отчета (ai.report.ready)
-  --code-run               Шаблон завершения тестов (code.run.completed)
 
 Примеры:
-  # 1. Смена типа события на кастомный:
-  pnpm sse:send --type interview.invite --user user-123 --title "Инвайт" --action-url "/sessions/abc"
+  # 1. Уведомление в шторку с категорией и severity:
+  pnpm sse:send --category INTERVIEW --severity warning --title "Собеседование началось" --message "Интервьюер подключился"
 
-  # 2. Уведомление с категорией INTERVIEW:
-  pnpm sse:send --category INTERVIEW --title "Собеседование началось" --message "Интервьюер подключился"
-
-  # 3. Быстрый пресет:
+  # 2. Быстрый пресет:
   pnpm sse:send --interview --user user-123
 
-  # 4. Обновление счетчика бейджа:
+  # 3. Обновление счетчика бейджа:
   pnpm sse:send --badge 5 --user user-123
 
-  # 5. Общесистемный бродкаст:
-  pnpm sse:broadcast --message "Технические работы через 10 минут"
+  # 4. Общесистемный бродкаст:
+  pnpm sse:broadcast --severity warning --message "Технические работы через 10 минут"
+
+  # 5. Событие вне набора флагов — только со своим payload:
+  pnpm sse:send --type auth.revoked --raw '{"reason":"password_reset"}' --user user-123
 
   # 6. Подключение к удаленному защищенному Redis с TLS:
   pnpm sse:send --tls --user user-123 --interview
@@ -305,11 +328,14 @@ async function runInteractive(args) {
   console.log("\nДоступные типы событий:");
   console.log("  [1] notification.new (стандартное уведомление в шторку)");
   console.log("  [2] notification.badge (обновить счетчик на колокольчике)");
-  console.log("  [3] interview.invite (приглашение в комнату)");
-  console.log("  [4] ai.report.ready (AI отчет готов)");
-  console.log("  [5] Ввести свой кастомный тип");
+  console.log(
+    "  [3] Ввести другой тип из словаря (потребует --raw на следующем шаге)",
+  );
+  console.log(
+    `     остальные: ${EVENT_TYPES.filter((type) => !BUILDABLE_TYPES.includes(type)).join(", ")}`,
+  );
 
-  const typeChoice = await rl.question("3. Выберите тип [1-5]: ");
+  const typeChoice = await rl.question("3. Выберите тип [1-3]: ");
   switch (typeChoice.trim()) {
     case "2": {
       args.type = "notification.badge";
@@ -318,17 +344,16 @@ async function runInteractive(args) {
       rl.close();
       return;
     }
-    case "3":
-      args.type = "interview.invite";
-      args.category = "INTERVIEW";
-      break;
-    case "4":
-      args.type = "ai.report.ready";
-      args.category = "SYSTEM";
-      break;
-    case "5": {
+    case "3": {
       const customType = await rl.question("   Введите имя события (type): ");
       if (customType.trim()) args.type = customType.trim();
+      if (!args.raw && !BUILDABLE_TYPES.includes(args.type)) {
+        args.raw = await rl.question("   Введите payload (JSON): ");
+      }
+      if (args.raw) {
+        rl.close();
+        return;
+      }
       break;
     }
     default:
@@ -343,18 +368,115 @@ async function runInteractive(args) {
   else if (category.trim() === "3") args.category = "MESSAGE";
   else if (category.trim() === "1") args.category = "SYSTEM";
 
+  const severity = await rl.question(
+    `5. Severity ([1] info, [2] success, [3] warning, [4] error, [Enter] — не задавать): `,
+  );
+  const severityByChoice = {
+    1: "info",
+    2: "success",
+    3: "warning",
+    4: "error",
+  };
+  if (severityByChoice[severity.trim()]) {
+    args.severity = severityByChoice[severity.trim()];
+  }
+
   args.title =
-    (await rl.question(`5. Заголовок (по умолч.: "${args.title}"): `)) ||
+    (await rl.question(`6. Заголовок (по умолч.: "${args.title}"): `)) ||
     args.title;
   args.message =
-    (await rl.question(`6. Сообщение (по умолч.: "${args.message}"): `)) ||
+    (await rl.question(`7. Сообщение (по умолч.: "${args.message}"): `)) ||
     args.message;
   args.actionUrl =
     (await rl.question(
-      "7. Ссылка действия actionUrl (например /sessions/123, опционально): ",
+      "8. Ссылка действия actionUrl (например /sessions/123, опционально): ",
     )) || null;
 
   rl.close();
+}
+
+/**
+ * Проверка флагов по словарю — до подключения к Redis.
+ *
+ * Ошибка в имени типа или в значении перечисления иначе уехала бы в поток как
+ * валидный кадр: `apps/realtime` передаёт payload как `json.RawMessage` и не
+ * сверяет ни имя события, ни его форму.
+ */
+function validateArgs(args) {
+  if (!EVENT_TYPES.includes(args.type)) {
+    console.error(`❌ Неизвестный тип события "${args.type}".`);
+    console.error(`   Допустимые типы: ${EVENT_TYPES.join(", ")}`);
+    process.exit(1);
+  }
+
+  if (!CATEGORIES.includes(args.category)) {
+    console.error(`❌ Неизвестная категория "${args.category}".`);
+    console.error(`   Допустимые категории: ${CATEGORIES.join(", ")}`);
+    process.exit(1);
+  }
+
+  if (args.severity !== null && !SEVERITIES.includes(args.severity)) {
+    console.error(`❌ Неизвестная severity "${args.severity}".`);
+    console.error(`   Допустимые значения: ${SEVERITIES.join(", ")}`);
+    process.exit(1);
+  }
+
+  if (!args.raw && !BUILDABLE_TYPES.includes(args.type)) {
+    console.error(
+      `❌ Событие "${args.type}" нельзя собрать из флагов: его payload состоит из доменных данных.`,
+    );
+    console.error(`   Передайте payload флагом --raw, например:`);
+    console.error(
+      `   pnpm sse:send --type ${args.type} --raw '{"...":"..."}' --user <id>`,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Сборка payload по словарю события.
+ *
+ * Финальная проверка идёт через ту же функцию `parseSseEventPayload`, которой
+ * пользуется `apps/api`, поэтому форма кадра у CLI и у приложения одна.
+ */
+function buildPayload(args, now) {
+  let payload;
+
+  if (args.raw) {
+    try {
+      payload = JSON.parse(args.raw);
+    } catch {
+      console.error("❌ Невалидный JSON в --raw");
+      process.exit(1);
+    }
+  } else if (args.type === "notification.badge") {
+    payload = { unreadCount: args.unreadCount !== null ? args.unreadCount : 1 };
+  } else if (args.type === "system.broadcast") {
+    payload = {
+      severity: args.severity ?? "info",
+      message: args.message,
+    };
+  } else {
+    payload = {
+      id: `ntf_dev_${Date.now()}`,
+      category: args.category,
+      ...(args.severity ? { severity: args.severity } : {}),
+      title: args.title,
+      message: args.message,
+      actionUrl: args.actionUrl,
+      createdAt: now,
+      read: false,
+    };
+  }
+
+  try {
+    return dictionary.parseSseEventPayload(args.type, payload);
+  } catch (error) {
+    console.error(
+      `❌ Payload не соответствует словарю события "${args.type}": ${error.message}`,
+    );
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -368,6 +490,13 @@ async function main() {
   if (args.interactive) {
     await runInteractive(args);
   }
+
+  validateArgs(args);
+
+  // Payload собирается и проверяется по словарю до подключения к Redis:
+  // ошибка в форме кадра не должна требовать поднятого Redis.
+  const now = new Date().toISOString();
+  const payloadObj = buildPayload(args, now);
 
   const env = loadEnv();
   let redisHost = env.REDIS_HOST || "localhost";
@@ -452,32 +581,6 @@ async function main() {
     process.exit(1);
   }
 
-  const now = new Date().toISOString();
-
-  let payloadObj;
-  if (args.raw) {
-    try {
-      payloadObj = JSON.parse(args.raw);
-    } catch {
-      console.error("❌ Невалидный JSON в --raw");
-      process.exit(1);
-    }
-  } else if (args.type === "notification.badge") {
-    payloadObj = {
-      unreadCount: args.unreadCount !== null ? args.unreadCount : 1,
-    };
-  } else {
-    payloadObj = {
-      id: `ntf_dev_${Date.now()}`,
-      category: args.category,
-      title: args.title,
-      message: args.message,
-      actionUrl: args.actionUrl,
-      createdAt: now,
-      read: false,
-    };
-  }
-
   try {
     if (args.broadcast) {
       // Публикация в Pub/Sub канал notifications:broadcast
@@ -523,6 +626,7 @@ async function main() {
       console.log(`  User ID:        ${args.user}`);
       console.log(`  Тип события:    ${args.type}`);
       console.log(`  Категория:      ${args.category || "-"}`);
+      console.log(`  Severity:       ${args.severity || "-"}`);
       console.log(`  Payload:        ${JSON.stringify(payloadObj, null, 2)}\n`);
     }
   } catch (err) {
