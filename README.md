@@ -55,8 +55,8 @@
 * **Frontend:** Next.js (App Router), React, TypeScript
 * **Design & UI Kit:** [Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)
 * **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
-* **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
-* **Code Runner Service:** Go 1.26.6, Chi router, Judge0 CE (песочница `isolate`)
+* **Realtime Service:** Go 1.26.9, WebSocket (`coder/websocket`), Chi router
+* **Code Runner Service:** Go 1.26.9, Chi router, Judge0 CE (песочница `isolate`)
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
 * **Message Broker / Queues:** RabbitMQ (асинхронные задачи и уведомления)
