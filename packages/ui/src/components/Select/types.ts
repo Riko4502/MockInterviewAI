@@ -13,8 +13,42 @@ export interface SelectContextValue {
   variant: SelectVariant;
 }
 
+/**
+ * Вариант выбора для Select.
+ */
+export interface SelectOption {
+  value: string;
+  label: React.ReactNode;
+  disabled?: boolean;
+}
+
 export type SelectProps = React.ComponentProps<typeof SelectPrimitive.Root> & {
   variant?: SelectVariant;
+  /**
+   * Опциональный список вариантов выбора.
+   * Если передан, Select автоматически рендерит Trigger, Value с placeholder и Content со списком Item.
+   */
+  options?: readonly SelectOption[];
+  /**
+   * Плейсхолдер для значения в триггере при использовании пропса `options`.
+   */
+  placeholder?: string;
+  /**
+   * Дополнительный класс для триггера при использовании пропса `options`.
+   */
+  triggerClassName?: string;
+  /**
+   * Размер триггера ('sm' | 'default').
+   */
+  triggerSize?: "sm" | "default";
+  /**
+   * Дополнительные свойства для триггера при использовании `options`.
+   */
+  triggerProps?: Partial<SelectTriggerProps>;
+  /**
+   * Дополнительные свойства для выпадающего списка (Content).
+   */
+  contentProps?: Partial<SelectContentProps>;
 };
 
 export type SelectGroupProps = React.ComponentProps<
