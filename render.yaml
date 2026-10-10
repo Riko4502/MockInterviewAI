@@ -114,6 +114,20 @@ services:
           envVarKey: LIVEKIT_API_SECRET
       - key: RABBITMQ_URL
         sync: false # e.g. amqps://... (CloudAMQP) или amqp://guest:guest@rabbitmq:5672
+      - key: MAIL_TRANSPORT
+        value: dev-logger # dev-logger (по умолчанию) или smtp
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
 
   # -------------------------------------------------------------
   # Realtime WebSocket & SSE Server (Go)

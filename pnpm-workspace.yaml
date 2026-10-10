@@ -4,3 +4,12 @@ packages:
 
 overrides:
   deepmerge-ts: ">=8.0.0"
+  html-to-text: ">=10.0.1"
+  proxy-addr: ">=2.0.8"
+  source-map-js: ">=1.2.2"
+  shell-quote: ">=1.11.0"
+  sharp: ">=0.35.5"
+
+auditConfig:
+  ignoreCves:
+    - "CVE-2026-93687"

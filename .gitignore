@@ -37,3 +37,6 @@ coverage.out
 .agents
 .specify
 specs
+
+# email template logs
+.mail-preview

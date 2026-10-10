@@ -47,7 +47,7 @@ const DTO = {
   passwordConfirmation: "Str0ngPassw0rd!123",
 };
 
-const USER = { id: "user-1", email: DTO.email, generation: 1 };
+const USER = { id: "user-1", email: DTO.email, generation: 1, isActive: true };
 const USER_PASSWORD_HASH = "$argon2id$user-password-hash";
 
 type LoggerAccessor = {
@@ -90,7 +90,7 @@ describe("AuthService", () => {
   let redisGet: jest.Mock;
   let redisGetdel: jest.Mock;
   let redisDelete: jest.Mock;
-  let sendPasswordResetEmail: jest.Mock;
+  let sendTemplate: jest.Mock;
   let prismaMock: {
     user: { delete: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
     authRevocationTask: { create: jest.Mock; delete: jest.Mock };
@@ -219,7 +219,7 @@ describe("AuthService", () => {
     redisGetdel = jest.fn().mockResolvedValue(USER.id);
     redisDelete = jest.fn().mockResolvedValue(1);
     revokeAllUserSessions = jest.fn().mockResolvedValue(undefined);
-    sendPasswordResetEmail = jest.fn().mockResolvedValue(undefined);
+    sendTemplate = jest.fn().mockResolvedValue(undefined);
 
     prismaMock = {
       user: {
@@ -280,7 +280,7 @@ describe("AuthService", () => {
         delete: redisDelete,
       } as unknown as RedisService,
       {
-        sendPasswordResetEmail,
+        sendTemplate,
       } as unknown as MailService,
       {
         validateTelegramPayload,
@@ -1206,10 +1206,15 @@ describe("AuthService", () => {
         USER.id,
         PASSWORD_RESET_TOKEN_TTL_SECONDS,
       );
-      expect(sendPasswordResetEmail).toHaveBeenCalledWith(
-        USER.email,
-        expect.any(String),
-      );
+      expect(sendTemplate).toHaveBeenCalledWith({
+        to: USER.email,
+        template: "reset-password",
+        props: expect.objectContaining({
+          username: expect.any(String),
+          resetUrl: expect.stringContaining("/reset-password#token="),
+          expiresMinutes: Math.round(PASSWORD_RESET_TOKEN_TTL_SECONDS / 60),
+        }),
+      });
       expect(result).toEqual({
         message:
           "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
@@ -1236,7 +1241,7 @@ describe("AuthService", () => {
           new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
         ),
       );
-      expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+      expect(sendTemplate).not.toHaveBeenCalled();
       expect(result).toEqual({
         message:
           "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
@@ -1263,7 +1268,7 @@ describe("AuthService", () => {
           new RegExp(`^${REDIS_DUMMY_PASSWORD_RESET_PREFIX}[a-f0-9]{64}$`),
         ),
       );
-      expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+      expect(sendTemplate).not.toHaveBeenCalled();
       expect(result).toEqual({
         message:
           "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля",
@@ -1306,7 +1311,7 @@ describe("AuthService", () => {
 
     it("ошибка MailService при forgotPassword → не выбрасывает ошибку (anti-enumeration), логирует и возвращает 200", async () => {
       findByEmail.mockResolvedValue(USER);
-      sendPasswordResetEmail.mockRejectedValue(new Error("SMTP down"));
+      sendTemplate.mockRejectedValue(new Error("SMTP down"));
 
       const result = await service.forgotPassword({ email: DTO.email });
 

@@ -8,6 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   CreateMatchRequestDto,
   MatchRequestQueryDto,
@@ -20,6 +21,7 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { MailService } from "../mail/mail.service";
 import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import {
   LiveMatchPostCommitError,
@@ -103,6 +105,8 @@ export class MatchmakingService {
     private readonly notificationDispatcher: NotificationDispatcher,
     private readonly redisService: RedisService,
     private readonly sessionsService: SessionsService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -968,7 +972,12 @@ export class MatchmakingService {
     // 6. Публикуем событие подтверждения матча в Redis Pub/Sub (best-effort)
     await this.publishMatchAcceptedEvent(updated);
 
-    // 7. Возвращаем заявку с открытыми контактами
+    // 7. Отправляем email-уведомления обоим участникам
+    if (updated.sessionId) {
+      await this.sendMatchAcceptedEmails(updated, updated.sessionId);
+    }
+
+    // 8. Возвращаем заявку с открытыми контактами
     return this.formatMatchRequest(updated);
   }
 
@@ -1227,5 +1236,81 @@ export class MatchmakingService {
       throw new ConflictException(message);
     }
     throw error;
+  }
+
+  /**
+   * Отправляет email-уведомления обоим участникам при принятии заявки на интервью.
+   */
+  private async sendMatchAcceptedEmails(
+    request: MatchRequestWithRelations,
+    sessionId: string,
+  ): Promise<void> {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: [request.senderId, request.receiverId] } },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          username: true,
+        },
+      });
+
+      const sender = users.find((u) => u.id === request.senderId);
+      const receiver = users.find((u) => u.id === request.receiverId);
+
+      if (!sender || !receiver) {
+        return;
+      }
+
+      if (!request.slot) {
+        return;
+      }
+
+      const isProduction =
+        this.configService.get<string>("env") === "production";
+      const webUrl =
+        this.configService.get<string>("webUrl") ??
+        (isProduction ? "" : "http://localhost:3000");
+
+      const roomUrl = `${webUrl}/dashboard/sandbox?room=${sessionId}`;
+      const scheduledTime = request.slot.startsAt.toLocaleString("ru-RU", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Europe/Moscow",
+      });
+      const topic = request.preferredTopic ?? "Тренировочное собеседование";
+
+      await Promise.allSettled([
+        this.mailService.sendTemplate({
+          to: sender.email,
+          template: "interview-scheduled",
+          props: {
+            username: sender.displayName || sender.username || "Пользователь",
+            partnerName: receiver.displayName || receiver.username || "Партнер",
+            scheduledTime,
+            roomUrl,
+            topic,
+          },
+        }),
+        this.mailService.sendTemplate({
+          to: receiver.email,
+          template: "interview-scheduled",
+          props: {
+            username:
+              receiver.displayName || receiver.username || "Пользователь",
+            partnerName: sender.displayName || sender.username || "Партнер",
+            scheduledTime,
+            roomUrl,
+            topic,
+          },
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send match accepted emails for request ${request.id}`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 }
