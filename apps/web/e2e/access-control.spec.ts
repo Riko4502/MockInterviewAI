@@ -51,6 +51,17 @@ async function mockSession(page: Page, role: "USER" | "ADMIN") {
   await page.route("**/sse/notifications", (route) =>
     route.fulfill({ status: 204 }),
   );
+  await page.route("**/api/v1/admin/users*", (route) =>
+    route.fulfill({
+      json: {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        pages: 0,
+      },
+    }),
+  );
 }
 
 test.describe("Контроль доступа", () => {
@@ -68,7 +79,10 @@ test.describe("Контроль доступа", () => {
       "У вас нет прав для выполнения этого действия.",
     );
     await expect(
-      page.getByRole("heading", { name: "Пользователи", exact: true }),
+      page.getByRole("heading", {
+        name: "Управление пользователями",
+        exact: true,
+      }),
     ).toHaveCount(0);
   });
 
@@ -77,7 +91,10 @@ test.describe("Контроль доступа", () => {
     const response = await page.goto(paths.adminUsers);
     expect(response?.status()).toBe(200);
     await expect(
-      page.getByRole("heading", { name: "Пользователи", exact: true }),
+      page.getByRole("heading", {
+        name: "Управление пользователями",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Тестовый пользователь/ }),

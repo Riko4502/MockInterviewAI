@@ -106,7 +106,10 @@ test.describe("Админ-панель: Управление пользоват�
 
     // Заголовок и кнопка создания
     await expect(
-      page.getByRole("heading", { name: "Пользователи", exact: true }),
+      page.getByRole("heading", {
+        name: "Управление пользователями",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Добавить пользователя" }),
@@ -126,7 +129,7 @@ test.describe("Админ-панель: Управление пользоват�
     await page.getByRole("button", { name: "Добавить пользователя" }).click();
 
     await expect(
-      page.getByRole("heading", { name: "Добавить пользователя" }),
+      page.getByRole("heading", { name: "Добавить нового пользователя" }),
     ).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Роль")).toBeVisible();
