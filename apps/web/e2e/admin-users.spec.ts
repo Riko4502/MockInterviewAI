@@ -116,10 +116,11 @@ test.describe("Админ-панель: Управление пользоват�
     ).toBeVisible();
 
     // Пользователи отображаются в таблице
-    await expect(page.getByText("admin@example.com")).toBeVisible();
-    await expect(page.getByText("candidate@example.com")).toBeVisible();
-    await expect(page.getByText("Главный Администратор")).toBeVisible();
-    await expect(page.getByText("Алексей Иванов")).toBeVisible();
+    const table = page.getByTestId("admin-users-table");
+    await expect(table.getByText("admin@example.com")).toBeVisible();
+    await expect(table.getByText("candidate@example.com")).toBeVisible();
+    await expect(table.getByText("Главный Администратор")).toBeVisible();
+    await expect(table.getByText("Алексей Иванов")).toBeVisible();
   });
 
   test("Открывает модальное окно создания пользователя", async ({ page }) => {

@@ -195,7 +195,7 @@ export function CreateUserDialog({
 
           {/* Role */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
+            <Label htmlFor="create-role" className="text-xs font-medium">
               {t("admin.users.createModal.role")}
             </Label>
             <Select
@@ -203,7 +203,11 @@ export function CreateUserDialog({
               onValueChange={(val) => setValue("role", val)}
               disabled={isSubmitting}
             >
-              <Select.Trigger className="w-full h-9 text-sm">
+              <Select.Trigger
+                id="create-role"
+                aria-label={t("admin.users.createModal.role")}
+                className="w-full h-9 text-sm"
+              >
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>

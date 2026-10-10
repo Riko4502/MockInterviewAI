@@ -128,6 +128,11 @@ function readPackage(pkg) {
     pkg.optionalDependencies.sharp = "^0.35.5";
   }
 
+  // Исправление уязвимостей handlebars (GHSA-8r5x-fm3f-whwj, GHSA-p8wg-vrv2-v86f)
+  if (pkg.dependencies?.handlebars) {
+    pkg.dependencies.handlebars = "^4.7.10";
+  }
+
   return pkg;
 }
 
