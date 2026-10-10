@@ -15,6 +15,15 @@ function readPackage(pkg) {
     pkg.dependencies["fast-uri"] = "^3.1.8";
   }
 
+  // Исправление уязвимостей next (GHSA-vcvr-r3jv-pc5j)
+  if (pkg.dependencies?.next?.startsWith("16.3.3")) {
+    pkg.dependencies.next = "16.3.8";
+  }
+
+  if (pkg.dependencies?.["html-to-text"]) {
+    pkg.dependencies["html-to-text"] = "^10.0.1";
+  }
+
   if (pkg.dependencies?.multer) {
     pkg.dependencies.multer = "^2.4.0";
   }
@@ -121,11 +130,16 @@ function readPackage(pkg) {
   }
 
   // Исправление уязвимостей sharp (CVE-2026-96889)
-  if (pkg.dependencies?.["sharp"]) {
-    pkg.dependencies["sharp"] = "^0.35.5";
+  if (pkg.dependencies?.sharp) {
+    pkg.dependencies.sharp = "^0.35.5";
   }
-  if (pkg.optionalDependencies?.["sharp"]) {
-    pkg.optionalDependencies["sharp"] = "^0.35.5";
+  if (pkg.optionalDependencies?.sharp) {
+    pkg.optionalDependencies.sharp = "^0.35.5";
+  }
+
+  // Исправление уязвимостей handlebars (GHSA-8r5x-fm3f-whwj, GHSA-p8wg-vrv2-v86f)
+  if (pkg.dependencies?.handlebars) {
+    pkg.dependencies.handlebars = "^4.7.10";
   }
 
   return pkg;

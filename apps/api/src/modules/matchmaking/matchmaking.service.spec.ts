@@ -6,8 +6,10 @@ import {
   HttpStatus,
   NotFoundException,
 } from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { MailService } from "../mail/mail.service";
 import type { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import {
   LiveMatchPostCommitError,
@@ -21,6 +23,7 @@ describe("MatchmakingService", () => {
   let prismaMock: {
     user: {
       findUnique: jest.Mock;
+      findMany: jest.Mock;
     };
     showcaseCard: {
       findUnique: jest.Mock;
@@ -49,6 +52,12 @@ describe("MatchmakingService", () => {
   let sessionsServiceMock: {
     createLiveMatchSession: jest.Mock;
     cleanupOrphanedSession: jest.Mock;
+  };
+  let mailServiceMock: {
+    sendTemplate: jest.Mock;
+  };
+  let configServiceMock: {
+    get: jest.Mock;
   };
 
   const senderId = "11111111-1111-4111-a111-111111111111";
@@ -153,6 +162,10 @@ describe("MatchmakingService", () => {
     prismaMock = {
       user: {
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          { ...mockSenderUser, email: "sender@example.com" },
+          { ...mockReceiverUser, email: "receiver@example.com" },
+        ]),
       },
       showcaseCard: {
         findUnique: jest.fn(),
@@ -188,6 +201,14 @@ describe("MatchmakingService", () => {
       cleanupOrphanedSession: jest.fn().mockResolvedValue(undefined),
     };
 
+    mailServiceMock = {
+      sendTemplate: jest.fn().mockResolvedValue(undefined),
+    };
+
+    configServiceMock = {
+      get: jest.fn().mockReturnValue("http://localhost:3000"),
+    };
+
     redisServiceMock = {
       publish: jest.fn().mockResolvedValue("published"),
     };
@@ -197,6 +218,8 @@ describe("MatchmakingService", () => {
       notificationDispatcherMock as unknown as NotificationDispatcher,
       redisServiceMock as unknown as RedisService,
       sessionsServiceMock as unknown as SessionsService,
+      mailServiceMock as unknown as MailService,
+      configServiceMock as unknown as ConfigService,
     );
   });
 
@@ -1080,6 +1103,47 @@ describe("MatchmakingService", () => {
           prismaMock,
           `/interviews/${sessionId}`,
         );
+      });
+
+      it("отправляет email-уведомления с временем слота в часовом поясе Europe/Moscow обоим участникам", async () => {
+        prismaMock.matchRequest.findUnique.mockResolvedValueOnce(bookedRequest);
+        prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+        prismaMock.interviewSession.create.mockResolvedValueOnce({
+          id: sessionId,
+        });
+        prismaMock.matchRequest.findUniqueOrThrow.mockResolvedValueOnce({
+          ...bookedRequest,
+          status: "ACCEPTED",
+          sessionId,
+        });
+
+        await service.accept(requestId, receiverId);
+
+        const expectedScheduledTime = mockTargetSlot.startsAt.toLocaleString(
+          "ru-RU",
+          {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Europe/Moscow",
+          },
+        );
+
+        expect(mailServiceMock.sendTemplate).toHaveBeenCalledWith({
+          to: "sender@example.com",
+          template: "interview-scheduled",
+          props: expect.objectContaining({
+            scheduledTime: expectedScheduledTime,
+            roomUrl: `http://localhost:3000/dashboard/sandbox?room=${sessionId}`,
+          }),
+        });
+        expect(mailServiceMock.sendTemplate).toHaveBeenCalledWith({
+          to: "receiver@example.com",
+          template: "interview-scheduled",
+          props: expect.objectContaining({
+            scheduledTime: expectedScheduledTime,
+            roomUrl: `http://localhost:3000/dashboard/sandbox?room=${sessionId}`,
+          }),
+        });
       });
 
       it("не создаёт сессию для заявки без слота", async () => {

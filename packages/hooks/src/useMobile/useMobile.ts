@@ -18,7 +18,11 @@ export function useMobile(
   );
 
   React.useEffect(() => {
-    if (typeof window === "undefined") {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      setIsMobile(false);
       return;
     }
 

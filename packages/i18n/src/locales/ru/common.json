@@ -365,5 +365,121 @@
       "skippedTitle": "Профиль пропущен",
       "skippedDesc": "Вы можете заполнить профиль позже в настройках."
     }
+  },
+  "admin": {
+    "users": {
+      "title": "Управление пользователями",
+      "description": "Просмотр, создание и администрирование учётных записей пользователей",
+      "addUser": "Добавить пользователя",
+      "columns": {
+        "user": "Пользователь",
+        "email": "Email",
+        "role": "Роль",
+        "status": "Статус",
+        "createdAt": "Дата регистрации",
+        "actions": "Действия"
+      },
+      "roles": {
+        "all": "Все роли",
+        "user": "Пользователь",
+        "admin": "Администратор",
+        "USER": "Пользователь",
+        "ADMIN": "Администратор"
+      },
+      "statuses": {
+        "all": "Все статусы",
+        "active": "Активен",
+        "deactivated": "Деактивирован"
+      },
+      "filters": {
+        "searchPlaceholder": "Поиск по email, имени или username...",
+        "rolePlaceholder": "Роль",
+        "statusPlaceholder": "Статус",
+        "allRoles": "Все роли",
+        "allStatuses": "Все статусы",
+        "activeOnly": "Только активные",
+        "deactivatedOnly": "Только деактивированные",
+        "reset": "Сбросить фильтры"
+      },
+      "actions": {
+        "details": "Детали",
+        "edit": "Редактировать",
+        "resetPassword": "Сбросить пароль",
+        "deactivate": "Деактивировать",
+        "activate": "Активировать"
+      },
+      "selfProtection": {
+        "cannotDeactivateSelf": "Нельзя деактивировать собственный аккаунт администратора",
+        "cannotChangeOwnRole": "Нельзя изменить роль собственного аккаунта"
+      },
+      "empty": {
+        "noResults": "Пользователи по заданным фильтрам не найдены",
+        "noUsers": "Список пользователей пуст",
+        "resetFilters": "Сбросить фильтры"
+      },
+      "error": {
+        "loadFailed": "Не удалось загрузить список пользователей",
+        "retry": "Повторить попытку"
+      },
+      "createModal": {
+        "title": "Добавить нового пользователя",
+        "description": "Создание учётной записи. Временный пароль генерируется сервером и отправляется на почту.",
+        "email": "Email",
+        "emailPlaceholder": "user@example.com",
+        "username": "Имя пользователя (username)",
+        "usernamePlaceholder": "username",
+        "displayName": "Отображаемое имя",
+        "displayNamePlaceholder": "Иван Иванов",
+        "role": "Роль",
+        "submit": "Создать пользователя",
+        "successToast": "Пользователь успешно создан",
+        "conflictError": "Пользователь с таким email или username уже существует",
+        "errorToast": "Не удалось создать пользователя",
+        "genericError": "Не удалось создать пользователя"
+      },
+      "editModal": {
+        "title": "Редактирование пользователя",
+        "description": "Изменение основных данных профиля и прав доступа.",
+        "email": "Email",
+        "username": "Имя пользователя (username)",
+        "displayName": "Отображаемое имя",
+        "role": "Роль",
+        "telegram": "Telegram",
+        "telegramPlaceholder": "@username",
+        "gitUrl": "Git профиль",
+        "gitUrlPlaceholder": "https://github.com/username",
+        "submit": "Сохранить изменения",
+        "successToast": "Данные пользователя успешно обновлены",
+        "errorToast": "Не удалось обновить данные пользователя"
+      },
+      "toggleStatusModal": {
+        "deactivateTitle": "Деактивация пользователя",
+        "activateTitle": "Активация пользователя",
+        "deactivateDescription": "Вы уверены, что хотите деактивировать пользователя {{email}}? Все его активные сессии будут немедленно завершены, а доступ к платформе заблокирован.",
+        "activateDescription": "Вы уверены, что хотите восстановить доступ для пользователя {{email}}?",
+        "confirmDeactivate": "Деактивировать",
+        "confirmActivate": "Активировать",
+        "successDeactivated": "Пользователь успешно деактивирован, сессии отозваны",
+        "successActivated": "Пользователь успешно активирован"
+      },
+      "resetPasswordModal": {
+        "title": "Сброс пароля",
+        "description": "Вы уверены, что хотите сбросить пароль пользователя {{email}}? Будет сгенерирован новый временный пароль, а все текущие сессии будут завершены.",
+        "confirm": "Сбросить пароль",
+        "successToast": "Пароль успешно сброшен, активные сессии отозваны"
+      },
+      "drawer": {
+        "title": "Информация о пользователе",
+        "userId": "ID пользователя",
+        "statsTitle": "Статистика активности",
+        "sessionsCount": "Активных сессий",
+        "participationsCount": "Участий в интервью",
+        "createdAt": "Дата регистрации",
+        "deactivatedAt": "Дата деактивации",
+        "telegram": "Telegram",
+        "gitUrl": "Git профиль",
+        "notSpecified": "Не указано"
+      }
+    }
   }
 }

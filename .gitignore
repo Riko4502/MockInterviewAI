@@ -38,3 +38,6 @@ coverage.out
 .specify
 specs
 !docs/frontend/specs/
+
+# email template logs
+.mail-preview

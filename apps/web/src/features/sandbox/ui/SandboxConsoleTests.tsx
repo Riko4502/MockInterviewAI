@@ -52,18 +52,37 @@ export function SandboxConsoleTests() {
             <CloseIcon className="size-4.5" />
           )}
           <span>
-            {runResult.success
-              ? t("sandbox.console.allPassed")
-              : t("sandbox.console.passedCount", {
-                  passed: runResult.passedTests,
-                  total: runResult.totalTests,
-                })}
+            {runResult.totalTests > 0
+              ? runResult.success
+                ? t("sandbox.console.allPassed")
+                : t("sandbox.console.passedCount", {
+                    passed: runResult.passedTests,
+                    total: runResult.totalTests,
+                  })
+              : runResult.success
+                ? t("sandbox.console.executionSuccess", "Код успешно выполнен")
+                : t(
+                    "sandbox.console.executionFailed",
+                    "Ошибка при выполнении кода",
+                  )}
           </span>
         </div>
         <Typography.Code className="text-[11px] opacity-80">
           {runResult.totalTimeMs} ms
         </Typography.Code>
       </div>
+
+      {/* Список тест-кейсов или подсказка перейти в логи */}
+      {runResult.results.length === 0 ? (
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4 text-center">
+          <Typography.Muted className="text-xs">
+            {t(
+              "sandbox.console.checkLogsHint",
+              "Тест-кейсы не заданы. Вывод вашей программы (stdout/stderr) доступен во вкладке «Логи».",
+            )}
+          </Typography.Muted>
+        </div>
+      ) : null}
 
       {/* Список тест-кейсов */}
       <div className="grid gap-2.5">

@@ -1427,6 +1427,295 @@ paths:
       security: *a12
       summary: Выдать LiveKit join-токен для WebRTC медиа
       tags: *a13
+  /api/v1/admin/notifications/preview-recipients:
+    get:
+      operationId: NotificationCampaignsController_estimateRecipients
+      parameters: []
+      responses:
+        "200":
+          description: Active, non-deleted recipient count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignRecipientEstimateDto"
+      security: &a14
+        - bearer: []
+      summary: Estimate active notification campaign recipients
+      tags: &a15
+        - Admin / Notification Campaigns
+  /api/v1/admin/notifications/campaigns:
+    get:
+      operationId: NotificationCampaignsController_findAll
+      parameters:
+        - name: sortOrder
+          required: false
+          in: query
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          schema:
+            enum:
+              - createdAt
+              - scheduledAt
+              - sentAt
+            type: string
+        - name: targetType
+          required: false
+          in: query
+          schema:
+            enum:
+              - ALL
+              - SPECIFIC
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            enum:
+              - DRAFT
+              - SCHEDULED
+              - PROCESSING
+              - COMPLETED
+              - CANCELLED
+              - FAILED
+            type: string
+        - name: search
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: number
+        - name: page
+          required: false
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Paginated campaigns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignsPageDto"
+      security: *a14
+      summary: List notification campaigns
+      tags: *a15
+    post:
+      operationId: NotificationCampaignsController_create
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                category:
+                  type: string
+                  enum:
+                    - SYSTEM
+                    - INTERVIEW
+                    - MESSAGE
+                actionUrl:
+                  type: string
+                  maxLength: 500
+                targetType:
+                  type: string
+                  enum:
+                    - ALL
+                    - SPECIFIC
+                recipientUserIds:
+                  maxItems: 1000
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                sendMode:
+                  type: string
+                  enum:
+                    - SCHEDULED
+                    - DRAFT
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              required:
+                - title
+                - message
+                - category
+                - targetType
+                - sendMode
+      responses:
+        "201":
+          description: Campaign created for asynchronous scheduling
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignDto"
+      security: *a14
+      summary: Create a notification campaign
+      tags: *a15
+  /api/v1/admin/notifications/campaigns/{id}:
+    get:
+      operationId: NotificationCampaignsController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Campaign details, including recipient IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignDetailsDto"
+      security: *a14
+      summary: Get notification campaign details
+      tags: *a15
+    patch:
+      operationId: NotificationCampaignsController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                category:
+                  type: string
+                  enum:
+                    - SYSTEM
+                    - INTERVIEW
+                    - MESSAGE
+                actionUrl:
+                  nullable: true
+                  type: string
+                  maxLength: 500
+                targetType:
+                  type: string
+                  enum:
+                    - ALL
+                    - SPECIFIC
+                recipientUserIds:
+                  maxItems: 1000
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+      responses:
+        "200":
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignDto"
+      security: *a14
+      summary: Update a draft or scheduled campaign
+      tags: *a15
+    delete:
+      operationId: NotificationCampaignsController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Campaign deleted
+      security: *a14
+      summary: Delete a draft or cancelled campaign
+      tags: *a15
+  /api/v1/admin/notifications/campaigns/{id}/queue:
+    post:
+      operationId: NotificationCampaignsController_queue
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Campaign queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignDto"
+      security: *a14
+      summary: Queue a draft campaign for asynchronous delivery
+      tags: *a15
+  /api/v1/admin/notifications/campaigns/{id}/cancel:
+    post:
+      operationId: NotificationCampaignsController_cancel
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationCampaignCancelDto"
+      responses:
+        "200":
+          description: Campaign cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationCampaignDto"
+      security: *a14
+      summary: Cancel a scheduled or processing campaign
+      tags: *a15
   /api/v1/showcase:
     get:
       operationId: ShowcaseController_findAll
@@ -1517,10 +1806,10 @@ paths:
                 $ref: "#/components/schemas/PaginatedShowcaseCardsDto"
         "400":
           description: Некорректные параметры query
-      security: &a14
+      security: &a16
         - bearer: []
       summary: Получить каталог активных карточек витрины
-      tags: &a15
+      tags: &a17
         - Showcase
     post:
       operationId: ShowcaseController_create
@@ -1543,9 +1832,9 @@ paths:
           description: Не заполнен профиль или превышен лимит 5 анкет
         "409":
           description: Уже есть активная анкета с такой специализацией и уровнем
-      security: *a14
+      security: *a16
       summary: Создать новую анкету на витрине
-      tags: *a15
+      tags: *a17
   /api/v1/showcase/my:
     get:
       operationId: ShowcaseController_findMy
@@ -1557,9 +1846,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ShowcaseCardListDto"
-      security: *a14
+      security: *a16
       summary: Получить анкеты текущего пользователя со статистикой заявок
-      tags: *a15
+      tags: *a17
   /api/v1/showcase/{id}:
     get:
       operationId: ShowcaseController_findOne
@@ -1580,9 +1869,9 @@ paths:
                 $ref: "#/components/schemas/ShowcaseCardResponseDto"
         "404":
           description: Анкета не найдена
-      security: *a14
+      security: *a16
       summary: Получить детальную информацию об анкете по ID
-      tags: *a15
+      tags: *a17
     patch:
       operationId: ShowcaseController_update
       parameters:
@@ -1613,9 +1902,9 @@ paths:
           description: Анкета не найдена
         "409":
           description: Конфликт уникальности специализации и уровня
-      security: *a14
+      security: *a16
       summary: Редактировать анкету (только автор)
-      tags: *a15
+      tags: *a17
     delete:
       operationId: ShowcaseController_remove
       parameters:
@@ -1633,9 +1922,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a14
+      security: *a16
       summary: Удалить анкету
-      tags: *a15
+      tags: *a17
   /api/v1/showcase/{id}/status:
     patch:
       operationId: ShowcaseController_updateStatus
@@ -1667,9 +1956,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a14
+      security: *a16
       summary: Переключить статус анкеты ACTIVE <-> INACTIVE
-      tags: *a15
+      tags: *a17
   /api/v1/showcase/{id}/bump:
     post:
       operationId: ShowcaseController_bump
@@ -1694,9 +1983,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a14
+      security: *a16
       summary: Поднять анкету в топ каталога (раз в 24 часа)
-      tags: *a15
+      tags: *a17
   /api/v1/showcase/{id}/renew:
     post:
       operationId: ShowcaseController_renew
@@ -1721,9 +2010,9 @@ paths:
           description: Недостаточно прав
         "404":
           description: Анкета не найдена
-      security: *a14
+      security: *a16
       summary: Продлить истекшую анкету (EXPIRED -> ACTIVE)
-      tags: *a15
+      tags: *a17
   /api/v1/matchmaking/requests/unread-count:
     get:
       operationId: MatchmakingController_getUnreadCount
@@ -1735,10 +2024,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadMatchRequestsCountDto"
-      security: &a16
+      security: &a18
         - bearer: []
       summary: Получить количество входящих заявок в ожидании ответа (статус PENDING)
-      tags: &a17
+      tags: &a19
         - Matchmaking
   /api/v1/matchmaking/requests:
     post:
@@ -1767,9 +2056,9 @@ paths:
           description: Целевая карточка не найдена или не активна
         "429":
           description: Превышен лимит активных исходящих заявок (максимум 5)
-      security: *a16
+      security: *a18
       summary: Отправить заявку (отклик) на карточку собеседования
-      tags: *a17
+      tags: *a19
   /api/v1/matchmaking/requests/incoming:
     get:
       operationId: MatchmakingController_findIncoming
@@ -1805,9 +2094,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
-      security: *a16
+      security: *a18
       summary: Получить список входящих заявок текущего пользователя
-      tags: *a17
+      tags: *a19
   /api/v1/matchmaking/requests/outgoing:
     get:
       operationId: MatchmakingController_findOutgoing
@@ -1843,9 +2132,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedMatchRequestResponseDto"
-      security: *a16
+      security: *a18
       summary: Получить список исходящих заявок текущего пользователя
-      tags: *a17
+      tags: *a19
   /api/v1/matchmaking/requests/{id}/accept:
     post:
       operationId: MatchmakingController_accept
@@ -1870,9 +2159,9 @@ paths:
           description: Недостаточно прав для принятия чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a16
+      security: *a18
       summary: Принять входящую заявку на собеседование
-      tags: *a17
+      tags: *a19
   /api/v1/matchmaking/requests/{id}/reject:
     post:
       operationId: MatchmakingController_reject
@@ -1904,9 +2193,9 @@ paths:
           description: Недостаточно прав для отклонения чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a16
+      security: *a18
       summary: Отклонить входящую заявку на собеседование
-      tags: *a17
+      tags: *a19
   /api/v1/matchmaking/requests/{id}/cancel:
     post:
       operationId: MatchmakingController_cancel
@@ -1931,9 +2220,32 @@ paths:
           description: Недостаточно прав для отмены чужой заявки
         "404":
           description: Заявка не найдена
-      security: *a16
+      security: *a18
       summary: Отменить свою исходящую заявку на собеседование
-      tags: *a17
+      tags: *a19
+  /api/v1/code/run:
+    post:
+      description: Отправляет код на исполнение в Judge0 через сервис
+        apps/code-runner, возвращая stdout, stderr, время выполнения и статус.
+      operationId: CodeRunnerController_run
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunCodeRequestDto"
+      responses:
+        "200":
+          description: Результат выполнения кода
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunCodeResponseDto"
+      summary: Запустить код пользователя в изолированной песочнице
+      tags:
+        - Code
 info:
   title: Mock Interview AI API
   description: |-
@@ -2908,6 +3220,79 @@ components:
           type: boolean
       required:
         - isActive
+    RunCodeRequestDto:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        language:
+          type: string
+          minLength: 1
+        taskKey:
+          type: string
+        taskId:
+          type: string
+        stdin:
+          default: ""
+          type: string
+          maxLength: 65536
+        timeoutMs:
+          default: 3000
+          type: integer
+          minimum: 500
+          maximum: 10000
+      required:
+        - code
+        - language
+    RunCodeResponseDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Успешность выполнения программы
+        totalTests:
+          type: number
+          description: Общее число тестов
+        passedTests:
+          type: number
+          description: Число пройденных тестов
+        results:
+          type: array
+          items:
+            type: object
+          description: Результаты тест-кейсов
+        logs:
+          type: array
+          items:
+            type: string
+          description: Логи вывода stdout/stderr
+        totalTimeMs:
+          type: number
+          description: Время выполнения в мс
+        status:
+          type: string
+          description: Статус выполнения (SUCCESS, RUNTIME_ERROR, etc.)
+        stdout:
+          type: string
+          description: Сырой stdout
+        stderr:
+          type: string
+          description: Сырой stderr
+        exitCode:
+          type: number
+          description: Код выхода процесса
+        memoryUsageBytes:
+          type: number
+          description: Пиковое потребление памяти в байтах
+      required:
+        - success
+        - totalTests
+        - passedTests
+        - results
+        - logs
+        - totalTimeMs
     CreateSessionResponseDto:
       type: object
       properties:
@@ -4527,6 +4912,471 @@ components:
         reason:
           type: string
           maxLength: 200
+    NotificationCampaignRecipientEstimateDto:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - count
+    NotificationCampaignsPageDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              title:
+                type: string
+              message:
+                type: string
+              category:
+                type: string
+                enum:
+                  - SYSTEM
+                  - INTERVIEW
+                  - MESSAGE
+              actionUrl:
+                nullable: true
+                type: string
+              targetType:
+                type: string
+                enum:
+                  - ALL
+                  - SPECIFIC
+              status:
+                type: string
+                enum:
+                  - DRAFT
+                  - SCHEDULED
+                  - PROCESSING
+                  - COMPLETED
+                  - CANCELLED
+                  - FAILED
+              scheduledAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              sentAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              completedAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              totalRecipients:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              sentCount:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              readCount:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              lastProcessedUserId:
+                nullable: true
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              failureReason:
+                nullable: true
+                type: string
+              createdById:
+                nullable: true
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              creator:
+                nullable: true
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  displayName:
+                    nullable: true
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                    pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                required:
+                  - id
+                  - displayName
+                  - email
+              cancelledById:
+                nullable: true
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              cancelledAt:
+                nullable: true
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              cancellationReason:
+                nullable: true
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - title
+              - message
+              - category
+              - actionUrl
+              - targetType
+              - status
+              - scheduledAt
+              - sentAt
+              - completedAt
+              - totalRecipients
+              - sentCount
+              - readCount
+              - lastProcessedUserId
+              - failureReason
+              - createdById
+              - creator
+              - cancelledById
+              - cancelledAt
+              - cancellationReason
+              - createdAt
+              - updatedAt
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              minimum: 1
+              maximum: 9007199254740991
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+            total:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            totalPages:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - page
+            - limit
+            - total
+            - totalPages
+      required:
+        - items
+        - meta
+    NotificationCampaignDetailsDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        title:
+          type: string
+        message:
+          type: string
+        category:
+          type: string
+          enum:
+            - SYSTEM
+            - INTERVIEW
+            - MESSAGE
+        actionUrl:
+          nullable: true
+          type: string
+        targetType:
+          type: string
+          enum:
+            - ALL
+            - SPECIFIC
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - SCHEDULED
+            - PROCESSING
+            - COMPLETED
+            - CANCELLED
+            - FAILED
+        scheduledAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        sentAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        completedAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        totalRecipients:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        sentCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        readCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        lastProcessedUserId:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        failureReason:
+          nullable: true
+          type: string
+        createdById:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        creator:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            displayName:
+              nullable: true
+              type: string
+            email:
+              type: string
+              format: email
+              pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+          required:
+            - id
+            - displayName
+            - email
+        cancelledById:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        cancelledAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        cancellationReason:
+          nullable: true
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        recipientUserIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - id
+        - title
+        - message
+        - category
+        - actionUrl
+        - targetType
+        - status
+        - scheduledAt
+        - sentAt
+        - completedAt
+        - totalRecipients
+        - sentCount
+        - readCount
+        - lastProcessedUserId
+        - failureReason
+        - createdById
+        - creator
+        - cancelledById
+        - cancelledAt
+        - cancellationReason
+        - createdAt
+        - updatedAt
+        - recipientUserIds
+    NotificationCampaignDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        title:
+          type: string
+        message:
+          type: string
+        category:
+          type: string
+          enum:
+            - SYSTEM
+            - INTERVIEW
+            - MESSAGE
+        actionUrl:
+          nullable: true
+          type: string
+        targetType:
+          type: string
+          enum:
+            - ALL
+            - SPECIFIC
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - SCHEDULED
+            - PROCESSING
+            - COMPLETED
+            - CANCELLED
+            - FAILED
+        scheduledAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        sentAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        completedAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        totalRecipients:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        sentCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        readCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        lastProcessedUserId:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        failureReason:
+          nullable: true
+          type: string
+        createdById:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        creator:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            displayName:
+              nullable: true
+              type: string
+            email:
+              type: string
+              format: email
+              pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+          required:
+            - id
+            - displayName
+            - email
+        cancelledById:
+          nullable: true
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        cancelledAt:
+          nullable: true
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        cancellationReason:
+          nullable: true
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+      required:
+        - id
+        - title
+        - message
+        - category
+        - actionUrl
+        - targetType
+        - status
+        - scheduledAt
+        - sentAt
+        - completedAt
+        - totalRecipients
+        - sentCount
+        - readCount
+        - lastProcessedUserId
+        - failureReason
+        - createdById
+        - creator
+        - cancelledById
+        - cancelledAt
+        - cancellationReason
+        - createdAt
+        - updatedAt
+    NotificationCampaignCancelDto:
+      type: object
+      properties:
+        reason:
+          nullable: true
+          type: string
     TicketDto:
       type: object
       properties:

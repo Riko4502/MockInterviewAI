@@ -2,6 +2,7 @@ import { defaultLocale, type Locale } from "./config";
 import enAuth from "./locales/en/auth.json";
 import enCommon from "./locales/en/common.json";
 import enDashboard from "./locales/en/dashboard.json";
+import enEmail from "./locales/en/email.json";
 import enInterview from "./locales/en/interview.json";
 import enLanding from "./locales/en/landing.json";
 import enNotifications from "./locales/en/notifications.json";
@@ -10,6 +11,7 @@ import enTelegram from "./locales/en/telegram.json";
 import ruAuth from "./locales/ru/auth.json";
 import ruCommon from "./locales/ru/common.json";
 import ruDashboard from "./locales/ru/dashboard.json";
+import ruEmail from "./locales/ru/email.json";
 import ruInterview from "./locales/ru/interview.json";
 import ruLanding from "./locales/ru/landing.json";
 import ruNotifications from "./locales/ru/notifications.json";
@@ -27,6 +29,7 @@ export const messages: Record<Locale, Messages> = {
     telegram: ruTelegram,
     notifications: ruNotifications,
     showcase: ruShowcase,
+    email: ruEmail,
   },
   en: {
     common: enCommon,
@@ -37,6 +40,7 @@ export const messages: Record<Locale, Messages> = {
     telegram: enTelegram,
     notifications: enNotifications,
     showcase: enShowcase,
+    email: enEmail,
   },
 };
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-
-import { formatInstantInTimeZone } from "./format";
+import { formatDateTime, formatInstantInTimeZone } from "./format";
 
 describe("formatInstantInTimeZone", () => {
   it("печатает один и тот же инстант по-разному в разных зонах", () => {
@@ -34,5 +33,35 @@ describe("formatInstantInTimeZone", () => {
         "Europe/Moscow",
       ),
     ).toBe("2026-01-21 02:30");
+  });
+});
+
+describe("formatDateTime", () => {
+  it("возвращает дефис при null, undefined или пустом значении", () => {
+    expect(formatDateTime(null)).toBe("—");
+    expect(formatDateTime(undefined)).toBe("—");
+    expect(formatDateTime("")).toBe("—");
+  });
+
+  it("форматирует дату и время по умолчанию в UTC и ru-RU", () => {
+    const result = formatDateTime("2026-02-15T10:00:00.000Z");
+    expect(result).toContain("15.02.2026");
+    expect(result).toContain("10:00");
+  });
+
+  it("позволяет отключить время через includeTime: false", () => {
+    const result = formatDateTime("2026-02-15T10:00:00.000Z", {
+      includeTime: false,
+    });
+    expect(result).toBe("15.02.2026");
+  });
+
+  it("позволяет задать кастомный timeZone и locale", () => {
+    const result = formatDateTime("2026-02-15T10:00:00.000Z", {
+      timeZone: "Europe/Moscow",
+    });
+    // UTC+3: 10:00 UTC -> 13:00 MSK
+    expect(result).toContain("15.02.2026");
+    expect(result).toContain("13:00");
   });
 });
