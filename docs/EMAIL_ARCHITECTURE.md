@@ -175,3 +175,130 @@ pnpm --filter api test apps/api/src/modules/mail/mail.service.spec.ts
 # Полный сьют тестов API
 pnpm test:api
 ```
+
+---
+
+## 8. Пошаговое добавление нового шаблона письма
+
+1. **Создание шаблона в `@packages/email`**:
+   - Создайте файл компонента в `packages/email/src/templates/<my-template>.tsx`.
+   - Используйте базовые компоненты из `@packages/email` (`Layout`, `Header`, `Footer`, `Button`, `Text`).
+   - Получайте переводы через `getMessages(locale).email.<myTemplate>`.
+
+2. **Добавление переводов в `@packages/i18n`**:
+   - Добавьте локализованные строки в `packages/i18n/src/locales/ru/common.json` и `en/common.json` в секцию `"email"`.
+   - Пересоберите пакет переводов:
+     ```bash
+     pnpm --filter @packages/i18n build
+     ```
+
+3. **Регистрация шаблона в контрактах `@packages/email`**:
+   - В `packages/email/src/types.ts` добавьте интерфейс входных пропсов:
+     ```typescript
+     export interface MyTemplateProps {
+       username: string;
+       actionUrl: string;
+     }
+     ```
+   - Зарегистрируйте ключ шаблона в `EmailTemplatePropsMap`:
+     ```typescript
+     export interface EmailTemplatePropsMap {
+       // ...
+       'my-template': MyTemplateProps;
+     }
+     ```
+   - Экспортируйте шаблон в `packages/email/src/index.ts` и зарегистрируйте в функции `renderTemplate` (`packages/email/src/render.ts`).
+   - Соберите пакет писем:
+     ```bash
+     pnpm --filter @packages/email build
+     ```
+
+4. **Использование в NestJS**:
+   ```typescript
+   await this.mailService.sendTemplate({
+     template: 'my-template',
+     to: user.email,
+     locale: user.locale ?? 'ru',
+     props: {
+       username: user.displayName,
+       actionUrl: 'https://...',
+     },
+   });
+   ```
+
+---
+
+## 9. Настройка SMTP-провайдеров
+
+### 1. Локальный перехватчик (Mailpit)
+Рекомендуется для локальной отладки без отправки в реальную сеть:
+```env
+MAIL_TRANSPORT=smtp
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_SECURE=false
+SMTP_FROM=MockInterviewAI <noreply@mockinterview.ai>
+```
+Веб-интерфейс писем будет доступен на `http://localhost:8025`.
+
+### 2. Google / Gmail SMTP
+Для отправки через аккаунт Google **обязательно** используется [Пароль приложения (App Password)](https://myaccount.google.com/apppasswords) при включенной 2FA:
+```env
+MAIL_TRANSPORT=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-account@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx # 16-значный пароль приложения без пробелов
+SMTP_FROM=MockInterviewAI <your-account@gmail.com>
+```
+
+### 3. Yandex 360 / Почта для домена
+Требуется «Пароль для внешних приложений» в Яндекс ID:
+```env
+MAIL_TRANSPORT=smtp
+SMTP_HOST=smtp.yandex.ru
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=noreply@yourdomain.com
+SMTP_PASSWORD=ваш_пароль_приложения_яндекса
+SMTP_FROM=MockInterviewAI <noreply@yourdomain.com>
+```
+
+### 4. Транзакционные провайдеры (Resend, SendGrid, Brevo)
+Пример для Resend через SMTP:
+```env
+MAIL_TRANSPORT=smtp
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=resend
+SMTP_PASSWORD=re_123456789 # Ваш API ключ Resend
+SMTP_FROM=MockInterviewAI <noreply@yourdomain.com>
+```
+
+---
+
+## 10. Деплой и инфраструктура
+
+### Render Blueprint (`render.yaml`)
+В спецификации сервиса `devsync-api`:
+- `MAIL_TRANSPORT`: по умолчанию `dev-logger` (сервис стартует безопасно даже без кредов SMTP);
+- При подключении реального почтового сервера в Dashboard Render указываются: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`.
+
+### Docker (`docker-compose.prod.yml`)
+Переменные проброшены в контейнер `api`:
+```yaml
+services:
+  api:
+    environment:
+      - MAIL_TRANSPORT
+      - SMTP_HOST
+      - SMTP_PORT
+      - SMTP_SECURE
+      - SMTP_USER
+      - SMTP_PASSWORD
+      - SMTP_FROM
+```
+Значения читаются напрямую из хостового `.env` при запуске контейнеров.
+
