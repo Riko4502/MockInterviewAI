@@ -20,6 +20,7 @@ import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
 import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
+import { NotificationCampaignsModule } from "./modules/notification-campaigns/notification-campaigns.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
@@ -73,6 +74,7 @@ import { RedisModule } from "./redis/redis.module";
     SessionsModule,
     RealtimeModule,
     NotificationsModule,
+    NotificationCampaignsModule,
     TelegramModule,
     ShowcaseModule,
     MatchmakingModule,
