@@ -88,10 +88,14 @@ async function mockAdminSession(page: Page) {
     return route.fulfill({
       json: {
         items: mockUsers,
-        total: 2,
-        page: 1,
-        limit: 10,
-        pages: 1,
+        meta: {
+          total: 2,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       },
     });
   });

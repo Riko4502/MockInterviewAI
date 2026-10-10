@@ -382,7 +382,9 @@
       "roles": {
         "all": "All roles",
         "user": "User",
-        "admin": "Administrator"
+        "admin": "Administrator",
+        "USER": "User",
+        "ADMIN": "Administrator"
       },
       "statuses": {
         "all": "All statuses",
@@ -393,6 +395,10 @@
         "searchPlaceholder": "Search by email, name or username...",
         "rolePlaceholder": "Role",
         "statusPlaceholder": "Status",
+        "allRoles": "All roles",
+        "allStatuses": "All statuses",
+        "activeOnly": "Active only",
+        "deactivatedOnly": "Deactivated only",
         "reset": "Reset filters"
       },
       "actions": {
@@ -427,7 +433,9 @@
         "role": "Role",
         "submit": "Create User",
         "successToast": "User created successfully",
-        "conflictError": "A user with this email or username already exists"
+        "conflictError": "A user with this email or username already exists",
+        "errorToast": "Failed to create user",
+        "genericError": "Failed to create user"
       },
       "editModal": {
         "title": "Edit User",
@@ -441,7 +449,8 @@
         "gitUrl": "Git Profile",
         "gitUrlPlaceholder": "https://github.com/username",
         "submit": "Save Changes",
-        "successToast": "User updated successfully"
+        "successToast": "User updated successfully",
+        "errorToast": "Failed to update user"
       },
       "toggleStatusModal": {
         "deactivateTitle": "Deactivate User",

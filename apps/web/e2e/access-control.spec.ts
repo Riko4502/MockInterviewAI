@@ -55,10 +55,14 @@ async function mockSession(page: Page, role: "USER" | "ADMIN") {
     route.fulfill({
       json: {
         items: [],
-        total: 0,
-        page: 1,
-        limit: 10,
-        pages: 0,
+        meta: {
+          total: 0,
+          page: 1,
+          limit: 10,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       },
     }),
   );

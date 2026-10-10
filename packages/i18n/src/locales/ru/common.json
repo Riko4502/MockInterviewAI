@@ -382,7 +382,9 @@
       "roles": {
         "all": "Все роли",
         "user": "Пользователь",
-        "admin": "Администратор"
+        "admin": "Администратор",
+        "USER": "Пользователь",
+        "ADMIN": "Администратор"
       },
       "statuses": {
         "all": "Все статусы",
@@ -393,6 +395,10 @@
         "searchPlaceholder": "Поиск по email, имени или username...",
         "rolePlaceholder": "Роль",
         "statusPlaceholder": "Статус",
+        "allRoles": "Все роли",
+        "allStatuses": "Все статусы",
+        "activeOnly": "Только активные",
+        "deactivatedOnly": "Только деактивированные",
         "reset": "Сбросить фильтры"
       },
       "actions": {
@@ -427,7 +433,9 @@
         "role": "Роль",
         "submit": "Создать пользователя",
         "successToast": "Пользователь успешно создан",
-        "conflictError": "Пользователь с таким email или username уже существует"
+        "conflictError": "Пользователь с таким email или username уже существует",
+        "errorToast": "Не удалось создать пользователя",
+        "genericError": "Не удалось создать пользователя"
       },
       "editModal": {
         "title": "Редактирование пользователя",
@@ -441,7 +449,8 @@
         "gitUrl": "Git профиль",
         "gitUrlPlaceholder": "https://github.com/username",
         "submit": "Сохранить изменения",
-        "successToast": "Данные пользователя успешно обновлены"
+        "successToast": "Данные пользователя успешно обновлены",
+        "errorToast": "Не удалось обновить данные пользователя"
       },
       "toggleStatusModal": {
         "deactivateTitle": "Деактивация пользователя",

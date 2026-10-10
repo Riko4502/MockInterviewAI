@@ -10,13 +10,13 @@ vi.mock("react-i18next", async (importOriginal) => {
       t: (key: string) => {
         const translations: Record<string, string> = {
           "admin.users.filters.searchPlaceholder": "Поиск по имени...",
-          "admin.users.filters.allRoles": "Все роли",
-          "admin.users.filters.allStatuses": "Все статусы",
-          "admin.users.filters.activeOnly": "Только активные",
-          "admin.users.filters.deactivatedOnly": "Только деактивированные",
+          "admin.users.roles.all": "Все роли",
+          "admin.users.roles.admin": "Администратор",
+          "admin.users.roles.user": "Пользователь",
+          "admin.users.statuses.all": "Все статусы",
+          "admin.users.statuses.active": "Активен",
+          "admin.users.statuses.deactivated": "Деактивирован",
           "admin.users.filters.reset": "Сбросить фильтры",
-          "admin.users.roles.ADMIN": "Администратор",
-          "admin.users.roles.USER": "Пользователь",
         };
         return translations[key] ?? key;
       },
@@ -91,5 +91,24 @@ describe("AdminUsersFilter", () => {
 
     fireEvent.click(resetBtn);
     expect(defaultProps.onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onSearchChange if value matches current filters.search", () => {
+    render(
+      <AdminUsersFilter
+        {...defaultProps}
+        filters={{ page: 1, limit: 10, search: "john" }}
+      />,
+    );
+
+    const searchInput = screen.getByTestId("admin-users-search-input");
+    // Type same value (or trimmed same value)
+    fireEvent.change(searchInput, { target: { value: "john " } });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(defaultProps.onSearchChange).not.toHaveBeenCalled();
   });
 });

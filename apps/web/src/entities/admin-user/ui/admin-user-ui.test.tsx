@@ -12,6 +12,8 @@ vi.mock("react-i18next", async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string) => {
         const translations: Record<string, string> = {
+          "admin.users.roles.admin": "Администратор",
+          "admin.users.roles.user": "Пользователь",
           "admin.users.roles.ADMIN": "Администратор",
           "admin.users.roles.USER": "Пользователь",
           "admin.users.statuses.active": "Активен",

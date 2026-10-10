@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminUser } from "@/entities/admin-user";
 import { EditUserDialog } from "./EditUserDialog";
@@ -49,6 +49,8 @@ vi.mock("react-i18next", async (importOriginal) => {
         const translations: Record<string, string> = {
           "admin.users.editModal.title": "Редактирование пользователя",
           "admin.users.editModal.submit": "Сохранить изменения",
+          "admin.users.editModal.errorToast":
+            "Не удалось обновить данные пользователя",
           "admin.users.selfProtection.cannotChangeOwnRole":
             "Нельзя изменить роль собственного аккаунта",
         };
@@ -104,5 +106,25 @@ describe("EditUserDialog", () => {
     expect(screen.queryByTestId("self-role-warning")).toBeNull();
     const roleTrigger = screen.getByTestId("edit-user-role-select");
     expect(roleTrigger).toHaveProperty("disabled", false);
+  });
+
+  it("shows error toast with errorToast title when update fails", async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error("Network error"));
+
+    render(
+      <EditUserDialog user={mockUser} open={true} onOpenChange={vi.fn()} />,
+    );
+
+    const submitBtn = screen.getByRole("button", {
+      name: "Сохранить изменения",
+    });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    expect(mockToastPush).toHaveBeenCalledWith({
+      status: "error",
+      title: "Не удалось обновить данные пользователя",
+    });
   });
 });

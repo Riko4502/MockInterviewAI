@@ -115,7 +115,7 @@ export function CreateUserDialog({
       } else {
         toast.push({
           status: "error",
-          title: t("admin.users.createModal.conflictError"),
+          title: t("admin.users.createModal.errorToast"),
         });
       }
     } finally {

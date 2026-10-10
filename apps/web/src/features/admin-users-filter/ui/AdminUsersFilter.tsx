@@ -15,15 +15,15 @@ import { useTranslation } from "react-i18next";
 import type { AdminUsersFilterParams } from "@/entities/admin-user";
 
 const ROLE_FILTER_CONFIG = [
-  { value: "ALL", labelKey: "admin.users.filters.allRoles" },
-  { value: SystemRole.ADMIN, labelKey: "admin.users.roles.ADMIN" },
-  { value: SystemRole.USER, labelKey: "admin.users.roles.USER" },
+  { value: "ALL", labelKey: "admin.users.roles.all" },
+  { value: SystemRole.ADMIN, labelKey: "admin.users.roles.admin" },
+  { value: SystemRole.USER, labelKey: "admin.users.roles.user" },
 ] as const;
 
 const STATUS_FILTER_CONFIG = [
-  { value: "ALL", labelKey: "admin.users.filters.allStatuses" },
-  { value: "active", labelKey: "admin.users.filters.activeOnly" },
-  { value: "deactivated", labelKey: "admin.users.filters.deactivatedOnly" },
+  { value: "ALL", labelKey: "admin.users.statuses.all" },
+  { value: "active", labelKey: "admin.users.statuses.active" },
+  { value: "deactivated", labelKey: "admin.users.statuses.deactivated" },
 ] as const;
 
 export interface AdminUsersFilterProps {
@@ -63,11 +63,14 @@ export function AdminUsersFilter({
 
     const timer = setTimeout(() => {
       const trimmed = searchTerm.trim();
-      onSearchChange(trimmed ? trimmed : undefined);
+      const next = trimmed ? trimmed : undefined;
+      if (next !== filters.search) {
+        onSearchChange(next);
+      }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, onSearchChange]);
+  }, [searchTerm, onSearchChange, filters.search]);
 
   const roleValue = filters.role ?? "ALL";
   const statusValue =
@@ -127,7 +130,7 @@ export function AdminUsersFilter({
           onValueChange={(val) =>
             onRoleChange(val === "ALL" ? undefined : (val as SystemRole))
           }
-          placeholder={t("admin.users.filters.allRoles")}
+          placeholder={t("admin.users.roles.all")}
           options={roleOptions}
           triggerClassName="w-[150px] h-9 text-xs bg-card border-border/80"
           data-testid="admin-users-role-select"
@@ -145,7 +148,7 @@ export function AdminUsersFilter({
                   : undefined,
             )
           }
-          placeholder={t("admin.users.filters.allStatuses")}
+          placeholder={t("admin.users.statuses.all")}
           options={statusOptions}
           triggerClassName="w-[170px] h-9 text-xs bg-card border-border/80"
           data-testid="admin-users-status-select"

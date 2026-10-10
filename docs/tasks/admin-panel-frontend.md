@@ -28,7 +28,7 @@ sequenceDiagram
         end
     else Роль == SystemRole.ADMIN
         Page->>Hooks: useAdminUsersControllerGetUsersList(params)
-        Hooks->>API: GET /api/v1/admin/users?page=1&limit=20...
+        Hooks->>API: GET /api/v1/admin/users?page=1&limit=10...
         API-->>Hooks: 200 OK (PaginatedUsersAdminResponseDto)
         Hooks-->>Table: Рендер строк пользователей (аватары, роли, статусы, даты)
     end

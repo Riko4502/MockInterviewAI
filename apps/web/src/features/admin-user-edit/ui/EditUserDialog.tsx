@@ -146,7 +146,7 @@ export function EditUserDialog({
     } catch {
       toast.push({
         status: "error",
-        title: t("admin.users.editModal.description"),
+        title: t("admin.users.editModal.errorToast"),
       });
     } finally {
       setIsSubmitting(false);

@@ -105,6 +105,8 @@ vi.mock("react-i18next", async (importOriginal) => {
           "admin.users.columns.status": "Статус",
           "admin.users.columns.createdAt": "Дата регистрации",
           "admin.users.columns.actions": "Действия",
+          "admin.users.roles.admin": "Администратор",
+          "admin.users.roles.user": "Пользователь",
           "admin.users.roles.ADMIN": "Администратор",
           "admin.users.roles.USER": "Пользователь",
           "admin.users.statuses.active": "Активен",
@@ -197,5 +199,29 @@ describe("AdminUsersTable", () => {
     const retryBtn = screen.getByText("Повторить попытку");
     fireEvent.click(retryBtn);
     expect(mockRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders pagination controls and handles page change based on response.meta", () => {
+    mockUsersResponse = {
+      items: mockUsersList,
+      meta: {
+        total: 25,
+        page: 1,
+        limit: 10,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    };
+
+    renderTable({
+      filters: defaultFilters,
+      onFilterChange: onFilterChange,
+    });
+
+    expect(screen.getByText("25")).toBeDefined();
+    const nextBtn = screen.getByLabelText("Перейти на следующую страницу");
+    fireEvent.click(nextBtn);
+    expect(onFilterChange).toHaveBeenCalledWith({ page: 2 });
   });
 });

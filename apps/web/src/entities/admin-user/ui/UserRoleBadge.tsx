@@ -25,7 +25,7 @@ export function UserRoleBadge({ role, className }: UserRoleBadgeProps) {
         className,
       )}
     >
-      {isAdmin ? t("admin.users.roles.ADMIN") : t("admin.users.roles.USER")}
+      {isAdmin ? t("admin.users.roles.admin") : t("admin.users.roles.user")}
     </Badge>
   );
 }
