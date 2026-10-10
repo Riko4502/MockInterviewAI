@@ -2,6 +2,8 @@ export { cva, cx, type VariantProps } from "class-variance-authority";
 export { cn } from "./cn";
 export {
   DEFAULT_INSTANT_PATTERN,
+  type FormatDateTimeOptions,
+  formatDateTime,
   formatInstantInTimeZone,
 } from "./datetime/format";
 export {
