@@ -208,5 +208,31 @@
     "hide": "Hide",
     "cancel": "Cancel",
     "loading": "Loading..."
+  },
+  "slots": {
+    "title": "Availability slots",
+    "addSlot": "Add slot",
+    "addSlotDisabledMax": "Slot limit of 10 reached",
+    "selectSlotRequired": "Select a slot for the interview",
+    "slotConflict": "This slot has already been booked. Please choose another one.",
+    "durationMinutes": "{{count}} min",
+    "noSlots": "No available slots",
+    "booked": "Booked",
+    "upcomingSlots": "Upcoming slots",
+    "moreCount": "+{{count}} more",
+    "cannotDeleteBooked": "A booked slot cannot be deleted",
+    "cannotAddInPast": "A slot cannot be scheduled in the past",
+    "timeInYourTimezone": "Time is specified in your timezone ({{timezone}})",
+    "duration": "Duration",
+    "date": "Date",
+    "startTime": "Start time",
+    "chooseSlot": "Choose a slot",
+    "freeCount": "Available: {{count}}",
+    "bookedCount": "Booked: {{count}}"
+  },
+  "profile": {
+    "timezone": "Timezone",
+    "detectTimezone": "Detect automatically",
+    "timezoneHelp": "Your timezone is used to display slot and interview times."
   }
 }

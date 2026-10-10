@@ -7,10 +7,10 @@
 ## 2. Этапы внедрения (0–9)
 
 ### Этап 0. Подготовка (0.25–0.5 ч)
-- [ ] Ознакомиться с экспортами `@packages/utils/datetime`: `formatInstantInTimeZone`, `isIanaTimeZoneFormat`, `isResolvableTimeZone`.
-- [ ] Проверить наличие `@packages/ui` (ConfirmDialog) для подтверждающих диалогов.
-- [ ] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`.
-- [ ] Создать ветку фичи от `dev`.
+- [x] Ознакомиться с экспортами `@packages/utils/datetime`: `formatInstantInTimeZone`, `isIanaTimeZoneFormat`, `isResolvableTimeZone`.
+- [x] Проверить наличие `@packages/ui` (ConfirmDialog) для подтверждающих диалогов.
+- [x] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`.
+- [x] Создать ветку фичи от `dev`.
 
 ### Этап 1. P0 — SendMatchRequest: выбор слота + 409
 - [ ] `features/send-match-request/ui/SlotSelectorRadioGroup.tsx` (NEW)
@@ -35,9 +35,9 @@
 - [ ] `widgets/match-requests-hub/ui/MatchedSessionBanner.tsx` (EDIT)
 
 ### Этап 5. P1 — i18n: namespace `showcase`
-- [ ] `packages/i18n/src/locales/ru/showcase.json` (NEW/EDIT)
-- [ ] `packages/i18n/src/locales/en/showcase.json` (NEW/EDIT)
-- [ ] Обновление типов i18n в `packages/i18n` (namespace `showcase`)
+- [x] `packages/i18n/src/locales/ru/showcase.json` (NEW/EDIT)
+- [x] `packages/i18n/src/locales/en/showcase.json` (NEW/EDIT)
+- [x] Обновление типов i18n в `packages/i18n` (namespace `showcase`)
 
 ### Этап 6. P2 — Timezone + Notifications + Dashboard
 - [ ] `entities/user/lib/timezones.ts` (NEW) — POPULAR_TIMEZONES, `getBrowserTimezone`
@@ -75,7 +75,7 @@
 | **Контракты API** | `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`. Только `startsAtLocal` + `durationMinutes` при создании/обновлении карточки | [ ] |
 | **409 Conflict** | Обработан: toast, `invalidateQueries`, сброс `slotId`, диалог не закрывается | [ ] |
 | **Бизнес-правила** | Обязательность выбора при наличии OPEN+future, 1–10 слотов, запрет слота в прошлом, BOOKED нельзя удалить | [ ] |
-| **i18n namespace `showcase`** | Ключи `slots.*`, `profile.*` в RU/EN, типы обновлены | [ ] |
+| **i18n namespace `showcase`** | Ключи `slots.*`, `profile.*` в RU/EN, типы обновлены | [x] |
 | **Тесты web** | `pnpm --filter web exec vitest run` — успешно | [ ] |
 
 ## 4. Список файлов к созданию/правке (сводка)
