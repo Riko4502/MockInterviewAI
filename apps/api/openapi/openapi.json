@@ -3511,6 +3511,38 @@
         "summary": "Отменить свою исходящую заявку на собеседование",
         "tags": ["Matchmaking"]
       }
+    },
+    "/api/v1/code/run": {
+      "post": {
+        "description": "Отправляет код на исполнение в Judge0 через сервис apps/code-runner, возвращая stdout, stderr, время выполнения и статус.",
+        "operationId": "CodeRunnerController_run",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCodeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Результат выполнения кода",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCodeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Запустить код пользователя в изолированной песочнице",
+        "tags": ["Code"]
+      }
     }
   },
   "info": {
@@ -4686,6 +4718,101 @@
           }
         },
         "required": ["isActive"]
+      },
+      "RunCodeRequestDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1
+          },
+          "taskKey": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "stdin": {
+            "default": "",
+            "type": "string",
+            "maxLength": 65536
+          },
+          "timeoutMs": {
+            "default": 3000,
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 10000
+          }
+        },
+        "required": ["code", "language"]
+      },
+      "RunCodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Успешность выполнения программы"
+          },
+          "totalTests": {
+            "type": "number",
+            "description": "Общее число тестов"
+          },
+          "passedTests": {
+            "type": "number",
+            "description": "Число пройденных тестов"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Результаты тест-кейсов"
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Логи вывода stdout/stderr"
+          },
+          "totalTimeMs": {
+            "type": "number",
+            "description": "Время выполнения в мс"
+          },
+          "status": {
+            "type": "string",
+            "description": "Статус выполнения (SUCCESS, RUNTIME_ERROR, etc.)"
+          },
+          "stdout": {
+            "type": "string",
+            "description": "Сырой stdout"
+          },
+          "stderr": {
+            "type": "string",
+            "description": "Сырой stderr"
+          },
+          "exitCode": {
+            "type": "number",
+            "description": "Код выхода процесса"
+          },
+          "memoryUsageBytes": {
+            "type": "number",
+            "description": "Пиковое потребление памяти в байтах"
+          }
+        },
+        "required": [
+          "success",
+          "totalTests",
+          "passedTests",
+          "results",
+          "logs",
+          "totalTimeMs"
+        ]
       },
       "CreateSessionResponseDto": {
         "type": "object",
