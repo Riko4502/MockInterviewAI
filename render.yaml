@@ -128,6 +128,13 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: CODE_RUNNER_URL
+        value: http://devsync-code-runner:8090
+      - key: CODE_RUNNER_AUTH_TOKEN
+        fromService:
+          type: web
+          name: devsync-code-runner
+          envVarKey: CODE_RUNNER_AUTH_TOKEN
 
   # -------------------------------------------------------------
   # Realtime WebSocket & SSE Server (Go)
