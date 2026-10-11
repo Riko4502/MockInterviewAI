@@ -13,11 +13,13 @@
 
 Правила: IANA-таймзона, двухшаговая валидация (по спецификации shared). Использовать `TimezoneSelect` из `entities/user/ui`.
 
+> **Предпосылка [B].** Сохранение таймзоны требует доработки бэкенда: `PATCH /profile/me` должен сохранять `timezone`, `GET /profile/me` — возвращать. Сейчас `updateProfile` игнорирует поле, поэтому «успешное сохранение» будет фиктивным.
+
 ## 3. Безопасная отвязка аккаунтов (ADR-005)
 
 | Файл | Тип | Описание |
 |---|---|---|
-| `features/update-profile/ui/ConnectedAccountsSection.tsx` | EDIT | При клике «Отвязать Telegram»/«Отвязать GitHub» — сначала открыть `ConfirmDialog`. Только после подтверждения вызывать мутацию отвязки. |
+| `features/update-profile/ui/ConnectedAccountsSection.tsx` | EDIT | При клике «Отвязать Telegram»/«Отвязать GitHub» — сначала открыть подтверждающий диалог (`ConfirmDialog`, которого нет в `@packages/ui` — см. §6). Только после подтверждения вызывать мутацию отвязки. |
 
 Текст предупреждения:
 > «Внимание: при отвязке аккаунта все остальные активные сессии на других устройствах будут принудительно завершены в целях безопасности»
@@ -43,7 +45,7 @@
 ## 6. Связи
 
 - `entities/user/ui/TimezoneSelect`
-- `@packages/utils/datetime` (валидация IANA при желании)
-- `@packages/ui` (ConfirmDialog)
+- `@packages/utils` (валидация IANA при желании)
+- `@packages/ui` — базовый `Dialog` (общий `ConfirmDialog` **отсутствует**; создать его в `packages/ui`) либо app-local паттерн `DeleteCardConfirmDialog`
 - `@packages/i18n`
 - `@packages/api`

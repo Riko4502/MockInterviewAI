@@ -1,9 +1,11 @@
 # План реализации: выбор слота при отправке отклика
 
+> Зависит только от [0] shared. `SlotSelectorRadioGroup` самостоятелен и не переиспользует компоненты [2], поэтому план не блокируется планом витрины.
+
 ## 1. `SlotSelectorRadioGroup.tsx` (NEW)
 Путь: `apps/web/src/features/send-match-request/ui/SlotSelectorRadioGroup.tsx`
 
-- [ ] Пропсы: `slots: AvailabilitySlot[]`, `value?: string`, `onChange: (slotId:string)=>void`, `viewerTimezone: string`, `disabled?: boolean`
+- [ ] Пропсы: `slots: AvailabilitySlot[]`, `value?: string`, `onChange: (slotId:string)=>void`, `viewerTimezone: string`, `disabled?: boolean` (тип `AvailabilitySlot` — общий, см. §2.1 спецификации правил; локальных дублей не создавать)
 - [ ] Фильтр: `status==='OPEN' && new Date(startsAt)>new Date()`
 - [ ] Сортировка по `startsAt` asc
 - [ ] Если пусто — ничего не рендерить
@@ -13,7 +15,7 @@
 ## 2. `SendMatchRequestDialog.tsx` (EDIT)
 Путь: `apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx`
 
-- [ ] Получить `viewerTimezone` (профиль) + фоллбэки
+- [ ] Получить `viewerTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1)
 - [ ] Вычислить `availableOpenSlots` и `hasOpenSlots`
 - [ ] `const [selectedSlotId, setSelectedSlotId] = useState<string>()`
 - [ ] Интегрировать `SlotSelectorRadioGroup`

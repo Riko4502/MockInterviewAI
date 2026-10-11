@@ -7,9 +7,13 @@
 ## 2. Этапы внедрения (0–9)
 
 ### Этап 0. Подготовка (0.25–0.5 ч)
-- [x] Ознакомиться с экспортами `@packages/utils/datetime`: `formatInstantInTimeZone`, `isIanaTimeZoneFormat`, `isResolvableTimeZone`.
-- [x] Проверить наличие `@packages/ui` (ConfirmDialog) для подтверждающих диалогов.
-- [x] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`.
+- [x] Ознакомиться с экспортами `@packages/utils` (корневой баррeль): `formatInstantInTimeZone`, `isIanaTimeZoneFormat`, `isResolvableTimeZone`, `resolveLocalTimeToUtc`, `utcToLocalDateTime`. Подпуть `@packages/utils/datetime` в репозитории **отсутствует** — импортировать из `@packages/utils`.
+- [ ] Подтвердить доработку бэкенда [B]: `GET /profile/me` возвращает `timezone`, `PATCH /profile/me` его сохраняет; OpenAPI/Orval/`packages/api` регенерированы. Без этого `viewerTimezone` не работает.
+- [ ] Зафиксировать решение по `User.timezone` (`@default("Europe/Moscow")`, non-nullable): оставить default / nullable + браузерный фоллбэк / автоопределение (см. §2.1 спецификации). От этого зависит тип `userProfileSchema`.
+- [ ] Зафиксировать решение по локали `formatInstantInTimeZone` (без locale → английские месяцы/дни): расширить сигнатуру `locale?` или не использовать текстовые токены.
+- [ ] Проверить наличие `ConfirmDialog` в `@packages/ui`: **отсутствует**, существующий `Dialog` — базовый. Решить: создать общий `ConfirmDialog` в `packages/ui` или зафиксировать app-local паттерн (как `DeleteCardConfirmDialog`).
+- [ ] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`.
+- [ ] Определить общий тип `AvailabilitySlot` (см. §2.1 спецификации правил) или зафиксировать конкретные generated-типы.
 - [x] Создать ветку фичи от `dev`.
 
 ### Этап 1. P0 — SendMatchRequest: выбор слота + 409
@@ -49,10 +53,11 @@
 - [ ] `entities/notification/ui/NotificationItem.tsx` (EDIT) — рендер `payload.slotStartsAt` в `userTimezone`
 
 ### Этап 7. P3 — Безопасная отвязка аккаунтов
-- [ ] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — ConfirmDialog при отвязке Telegram/GitHub
+- [ ] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — ConfirmDialog при отвязке Telegram/GitHub (создать общий `ConfirmDialog` в `packages/ui` либо использовать app-local паттерн)
 
 ### Этап 8. Тестирование и проверка качества
 - [ ] Unit-тесты: `SendMatchRequestDialog.test.tsx`, `ShowcaseCardForm.test.tsx`, `IncomingRequestCard.test.tsx`, `OutgoingRequestCard.test.tsx`
+- [ ] Тесты, зависящие от `now()` (фильтр OPEN+future, «не в прошлом»), фиксируют часы: `vi.useFakeTimers()`/`vi.setSystemTime(...)` + `vi.useRealTimers()`
 - [ ] `pnpm --filter web exec tsc --noEmit`
 - [ ] Проверка запрета прямых импортов дат (grep)
 - [ ] `pnpm --filter web exec vitest run`
@@ -67,14 +72,20 @@
 
 | Проверка | Команда/критерий | Статус |
 |---|---|---|
+| **Backend timezone [B]** | `GET /profile/me` возвращает `timezone`; `PATCH /profile/me` его сохраняет; `packages/api` регенерирован | [ ] |
 | **TypeScript** | `pnpm --filter web exec tsc --noEmit` — 0 ошибок | [ ] |
 | **Запрет прямых импортов дат** | `grep -R --include="*.ts" --include="*.tsx" -E "(from ['\"](date-fns|@date-fns/tz|dayjs|luxon|date-fns-tz|moment)['\"])" apps/web/src` — пусто | [ ] |
-| **Единый фасад datetime** | Весь форматинг через `@packages/utils/datetime` (`formatInstantInTimeZone`, валидация IANA) | [ ] |
+| **Единый фасад datetime** | Весь форматинг/парсинг через `@packages/utils` (`formatInstantInTimeZone`, `resolveLocalTimeToUtc`, валидация IANA). Подпуть `@packages/utils/datetime` не использовать | [ ] |
 | **Разделение таймзон** | `viewerTimezone` для показа, `authorTimezone` для `startsAtLocal` при редактировании | [ ] |
 | **IANA-валидация** | Двухшаговая: `isIanaTimeZoneFormat` + `isResolvableTimeZone`. Без whitelist через `supportedValuesOf` | [ ] |
 | **Контракты API** | `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`. Только `startsAtLocal` + `durationMinutes` при создании/обновлении карточки | [ ] |
+| **Тип `AvailabilitySlot`** | Общий тип определён и переиспользован, локальных дублей нет | [ ] |
 | **409 Conflict** | Обработан: toast, `invalidateQueries`, сброс `slotId`, диалог не закрывается | [ ] |
+| **422 Unprocessable** | Ответ API на несуществующее локальное время (DST) показан пользователю | [ ] |
 | **Бизнес-правила** | Обязательность выбора при наличии OPEN+future, 1–10 слотов, запрет слота в прошлом, BOOKED нельзя удалить | [ ] |
+| **BOOKED не в payload** | BOOKED-слоты не сериализуются в `slots` при create/update (иначе `409` из `replaceSlots`) | [ ] |
+| **Локаль форматирования** | `formatInstantInTimeZone` с locale или без текстовых токенов месяцев/дней | [ ] |
+| **Решение по `User.timezone`** | Default Moscow / nullable + браузерный фоллбэк / автоопределение — зафиксировано до [B] | [ ] |
 | **i18n namespace `showcase`** | Ключи `slots.*`, `profile.*` в RU/EN, типы обновлены | [x] |
 | **Тесты web** | `pnpm --filter web exec vitest run` — успешно | [ ] |
 

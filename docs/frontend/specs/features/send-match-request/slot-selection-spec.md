@@ -10,7 +10,7 @@
 - Фильтрация: только `OPEN` + future, сортировка по `startsAt` asc.
 - При ответе `409 Conflict` на создание заявки: показать Toast `slots.slotConflict`, `queryClient.invalidateQueries` по целевой карточке, **сбросить** выбранный `slotId`, **не закрывать** диалог.
 - Если открытых слотов нет — блок выбора не показывать, `slotId` не передавать (`undefined`).
-- Форматирование слотов в диалоге — в `viewerTimezone`.
+- Форматирование слотов в диалоге — в `viewerTimezone` (`const { data: user } = useCurrentUser()` → `user?.timezone || browser tz || "UTC"`), требует backend-предпосылки [B] (§2.1 shared-спецификации).
 
 ## 3. Компоненты
 
@@ -23,6 +23,8 @@
 
 `formatInstantInTimeZone(slot.startsAt, viewerTimezone, 'd MMMM, HH:mm')` + `(${durationMinutes} ${t('slots.durationMinutes', {count: durationMinutes})})`
 
+> **Локаль.** `formatInstantInTimeZone` без locale использует `en-US` — `'d MMMM'` даст английское название месяца. До реализации решить: передавать locale в утилиту (расширить сигнатуру) или не использовать текстовые токены месяца.
+
 ## 5. i18n
 
 Ключи: `slots.chooseSlot`, `slots.selectSlotRequired`, `slots.slotConflict`, `slots.durationMinutes`.
@@ -33,11 +35,11 @@
 - [ ] Выбор слота → `slotId` передаётся в мутацию
 - [ ] 409 Conflict → toast показан, `invalidateQueries` вызван, `slotId` сброшен, диалог не закрыт
 - [ ] При отсутствии слотов — блок выбора не отображается, отправка без `slotId`
-- [ ] Фильтрация прошедших/BOOKED
+- [ ] Фильтрация прошедших/BOOKED (тест фиксирует часы: `vi.useFakeTimers()`/`setSystemTime`)
 
 ## 7. Связи
 
-- `@packages/utils/datetime`
+- `@packages/utils`
 - `@tanstack/react-query` — invalidateQueries
 - `@packages/i18n`
-- `@packages/api`
+- `@packages/api` — типы заявки и общий тип слота `AvailabilitySlot` (§2.1 shared-спецификации; локальных дублей не создавать)

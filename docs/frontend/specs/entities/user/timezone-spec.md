@@ -22,6 +22,7 @@
 - `POPULAR_TIMEZONES` — компактный практичный набор (не исчерпывающий список всех зон). Цель — удобство UX (поиск позволяет выбрать любую резолвируемую зону).
 - Компонент принимает строку `value` и `onValueChange(string)`, `disabled?`.
 - Разделение таймзон: селектор используется в профиле (`user.timezone`). Для отображения времени используется `viewerTimezone`/`authorTimezone` согласно shared-правилам.
+- **Предпосылка [B].** Сохранение/чтение `user.timezone` требует доработки бэкенда (`PATCH /profile/me` сохраняет, `GET /profile/me` возвращает). Без неё профильная таймзона недоступна фронтенду.
 
 ## 5. i18n
 
@@ -37,5 +38,5 @@
 
 ## 7. Связи
 
-- `@packages/utils/datetime` — `isIanaTimeZoneFormat`, `isResolvableTimeZone`
+- `@packages/utils` — `isIanaTimeZoneFormat`, `isResolvableTimeZone`
 - `@packages/i18n` — тексты

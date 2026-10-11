@@ -9,26 +9,33 @@
 UI-форма содержит массив `slots`:
 ```ts
 export const slotItemSchema = z.object({
-  id: z.string().optional(), // для существующих слотов
+  id: z.string().optional(), // для существующих слотов (useFieldArray), на сервер не уходит
   startsAtLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Формат YYYY-MM-DDTHH:mm"),
   durationMinutes: z.number().int().min(15).max(240).default(60),
+  booked: z.boolean().optional(), // true для BOOKED-слотов (только для UI)
 })
 ```
 
-Маппинг в DTO:
+Маппинг в DTO (**BOOKED-слоты исключаются**):
 ```ts
-slots: values.slots && values.slots.length > 0
-  ? values.slots.map(s => ({ startsAtLocal: s.startsAtLocal, durationMinutes: s.durationMinutes }))
+slots: values.slots && values.slots.some(s => !s.booked)
+  ? values.slots
+      .filter(s => !s.booked)
+      .map(s => ({ startsAtLocal: s.startsAtLocal, durationMinutes: s.durationMinutes }))
   : undefined
 ```
+
+> **Почему фильтр обязателен.** `replaceSlots` на бэкенде передаёт занятые заявкой слоты как `existing` и для каждого присланного слота проверяет пересечение (`showcase.service.ts` → `resolveSlots` + `assertNoOverlap`). Если BOOKED-слот попадёт в `slots`, он пересечётся сам с собой → `409 Conflict`. BOOKED-слоты не нужно пересылать: сервер сохраняет их без изменений.
 
 ## 3. Бизнес-правила
 
 - От 1 до 10 слотов на карточку. `max(10)`. Кнопка «Добавить слот» дизейблится при достижении лимита.
 - `startsAtLocal` в формате `YYYY-MM-DDTHH:mm`.
 - Длительность: 15–240 минут. В UI — пресеты 30,45,60,90,120.
-- Запрет добавления слота **в прошлом** (сравнение в `authorTimezone`).
+- Запрет добавления слота **в прошлом**: `const res = resolveLocalTimeToUtc(startsAtLocal, authorTimezone)`; валидно при `res.ok && res.utc > new Date()`; при `res.reason === "nonexistent"` (DST) — невалидно. Та же семантика, что у сервера.
 - Запрет удаления **BOOKED**-слота. В форме редактирования BOOKED-слот помечается бейджем `slots.booked`, кнопка удаления дизейблится.
+- **BOOKED-слоты не сериализуются** в `slots` (см. §2). В форме они остаются для показа, но в DTO не входят.
+- **Лимит 1–10** считается по отправляемым (не-BOOKED) слотам; сервер считает `kept + created` без BOOKED. Не применять `max(10)` к массиву, содержащему BOOKED, иначе валидация разойдётся с сервером.
 - При редактировании: маппинг `startsAt` (UTC) → `startsAtLocal` в `userTimezone` (author).
 - Сервер проверяет round-trip (DST). Фронт отображает ошибку API при 422 при необходимости.
 
@@ -56,9 +63,12 @@ slots: values.slots && values.slots.length > 0
 - [ ] Live-preview отображает добавленные слоты
 - [ ] EditView корректно маппит UTC→startsAtLocal
 - [ ] Маппер формы не передаёт пустой массив
+- [ ] BOOKED-слоты **не попадают** в `slots` DTO (тест на `toUpdateShowcaseCardDto` с BOOKED+OPEN)
+- [ ] Если все слоты BOOKED — `slots` не передаётся (`undefined`)
+- [ ] Тест «не в прошлом» фиксирует часы (`vi.useFakeTimers()`/`setSystemTime`)
 
 ## 7. Связи
 
-- `@packages/utils/datetime` — форматирование при инициализации, проверка «не в прошлом»
+- `@packages/utils` — форматирование при инициализации, проверка «не в прошлом» (`resolveLocalTimeToUtc`)
 - `@packages/i18n`
 - `@packages/dto`/`@packages/api`

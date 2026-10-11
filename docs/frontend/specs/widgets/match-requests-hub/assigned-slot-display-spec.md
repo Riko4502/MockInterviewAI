@@ -18,6 +18,8 @@
 - Показывать плашку только если `req.slot` присутствует
 - `MatchedSessionBanner`: при `req.status === 'ACCEPTED'` отображать «Интервью запланировано на {formattedDate}». Брать время из `req.slot?.startsAt` (или `scheduledAt` при наличии). Формат `'d MMMM yyyy, HH:mm'` в `viewerTimezone`
 
+> **Локаль.** `formatInstantInTimeZone` без locale → английские месяцы (`d MMMM`). См. §2.1 shared-спецификации; решить до реализации.
+
 ## 4. Файлы правки
 
 | Файл | Тип | Описание |
@@ -28,7 +30,7 @@
 
 ## 5. Источник viewerTimezone
 
-`useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"`
+`const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 shared-спецификации правил)
 
 ## 6. Тест-кейсы
 
@@ -39,6 +41,6 @@
 
 ## 7. Связи
 
-- `@packages/utils/datetime`
+- `@packages/utils`
 - `@packages/icons` (опц.)
 - `@packages/api`

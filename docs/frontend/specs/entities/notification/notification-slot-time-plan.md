@@ -4,8 +4,8 @@
 Путь: `apps/web/src/entities/notification/ui/NotificationItem.tsx`
 
 - [ ] Импорт `useCurrentUser`
-- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils/datetime`
-- [ ] Вычислить `userTimezone`
+- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils` (корневой баррeль; подпуть `@packages/utils/datetime` в репозитории отсутствует)
+- [ ] Вычислить `userTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 спецификации правил)
 - [ ] Проверить наличие `payload.slotStartsAt` (и тип события при необходимости)
 - [ ] Если есть — отформатировать `'d MMMM yyyy, HH:mm'` и отобразить в UI
 - [ ] Клик по уведомлению использует `actionUrl` → `/dashboard/partners/requests`

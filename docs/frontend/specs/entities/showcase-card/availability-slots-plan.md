@@ -5,7 +5,7 @@
 ### 1.1. Создать `ShowcaseSlotBadge.tsx` (NEW)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseSlotBadge.tsx`
 
-- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils/datetime`
+- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils` (подпуть `@packages/utils/datetime` отсутствует)
 - [ ] Импорт `useTranslation('showcase')`
 - [ ] Пропсы: `slot: Pick<AvailabilitySlot,'startsAt'|'durationMinutes'>`, `viewerTimezone: string`, `className?: string`
 - [ ] Формат времени: `'EEE, d MMM HH:mm'`
@@ -15,7 +15,7 @@
 ### 1.2. Создать `ShowcaseSlotsList.tsx` (NEW)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseSlotsList.tsx`
 
-- [ ] Импорт `ShowcaseSlotBadge`, `useTranslation('showcase')`, тип `AvailabilitySlot` из `@packages/api`
+- [ ] Импорт `ShowcaseSlotBadge`, `useTranslation('showcase')`, тип `AvailabilitySlot` из `@packages/api` (общий тип — см. §2.1 спецификации правил)
 - [ ] Пропсы: `slots: AvailabilitySlot[]`, `viewerTimezone: string`, `maxVisible?: number` (default 3)
 - [ ] Фильтрация: `s.status==='OPEN' && new Date(s.startsAt) > new Date()`
 - [ ] Сортировка: по `startsAt` asc
@@ -33,7 +33,7 @@
 ### 1.4. Правка `ShowcaseCard.tsx` (EDIT)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseCard.tsx`
 
-- [ ] Получить `viewerTimezone`: `useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"`
+- [ ] Получить `viewerTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1)
 - [ ] Импорт `ShowcaseSlotsList`
 - [ ] При наличии `card.slots` отрендерить `<ShowcaseSlotsList slots={card.slots} viewerTimezone={viewerTimezone} />`
 
