@@ -33,7 +33,7 @@
 ### 1.4. Правка `ShowcaseCard.tsx` (EDIT)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseCard.tsx`
 
-- [ ] Получить `viewerTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1)
+- [ ] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1)
 - [ ] Импорт `ShowcaseSlotsList`
 - [ ] При наличии `card.slots` отрендерить `<ShowcaseSlotsList slots={card.slots} viewerTimezone={viewerTimezone} />`
 

@@ -30,7 +30,7 @@
 
 ## 5. Источник viewerTimezone
 
-`const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 shared-спецификации правил)
+`useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 shared-спецификации правил)
 
 ## 6. Тест-кейсы
 

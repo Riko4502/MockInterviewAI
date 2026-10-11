@@ -1,7 +1,7 @@
 # План реализации: отображение назначенного слота в центре заявок
 
 ## 1. `IncomingRequestCard.tsx` (EDIT)
-- [ ] Получить `viewerTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 спецификации правил)
+- [ ] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 спецификации правил)
 - [ ] Если `req.slot` существует — рендер акцентной плашки слота (Calendar/Clock при наличии), дата+время (`d MMMM yyyy, HH:mm`), длительность, статус (`OPEN`/`BOOKED`)
 - [ ] Не ломать существующую структуру
 

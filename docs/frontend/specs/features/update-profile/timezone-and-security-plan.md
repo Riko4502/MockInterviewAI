@@ -5,7 +5,7 @@
 ## 1. `profile-form-schema.ts` (EDIT)
 Путь: `apps/web/src/features/update-profile/model/profile-form-schema.ts`
 
-- [ ] Добавить `timezone: z.string().min(1)` (двухшаговая IANA-валидация через `isIanaTimeZoneFormat` + `isResolvableTimeZone` из `@packages/utils`)
+- [ ] Добавить `timezone: z.string().min(1)` в **форму профиля на фронте** (двухшаговая IANA-валидация через `isIanaTimeZoneFormat` + `isResolvableTimeZone` из `@packages/utils`). На бэкенде запросная схема `updateProfileSchema` **уже** валидирует `timezone` — на сервере добавлять не нужно.
 
 ## 2. `GeneralTab.tsx` (EDIT)
 Путь: `apps/web/src/features/update-profile/ui/GeneralTab.tsx`

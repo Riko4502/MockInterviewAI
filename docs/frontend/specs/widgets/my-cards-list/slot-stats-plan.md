@@ -2,7 +2,7 @@
 
 ## 1. `MyCardItem.tsx` (EDIT)
 - [ ] Импорт `useTranslation('showcase')`
-- [ ] Посчитать `freeCount` и `bookedCount` по `card.slots`
+- [ ] Посчитать `freeCount` (OPEN && `startsAt > now()`) и `bookedCount` (BOOKED) по `card.slots`
 - [ ] Добавить бейджи `t('slots.freeCount', {count: freeCount})`, `t('slots.bookedCount', {count: bookedCount})`
 - [ ] Сохранить существующий переход к редактированию
 

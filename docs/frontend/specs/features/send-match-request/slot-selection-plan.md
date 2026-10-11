@@ -15,13 +15,14 @@
 ## 2. `SendMatchRequestDialog.tsx` (EDIT)
 Путь: `apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx`
 
-- [ ] Получить `viewerTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1)
+- [ ] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1)
 - [ ] Вычислить `availableOpenSlots` и `hasOpenSlots`
 - [ ] `const [selectedSlotId, setSelectedSlotId] = useState<string>()`
 - [ ] Интегрировать `SlotSelectorRadioGroup`
 - [ ] `disabled = submitting || (hasOpenSlots && !selectedSlotId)`
 - [ ] Payload: `{ ..., slotId: hasOpenSlots ? selectedSlotId : undefined }`
-- [ ] `onError` (мутация): при 409 → toast.error(t('slots.slotConflict')), `queryClient.invalidateQueries` по целевой карточке, `setSelectedSlotId(undefined)`. Не закрывать диалог
+- [ ] `onError` (мутация): при `409` → toast.error(t('slots.slotConflict')), `queryClient.invalidateQueries` по целевой карточке, `setSelectedSlotId(undefined)`. Не закрывать диалог
+- [ ] `onError`: при `400` (устаревшие данные карточки — бэкенд требует `slotId`, если у карточки есть OPEN-слот, а клиент его не передал) — тот же путь: toast + `invalidateQueries` карточки + сброс выбора
 - [ ] Показать подсказку при `hasOpenSlots && !selectedSlotId` (можно использовать `slots.selectSlotRequired`)
 
 ## 3. Тесты

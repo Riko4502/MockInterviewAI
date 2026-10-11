@@ -10,11 +10,11 @@
 - [ADR-003: Доменные события и диспетчер уведомлений](../../../../docs/adr/ADR-003.md)
 - [ADR-004: Транспорт доставки уведомлений](../../../../docs/adr/ADR-004.md)
 - [ADR-005: Security-уведомления и аудит событий безопасности](../../../../docs/adr/ADR-005.md)
-- [Задача: Frontend for slot scheduling, interview booking, and security (ADR-002…ADR-005)](../../../../docs/tasks/Frontend%20for%20slot%20scheduling%2C%20interview%20booking%2C%20and%20security%20%28ADR-002%E2%80%A6ADR-005%29.md)
+- [Задача: Frontend for slot scheduling, interview booking, and security (ADR-002…ADR-005)](../../../../docs/tasks/frontend%20for%20slot%20scheduling%2C%20interview%20booking%2C%20and%20security%20%28ADR-002%E2%80%A6ADR-005%29.md)
 
 ## 2.1. Предпосылки и общий тип (обязательно)
 
-- **Backend [B].** `GET /profile/me` обязан возвращать `timezone`, а `PATCH /profile/me` — сохранять его. Сейчас `UserProfileDto`/`USER_PROFILE_SELECT` поле не содержат, а `updateProfile` его игнорирует, хотя модель Prisma `User.timezone` уже существует (`@default("Europe/Moscow")`) и читается витриной. Без доработки бэкенда правило `viewerTimezone` (п. 3.2) невыполнимо. После доработки — регенерировать OpenAPI → Orval → `packages/api`.
+- **Backend [B].** `GET /profile/me` обязан возвращать `timezone`, а `PATCH /profile/me` — сохранять его. Сейчас `UserProfileDto`/`USER_PROFILE_SELECT` поле не содержат, `updateProfile` его игнорирует, а `mapToUserProfile` (`apps/api/src/modules/users/users.service.ts`) не прокидывает его в ответ (при этом запросная схема `updateProfileSchema` уже валидирует `timezone`). Модель Prisma `User.timezone` существует (`@default("Europe/Moscow")`) и читается витриной. Правки [B]: `USER_PROFILE_SELECT` (+`timezone`), response-схема `userProfileSchema`, `mapToUserProfile`, `updateProfile` data. Без доработки правило `viewerTimezone` (п. 3.2) невыполнимо. После доработки — регенерировать OpenAPI → Orval → `packages/api`.
 - **Решение по `User.timezone` (обязательно, до [B]).** Колонка **не-nullable** с `@default("Europe/Moscow")`: у всех существующих и новых пользователей поле уже заполнено, поэтому фоллбэк на браузерную зону (`user?.timezone || browserTz`) для авторизованных **никогда не сработает** — все будут видеть Moscow. Зафиксировать одно из: (а) оставить default и явно принять, что зона по умолчанию — Moscow; (б) сделать колонку nullable и полагаться на браузерный фоллбэк до явной установки; (в) автоопределять зону клиентом при онбординге/первом входе и сохранять её. От этого зависит тип в `userProfileSchema`: `z.string()` (required) vs `z.string().nullable()`. Не оставлять «фоллбэк на браузер» в спеке как основной механизм без этого решения.
 - **Общий тип `AvailabilitySlot`.** В `@packages/api` генерируются контекстные типы (`PaginatedShowcaseCardsDtoDataItemSlotsItem`, `MatchRequestResponseDtoSlot`, `CreateShowcaseCardDtoSlotsItem`), но нет общего `AvailabilitySlot`. Запрещено создавать локальные дублирующие интерфейсы (п. 5). До начала работ определить общий тип (например, в `@packages/types` или как явный экспорт-алиас) либо зафиксировать конкретные generated-типы в каждом плане.
 - **`ConfirmDialog`.** В `@packages/ui` его нет (есть только базовый `Dialog`). Решить заранее: создать общий `ConfirmDialog` в `packages/ui` или использовать app-local паттерн (как `DeleteCardConfirmDialog`).
@@ -31,7 +31,7 @@
 
 - **`viewerTimezone` (таймзона смотрящего).** Таймзона текущего авторизованного пользователя (читателя). Используется **во всех** местах отображения времени другим пользователям/для текущего пользователя: витрина карточек (`ShowcaseCard`), центр заявок (`IncomingRequestCard`, `OutgoingRequestCard`), баннер запланированного интервью (`MatchedSessionBanner`), дашборд (`DashboardUpcomingSession`, `DashboardRecentSessions`), колокольчик уведомлений (`NotificationItem`).
 - **`authorTimezone` (таймзона автора карточки).** Таймзона автора при создании/редактировании **собственной** анкеты. Используется **только** для конвертации `startsAt` (UTC) → `startsAtLocal` (`YYYY-MM-DDTHH:mm`) при инициализации формы редактирования (`EditCardView`) и для подсказки UI «Время указывается в вашей таймзоне (...)» в конструкторе слотов.
-- **Источник `viewerTimezone`.** Всегда профиль текущего пользователя: `const { data: user } = useCurrentUser()` с фоллбэками `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"`. Требует backend-предпосылки [B] (п. 2.1). Для неавторизованного зрителя (публичный каталог) профиль недоступен — используется браузерный фоллбэк; это ожидаемое поведение, а не ошибка. На публичных страницах запрашивать профиль только при наличии авторизации (`enabled` у хука), чтобы не получать 401.
+- **Источник `viewerTimezone`.** Единый хук `useViewerTimezone()` из [1] `entities/user` (внутри: профиль `useCurrentUser()` → `user?.timezone` → зона браузера → `"UTC"`). Требует backend-предпосылки [B] (п. 2.1). Потребители [2], [4], [5], [7], [8] используют хук, инлайн-фоллбэк не дублируют. Для неавторизованного зрителя (публичный каталог) профиль недоступен — берётся браузерная зона; это ожидаемое поведение. На публичных страницах запрашивать профиль только при авторизации (`enabled` у хука), чтобы не получать 401.
 - **Формат отображения.** UTC-инстант (`startsAt`) никогда не показывается «как есть» другому пользователю. Форматирование только через `formatInstantInTimeZone(instant, viewerTimezone, format)`.
 - **Формат формы.** `startsAtLocal` — строго `YYYY-MM-DDTHH:mm`. Конвертация при редактировании: `formatInstantInTimeZone(slot.startsAt, userTimezone, "yyyy-MM-dd'T'HH:mm")`.
 
@@ -75,24 +75,27 @@
 
 - **Обязательность выбора слота.** Если у целевой карточки есть >=1 открытый слот (`status==='OPEN'` и `startsAt > now()`) — выбор `slotId` обязателен. Кнопка отправки отклика блокируется до выбора.
 - **Гонка 409.** При ответе `409 Conflict` на создание заявки: показать Toast `slots.slotConflict`, `queryClient.invalidateQueries` по целевой карточке, **сбросить** выбранный `slotId`, **не закрывать** диалог.
+- **Устаревшие данные 400.** Если клиент шлёт отклик без `slotId`, а у карточки уже есть OPEN-слот, бэкенд отвечает `400`. Обрабатывать так же: `invalidateQueries` карточки + сброс `slotId` (диалог не закрывать), чтобы подтянуть актуальные слоты.
 - **1–10 слотов.** Максимум 10 отправляемых слотов на карточку. Кнопка «Добавить слот» дизейблится при достижении лимита по не-BOOKED слотам (сервер считает `kept + created` без BOOKED). Не применять `max(10)` к массиву, включающему BOOKED.
 - **Слот не в прошлом.** Клиентская валидация по локальному времени в `authorTimezone`.
 - **BOOKED нельзя удалить.** В форме редактирования `BOOKED`-слот отображается с бейджем `slots.booked`, кнопка удаления дизейблится.
 - **Фильтрация в витрине/диалоге.** Показывать только `status==='OPEN'` и `startsAt > now()`. Сортировать по возрастанию `startsAt`.
 - **Лимит показа.** В витрине — максимум 3 ближайших OPEN-слота, при большем количестве показывать `+N ещё`.
-- **Счётчики моих анкет.** `freeCount = count of status==='OPEN'`, `bookedCount = count of status==='BOOKED'` по всем слотам карточки.
+- **Счётчики моих анкет.** `freeCount = count of status==='OPEN' && startsAt > now()` (прошедшие OPEN не считаются свободными — они небронируемы), `bookedCount = count of status==='BOOKED'` (все).
 
 ## 7. Проверочные правила при разработке
 
 - [ ] **Типизация.** `pnpm --filter web exec tsc --noEmit` — без ошибок.
 - [ ] **Запрет прямых импортов дат.** `grep -R --include="*.ts" --include="*.tsx" -E "(from ['\"](date-fns|@date-fns/tz|dayjs|luxon|date-fns-tz|moment)['\"])" apps/web/src` — пустой результат.
 - [ ] **Единообразие форматирования.** Весь показ времени в UI использует `formatInstantInTimeZone` с корректным `viewerTimezone`/`authorTimezone`.
+- [ ] **Единый резолвер таймзоны.** `viewerTimezone` берётся из `useViewerTimezone()` (план [1]); инлайн-фоллбэк `user?.timezone || Intl...` не дублируется.
 - [ ] **i18n.** Новые тексты только через `useTranslation('showcase')`.
 - [ ] **Типы из пакетов.** `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`.
 - [ ] **Тесты.** `pnpm --filter web exec vitest run` — успешно. Все тесты, зависящие от `now()` (фильтрация OPEN+future, «не в прошлом»), фиксируют часы через `vi.useFakeTimers()`/`setSystemTime` и сбрасывают их после (`vi.useRealTimers()`), иначе флейки по мере наступления дат.
 
 ## 8. Связанные файлы
 
+- `apps/web/src/entities/user/model/use-viewer-timezone.ts` — единый резолвер `viewerTimezone`
 - `apps/web/src/entities/user/ui/TimezoneSelect.tsx` — селектор IANA
 - `apps/web/src/entities/showcase-card/ui/ShowcaseSlotBadge.tsx`, `ShowcaseSlotsList.tsx`, `lib/format-card-slot.ts`
 - `apps/web/src/features/manage-showcase-card/*` — конструктор слотов

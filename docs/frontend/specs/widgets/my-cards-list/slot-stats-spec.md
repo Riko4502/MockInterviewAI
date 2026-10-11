@@ -6,9 +6,9 @@
 
 ## 2. Правила подсчёта
 
-- `freeCount = card.slots.filter(s => s.status === 'OPEN').length`
+- `freeCount = card.slots.filter(s => s.status === 'OPEN' && new Date(s.startsAt) > new Date()).length`
 - `bookedCount = card.slots.filter(s => s.status === 'BOOKED').length`
-- Подсчёт по всем слотам карточки (без фильтрации по времени)
+- Прошедшие `OPEN` не считаются свободными (они небронируемы); `BOOKED` считаются все.
 
 ## 3. UI
 
@@ -29,6 +29,7 @@
 - [ ] Корректные счётчики при наличии OPEN/BOOKED
 - [ ] При пустых слотах — 0/0
 - [ ] Учитываются только статусы OPEN/BOOKED
+- [ ] Прошедший OPEN не попадает в `freeCount` (часы зафиксированы: `vi.useFakeTimers()`/`setSystemTime`)
 
 ## 7. Связи
 

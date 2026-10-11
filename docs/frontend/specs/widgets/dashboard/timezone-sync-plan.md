@@ -2,7 +2,7 @@
 
 ## 1. `DashboardUpcomingSession.tsx` (EDIT)
 - [ ] Импорт `useCurrentUser`
-- [ ] Вычислить `userTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 спецификации правил)
+- [ ] Вычислить `userTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 спецификации правил)
 - [ ] Заменить использование `useState("UTC")` и все места, где использовался локальный стейт
 - [ ] Применить `userTimezone` к форматированиям
 

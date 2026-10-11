@@ -10,7 +10,7 @@
 
 ## 3. Требования
 
-- Получить `userTimezone`: `const { data: user } = useCurrentUser()` → `user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"` (требует backend-предпосылки [B], §2.1 shared-спецификации правил)
+- Получить `userTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 shared-спецификации правил)
 - Если в `payload` присутствует `slotStartsAt` (UTC) — отформатировать через `formatInstantInTimeZone(payload.slotStartsAt, userTimezone, 'd MMMM yyyy, HH:mm')` и отобразить в элементе уведомления
 - При клике на уведомление использовать `actionUrl` и переходить в `/dashboard/partners/requests`
 - Форматирование **только** через фасад `@packages/utils` (корневой баррeль; подпуть `@packages/utils/datetime` отсутствует)
@@ -30,4 +30,4 @@
 ## 6. Связи
 
 - `@packages/utils` — `formatInstantInTimeZone`
-- Профиль пользователя — `useCurrentUser()`
+- `useViewerTimezone()` (сущность user, план [1])

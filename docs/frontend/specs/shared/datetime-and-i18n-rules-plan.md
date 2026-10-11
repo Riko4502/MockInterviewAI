@@ -77,6 +77,7 @@
 | **Запрет прямых импортов дат** | `grep -R --include="*.ts" --include="*.tsx" -E "(from ['\"](date-fns|@date-fns/tz|dayjs|luxon|date-fns-tz|moment)['\"])" apps/web/src` — пусто | [ ] |
 | **Единый фасад datetime** | Весь форматинг/парсинг через `@packages/utils` (`formatInstantInTimeZone`, `resolveLocalTimeToUtc`, валидация IANA). Подпуть `@packages/utils/datetime` не использовать | [ ] |
 | **Разделение таймзон** | `viewerTimezone` для показа, `authorTimezone` для `startsAtLocal` при редактировании | [ ] |
+| **Единый резолвер tz** | `viewerTimezone` из `useViewerTimezone()` ([1]), инлайн-фоллбэк не дублируется | [ ] |
 | **IANA-валидация** | Двухшаговая: `isIanaTimeZoneFormat` + `isResolvableTimeZone`. Без whitelist через `supportedValuesOf` | [ ] |
 | **Контракты API** | `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`. Только `startsAtLocal` + `durationMinutes` при создании/обновлении карточки | [ ] |
 | **Тип `AvailabilitySlot`** | Общий тип определён и переиспользован, локальных дублей нет | [ ] |
@@ -92,6 +93,7 @@
 ## 4. Список файлов к созданию/правке (сводка)
 
 ### Новые
+- `entities/user/model/use-viewer-timezone.ts`
 - `entities/showcase-card/ui/ShowcaseSlotBadge.tsx`
 - `entities/showcase-card/ui/ShowcaseSlotsList.tsx`
 - `entities/showcase-card/lib/format-card-slot.ts`

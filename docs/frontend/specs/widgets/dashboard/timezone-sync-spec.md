@@ -16,8 +16,7 @@
 ## 3. Правило вычисления userTimezone
 
 ```ts
-const { data: user } = useCurrentUser()
-const userTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+const userTimezone = useViewerTimezone() // см. [1]
 ```
 
 ## 4. Требования
@@ -35,5 +34,5 @@ const userTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().t
 
 ## 6. Связи
 
-- Профиль пользователя (`useCurrentUser`)
+- `useViewerTimezone()` (сущность user, план [1])
 - `@packages/utils` при правках форматирования
