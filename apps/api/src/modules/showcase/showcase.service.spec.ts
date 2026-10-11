@@ -198,6 +198,10 @@ describe("ShowcaseService", () => {
     });
 
     it("переводит слоты в зоне владельца и возвращает их вместе с анкетой", async () => {
+      // Слот задан конкретной датой, поэтому время заморожено: иначе проверка
+      // «слот в будущем» начнёт падать, как только эта дата наступит.
+      jest.useFakeTimers({ now: new Date("2026-10-01T00:00:00.000Z") });
+
       prismaMock.user.findUnique.mockResolvedValue({
         id: userId,
         displayName: "John Doe",
@@ -226,10 +230,12 @@ describe("ShowcaseService", () => {
         insertedSlot,
       ]);
 
-      const result = await service.create(userId, {
-        ...validDto,
-        slots: [{ startsAtLocal: "2026-10-10T19:00" }],
-      });
+      const result = await service
+        .create(userId, {
+          ...validDto,
+          slots: [{ startsAtLocal: "2026-10-10T19:00" }],
+        })
+        .finally(() => jest.useRealTimers());
 
       expect(
         prismaMock.availabilitySlot.createManyAndReturn,
