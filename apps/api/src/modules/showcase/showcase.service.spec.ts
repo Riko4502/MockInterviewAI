@@ -198,61 +198,66 @@ describe("ShowcaseService", () => {
     });
 
     it("переводит слоты в зоне владельца и возвращает их вместе с анкетой", async () => {
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: userId,
-        displayName: "John Doe",
-        username: "johndoe",
-        avatarUrl: null,
-        telegramUsername: "tg_john",
-        gitUrl: null,
-        timezone: "Europe/Moscow",
-      });
-      prismaMock.showcaseCard.count.mockResolvedValue(0);
-      prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
+      jest.useFakeTimers().setSystemTime(new Date("2026-10-01T12:00:00.000Z"));
+      try {
+        prismaMock.user.findUnique.mockResolvedValue({
+          id: userId,
+          displayName: "John Doe",
+          username: "johndoe",
+          avatarUrl: null,
+          telegramUsername: "tg_john",
+          gitUrl: null,
+          timezone: "Europe/Moscow",
+        });
+        prismaMock.showcaseCard.count.mockResolvedValue(0);
+        prismaMock.showcaseCard.findFirst.mockResolvedValue(null);
 
-      prismaMock.showcaseCard.create.mockResolvedValue(createdCard);
+        prismaMock.showcaseCard.create.mockResolvedValue(createdCard);
 
-      // 19:00 Europe/Moscow — это 16:00Z.
-      const insertedSlot = {
-        id: "slot-1",
-        cardId: "new-card-id",
-        startsAt: new Date("2026-10-10T16:00:00.000Z"),
-        endsAt: new Date("2026-10-10T17:00:00.000Z"),
-        durationMinutes: 60,
-        status: "OPEN",
-        bookedByRequestId: null,
-      };
-      prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([
-        insertedSlot,
-      ]);
-
-      const result = await service.create(userId, {
-        ...validDto,
-        slots: [{ startsAtLocal: "2026-10-10T19:00" }],
-      });
-
-      expect(
-        prismaMock.availabilitySlot.createManyAndReturn,
-      ).toHaveBeenCalledWith({
-        data: [
-          {
-            cardId: "new-card-id",
-            startsAt: insertedSlot.startsAt,
-            endsAt: insertedSlot.endsAt,
-            durationMinutes: 60,
-          },
-        ],
-      });
-      expect(result.slots).toEqual([
-        {
+        // 19:00 Europe/Moscow — это 16:00Z.
+        const insertedSlot = {
           id: "slot-1",
-          startsAt: "2026-10-10T16:00:00.000Z",
+          cardId: "new-card-id",
+          startsAt: new Date("2026-10-10T16:00:00.000Z"),
+          endsAt: new Date("2026-10-10T17:00:00.000Z"),
           durationMinutes: 60,
           status: "OPEN",
-        },
-      ]);
-      // Слоты вытесняют свободный текст о расписании (ADR-002:63).
-      expect(result.scheduleInfo).toBeNull();
+          bookedByRequestId: null,
+        };
+        prismaMock.availabilitySlot.createManyAndReturn.mockResolvedValueOnce([
+          insertedSlot,
+        ]);
+
+        const result = await service.create(userId, {
+          ...validDto,
+          slots: [{ startsAtLocal: "2026-10-10T19:00" }],
+        });
+
+        expect(
+          prismaMock.availabilitySlot.createManyAndReturn,
+        ).toHaveBeenCalledWith({
+          data: [
+            {
+              cardId: "new-card-id",
+              startsAt: insertedSlot.startsAt,
+              endsAt: insertedSlot.endsAt,
+              durationMinutes: 60,
+            },
+          ],
+        });
+        expect(result.slots).toEqual([
+          {
+            id: "slot-1",
+            startsAt: "2026-10-10T16:00:00.000Z",
+            durationMinutes: 60,
+            status: "OPEN",
+          },
+        ]);
+        // Слоты вытесняют свободный текст о расписании (ADR-002:63).
+        expect(result.scheduleInfo).toBeNull();
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -358,10 +363,15 @@ describe("ShowcaseService", () => {
     });
 
     beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-11-01T12:00:00.000Z"));
       prismaMock.user.findUnique.mockResolvedValue({
         id: userId,
         timezone: "Europe/Moscow",
       });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
     });
 
     it("бросает NotFoundException, если карточка не найдена", async () => {
