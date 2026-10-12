@@ -5,51 +5,51 @@
 ### 1.1. Создать `ShowcaseSlotBadge.tsx` (NEW)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseSlotBadge.tsx`
 
-- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils` (подпуть `@packages/utils/datetime` отсутствует)
-- [ ] Импорт `useTranslation('showcase')`
-- [ ] Пропсы: `slot: Pick<AvailabilitySlot,'startsAt'|'durationMinutes'>`, `viewerTimezone: string`, `className?: string`
-- [ ] Формат времени: `'EEE, d MMM HH:mm'`
-- [ ] Отображение длительности: `${durationMinutes} ${t('slots.durationMinutes', { count: durationMinutes })}`
-- [ ] Компактный бейдж (chip/badge)
+- [x] Импорт `formatInstantInTimeZone` из `@packages/utils` (подпуть `@packages/utils/datetime` отсутствует)
+- [x] Импорт `useTranslation('showcase')`
+- [x] Пропсы: `slot: Pick<AvailabilitySlot,'startsAt'|'durationMinutes'>`, `viewerTimezone: string`, `className?: string` (+ опциональный `locale`)
+- [x] Формат времени: `'EEE, d MMM HH:mm'`
+- [x] Отображение длительности: `${durationMinutes} ${t('slots.durationMinutes', { count: durationMinutes })}`
+- [x] Компактный бейдж (chip/badge)
 
 ### 1.2. Создать `ShowcaseSlotsList.tsx` (NEW)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseSlotsList.tsx`
 
-- [ ] Импорт `ShowcaseSlotBadge`, `useTranslation('showcase')`, тип `AvailabilitySlot` из `@packages/api` (общий тип — см. §2.1 спецификации правил)
-- [ ] Пропсы: `slots: AvailabilitySlot[]`, `viewerTimezone: string`, `maxVisible?: number` (default 3)
-- [ ] Фильтрация: `s.status==='OPEN' && new Date(s.startsAt) > new Date()`
-- [ ] Сортировка: по `startsAt` asc
-- [ ] Вычислить `visible = filtered.slice(0, maxVisible)`, `hiddenCount = filtered.length - maxVisible`
-- [ ] Рендер: заголовок `slots.upcomingSlots`, список бейджей, при `hiddenCount>0` — `t('slots.moreCount', { count: hiddenCount })`
-- [ ] Если `filtered.length === 0` — не рендерить блок
+- [x] Импорт `ShowcaseSlotBadge`, `useTranslation('showcase')`, тип `AvailabilitySlot` из `@packages/types` (общий тип — см. §2.1 спецификации правил)
+- [x] Пропсы: `slots: AvailabilitySlot[]`, `viewerTimezone: string`, `maxVisible?: number` (default 3)
+- [x] Фильтрация: `s.status==='OPEN' && new Date(s.startsAt) > new Date()`
+- [x] Сортировка: по `startsAt` asc
+- [x] Вычислить `visible = filtered.slice(0, maxVisible)`, `hiddenCount = filtered.length - maxVisible`
+- [x] Рендер: заголовок `slots.upcomingSlots`, список бейджей, при `hiddenCount>0` — `t('slots.moreCount', { count: hiddenCount })`
+- [x] Если `filtered.length === 0` — не рендерить блок
 
 ### 1.3. Создать `format-card-slot.ts` (NEW)
 Путь: `apps/web/src/entities/showcase-card/lib/format-card-slot.ts`
 
-- [ ] Экспорт `formatCardSlot(instant: string|Date, tz: string, duration: number): string`
-- [ ] Использовать `formatInstantInTimeZone(instant, tz, 'd MMMM, HH:mm')` + длительность
-- [ ] Возвращать человеко-понятную строку интервала
+- [x] Экспорт `formatCardSlot(instant: string|Date, tz: string, duration: number): string`
+- [x] Использовать `formatInstantInTimeZone(instant, tz, 'd MMMM, HH:mm')` + вычисленный конец (без текстовых единиц, поэтому не требует i18n)
+- [x] Возвращать человеко-понятную строку интервала
 
 ### 1.4. Правка `ShowcaseCard.tsx` (EDIT)
 Путь: `apps/web/src/entities/showcase-card/ui/ShowcaseCard.tsx`
 
-- [ ] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1)
-- [ ] Импорт `ShowcaseSlotsList`
-- [ ] При наличии `card.slots` отрендерить `<ShowcaseSlotsList slots={card.slots} viewerTimezone={viewerTimezone} />`
+- [x] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1)
+- [x] Импорт `ShowcaseSlotsList`
+- [x] При наличии `card.slots` отрендерить `<ShowcaseSlotsList slots={card.slots} viewerTimezone={viewerTimezone} />`
 
 ## 2. Тестирование
 
 Создать `ShowcaseSlotsList.test.tsx` (по желанию в `__tests__` рядом с компонентом):
 
-- [ ] Фильтрует прошедшие слоты (status OPEN, но startsAt < now)
-- [ ] Фильтрует BOOKED/CANCELLED
-- [ ] Сортирует по startsAt asc
-- [ ] Показывает максимум 3, `+N ещё` при >3
-- [ ] Не рендерит блок при пустом результате
+- [x] Фильтрует прошедшие слоты (status OPEN, но startsAt < now)
+- [x] Фильтрует BOOKED/CANCELLED
+- [x] Сортирует по startsAt asc
+- [x] Показывает максимум 3, `+N ещё` при >3
+- [x] Не рендерит блок при пустом результате
 
 ## 3. Проверки
 
-- [ ] `pnpm --filter web exec tsc --noEmit` — без ошибок
-- [ ] Нет прямых импортов дат в новых файлах
-- [ ] Используются типы `@packages/api`
-- [ ] i18n-ключи корректны
+- [x] `pnpm --filter web exec tsc --noEmit` — без ошибок
+- [x] Нет прямых импортов дат в новых файлах
+- [x] Используются типы `@packages/api`/`@packages/types`
+- [x] i18n-ключи корректны

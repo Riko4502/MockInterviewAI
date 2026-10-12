@@ -5,6 +5,14 @@ import i18n from "@/shared/lib/i18n";
 import type { ShowcaseCardResponseDto } from "../model/types";
 import { ShowcaseCard } from "./ShowcaseCard";
 
+vi.mock("@/entities/user", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/entities/user")>();
+  return {
+    ...actual,
+    useViewerTimezone: () => "Europe/Moscow",
+  };
+});
+
 const mockCard: ShowcaseCardResponseDto = {
   id: "card-123",
   userId: "user-456",

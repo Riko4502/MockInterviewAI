@@ -28,10 +28,10 @@
 - [ ] `features/manage-showcase-card/ui/ShowcaseCardForm.tsx` (EDIT) — интеграция
 
 ### Этап 3. P1 — ShowcaseCard: отображение слотов в витрине
-- [ ] `entities/showcase-card/ui/ShowcaseSlotBadge.tsx` (NEW)
-- [ ] `entities/showcase-card/ui/ShowcaseSlotsList.tsx` (NEW) — фильтр OPEN+future, сортировка, макс. 3 + `+N ещё`
-- [ ] `entities/showcase-card/lib/format-card-slot.ts` (NEW)
-- [ ] `entities/showcase-card/ui/ShowcaseCard.tsx` (EDIT) — блок «Ближайшие слоты» в `viewerTimezone`
+- [x] `entities/showcase-card/ui/ShowcaseSlotBadge.tsx` (NEW)
+- [x] `entities/showcase-card/ui/ShowcaseSlotsList.tsx` (NEW) — фильтр OPEN+future, сортировка, макс. 3 + `+N ещё`
+- [x] `entities/showcase-card/lib/format-card-slot.ts` (NEW)
+- [x] `entities/showcase-card/ui/ShowcaseCard.tsx` (EDIT) — блок «Ближайшие слоты» в `viewerTimezone`
 
 ### Этап 4. P1 — MatchRequestsHub: отображение назначенного слота
 - [ ] `widgets/match-requests-hub/ui/IncomingRequestCard.tsx` (EDIT)
@@ -44,8 +44,8 @@
 - [x] Обновление типов i18n в `packages/i18n` (namespace `showcase`)
 
 ### Этап 6. P2 — Timezone + Notifications + Dashboard
-- [ ] `entities/user/lib/timezones.ts` (NEW) — POPULAR_TIMEZONES, `getBrowserTimezone`
-- [ ] `entities/user/ui/TimezoneSelect.tsx` (NEW) — поиск, группы, автодетект
+- [x] `entities/user/lib/timezones.ts` (NEW) — POPULAR_TIMEZONES, `getBrowserTimezone`
+- [x] `entities/user/ui/TimezoneSelect.tsx` (NEW) — поиск, группы, автодетект
 - [ ] `features/update-profile/ui/GeneralTab.tsx` (EDIT) — интеграция таймзоны
 - [ ] `features/update-profile/model/profile-form-schema.ts` (EDIT) — поле `timezone`
 - [ ] `widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx` (EDIT) — `userTimezone`
