@@ -233,6 +233,21 @@
   "profile": {
     "timezone": "Timezone",
     "detectTimezone": "Detect automatically",
-    "timezoneHelp": "Your timezone is used to display slot and interview times."
+    "timezoneHelp": "Your timezone is used to display slot and interview times.",
+    "timezoneSearchPlaceholder": "Search timezone...",
+    "timezoneEmpty": "Nothing found",
+    "regions": {
+      "utc": "UTC",
+      "europe": "Europe",
+      "asia": "Asia",
+      "africa": "Africa",
+      "america": "Americas",
+      "australia": "Australia",
+      "pacific": "Pacific",
+      "atlantic": "Atlantic",
+      "indian": "Indian Ocean",
+      "antarctica": "Antarctica",
+      "other": "Other"
+    }
   }
 }

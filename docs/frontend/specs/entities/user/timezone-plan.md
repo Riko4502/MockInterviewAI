@@ -7,41 +7,41 @@
 ### 1.1. `lib/timezones.ts` (NEW)
 Путь: `apps/web/src/entities/user/lib/timezones.ts`
 
-- [ ] Определить тип `TimeZoneItem = { id: string; label: string; region: string }`
-- [ ] Сформировать `POPULAR_TIMEZONES` (минимальный набор: Europe/Moscow, Europe/London, Europe/Berlin, Europe/Kyiv, Europe/Paris, Asia/Tokyo, Asia/Shanghai, Asia/Singapore, Asia/Kolkata, Asia/Dubai, America/New_York, America/Los_Angeles, America/Chicago, America/Toronto, America/Sao_Paulo, Africa/Cairo, Australia/Sydney, UTC)
-- [ ] `getBrowserTimezone() = () => Intl.DateTimeFormat().resolvedOptions().timeZone`
-- [ ] `groupTimezones(items)` — группировка по `region`
+- [x] Определить тип `TimeZoneItem = { id: string; label: string; region: string }`
+- [x] Сформировать `POPULAR_TIMEZONE_IDS` (минимальный набор: Europe/Moscow, Europe/London, Europe/Berlin, Europe/Kyiv, Europe/Paris, Asia/Tokyo, Asia/Shanghai, Asia/Singapore, Asia/Kolkata, Asia/Dubai, America/New_York, America/Los_Angeles, America/Chicago, America/Toronto, America/Sao_Paulo, Africa/Cairo, Australia/Sydney, UTC) + полный список через `Intl.supportedValuesOf("timeZone")` (`getAllTimeZoneIds`/`buildTimeZoneList`) с фоллбэком на популярные
+- [x] `getBrowserTimezone() = () => Intl.DateTimeFormat().resolvedOptions().timeZone`
+- [x] `groupTimezones(items)` — группировка по `region` с сортировкой регионов/элементов
 
 ### 1.2. Создать `model/use-viewer-timezone.ts` (NEW)
 Путь: `apps/web/src/entities/user/model/use-viewer-timezone.ts`
 
-- [ ] Хук `useViewerTimezone(): string` — единый источник таймзоны смотрящего для всего приложения
-- [ ] Внутри: `const { data: user } = useCurrentUser()` → `user?.timezone || getBrowserTimezone() || "UTC"`
-- [ ] Опции `{ enabled?: boolean }` — прокидывать в `useCurrentUser` (публичные страницы без авторизации)
-- [ ] Потребители берут таймзону отсюда, инлайн-фоллбэк не дублируют: [2] availability-slots, [4] slot-selection, [5] assigned-slot-display, [7] dashboard, [8] notification
+- [x] Хук `useViewerTimezone(): string` — единый источник таймзоны смотрящего для всего приложения
+- [x] Внутри: `const { data: user } = useCurrentUser()` → `user?.timezone || getBrowserTimezone() || "UTC"`
+- [x] Опции `{ enabled?: boolean }` — прокидывать в `useCurrentUser` (публичные страницы без авторизации)
+- [x] Потребители берут таймзону отсюда, инлайн-фоллбэк не дублируют: [2] availability-slots, [4] slot-selection, [5] assigned-slot-display, [7] dashboard, [8] notification
 
 ## 2. Создание компонента
 
 ### 2.1. `ui/TimezoneSelect.tsx` (NEW)
 Путь: `apps/web/src/entities/user/ui/TimezoneSelect.tsx`
 
-- [ ] Импорт из `@packages/ui` (Select/Combobox по наличию)
-- [ ] Импорт `useTranslation('showcase')`
-- [ ] Импорт `POPULAR_TIMEZONES`, `getBrowserTimezone`, `groupTimezones`
-- [ ] Пропсы: `value: string`, `onValueChange: (v:string)=>void`, `disabled?: boolean`, `className?: string`
-- [ ] Состояние поиска (по `id`/`label`)
-- [ ] Кнопка «Определить по браузеру» → `getBrowserTimezone()` и вызвать `onValueChange`
-- [ ] Отображение с группировкой по регионам
+- [x] Импорт из `@packages/ui` (добавлен generic `Combobox` в `@packages/ui`)
+- [x] Импорт `useTranslation('showcase')`
+- [x] Импорт `buildTimeZoneList`, `getBrowserTimezone`, `groupTimezones`
+- [x] Пропсы: `value: string`, `onValueChange: (v:string)=>void`, `disabled?: boolean`, `className?: string`
+- [x] Состояние поиска (по `id`/`label`) — реализовано внутри `Combobox`
+- [x] Кнопка «Определить по браузеру» → `getBrowserTimezone()` и вызвать `onValueChange`
+- [x] Отображение с группировкой по регионам (локализованные заголовки регионов через i18n)
 
 ## 3. Тестирование
 
-- [ ] `useViewerTimezone`: профильная зона → зона браузера → `"UTC"`
-- [ ] Unit-тест: автодетект устанавливает зону браузера
-- [ ] Фильтрация по поиску
-- [ ] Корректная группировка
+- [x] `useViewerTimezone`: профильная зона → зона браузера → `"UTC"`
+- [x] Unit-тест: автодетект устанавливает зону браузера
+- [x] Фильтрация по поиску
+- [x] Корректная группировка
 
 ## 4. Проверки
 
-- [ ] `tsc --noEmit` без ошибок
-- [ ] Использует i18n-ключи
-- [ ] Без прямых импортов дат
+- [x] `tsc --noEmit` без ошибок
+- [x] Использует i18n-ключи
+- [x] Без прямых импортов дат
