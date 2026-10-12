@@ -1,4 +1,11 @@
 {
+  "commands": {
+    "start": "Welcome and help",
+    "interviews": "Upcoming interviews",
+    "me": "My profile",
+    "lang": "Choose interface language",
+    "unlink": "Unlink account from Telegram"
+  },
   "start": {
     "welcome": "Hi! This is Mock Interview AI.\n\nThe bot helps you prepare for interviews and track practice sessions.\n\nOpen your profile on the website to get a link to connect your account.",
     "linked": "Account connected. Happy practicing!\n\nTry these commands:\n/me — your profile\n/interviews — your interviews\n/lang — language selection",
