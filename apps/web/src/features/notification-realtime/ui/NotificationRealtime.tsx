@@ -2,6 +2,8 @@
 
 import {
   getDashboardControllerGetMatchRequestsQueryKey,
+  getDashboardControllerGetReadinessQueryKey,
+  getDashboardControllerGetShowcaseStatusQueryKey,
   getDashboardControllerGetUpcomingQueryKey,
   getNotificationsControllerGetNotificationsQueryKey,
   getNotificationsControllerGetUnreadCountQueryKey,
@@ -74,6 +76,15 @@ export function NotificationRealtime() {
       });
       void queryClient.invalidateQueries({
         queryKey: getDashboardControllerGetUpcomingQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetShowcaseStatusQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetReadinessQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
       });
     };
     const updateCount = (update: (count: number) => number) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { CodeIcon, UsersIcon, ZapIcon } from "@packages/icons";
-import { Button, Card, Dialog, Typography } from "@packages/ui";
+import { Badge, Button, Card, Dialog, Typography } from "@packages/ui";
 import Link from "next/link";
 import { lazy, Suspense, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,7 +27,12 @@ export function DashboardQuickActions() {
           <Dialog open={open} onOpenChange={setOpen}>
             <Dialog.Trigger asChild>
               <Button variant="ghost" className={actionClassName}>
-                <ZapIcon aria-hidden="true" className="size-6 text-primary" />
+                <div className="flex w-full items-center justify-between">
+                  <ZapIcon aria-hidden="true" className="size-6 text-primary" />
+                  <Badge variant="secondary" className="text-xs font-normal">
+                    {t("aiDialog.soon")}
+                  </Badge>
+                </div>
                 <span className="text-base font-semibold">
                   {t("quickActions.aiInterview")}
                 </span>

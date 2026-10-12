@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   type LiveMatchToggleDto,
@@ -83,10 +83,6 @@ export function LiveMatchControl({
       .mutateAsync({ data: { isSearching, specialization, level } })
       .then((response) => {
         if (!isMountedRef.current) return;
-
-        if (response.status === "SEARCHING") {
-          // TODO
-        }
 
         if (
           response.status !== "MATCHED" ||
