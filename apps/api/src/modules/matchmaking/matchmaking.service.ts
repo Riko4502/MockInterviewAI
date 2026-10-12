@@ -450,6 +450,19 @@ export class MatchmakingService {
                 senderUser.displayName ?? "Кандидат",
                 targetCard.userId,
               );
+            } else {
+              await this.notificationDispatcher.dispatch(
+                {
+                  type: "interview.match_request_received",
+                  payload: {
+                    requestId: newRequest.id,
+                    senderName: senderUser.displayName ?? "Кандидат",
+                  },
+                },
+                targetCard.userId,
+                tx,
+                "/dashboard/partners/requests",
+              );
             }
 
             return { createdRequest: newRequest };

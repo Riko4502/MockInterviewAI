@@ -1,4 +1,4 @@
-const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Ошибка ответа внутреннего API с HTTP-статусом и телом ответа.
@@ -23,6 +23,23 @@ export interface ApiClientOptions {
 }
 
 let options: ApiClientOptions | null = null;
+
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  try {
+    const parsed = new URL(trimmed);
+    if (
+      !parsed.pathname ||
+      parsed.pathname === "/" ||
+      !parsed.pathname.includes("/api")
+    ) {
+      return `${trimmed}/api/v1`;
+    }
+  } catch {
+    // ignore invalid URL
+  }
+  return trimmed;
+}
 
 /**
  * Инициализирует модульный HTTP-клиент к внутреннему API.
@@ -51,9 +68,11 @@ interface RequestOptions {
 
 async function request<T>(path: string, req: RequestOptions): Promise<T> {
   const { baseUrl, internalServiceKey, timeoutMs } = currentOptions();
+  const normalizedBase = normalizeBaseUrl(baseUrl);
 
   const url = new URL(
-    baseUrl.replace(/\/+$/, "") + (path.startsWith("/") ? path : `/${path}`),
+    normalizedBase.replace(/\/+$/, "") +
+      (path.startsWith("/") ? path : `/${path}`),
   );
   if (req.params) {
     for (const [key, value] of Object.entries(req.params)) {

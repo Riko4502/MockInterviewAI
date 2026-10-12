@@ -105,7 +105,9 @@ export class TelegramController {
   async link(
     @Body(new ZodValidationPipe(linkRequestSchema)) body: LinkRequest,
   ): Promise<TelegramUserProfileDto> {
-    return this.telegramService.link(body.token, body.chatId, body.username);
+    return body.username !== undefined
+      ? this.telegramService.link(body.token, body.chatId, body.username)
+      : this.telegramService.link(body.token, body.chatId);
   }
 
   /**

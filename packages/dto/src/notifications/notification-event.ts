@@ -59,6 +59,25 @@ export const interviewSlotBookedPayloadSchema = z.object({
   otherParticipantName: z.string().min(1),
 });
 
+/** Payload получения заявки на интервью (в т.ч. без слота). */
+export const interviewMatchRequestReceivedPayloadSchema = z.object({
+  requestId: z.uuid(),
+  senderName: z.string().min(1),
+});
+
+/** Payload напоминания за 15 минут до начала сессии. */
+export const interviewReminder15mPayloadSchema = z.object({
+  sessionId: z.uuid(),
+  startUtc: z.iso.datetime(),
+  otherParticipantName: z.string().min(1),
+});
+
+/** Payload уведомления о том, что напарник вошёл в комнату. */
+export const interviewPartnerJoinedPayloadSchema = z.object({
+  sessionId: z.uuid(),
+  partnerName: z.string().min(1),
+});
+
 export const systemWelcomeEventSchema = z.object({
   type: z.literal("system.welcome"),
   payload: systemWelcomePayloadSchema,
@@ -74,6 +93,21 @@ export const interviewSlotBookedEventSchema = z.object({
   payload: interviewSlotBookedPayloadSchema,
 });
 
+export const interviewMatchRequestReceivedEventSchema = z.object({
+  type: z.literal("interview.match_request_received"),
+  payload: interviewMatchRequestReceivedPayloadSchema,
+});
+
+export const interviewReminder15mEventSchema = z.object({
+  type: z.literal("interview.reminder_15m"),
+  payload: interviewReminder15mPayloadSchema,
+});
+
+export const interviewPartnerJoinedEventSchema = z.object({
+  type: z.literal("interview.partner_joined"),
+  payload: interviewPartnerJoinedPayloadSchema,
+});
+
 /**
  * Объединение всех известных типов событий.
  *
@@ -84,6 +118,9 @@ export const notificationEventSchema = z.discriminatedUnion("type", [
   systemWelcomeEventSchema,
   interviewMatchProposedEventSchema,
   interviewSlotBookedEventSchema,
+  interviewMatchRequestReceivedEventSchema,
+  interviewReminder15mEventSchema,
+  interviewPartnerJoinedEventSchema,
 ]);
 
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
@@ -96,6 +133,15 @@ export type InterviewMatchProposedEvent = z.infer<
 export type InterviewSlotBookedEvent = z.infer<
   typeof interviewSlotBookedEventSchema
 >;
+export type InterviewMatchRequestReceivedEvent = z.infer<
+  typeof interviewMatchRequestReceivedEventSchema
+>;
+export type InterviewReminder15mEvent = z.infer<
+  typeof interviewReminder15mEventSchema
+>;
+export type InterviewPartnerJoinedEvent = z.infer<
+  typeof interviewPartnerJoinedEventSchema
+>;
 
 export type NotificationEventPayloads = {
   "system.welcome": z.infer<typeof systemWelcomePayloadSchema>;
@@ -103,6 +149,13 @@ export type NotificationEventPayloads = {
     typeof interviewMatchProposedPayloadSchema
   >;
   "interview.slot_booked": z.infer<typeof interviewSlotBookedPayloadSchema>;
+  "interview.match_request_received": z.infer<
+    typeof interviewMatchRequestReceivedPayloadSchema
+  >;
+  "interview.reminder_15m": z.infer<typeof interviewReminder15mPayloadSchema>;
+  "interview.partner_joined": z.infer<
+    typeof interviewPartnerJoinedPayloadSchema
+  >;
 };
 
 /**
@@ -115,6 +168,9 @@ export const notificationEventCategory = {
   "system.welcome": "SYSTEM",
   "interview.match_proposed": "INTERVIEW",
   "interview.slot_booked": "INTERVIEW",
+  "interview.match_request_received": "INTERVIEW",
+  "interview.reminder_15m": "INTERVIEW",
+  "interview.partner_joined": "INTERVIEW",
 } as const satisfies Record<NotificationEventType, "SYSTEM" | "INTERVIEW">;
 
 export type NotificationEventCategory =
@@ -157,6 +213,14 @@ const eventIdentity = {
     startUtc: string;
   }) =>
     `session=${payload.sessionId}&slot=${payload.slotId}&start=${payload.startUtc}`,
+  "interview.match_request_received": (payload: { requestId: string }) =>
+    `request=${payload.requestId}`,
+  "interview.reminder_15m": (payload: {
+    sessionId: string;
+    startUtc: string;
+  }) => `session=${payload.sessionId}&start=${payload.startUtc}`,
+  "interview.partner_joined": (payload: { sessionId: string }) =>
+    `session=${payload.sessionId}`,
 } satisfies Record<NotificationEventType, (payload: never) => string>;
 
 export function buildDedupKey(
