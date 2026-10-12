@@ -60,7 +60,8 @@ export class SessionReminderService {
       });
 
       for (const session of sessions) {
-        if (!session.scheduledAt) continue;
+        const scheduledAt = session.scheduledAt;
+        if (!scheduledAt) continue;
 
         const participants = session.participants;
         if (participants.length < 2) continue;
@@ -82,7 +83,7 @@ export class SessionReminderService {
                   type: "interview.reminder_15m",
                   payload: {
                     sessionId: session.id,
-                    startUtc: session.scheduledAt!.toISOString(),
+                    startUtc: scheduledAt.toISOString(),
                     otherParticipantName: otherName,
                   },
                 },

@@ -690,7 +690,8 @@ export class SessionsService {
 
     await this.invalidateUserDashboard(userId);
 
-    if (this.notificationDispatcher) {
+    const dispatcher = this.notificationDispatcher;
+    if (dispatcher) {
       const lockKey = `session:${sessionId}:joined_notified:${userId}`;
       const shouldNotify = await this.redis.setNx(lockKey, "1", 86400);
 
@@ -714,7 +715,7 @@ export class SessionsService {
 
           try {
             await this.prisma.$transaction(async (tx) => {
-              await this.notificationDispatcher!.dispatch(
+              await dispatcher.dispatch(
                 {
                   type: "interview.partner_joined",
                   payload: {
