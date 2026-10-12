@@ -65,17 +65,22 @@ afterEach(() => {
 });
 
 describe("Интерфейс дашборда", () => {
-  it("использует текущий профиль и отображает целевые метки без GET-запросов дашборда", () => {
+  it("использует текущий профиль и отображает целевые метки", () => {
     render(
       <DashboardHero targetSpecialization="FRONTEND" targetLevel="JUNIOR" />,
       { wrapper: Wrapper },
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ada");
     expect(screen.getAllByText("Frontend").length).toBeGreaterThan(0);
-    expect(request).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/v1/dashboard/live-match/status",
+        method: "GET",
+      }),
+    );
   });
 
-  it("требует явных параметров очереди и отображает неизвестное состояние", () => {
+  it("требует явных параметров очереди и запрашивает статус с сервера", () => {
     render(<LiveMatchControl />, { wrapper: Wrapper });
     expect(
       screen.getByRole("switch", { name: "Instant partner search" }),
@@ -83,18 +88,25 @@ describe("Интерфейс дашборда", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Search status unknown",
     );
-    expect(request).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/v1/dashboard/live-match/status",
+        method: "GET",
+      }),
+    );
   });
 
   it("поддерживает переключение с клавиатуры, состояние ожидания и откат оптимистического обновления", async () => {
     const user = userEvent.setup();
     let rejectRequest: (error: Error) => void = () => {};
-    request = vi.fn(
-      () =>
-        new Promise((_resolve, reject) => {
+    request = vi.fn((config: RequestConfig) => {
+      if (config.method === "POST") {
+        return new Promise((_resolve, reject) => {
           rejectRequest = reject;
-        }),
-    );
+        });
+      }
+      return Promise.resolve({ status: "IDLE" });
+    });
     render(
       <LiveMatchControl targetSpecialization="FRONTEND" targetLevel="JUNIOR" />,
       { wrapper: Wrapper },
@@ -110,7 +122,12 @@ describe("Интерфейс дашборда", () => {
       "Searching for a partner",
     );
     expect(screen.queryByText("Partner found")).not.toBeInTheDocument();
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/v1/dashboard/live-match/toggle",
+        method: "POST",
+      }),
+    );
     await act(async () => {
       rejectRequest(new Error("offline"));
     });
@@ -122,6 +139,25 @@ describe("Интерфейс дашборда", () => {
     expect(
       client.getQueryData(DASHBOARD_KEYS.liveMatchParameters()),
     ).toBeNull();
+  });
+
+  it("восстанавливает статус SEARCHING и параметры очереди с сервера при перезагрузке", async () => {
+    request = vi.fn(async () => ({
+      status: "SEARCHING",
+      specialization: "FRONTEND",
+      level: "MIDDLE",
+      estimatedWaitSeconds: 45,
+    }));
+    render(<LiveMatchControl />, { wrapper: Wrapper });
+    await waitFor(() => {
+      const toggle = screen.getByRole("switch", {
+        name: "Instant partner search",
+      });
+      expect(toggle).toBeChecked();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Searching for a partner",
+      );
+    });
   });
 
   it("останавливает активный поиск после повторного монтирования с исходными параметрами очереди", async () => {

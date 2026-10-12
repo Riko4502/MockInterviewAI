@@ -95,8 +95,8 @@ export type DailyChallengeResponseDto = z.infer<
 
 export const liveMatchToggleSchema = z.object({
   isSearching: z.boolean(),
-  specialization: specializationEnum,
-  level: experienceLevelEnum,
+  specialization: specializationEnum.optional(),
+  level: experienceLevelEnum.optional(),
 });
 export type LiveMatchToggleDto = z.infer<typeof liveMatchToggleSchema>;
 
@@ -107,6 +107,8 @@ export const liveMatchStatusResponseSchema = z.object({
   status: liveMatchStatusEnum,
   sessionId: z.string().uuid().nullable().optional(),
   estimatedWaitSeconds: z.number().int().optional(),
+  specialization: specializationEnum.optional(),
+  level: experienceLevelEnum.optional(),
 });
 export type LiveMatchStatusResponseDto = z.infer<
   typeof liveMatchStatusResponseSchema

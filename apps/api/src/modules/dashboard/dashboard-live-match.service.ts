@@ -48,6 +48,9 @@ redis.call('EXPIRE', queueKey, ttlSeconds)
 return nil
 `;
 
+const USER_QUEUE_PREFIX = "live_user_queue:";
+const USER_MATCHED_PREFIX = "live_user_matched:";
+
 @Injectable()
 export class DashboardLiveMatchService {
   private readonly logger = new Logger(DashboardLiveMatchService.name);
@@ -56,6 +59,71 @@ export class DashboardLiveMatchService {
     private readonly sessionsService: SessionsService,
     private readonly redisService: RedisService,
   ) {}
+
+  /**
+   * Получение текущего статуса участия пользователя в живом поиске напарника.
+   * Восстанавливает статус SEARCHING / MATCHED / IDLE с параметрами очереди при обновлении страницы.
+   */
+  async getLiveMatchStatus(
+    userId: string,
+  ): Promise<LiveMatchStatusResponseDto> {
+    // 1. Проверяем, не сматчился ли пользователь недавно
+    const matchedDataStr = await this.redisService.get(
+      `${USER_MATCHED_PREFIX}${userId}`,
+    );
+    if (matchedDataStr) {
+      try {
+        const matchedData = JSON.parse(matchedDataStr);
+        await this.redisService.delete(`${USER_MATCHED_PREFIX}${userId}`);
+        return {
+          status: "MATCHED",
+          sessionId: matchedData.sessionId,
+          specialization: matchedData.specialization,
+          level: matchedData.level,
+        };
+      } catch {
+        await this.redisService.delete(`${USER_MATCHED_PREFIX}${userId}`);
+      }
+    }
+
+    // 2. Проверяем активную очередь пользователя
+    const queueDataStr = await this.redisService.get(
+      `${USER_QUEUE_PREFIX}${userId}`,
+    );
+    if (!queueDataStr) {
+      return { status: "IDLE" };
+    }
+
+    try {
+      const queueData = JSON.parse(queueDataStr) as {
+        specialization: LiveMatchToggleDto["specialization"];
+        level: LiveMatchToggleDto["level"];
+        enqueuedAt: number;
+      };
+      const now = Date.now();
+      if (now - queueData.enqueuedAt > MATCH_EXPIRATION_MS) {
+        await this.redisService.delete(`${USER_QUEUE_PREFIX}${userId}`);
+        return { status: "IDLE" };
+      }
+
+      const queueKey = `live_queue:${queueData.specialization}:${queueData.level}`;
+      const score = await this.redisService.zscore(queueKey, userId);
+      if (score === null || score === undefined) {
+        await this.redisService.delete(`${USER_QUEUE_PREFIX}${userId}`);
+        return { status: "IDLE" };
+      }
+
+      return {
+        status: "SEARCHING",
+        specialization: queueData.specialization,
+        level: queueData.level,
+        estimatedWaitSeconds: 45,
+      };
+    } catch {
+      await this.redisService.delete(`${USER_QUEUE_PREFIX}${userId}`);
+      return { status: "IDLE" };
+    }
+  }
 
   /**
    * Включение / отключение режима живого поиска напарника в реальном времени.
@@ -68,16 +136,42 @@ export class DashboardLiveMatchService {
     userId: string,
     dto: LiveMatchToggleDto,
   ): Promise<LiveMatchStatusResponseDto> {
-    if (!dto.specialization || !dto.level) {
+    let spec = dto.specialization;
+    let level = dto.level;
+
+    if (!spec || !level) {
+      const userQueueStr = await this.redisService.get(
+        `${USER_QUEUE_PREFIX}${userId}`,
+      );
+      if (userQueueStr) {
+        try {
+          const parsed = JSON.parse(userQueueStr);
+          spec = spec ?? parsed.specialization;
+          level = level ?? parsed.level;
+        } catch {
+          // ignore parsing error
+        }
+      }
+    }
+
+    // Если пользователь отключает поиск — убираем его из очереди и удаляем индекс
+    if (!dto.isSearching) {
+      if (spec && level) {
+        const queueKey = `live_queue:${spec}:${level}`;
+        await this.redisService.zrem(queueKey, userId);
+      }
+      await this.redisService.delete(`${USER_QUEUE_PREFIX}${userId}`);
+      await this.redisService.delete(`${USER_MATCHED_PREFIX}${userId}`);
+      return { status: "IDLE" };
+    }
+
+    if (!spec || !level) {
       throw new BadRequestException(
         "Специализация и уровень обязательны для участия в поиске напарника",
       );
     }
 
-    const spec = dto.specialization;
-    const level = dto.level;
     const queueKey = `live_queue:${spec}:${level}`;
-
     const now = Date.now();
     const cutoff = now - MATCH_EXPIRATION_MS;
 
@@ -90,13 +184,7 @@ export class DashboardLiveMatchService {
       );
     }
 
-    // 2. Если пользователь отключает поиск — убираем его из очереди
-    if (!dto.isSearching) {
-      await this.redisService.zrem(queueKey, userId);
-      return { status: "IDLE" };
-    }
-
-    // 3. Атомарно извлекаем напарника или добавляем себя в очередь через Lua-скрипт
+    // 2. Атомарно извлекаем напарника или добавляем себя в очередь через Lua-скрипт
     const partnerId = await this.redisService.eval<string | null>(
       MATCH_OR_ENQUEUE_LUA,
       1,
@@ -138,9 +226,16 @@ export class DashboardLiveMatchService {
           await this.redisService.zadd(queueKey, now, partnerId);
           await this.redisService.zadd(queueKey, now, userId);
           await this.redisService.expire(queueKey, QUEUE_TTL_SECONDS);
+          await this.redisService.set(
+            `${USER_QUEUE_PREFIX}${userId}`,
+            JSON.stringify({ specialization: spec, level, enqueuedAt: now }),
+            Math.ceil(MATCH_EXPIRATION_MS / 1000),
+          );
 
           return {
             status: "SEARCHING",
+            specialization: spec,
+            level,
             estimatedWaitSeconds: 45,
           };
         }
@@ -150,6 +245,16 @@ export class DashboardLiveMatchService {
       // Не удаляем сессию и не возвращаем участников в очередь (исключает создание дубликатов).
       // Идемпотентно восстанавливаем Redis mirror и уведомление партнёра с retry.
       if (sessionId) {
+        await Promise.all([
+          this.redisService.delete(`${USER_QUEUE_PREFIX}${userId}`),
+          this.redisService.delete(`${USER_QUEUE_PREFIX}${partnerId}`),
+          this.redisService.set(
+            `${USER_MATCHED_PREFIX}${partnerId}`,
+            JSON.stringify({ sessionId, specialization: spec, level }),
+            60,
+          ),
+        ]);
+
         await this.ensurePostCommitIntegrity(
           sessionId,
           userId,
@@ -160,13 +265,23 @@ export class DashboardLiveMatchService {
         return {
           status: "MATCHED",
           sessionId,
+          specialization: spec,
+          level,
         };
       }
     }
 
-    // 4. Если напарник не найден — пользователь уже добавлен в очередь внутри Lua-скрипта
+    // 3. Если напарник не найден — пользователь добавлен в очередь внутри Lua-скрипта
+    await this.redisService.set(
+      `${USER_QUEUE_PREFIX}${userId}`,
+      JSON.stringify({ specialization: spec, level, enqueuedAt: now }),
+      Math.ceil(MATCH_EXPIRATION_MS / 1000),
+    );
+
     return {
       status: "SEARCHING",
+      specialization: spec,
+      level,
       estimatedWaitSeconds: 45,
     };
   }

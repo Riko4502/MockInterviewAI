@@ -65,14 +65,49 @@ export function LiveMatchControl({
     navigationStartedRef.current = true;
     router.push(`${paths.sandbox}?room=${matchedSessionId}`);
   }, [countdown, matchedSessionId, router]);
+  useEffect(() => {
+    if (state?.specialization && !selectedSpecialization) {
+      setSpecialization(state.specialization);
+    }
+    if (state?.level && !selectedLevel) {
+      setLevel(state.level);
+    }
+  }, [
+    state?.specialization,
+    state?.level,
+    selectedSpecialization,
+    selectedLevel,
+  ]);
+
+  useEffect(() => {
+    if (
+      state?.status === "MATCHED" &&
+      state.sessionId &&
+      isValidUUID(state.sessionId) &&
+      !handledSessionIdsRef.current.has(state.sessionId)
+    ) {
+      handledSessionIdsRef.current.add(state.sessionId);
+      navigationStartedRef.current = false;
+      setCountdown(3);
+      setMatchedSessionId(state.sessionId);
+      void playChimeSound(80);
+    }
+  }, [state]);
+
   const searching = state?.status === "SEARCHING";
   const matched = state?.status === "MATCHED";
   const specialization =
-    (searching || matched ? queueParameters?.specialization : undefined) ??
-    selectedSpecialization;
+    (searching || matched
+      ? (queueParameters?.specialization ?? state?.specialization)
+      : undefined) ??
+    selectedSpecialization ??
+    state?.specialization;
   const level =
-    (searching || matched ? queueParameters?.level : undefined) ??
-    selectedLevel;
+    (searching || matched
+      ? (queueParameters?.level ?? state?.level)
+      : undefined) ??
+    selectedLevel ??
+    state?.level;
   const locked = searching || matched || mutation.isPending;
   const canToggle =
     Boolean(specialization && level) && !mutation.isPending && !matched;

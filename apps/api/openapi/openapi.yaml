@@ -1118,6 +1118,20 @@ paths:
       security: *a8
       summary: Включить или выключить режим мгновенного поиска напарника
       tags: *a9
+  /api/v1/dashboard/live-match/status:
+    get:
+      operationId: DashboardController_getLiveMatchStatus
+      parameters: []
+      responses:
+        "200":
+          description: Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveMatchStatusResponseDto"
+      security: *a8
+      summary: Получить текущий статус живого поиска напарника
+      tags: *a9
   /api/v1/dashboard/match-requests:
     get:
       operationId: DashboardController_getMatchRequests
@@ -3541,8 +3555,6 @@ components:
             - LEAD
       required:
         - isSearching
-        - specialization
-        - level
     LiveMatchStatusResponseDto:
       type: object
       properties:
@@ -3561,6 +3573,24 @@ components:
           type: integer
           minimum: -9007199254740991
           maximum: 9007199254740991
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
       required:
         - status
     DashboardMatchRequestsResponseDto:

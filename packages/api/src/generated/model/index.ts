@@ -60,6 +60,8 @@ export * from './joinSessionDto';
 export * from './joinSessionResponseDto';
 export * from './joinSessionResponseDtoRole';
 export * from './liveMatchStatusResponseDto';
+export * from './liveMatchStatusResponseDtoLevel';
+export * from './liveMatchStatusResponseDtoSpecialization';
 export * from './liveMatchStatusResponseDtoStatus';
 export * from './liveMatchToggleDto';
 export * from './liveMatchToggleDtoLevel';
