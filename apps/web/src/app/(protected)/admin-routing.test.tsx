@@ -64,6 +64,7 @@ function profileResponse(role: SystemRole) {
     permissions: "0",
     theme: "system",
     locale: "ru",
+    timezone: "Europe/Moscow",
     email: "test@example.com",
     displayName: null,
     username: null,

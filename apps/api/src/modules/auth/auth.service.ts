@@ -169,6 +169,8 @@ export class AuthService implements OnModuleInit {
       userWithRole?.role?.permissions ?? SystemPermission.NONE;
     const generation = userWithRole?.generation ?? 1;
 
+    await this.recordFirstLogin(userId, dto.timezone);
+
     const sessionId = randomUUID();
     const tokenFamilyId = randomUUID();
 
@@ -273,6 +275,8 @@ export class AuthService implements OnModuleInit {
     const permissions = freshUser.role?.permissions ?? SystemPermission.NONE;
     const generation = freshUser.generation ?? 1;
 
+    await this.recordFirstLogin(freshUser.id, dto.timezone);
+
     const accessToken = this.tokenService.generateAccessToken(
       freshUser.id,
       sessionId,
@@ -352,6 +356,7 @@ export class AuthService implements OnModuleInit {
     const tokenFamilyId = randomUUID();
     const generation = freshUser.generation ?? 1;
     const permissions = freshUser.role?.permissions ?? SystemPermission.NONE;
+    await this.recordFirstLogin(freshUser.id);
     const accessToken = this.tokenService.generateAccessToken(
       freshUser.id,
       sessionId,
@@ -384,6 +389,33 @@ export class AuthService implements OnModuleInit {
 
     return { accessToken, refreshToken };
   }
+
+  /**
+   * Фиксирует время первого входа и, при первом входе, автоопределённую
+   * IANA-таймзону из браузера (ADR-002:53).
+   *
+   * Запись идемпотентна и безопасна при гонках: `updateMany` с условием
+   * `firstLoginAt: null` проставит значения только для пользователя, который
+   * ещё ни разу не входил, и не перезапишет явный выбор таймзоны в настройках.
+   * `timezone` передаётся только из браузерных flow (login/register); для
+   * GitHub/Telegram он отсутствует — остаётся значение по умолчанию.
+   *
+   * @param userId - UUID пользователя.
+   * @param timezone - IANA-таймзона из браузера (опционально).
+   */
+  private async recordFirstLogin(
+    userId: string,
+    timezone?: string,
+  ): Promise<void> {
+    await this.prisma.user.updateMany({
+      where: { id: userId, firstLoginAt: null },
+      data: {
+        firstLoginAt: new Date(),
+        ...(timezone !== undefined && { timezone }),
+      },
+    });
+  }
+
   async logout(refreshToken?: string): Promise<void> {
     if (!refreshToken) {
       throw new UnauthorizedException("Invalid credentials");

@@ -531,6 +531,34 @@ describe("AuthService", () => {
       await expect(service.login(DTO)).rejects.toThrow(UnauthorizedException);
       expect(createSession).not.toHaveBeenCalled();
     });
+
+    it("фиксирует первый вход и автоопределённую IANA-таймзону (ADR-002)", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+
+      await service.login({ ...DTO, timezone: "Asia/Tokyo" });
+
+      expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
+        where: { id: USER.id, firstLoginAt: null },
+        data: { firstLoginAt: expect.any(Date), timezone: "Asia/Tokyo" },
+      });
+    });
+
+    it("не перезаписывает timezone, если браузер его не прислал", async () => {
+      findByEmail.mockResolvedValue({
+        ...USER,
+        passwordHash: USER_PASSWORD_HASH,
+      });
+
+      await service.login(DTO);
+
+      expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
+        where: { id: USER.id, firstLoginAt: null },
+        data: { firstLoginAt: expect.any(Date) },
+      });
+    });
   });
 
   describe("login: unknown email (§59 account enumeration)", () => {

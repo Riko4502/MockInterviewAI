@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { timeZoneSchema } from "../common/timezone";
 import { normalizeEmail } from "./email";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./password-policy";
 
@@ -41,6 +42,8 @@ export const registerSchema = z
         `Пароль должен содержать максимум ${PASSWORD_MAX_LENGTH} символов`,
       ),
     passwordConfirmation: z.string().min(1, "Подтверждение пароля обязательно"),
+    /** IANA-таймзона из браузера — фиксируется как время первого входа (ADR-002:53). */
+    timezone: timeZoneSchema.optional(),
   })
   .refine((data) => data.password === data.passwordConfirmation, {
     message: "Пароли не совпадают",

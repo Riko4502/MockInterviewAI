@@ -60,6 +60,7 @@ const USER_PROFILE_SELECT = {
   githubId: true,
   theme: true,
   locale: true,
+  timezone: true,
   onboardingCompleted: true,
   targetRole: true,
   targetLevel: true,
@@ -480,6 +481,7 @@ export class UsersService {
           theme: dto.theme.toUpperCase() as ThemePreference,
         }),
         ...(dto.locale !== undefined && { locale: dto.locale }),
+        ...(dto.timezone !== undefined && { timezone: dto.timezone }),
       },
       select: USER_PROFILE_SELECT,
     });
@@ -864,6 +866,7 @@ export class UsersService {
       githubLinkVerified: Boolean(profile.githubId),
       theme: (profile.theme?.toLowerCase() ?? "dark") as ThemeMode,
       locale: (profile.locale === "en" ? "en" : "ru") as Locale,
+      timezone: profile.timezone,
       createdAt:
         typeof profile.createdAt === "string"
           ? profile.createdAt
