@@ -3,6 +3,8 @@
 import {
   type DashboardMatchRequestsResponseDto,
   getDashboardControllerToggleLiveMatchMutationKey,
+  getMatchmakingControllerFindIncomingQueryKey,
+  getMatchmakingControllerGetUnreadCountQueryKey,
   type LiveMatchToggleDto,
   useDashboardControllerToggleLiveMatch,
   useMatchmakingControllerAccept,
@@ -113,7 +115,15 @@ export function useAcceptMatchMutation() {
             };
           },
         );
-        await client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() });
+        await Promise.all([
+          client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+          }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+          }),
+        ]);
       },
     },
   });
@@ -139,7 +149,15 @@ export function useRejectMatchMutation() {
             };
           },
         );
-        await client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() });
+        await Promise.all([
+          client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+          }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+          }),
+        ]);
       },
     },
   });
