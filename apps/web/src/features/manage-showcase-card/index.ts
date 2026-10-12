@@ -2,6 +2,10 @@ export * from "./model/showcase-form-schema";
 export * from "./model/use-showcase-mutations";
 export * from "./model/use-skill-suggestions";
 export { BumpCardButton } from "./ui/BumpCardButton";
+export {
+  CreateCardDialog,
+  CreateCardDialog as CreateShowcaseDialog,
+} from "./ui/CreateCardDialog";
 export { CreateCardView } from "./ui/CreateCardView";
 export { DeleteCardConfirmDialog } from "./ui/DeleteCardConfirmDialog";
 export { DeleteCardConfirmDialogLazy } from "./ui/DeleteCardConfirmDialog.lazy";
