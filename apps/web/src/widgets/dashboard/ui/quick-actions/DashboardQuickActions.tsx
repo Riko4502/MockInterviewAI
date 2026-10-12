@@ -70,7 +70,7 @@ export function DashboardQuickActions() {
         </Card>
         <Card className="p-0">
           <Button asChild variant="ghost" className={actionClassName}>
-            <Link href={`${paths.dashboard}#live-match`}>
+            <Link href={paths.partners}>
               <UsersIcon aria-hidden="true" className="size-6 text-primary" />
               <span className="text-base font-semibold">
                 {t("quickActions.findPartner")}

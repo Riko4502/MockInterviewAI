@@ -6,14 +6,10 @@ type StepAction =
   | { kind: "link"; href: string }
   | { kind: "unavailable" };
 
-// TODO: Добавить сценарий подтверждения email после появления API-контракта.
-// EMAIL_PROVIDED означает наличие email, а не его подтверждение.
 export const READINESS_ACTIONS = {
-  EMAIL_PROVIDED: { kind: "unavailable" },
+  EMAIL_PROVIDED: { kind: "link", href: paths.profile },
   MEDIA_CONFIGURED: { kind: "media" },
-  // TODO: Подключить запрос link-token, показ QR-кода/deep-link и обновление readiness после подтверждения через бота.
-  TELEGRAM_LINKED: { kind: "unavailable" },
-  // TODO: Добавить форму создания анкеты и вызов POST /api/v1/showcase.
-  SHOWCASE_CREATED: { kind: "unavailable" },
+  TELEGRAM_LINKED: { kind: "link", href: paths.profile },
+  SHOWCASE_CREATED: { kind: "link", href: paths.partnersNew },
   FIRST_MOCK_COMPLETED: { kind: "link", href: paths.sandbox },
 } as const satisfies Record<ReadinessStep["key"], StepAction>;

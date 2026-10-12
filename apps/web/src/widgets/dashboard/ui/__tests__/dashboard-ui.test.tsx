@@ -246,7 +246,7 @@ describe("Интерфейс дашборда", () => {
     render(<DashboardQuickActions />);
     expect(
       screen.getByRole("link", { name: /Find a partner/ }),
-    ).toHaveAttribute("href", "/dashboard#live-match");
+    ).toHaveAttribute("href", "/dashboard/partners");
     expect(screen.getByRole("link", { name: /Code sandbox/ })).toHaveAttribute(
       "href",
       "/dashboard/sandbox",
