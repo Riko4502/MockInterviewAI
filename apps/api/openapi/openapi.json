@@ -2738,6 +2738,32 @@
         "tags": ["Admin / Notification Campaigns"]
       }
     },
+    "/api/v1/telegram/link-token": {
+      "post": {
+        "operationId": "TelegramController_createLinkToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Ссылка на привязку Telegram",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTokenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "429": {
+            "description": "Слишком много запросов"
+          }
+        },
+        "summary": "Генерация одноразового токена привязки Telegram",
+        "tags": ["telegram"]
+      }
+    },
     "/api/v1/showcase": {
       "get": {
         "operationId": "ShowcaseController_findAll",
@@ -8105,6 +8131,16 @@
           }
         },
         "required": ["status"]
+      },
+      "LinkTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "linkUrl": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["linkUrl"]
       }
     }
   }

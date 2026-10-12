@@ -38,6 +38,7 @@ export async function startHandler(ctx: TgCommandContext): Promise<void> {
     const profile = await apiPost<TelegramUserProfileDto>("/telegram/link", {
       token,
       chatId: String(ctx.chat.id),
+      ...(ctx.from?.username ? { username: ctx.from.username } : {}),
     });
 
     const locale = resolveLocale(

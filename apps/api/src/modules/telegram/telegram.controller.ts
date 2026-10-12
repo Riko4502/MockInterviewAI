@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
-  ApiExcludeController,
+  ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -19,6 +19,7 @@ import {
   type LinkRequest,
   type LinkTokenResponse,
   linkRequestSchema,
+  linkTokenResponseSchema,
   type TelegramInterviewsListDto,
   type TelegramInterviewsQuery,
   type TelegramPreferencesPatch,
@@ -33,27 +34,23 @@ import {
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Public } from "../../common/decorators/public.decorator";
+import { registerSchema } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { AuthThrottlerGuard } from "../auth/guards/auth-throttler.guard";
 import { InternalServiceKeyGuard } from "./guards/internal-service-key.guard";
 import { TelegramService } from "./telegram.service";
 
 /**
- * Внутренние эндпоинты интеграции с Telegram-ботом (§7
+ * Эндпоинты интеграции с Telegram-ботом (§7
  * docs/TELEGRAM_BOT_ARCHITECTURE.md).
  *
- * Все эндпоинты, кроме `link-token`, аутентифицируются сервисным ключом
- * (`X-Internal-Service-Key`) и помечены `@Public()`: глобальный
- * `AccessTokenGuard` иначе отклонит вызовы бота (бот шлёт только сервисный
- * ключ, без Bearer-токена). `@ApiExcludeController()` скрывает их из
- * публичной OpenAPI (SPEC §13).
- *
  * - `POST /telegram/link-token` — Bearer (глобальный `AccessTokenGuard`) +
- *   per-route `AuthThrottlerGuard` (глобального throttling нет).
- * - Остальные — `@Public()` + `InternalServiceKeyGuard`.
+ *   per-route `AuthThrottlerGuard`, включён в публичный OpenAPI для веб-клиента.
+ * - Все остальные эндпоинты аутентифицируются сервисным ключом
+ *   (`X-Internal-Service-Key`), помечены `@Public()` и скрыты из публичной
+ *   OpenAPI через `@ApiExcludeEndpoint()`.
  */
-@ApiTags("telegram-internal")
-@ApiExcludeController()
+@ApiTags("telegram")
 @Controller("telegram")
 export class TelegramController {
   constructor(private readonly telegramService: TelegramService) {}
@@ -70,6 +67,7 @@ export class TelegramController {
   @ApiResponse({
     status: 200,
     description: "Ссылка на привязку Telegram",
+    schema: registerSchema("LinkTokenResponseDto", linkTokenResponseSchema),
   })
   @ApiResponse({ status: 401, description: "Не авторизован" })
   @ApiResponse({ status: 429, description: "Слишком много запросов" })
@@ -84,6 +82,7 @@ export class TelegramController {
    *
    * Вызывается ботом с сервисным ключом.
    */
+  @ApiExcludeEndpoint()
   @Post("link")
   @Public()
   @HttpCode(HttpStatus.OK)
@@ -106,12 +105,13 @@ export class TelegramController {
   async link(
     @Body(new ZodValidationPipe(linkRequestSchema)) body: LinkRequest,
   ): Promise<TelegramUserProfileDto> {
-    return this.telegramService.link(body.token, body.chatId);
+    return this.telegramService.link(body.token, body.chatId, body.username);
   }
 
   /**
    * Отвязывает Telegram-чат от аккаунта.
    */
+  @ApiExcludeEndpoint()
   @Post("unlink")
   @Public()
   @HttpCode(HttpStatus.OK)
@@ -132,6 +132,7 @@ export class TelegramController {
   /**
    * Возвращает профиль пользователя по `chatId`.
    */
+  @ApiExcludeEndpoint()
   @Get("profile")
   @Public()
   @UseGuards(InternalServiceKeyGuard)
@@ -152,6 +153,7 @@ export class TelegramController {
   /**
    * Возвращает предстоящие собеседования пользователя по `chatId`.
    */
+  @ApiExcludeEndpoint()
   @Get("interviews")
   @Public()
   @UseGuards(InternalServiceKeyGuard)
@@ -172,6 +174,7 @@ export class TelegramController {
   /**
    * Обновляет сохранённую локаль пользователя (`telegramLocale`).
    */
+  @ApiExcludeEndpoint()
   @Patch("preferences")
   @Public()
   @UseGuards(InternalServiceKeyGuard)

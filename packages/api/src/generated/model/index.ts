@@ -59,6 +59,7 @@ export * from './healthResponseDtoStatus';
 export * from './joinSessionDto';
 export * from './joinSessionResponseDto';
 export * from './joinSessionResponseDtoRole';
+export * from './linkTokenResponseDto';
 export * from './liveMatchStatusResponseDto';
 export * from './liveMatchStatusResponseDtoLevel';
 export * from './liveMatchStatusResponseDtoSpecialization';
