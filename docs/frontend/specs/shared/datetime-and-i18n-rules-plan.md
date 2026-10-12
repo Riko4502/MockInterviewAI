@@ -21,11 +21,11 @@
 - [ ] `features/send-match-request/ui/SendMatchRequestDialog.tsx` (EDIT) — интеграция, обязательность выбора, обработка 409 (toast + invalidateQueries + сброс slotId)
 
 ### Этап 2. P1 — Manage showcase: конструктор слотов
-- [ ] `features/manage-showcase-card/model/showcase-form-schema.ts` (EDIT) — `slotItemSchema`, `slots`, мапперы
-- [ ] `features/manage-showcase-card/ui/SlotPickerField.tsx` (NEW) — FieldArray, дата/время/длительность, проверка «не в прошлом», блокировка удаления BOOKED
-- [ ] `features/manage-showcase-card/ui/ShowcaseCardLivePreview.tsx` (EDIT)
-- [ ] `features/manage-showcase-card/ui/EditCardView.tsx` (EDIT) — UTC→startsAtLocal в `userTimezone`
-- [ ] `features/manage-showcase-card/ui/ShowcaseCardForm.tsx` (EDIT) — интеграция
+- [x] `features/manage-showcase-card/model/showcase-form-schema.ts` (EDIT) — `slotItemSchema`, `slots`, мапперы
+- [x] `features/manage-showcase-card/ui/SlotPickerField.tsx` (NEW) — FieldArray, дата/время/длительность, проверка «не в прошлом», блокировка удаления BOOKED
+- [x] `features/manage-showcase-card/ui/ShowcaseCardLivePreview.tsx` (EDIT)
+- [x] `features/manage-showcase-card/ui/EditCardView.tsx` (EDIT) — UTC→startsAtLocal в `userTimezone`
+- [x] `features/manage-showcase-card/ui/ShowcaseCardForm.tsx` (EDIT) — интеграция
 
 ### Этап 3. P1 — ShowcaseCard: отображение слотов в витрине
 - [x] `entities/showcase-card/ui/ShowcaseSlotBadge.tsx` (NEW)

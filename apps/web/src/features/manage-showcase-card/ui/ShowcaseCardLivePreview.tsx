@@ -1,6 +1,8 @@
 "use client";
 
 import type { UserProfileDto } from "@packages/api";
+import type { AvailabilitySlot } from "@packages/types";
+import { resolveLocalTimeToUtc } from "@packages/utils";
 import { useTranslation } from "react-i18next";
 import {
   ShowcaseCard,
@@ -12,15 +14,42 @@ import type { ShowcaseFormValues } from "../model/showcase-form-schema";
 export interface ShowcaseCardLivePreviewProps {
   values: Partial<ShowcaseFormValues>;
   user?: Partial<UserProfileDto> | null;
+  /** IANA-таймзона автора: слоты формы — локальное время этой зоны. */
+  authorTimezone?: string;
   className?: string;
 }
 
 export function ShowcaseCardLivePreview({
   values,
   user,
+  authorTimezone = "UTC",
   className,
 }: ShowcaseCardLivePreviewProps) {
   const { t } = useTranslation("showcase");
+
+  // Слоты формы хранятся в локальном времени автора — в превью приводим их к
+  // UTC-инстантам, которые ожидает доменный тип `AvailabilitySlot`.
+  const previewSlots: AvailabilitySlot[] = (values.slots ?? []).flatMap(
+    (slot, index) => {
+      const resolution = resolveLocalTimeToUtc(
+        slot.startsAtLocal,
+        authorTimezone,
+      );
+
+      if (!resolution.ok) {
+        return [];
+      }
+
+      return [
+        {
+          id: slot.id ?? `preview-slot-${index}`,
+          startsAt: resolution.utc.toISOString(),
+          durationMinutes: slot.durationMinutes,
+          status: slot.booked ? "BOOKED" : "OPEN",
+        },
+      ];
+    },
+  );
 
   const previewCard: ShowcaseCardResponseDto = {
     id: "preview-card-id",
@@ -50,7 +79,7 @@ export function ShowcaseCardLivePreview({
     expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    slots: [],
+    slots: previewSlots,
   };
 
   return (
