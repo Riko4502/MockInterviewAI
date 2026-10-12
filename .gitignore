@@ -9,6 +9,9 @@ build
 .turbo
 *.tsbuildinfo
 
+# Local docker-compose overrides (machine-specific workarounds)
+docker-compose.override.yml
+
 # Environment variables
 .env
 .env.local
