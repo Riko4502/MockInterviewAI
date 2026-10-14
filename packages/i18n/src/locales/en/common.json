@@ -1,5 +1,7 @@
 {
-  "roles": { "administrator": "Administrator" },
+  "roles": {
+    "administrator": "Administrator"
+  },
   "errors": {
     "forbiddenTitle": "Insufficient permissions",
     "forbiddenDescription": "You do not have permission to perform this action."
@@ -19,6 +21,7 @@
   "navigation": {
     "administration": "Administration",
     "adminUsers": "Users",
+    "adminNotifications": "Notification campaigns",
     "home": "Home",
     "dashboard": "Dashboard",
     "notifications": "Notifications",
@@ -69,16 +72,6 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
-    "goalsTitle": "Preparation Goals",
-    "goalsSubtitle": "Your target role, level, and companies for platform personalization.",
-    "goalsEmpty": "Preparation goals are not configured yet.",
-    "goalsSetup": "Complete onboarding",
-    "goalsChange": "Change goals",
-    "targetRole": "Specialization",
-    "targetLevel": "Target Level",
-    "targetCompanies": "Target Companies",
-    "targetTimeline": "Preparation Timeline",
-    "preferredFormat": "Preferred Format",
     "dangerZoneTitle": "Danger Zone",
     "dangerZoneSubtitle": "Irreversible actions for your account.",
     "dangerZoneDescription": "Once deleted, your account will be deactivated. You can restore it within 30 days.",
@@ -98,18 +91,13 @@
     "telegramLinkButton": "Link Telegram",
     "telegramUnlinkButton": "Unlink",
     "telegramLinkDialogTitle": "Link Telegram Account",
-    "telegramLinkDialogDesc": "Connect our Telegram bot to receive instant interview notifications and room links.",
+    "telegramLinkDialogDesc": "Confirm linking your Telegram account using the official widget below.",
     "telegramLinkSuccess": "Telegram successfully linked!",
-    "telegramLinkError": "Failed to generate Telegram linking link.",
+    "telegramLinkError": "Failed to link Telegram.",
     "telegramUnlinkSuccess": "Telegram unlinked.",
-    "telegramOpenBot": "Open Bot in Telegram",
-    "telegramCopyLink": "Copy link",
-    "telegramLinkCopied": "Link copied!",
-    "telegramStep1": "Click \"Open Bot in Telegram\" (or copy the link).",
-    "telegramStep2": "In the Telegram chat, press the \"Start\" button.",
-    "telegramStep3": "The bot will instantly confirm, and this dialog will close.",
-    "telegramWaitingConfirmation": "Waiting for confirmation from Telegram...",
-    "telegramTokenLoading": "Generating personal linking link...",
+    "telegramWidgetLoading": "Loading Telegram widget...",
+    "telegramWidgetError": "Failed to load Telegram widget. Please check your internet connection.",
+    "telegramNotConfigured": "Telegram widget is not configured (NEXT_PUBLIC_TELEGRAM_BOT_USERNAME is not set on the server).",
     "githubLinked": "GitHub connected",
     "githubNotLinked": "GitHub not connected",
     "githubLinkDesc": "Link your GitHub account for sign-in and repository showcase.",
@@ -143,7 +131,25 @@
       "username": "Username: 3–30 characters, letters, numbers, _ and -",
       "telegram": "Telegram: 5–32 characters, letters, numbers and _",
       "gitUrl": "Enter a GitHub or GitLab profile URL"
-    }
+    },
+    "goalsTitle": "Preparation Goals",
+    "goalsSubtitle": "Your target role, level, and companies for platform personalization.",
+    "goalsEmpty": "Preparation goals are not configured yet.",
+    "goalsSetup": "Complete onboarding",
+    "goalsChange": "Change goals",
+    "targetRole": "Specialization",
+    "targetLevel": "Target Level",
+    "targetCompanies": "Target Companies",
+    "targetTimeline": "Preparation Timeline",
+    "preferredFormat": "Preferred Format",
+    "telegramOpenBot": "Open Bot in Telegram",
+    "telegramCopyLink": "Copy link",
+    "telegramLinkCopied": "Link copied!",
+    "telegramStep1": "Click \"Open Bot in Telegram\" (or copy the link).",
+    "telegramStep2": "In the Telegram chat, press the \"Start\" button.",
+    "telegramStep3": "The bot will instantly confirm, and this dialog will close.",
+    "telegramWaitingConfirmation": "Waiting for confirmation from Telegram...",
+    "telegramTokenLoading": "Generating personal linking link..."
   },
   "notifications": {
     "unreadAria": "Unread notifications: {{count}}",
@@ -244,6 +250,148 @@
     },
     "systemActive": "AI SYSTEM ACTIVE",
     "brandLabel": "MOCK INTERVIEW AI"
+  },
+  "adminUserPicker": {
+    "label": "Select recipients",
+    "searchPlaceholder": "Search users by name or email",
+    "results": "User search results",
+    "loading": "Searching users...",
+    "searchError": "Could not load users",
+    "startTyping": "Enter a name, email, or username",
+    "empty": "No users found",
+    "bulkUnresolved": "Could not find users: {{count}}",
+    "selectedCount": "Selected recipients: {{count}}",
+    "bulkLabel": "Add users in bulk",
+    "bulkPlaceholder": "Paste user emails or IDs, separated by commas or spaces",
+    "resolving": "Searching users...",
+    "addUsers": "Add users",
+    "dismissError": "Dismiss error message",
+    "removeUser": "Remove user {{name}}"
+  },
+  "adminNotifications": {
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "processing": "Sending",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "progress": "{{sent}} / {{total}} ({{percentage}}%)",
+    "target": {
+      "all": "All users",
+      "specific": "Selected: {{count}}",
+      "specificAudience": "Selected users"
+    },
+    "stats": {
+      "title": "Campaign statistics",
+      "recipients": "Recipients",
+      "sent": "Sent",
+      "read": "Read",
+      "deliveryRate": "Delivery",
+      "readRate": "Read rate"
+    },
+    "preview": {
+      "notificationCard": "Notification preview",
+      "browserToast": "System notification preview",
+      "justNow": "Just now",
+      "toggleBell": "Toggle notification preview",
+      "showToast": "Show notification",
+      "hideToast": "Hide notification"
+    },
+    "title": "Notification campaigns",
+    "description": "Create and manage notification broadcasts.",
+    "actions": {
+      "create": "Create campaign",
+      "queue": "Queue",
+      "sendNow": "Send now"
+    },
+    "filters": {
+      "label": "Campaign filters",
+      "search": "Search campaigns",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "target": "Audience",
+      "allTargets": "All audiences",
+      "sortOrder": "Sort order",
+      "ascending": "Ascending",
+      "descending": "Descending",
+      "recipient": "Recipient",
+      "recipientSearch": "Search by name or email"
+    },
+    "table": {
+      "title": "Title",
+      "category": "Category",
+      "target": "Audience",
+      "status": "Status",
+      "scheduledAt": "Scheduled",
+      "createdAt": "Created",
+      "counts": "Total / sent / read",
+      "actions": "Actions"
+    },
+    "empty": "No campaigns yet.",
+    "emptySearch": "No campaigns match your search.",
+    "loadError": "Could not load campaigns.",
+    "toast": {
+      "created": "Campaign created",
+      "updated": "Campaign updated",
+      "queued": "Campaign queued",
+      "cancelled": "Campaign cancelled",
+      "deleted": "Campaign deleted",
+      "error": "The operation failed. Please try again."
+    },
+    "form": {
+      "createTitle": "Create campaign",
+      "editTitle": "Edit campaign",
+      "description": "Compose and schedule a notification.",
+      "title": "Title",
+      "category": "Category",
+      "message": "Message",
+      "actionUrl": "Action URL (optional)",
+      "target": "Audience",
+      "audienceEstimate": "Estimated recipients: {{count}}",
+      "scheduledAt": "Schedule for",
+      "timingLabel": "When to send",
+      "sendImmediately": "Send in the next processing cycle",
+      "sendScheduled": "Schedule for a date and time",
+      "chooseDate": "Choose a date",
+      "timeLabel": "Send time",
+      "saveDraft": "Save draft",
+      "schedule": "Schedule",
+      "sendNow": "Send now",
+      "restoringRecipients": "Restoring selected users…",
+      "recipientRestoreError": "Could not load some selected users. Retry before saving."
+    },
+    "validation": {
+      "title": "Enter a title of 1–200 characters.",
+      "message": "Enter a message of 1–2000 characters.",
+      "url": "Use a relative URL or an HTTPS URL.",
+      "recipients": "Select between 1 and 1000 unique users.",
+      "scheduledAt": "Choose a future date and time."
+    },
+    "details": {
+      "title": "Campaign details",
+      "description": "Campaign status and delivery statistics.",
+      "scheduledAt": "Scheduled",
+      "sentAt": "Sent",
+      "completedAt": "Completed",
+      "createdAt": "Created",
+      "creator": "Created by",
+      "category": "Category",
+      "actionUrl": "Action URL",
+      "cancelledAt": "Cancelled",
+      "cancelledBy": "Cancelled by admin"
+    },
+    "confirm": {
+      "deleteTitle": "Delete campaign?",
+      "deleteDescription": "This campaign will be permanently deleted.",
+      "cancelTitle": "Cancel campaign?",
+      "cancelDescription": "Campaign processing will stop."
+    },
+    "pagination": {
+      "label": "Campaign pages",
+      "total": "Total campaigns: {{count}}"
+    }
   },
   "onboarding": {
     "stepCounter": "Step {{current}} of {{total}}",

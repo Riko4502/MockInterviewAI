@@ -51,10 +51,10 @@ export class NotificationCampaignsController {
   constructor(private readonly campaigns: NotificationCampaignsService) {}
 
   @Get("preview-recipients")
-  @ApiOperation({ summary: "Estimate active notification campaign recipients" })
+  @ApiOperation({ summary: "Оценить количество получателей кампании" })
   @ApiResponse({
     status: 200,
-    description: "Active, non-deleted recipient count",
+    description: "Количество активных пользователей, не удалённых из системы",
     schema: registerSchema(
       "NotificationCampaignRecipientEstimateDto",
       notificationCampaignRecipientEstimateSchema,
@@ -65,29 +65,60 @@ export class NotificationCampaignsController {
   }
 
   @Get("campaigns")
-  @ApiOperation({ summary: "List notification campaigns" })
-  @ApiQuery({ name: "page", required: false, type: Number })
-  @ApiQuery({ name: "limit", required: false, type: Number })
-  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiOperation({ summary: "Получить список кампаний уведомлений" })
+  @ApiQuery({
+    name: "page",
+    description: "Номер страницы, начиная с 1",
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: "limit",
+    description: "Количество кампаний на странице",
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: "search",
+    description: "Поиск кампаний по названию",
+    required: false,
+    type: String,
+  })
   @ApiQuery({
     name: "status",
+    description: "Фильтр по статусу кампании",
     required: false,
     enum: notificationCampaignStatusSchema.options,
   })
   @ApiQuery({
     name: "targetType",
+    description: "Фильтр по типу аудитории кампании",
     required: false,
     enum: notificationTargetTypeSchema.options,
   })
   @ApiQuery({
+    name: "recipientUserId",
+    description:
+      "UUID \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f, \u0432\u0445\u043e\u0434\u044f\u0449\u0435\u0433\u043e \u0432 \u0430\u0443\u0434\u0438\u0442\u043e\u0440\u0438\u044e \u043a\u0430\u043c\u043f\u0430\u043d\u0438\u0438",
+    required: false,
+    format: "uuid",
+    type: String,
+  })
+  @ApiQuery({
     name: "sortBy",
+    description: "Поле, по которому сортировать кампании",
     required: false,
     enum: ["createdAt", "scheduledAt", "sentAt"],
   })
-  @ApiQuery({ name: "sortOrder", required: false, enum: ["asc", "desc"] })
+  @ApiQuery({
+    name: "sortOrder",
+    description: "Направление сортировки",
+    required: false,
+    enum: ["asc", "desc"],
+  })
   @ApiResponse({
     status: 200,
-    description: "Paginated campaigns",
+    description: "Страница кампаний с общим количеством записей",
     schema: registerSchema(
       "NotificationCampaignsPageDto",
       notificationCampaignsPageSchema,
@@ -101,11 +132,12 @@ export class NotificationCampaignsController {
   }
 
   @Get("campaigns/:id")
-  @ApiOperation({ summary: "Get notification campaign details" })
-  @ApiParam({ name: "id", format: "uuid" })
+  @ApiOperation({ summary: "Получить подробную информацию о кампании" })
+  @ApiParam({ name: "id", description: "UUID кампании", format: "uuid" })
   @ApiResponse({
     status: 200,
-    description: "Campaign details, including recipient IDs",
+    description:
+      "Данные кампании, включая идентификаторы выбранных получателей",
     schema: registerSchema(
       "NotificationCampaignDetailsDto",
       notificationCampaignDetailsSchema,
@@ -116,11 +148,11 @@ export class NotificationCampaignsController {
   }
   @Post("campaigns")
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a notification campaign" })
+  @ApiOperation({ summary: "Создать кампанию уведомлений" })
   @ZodBody(createNotificationCampaignSchema)
   @ApiResponse({
     status: 201,
-    description: "Campaign created for asynchronous scheduling",
+    description: "Кампания создана и передана на асинхронную обработку",
     schema: registerSchema(
       "NotificationCampaignDto",
       notificationCampaignSchema,
@@ -135,12 +167,12 @@ export class NotificationCampaignsController {
   }
 
   @Patch("campaigns/:id")
-  @ApiOperation({ summary: "Update a draft or scheduled campaign" })
-  @ApiParam({ name: "id", format: "uuid" })
+  @ApiOperation({ summary: "Обновить черновик или запланированную кампанию" })
+  @ApiParam({ name: "id", description: "UUID кампании", format: "uuid" })
   @ZodBody(updateNotificationCampaignSchema)
   @ApiResponse({
     status: 200,
-    description: "Campaign updated",
+    description: "Данные кампании обновлены",
     schema: registerSchema(
       "NotificationCampaignDto",
       notificationCampaignSchema,
@@ -156,11 +188,13 @@ export class NotificationCampaignsController {
 
   @Post("campaigns/:id/queue")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Queue a draft campaign for asynchronous delivery" })
-  @ApiParam({ name: "id", format: "uuid" })
+  @ApiOperation({
+    summary: "Поставить черновик кампании в очередь на отправку",
+  })
+  @ApiParam({ name: "id", description: "UUID кампании", format: "uuid" })
   @ApiResponse({
     status: 200,
-    description: "Campaign queued",
+    description: "Кампания добавлена в очередь на отправку",
     schema: registerSchema(
       "NotificationCampaignDto",
       notificationCampaignSchema,
@@ -172,9 +206,12 @@ export class NotificationCampaignsController {
 
   @Post("campaigns/:id/cancel")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Cancel a scheduled or processing campaign" })
-  @ApiParam({ name: "id", format: "uuid" })
+  @ApiOperation({
+    summary: "Отменить запланированную или обрабатываемую кампанию",
+  })
+  @ApiParam({ name: "id", description: "UUID кампании", format: "uuid" })
   @ApiBody({
+    description: "Необязательная причина отмены кампании",
     required: false,
     schema: registerSchema(
       "NotificationCampaignCancelDto",
@@ -183,7 +220,7 @@ export class NotificationCampaignsController {
   })
   @ApiResponse({
     status: 200,
-    description: "Campaign cancelled",
+    description: "Кампания отменена",
     schema: registerSchema(
       "NotificationCampaignDto",
       notificationCampaignSchema,
@@ -200,9 +237,9 @@ export class NotificationCampaignsController {
 
   @Delete("campaigns/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete a draft or cancelled campaign" })
-  @ApiParam({ name: "id", format: "uuid" })
-  @ApiResponse({ status: 204, description: "Campaign deleted" })
+  @ApiOperation({ summary: "Удалить черновик или отменённую кампанию" })
+  @ApiParam({ name: "id", description: "UUID кампании", format: "uuid" })
+  @ApiResponse({ status: 204, description: "Кампания удалена" })
   remove(@Param("id", ParseUUIDPipe) id: string) {
     return this.campaigns.remove(id);
   }
