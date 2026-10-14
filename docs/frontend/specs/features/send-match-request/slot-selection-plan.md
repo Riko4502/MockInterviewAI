@@ -16,14 +16,14 @@
 Путь: `apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx`
 
 - [ ] Получить `viewerTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1)
-- [ ] Вычислить `availableOpenSlots` и `hasOpenSlots`
-- [ ] `const [selectedSlotId, setSelectedSlotId] = useState<string>()`
-- [ ] Интегрировать `SlotSelectorRadioGroup`
-- [ ] `disabled = submitting || (hasOpenSlots && !selectedSlotId)`
-- [ ] Payload: `{ ..., slotId: hasOpenSlots ? selectedSlotId : undefined }`
-- [ ] `onError` (мутация): при `409` → toast.error(t('slots.slotConflict')), `queryClient.invalidateQueries` по целевой карточке, `setSelectedSlotId(undefined)`. Не закрывать диалог
-- [ ] `onError`: при `400` (устаревшие данные карточки — бэкенд требует `slotId`, если у карточки есть OPEN-слот, а клиент его не передал) — тот же путь: toast + `invalidateQueries` карточки + сброс выбора
-- [ ] Показать подсказку при `hasOpenSlots && !selectedSlotId` (можно использовать `slots.selectSlotRequired`)
+- [x] Вычислить `availableOpenSlots` и `hasOpenSlots`
+- [x] `const [selectedSlotId, setSelectedSlotId] = useState<string>()`
+- [x] Интегрировать `SlotSelectorRadioGroup`
+- [x] `disabled = submitting || (hasOpenSlots && !isSelectedSlotAvailable)` — валидность считается по свежему списку OPEN+future, а не просто по `!selectedSlotId`
+- [x] Payload: `{ ..., slotId: hasOpenSlots && isSelectedSlotAvailable ? selectedSlotId : undefined }`
+- [x] `onError` (мутация): при `409` → toast.error(t('slots.slotConflict')), `queryClient.invalidateQueries` по целевой карточке, `setSelectedSlotId(undefined)`. Не закрывать диалог
+- [x] `onError`: при `400` — показать **фактическое сообщение сервера** (`extractErrorMessage`) + `invalidateQueries` карточки. Принудительный сброс выбора не нужен: устаревший `slotId` перестаёт быть валидным сам после рефетча. Маскировать любой `400` под «Выберите слот» нельзя — бэкенд отдаёт `400` и по другим причинам (профиль, лимит, кулдаун)
+- [x] Инлайн-подсказку `slots.selectSlotRequired` не рендерить: блокировка submit + заголовок `slots.chooseSlot` достаточны, а инлайн-ошибка всплывала после сброса выбора при ошибке и вводила в заблуждение (ключ оставлен в i18n как резерв)
 
 ## 3. Тесты
 - [ ] `SendMatchRequestDialog.test.tsx` по кейсам спецификации
