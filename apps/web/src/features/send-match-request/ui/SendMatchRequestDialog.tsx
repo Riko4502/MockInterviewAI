@@ -6,9 +6,11 @@ import {
   getMatchmakingControllerGetUnreadCountQueryKey,
   getShowcaseControllerFindAllQueryKey,
   getShowcaseControllerFindMyQueryKey,
+  getShowcaseControllerFindOneQueryKey,
   useMatchmakingControllerCreate,
 } from "@packages/api";
 import { MessageSquareIcon } from "@packages/icons";
+import type { AvailabilitySlot } from "@packages/types";
 import {
   Button,
   Dialog,
@@ -19,7 +21,7 @@ import {
   useToast,
 } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LanguageBadge,
@@ -28,8 +30,10 @@ import {
   SpecializationBadge,
   useMyShowcaseCards,
 } from "@/entities/showcase-card";
-import { UserAvatar } from "@/entities/user";
+import { UserAvatar, useViewerTimezone } from "@/entities/user";
+import { HttpError } from "@/shared/api";
 import "@/shared/lib/i18n";
+import { SlotSelectorRadioGroup } from "./SlotSelectorRadioGroup";
 
 export interface SendMatchRequestDialogProps {
   card: ShowcaseCardResponseDto | null;
@@ -59,15 +63,31 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Извлекает HTTP-статус из ошибки мутации (`HttpError` или совместимой формы). */
+function getErrorStatus(error: unknown): number | undefined {
+  if (error instanceof HttpError) {
+    return error.status;
+  }
+  if (error && typeof error === "object") {
+    const withStatus = error as {
+      status?: number;
+      response?: { status?: number };
+    };
+    return withStatus.response?.status ?? withStatus.status;
+  }
+  return undefined;
+}
+
 export function SendMatchRequestDialog({
   card,
   open,
   onOpenChange,
   onSuccess,
 }: SendMatchRequestDialogProps) {
-  const { t } = useTranslation("showcase");
+  const { t, i18n } = useTranslation("showcase");
   const toast = useToast();
   const queryClient = useQueryClient();
+  const viewerTimezone = useViewerTimezone();
 
   const { data: myCardsRaw } = useMyShowcaseCards();
   const myCards = Array.isArray(myCardsRaw) ? myCardsRaw : [];
@@ -76,8 +96,23 @@ export function SendMatchRequestDialog({
   const [senderCardId, setSenderCardId] = useState<string>("none");
   const [preferredTopic, setPreferredTopic] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedSlotId, setSelectedSlotId] = useState<string>();
 
   const createMutation = useMatchmakingControllerCreate();
+
+  const cardId = card?.id;
+  const cardSlots = (card?.slots ?? []) as readonly AvailabilitySlot[];
+  const hasOpenSlots = cardSlots.some(
+    (slot) =>
+      slot.status === "OPEN" && new Date(slot.startsAt).getTime() > Date.now(),
+  );
+
+  // Сбрасываем выбранный слот при смене карточки или повторном открытии диалога,
+  // чтобы не отправить устаревший `slotId` из прошлой сессии (гонка/замена карточки).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cardId и open используются как триггеры сброса, а не внутри эффекта
+  useEffect(() => {
+    setSelectedSlotId(undefined);
+  }, [cardId, open]);
 
   if (!card) return null;
 
@@ -95,6 +130,7 @@ export function SendMatchRequestDialog({
             senderCardId && senderCardId !== "none" ? senderCardId : undefined,
           preferredTopic: preferredTopic.trim() || undefined,
           message: message.trim() || undefined,
+          slotId: hasOpenSlots ? selectedSlotId : undefined,
         },
       },
       {
@@ -125,8 +161,35 @@ export function SendMatchRequestDialog({
           setPreferredTopic("");
           setMessage("");
           setSenderCardId("none");
+          setSelectedSlotId(undefined);
         },
         onError: (err: unknown) => {
+          const status = getErrorStatus(err);
+          // `409 Conflict` — слот забронирован другим кандидатом.
+          // `400 Bad Request` — у карточки уже есть OPEN-слот, а `slotId` не передан
+          // (диалог открыт по устаревшим данным). Оба случая: подтянуть карточку,
+          // сбросить выбор и не закрывать диалог.
+          if (status === 409 || status === 400) {
+            toast.push({
+              status: "error",
+              title:
+                status === 409
+                  ? t("slots.slotConflict")
+                  : t("slots.selectSlotRequired"),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindAllQueryKey(),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindMyQueryKey(),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindOneQueryKey(card.id),
+            });
+            setSelectedSlotId(undefined);
+            return;
+          }
+
           const errMsg = extractErrorMessage(err, t("matchmaking.sendError"));
           toast.push({
             status: "error",
@@ -181,6 +244,29 @@ export function SendMatchRequestDialog({
                 <LanguageBadge language={card.language} />
               </div>
             </div>
+
+            {/* Слоты доступности: обязательный выбор при наличии OPEN-слотов */}
+            {hasOpenSlots ? (
+              <div className="flex flex-col gap-2">
+                <SlotSelectorRadioGroup
+                  slots={cardSlots}
+                  value={selectedSlotId}
+                  onChange={setSelectedSlotId}
+                  viewerTimezone={viewerTimezone}
+                  locale={i18n.language}
+                  disabled={createMutation.isPending}
+                />
+                {!selectedSlotId && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {t("slots.selectSlotRequired")}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 text-xs text-muted-foreground">
+                {t("slots.flexibleSchedule")}
+              </div>
+            )}
 
             {/* Выбор своей анкеты (если есть активные) */}
             {myActiveCards.length > 0 && (
@@ -259,7 +345,9 @@ export function SendMatchRequestDialog({
               type="submit"
               variant="default"
               size="sm"
-              disabled={createMutation.isPending}
+              disabled={
+                createMutation.isPending || (hasOpenSlots && !selectedSlotId)
+              }
               className="gap-1.5 font-semibold shadow-xs"
             >
               <MessageSquareIcon className="size-3.5" />

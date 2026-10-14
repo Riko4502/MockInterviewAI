@@ -227,6 +227,7 @@
     "date": "Date",
     "startTime": "Start time",
     "chooseSlot": "Choose a slot",
+    "flexibleSchedule": "The author has a flexible schedule — the exact time is agreed after the request is accepted.",
     "freeCount": "Available: {{count}}",
     "bookedCount": "Booked: {{count}}"
   },
