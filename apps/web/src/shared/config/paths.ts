@@ -4,6 +4,7 @@ export const paths = {
   dashboard: "/dashboard",
   completeTelegram: "/register/complete-telegram",
   adminUsers: "/admin/users",
+  adminNotifications: "/admin/notifications",
   forbidden: "/forbidden",
   sandbox: "/dashboard/sandbox",
   notifications: "/dashboard/notifications",
