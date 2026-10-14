@@ -103,6 +103,9 @@ export class NotificationCampaignsService {
       ...(query.targetType
         ? { targetType: query.targetType as NotificationTargetType }
         : {}),
+      ...(query.recipientUserId
+        ? { recipients: { some: { userId: query.recipientUserId } } }
+        : {}),
       ...(query.search
         ? { title: { contains: query.search, mode: "insensitive" as const } }
         : {}),
@@ -259,17 +262,28 @@ export class NotificationCampaignsService {
   }
 
   async queue(id: string): Promise<NotificationCampaignDto> {
-    const result = await this.prisma.notificationCampaign.updateMany({
+    const draftResult = await this.prisma.notificationCampaign.updateMany({
       where: { id, status: NotificationCampaignStatus.DRAFT },
       data: {
         status: NotificationCampaignStatus.SCHEDULED,
         scheduledAt: new Date(),
       },
     });
-    if (!result.count)
+    const failedResult = draftResult.count
+      ? { count: 0 }
+      : await this.prisma.notificationCampaign.updateMany({
+          where: { id, status: NotificationCampaignStatus.FAILED },
+          data: {
+            status: NotificationCampaignStatus.SCHEDULED,
+            scheduledAt: new Date(),
+            failureReason: null,
+            processingStartedAt: new Date(),
+          },
+        });
+    if (!draftResult.count && !failedResult.count)
       await this.throwCampaignActionError(
         id,
-        "Only draft campaigns can be queued",
+        "Only draft or failed campaigns can be queued",
       );
     return this.findOne(id);
   }

@@ -2249,7 +2249,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Active, non-deleted recipient count",
+            "description": "Количество активных пользователей, не удалённых из системы",
             "content": {
               "application/json": {
                 "schema": {
@@ -2264,7 +2264,7 @@
             "bearer": []
           }
         ],
-        "summary": "Estimate active notification campaign recipients",
+        "summary": "Оценить количество получателей кампании",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2276,6 +2276,7 @@
             "name": "sortOrder",
             "required": false,
             "in": "query",
+            "description": "Направление сортировки",
             "schema": {
               "enum": ["asc", "desc"],
               "type": "string"
@@ -2285,8 +2286,19 @@
             "name": "sortBy",
             "required": false,
             "in": "query",
+            "description": "Поле, по которому сортировать кампании",
             "schema": {
               "enum": ["createdAt", "scheduledAt", "sentAt"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipientUserId",
+            "required": false,
+            "in": "query",
+            "description": "UUID пользователя, входящего в аудиторию кампании",
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -2294,6 +2306,7 @@
             "name": "targetType",
             "required": false,
             "in": "query",
+            "description": "Фильтр по типу аудитории кампании",
             "schema": {
               "enum": ["ALL", "SPECIFIC"],
               "type": "string"
@@ -2303,6 +2316,7 @@
             "name": "status",
             "required": false,
             "in": "query",
+            "description": "Фильтр по статусу кампании",
             "schema": {
               "enum": [
                 "DRAFT",
@@ -2319,6 +2333,7 @@
             "name": "search",
             "required": false,
             "in": "query",
+            "description": "Поиск кампаний по названию",
             "schema": {
               "type": "string"
             }
@@ -2327,6 +2342,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "Количество кампаний на странице",
             "schema": {
               "type": "number"
             }
@@ -2335,6 +2351,7 @@
             "name": "page",
             "required": false,
             "in": "query",
+            "description": "Номер страницы, начиная с 1",
             "schema": {
               "type": "number"
             }
@@ -2342,7 +2359,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated campaigns",
+            "description": "Страница кампаний с общим количеством записей",
             "content": {
               "application/json": {
                 "schema": {
@@ -2357,7 +2374,7 @@
             "bearer": []
           }
         ],
-        "summary": "List notification campaigns",
+        "summary": "Получить список кампаний уведомлений",
         "tags": ["Admin / Notification Campaigns"]
       },
       "post": {
@@ -2425,7 +2442,7 @@
         },
         "responses": {
           "201": {
-            "description": "Campaign created for asynchronous scheduling",
+            "description": "Кампания создана и передана на асинхронную обработку",
             "content": {
               "application/json": {
                 "schema": {
@@ -2440,7 +2457,7 @@
             "bearer": []
           }
         ],
-        "summary": "Create a notification campaign",
+        "summary": "Создать кампанию уведомлений",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2452,6 +2469,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2460,7 +2478,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Campaign details, including recipient IDs",
+            "description": "Данные кампании, включая идентификаторы выбранных получателей",
             "content": {
               "application/json": {
                 "schema": {
@@ -2475,7 +2493,7 @@
             "bearer": []
           }
         ],
-        "summary": "Get notification campaign details",
+        "summary": "Получить подробную информацию о кампании",
         "tags": ["Admin / Notification Campaigns"]
       },
       "patch": {
@@ -2485,6 +2503,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2543,7 +2562,7 @@
         },
         "responses": {
           "200": {
-            "description": "Campaign updated",
+            "description": "Данные кампании обновлены",
             "content": {
               "application/json": {
                 "schema": {
@@ -2558,7 +2577,7 @@
             "bearer": []
           }
         ],
-        "summary": "Update a draft or scheduled campaign",
+        "summary": "Обновить черновик или запланированную кампанию",
         "tags": ["Admin / Notification Campaigns"]
       },
       "delete": {
@@ -2568,6 +2587,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2576,7 +2596,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Campaign deleted"
+            "description": "Кампания удалена"
           }
         },
         "security": [
@@ -2584,7 +2604,7 @@
             "bearer": []
           }
         ],
-        "summary": "Delete a draft or cancelled campaign",
+        "summary": "Удалить черновик или отменённую кампанию",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2596,6 +2616,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2604,7 +2625,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Campaign queued",
+            "description": "Кампания добавлена в очередь на отправку",
             "content": {
               "application/json": {
                 "schema": {
@@ -2619,7 +2640,7 @@
             "bearer": []
           }
         ],
-        "summary": "Queue a draft campaign for asynchronous delivery",
+        "summary": "Поставить черновик кампании в очередь на отправку",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2631,6 +2652,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2639,6 +2661,7 @@
         ],
         "requestBody": {
           "required": false,
+          "description": "Необязательная причина отмены кампании",
           "content": {
             "application/json": {
               "schema": {
@@ -2649,7 +2672,7 @@
         },
         "responses": {
           "200": {
-            "description": "Campaign cancelled",
+            "description": "Кампания отменена",
             "content": {
               "application/json": {
                 "schema": {
@@ -2664,7 +2687,7 @@
             "bearer": []
           }
         ],
-        "summary": "Cancel a scheduled or processing campaign",
+        "summary": "Отменить запланированную или обрабатываемую кампанию",
         "tags": ["Admin / Notification Campaigns"]
       }
     },

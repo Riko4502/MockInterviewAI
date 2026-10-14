@@ -74,7 +74,7 @@ export const getNotificationCampaignsControllerEstimateRecipientsUrl = () => {
 }
 
 /**
- * @summary Estimate active notification campaign recipients
+ * @summary Оценить количество получателей кампании
  */
 export const notificationCampaignsControllerEstimateRecipients = async ( options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignRecipientEstimateDto> => {
 
@@ -145,7 +145,7 @@ export function useNotificationCampaignsControllerEstimateRecipients<TData = Awa
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Estimate active notification campaign recipients
+ * @summary Оценить количество получателей кампании
  */
 
 export function useNotificationCampaignsControllerEstimateRecipients<TData = Awaited<ReturnType<typeof notificationCampaignsControllerEstimateRecipients>>, TError = unknown>(
@@ -181,7 +181,7 @@ export const getNotificationCampaignsControllerFindAllUrl = (params?: Notificati
 }
 
 /**
- * @summary List notification campaigns
+ * @summary Получить список кампаний уведомлений
  */
 export const notificationCampaignsControllerFindAll = async (params?: NotificationCampaignsControllerFindAllParams, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignsPageDto> => {
 
@@ -252,7 +252,7 @@ export function useNotificationCampaignsControllerFindAll<TData = Awaited<Return
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary List notification campaigns
+ * @summary Получить список кампаний уведомлений
  */
 
 export function useNotificationCampaignsControllerFindAll<TData = Awaited<ReturnType<typeof notificationCampaignsControllerFindAll>>, TError = unknown>(
@@ -281,7 +281,7 @@ export const getNotificationCampaignsControllerCreateUrl = () => {
 }
 
 /**
- * @summary Create a notification campaign
+ * @summary Создать кампанию уведомлений
  */
 export const notificationCampaignsControllerCreate = async (notificationCampaignsControllerCreateBody: NotificationCampaignsControllerCreateBody, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignDto> => {
 
@@ -339,7 +339,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type NotificationCampaignsControllerCreateMutationVariables = {data: NotificationCampaignsControllerCreateBody}
 
     /**
- * @summary Create a notification campaign
+ * @summary Создать кампанию уведомлений
  */
 export const useNotificationCampaignsControllerCreate = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationCampaignsControllerCreate>>, TError,NotificationCampaignsControllerCreateMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -360,7 +360,7 @@ export const useNotificationCampaignsControllerCreate = <TError = unknown,
 }
 
 /**
- * @summary Get notification campaign details
+ * @summary Получить подробную информацию о кампании
  */
 export const notificationCampaignsControllerFindOne = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignDetailsDto> => {
 
@@ -431,7 +431,7 @@ export function useNotificationCampaignsControllerFindOne<TData = Awaited<Return
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Get notification campaign details
+ * @summary Получить подробную информацию о кампании
  */
 
 export function useNotificationCampaignsControllerFindOne<TData = Awaited<ReturnType<typeof notificationCampaignsControllerFindOne>>, TError = unknown>(
@@ -460,7 +460,7 @@ export const getNotificationCampaignsControllerUpdateUrl = (id: string,) => {
 }
 
 /**
- * @summary Update a draft or scheduled campaign
+ * @summary Обновить черновик или запланированную кампанию
  */
 export const notificationCampaignsControllerUpdate = async (id: string,
     notificationCampaignsControllerUpdateBody: NotificationCampaignsControllerUpdateBody, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignDto> => {
@@ -519,7 +519,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type NotificationCampaignsControllerUpdateMutationVariables = {id: string;data: NotificationCampaignsControllerUpdateBody}
 
     /**
- * @summary Update a draft or scheduled campaign
+ * @summary Обновить черновик или запланированную кампанию
  */
 export const useNotificationCampaignsControllerUpdate = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationCampaignsControllerUpdate>>, TError,NotificationCampaignsControllerUpdateMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -540,7 +540,7 @@ export const useNotificationCampaignsControllerUpdate = <TError = unknown,
 }
 
 /**
- * @summary Delete a draft or cancelled campaign
+ * @summary Удалить черновик или отменённую кампанию
  */
 export const notificationCampaignsControllerRemove = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
 
@@ -592,7 +592,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type NotificationCampaignsControllerRemoveMutationVariables = {id: string}
 
     /**
- * @summary Delete a draft or cancelled campaign
+ * @summary Удалить черновик или отменённую кампанию
  */
 export const useNotificationCampaignsControllerRemove = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationCampaignsControllerRemove>>, TError,NotificationCampaignsControllerRemoveMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -613,7 +613,7 @@ export const useNotificationCampaignsControllerRemove = <TError = unknown,
 }
 
 /**
- * @summary Queue a draft campaign for asynchronous delivery
+ * @summary Поставить черновик кампании в очередь на отправку
  */
 export const notificationCampaignsControllerQueue = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignDto> => {
 
@@ -665,7 +665,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type NotificationCampaignsControllerQueueMutationVariables = {id: string}
 
     /**
- * @summary Queue a draft campaign for asynchronous delivery
+ * @summary Поставить черновик кампании в очередь на отправку
  */
 export const useNotificationCampaignsControllerQueue = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationCampaignsControllerQueue>>, TError,NotificationCampaignsControllerQueueMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -686,7 +686,7 @@ export const useNotificationCampaignsControllerQueue = <TError = unknown,
 }
 
 /**
- * @summary Cancel a scheduled or processing campaign
+ * @summary Отменить запланированную или обрабатываемую кампанию
  */
 export const notificationCampaignsControllerCancel = async (id: string,
     notificationCampaignCancelDto?: NotificationCampaignCancelDto, options?: Parameters<typeof customInstance>[1]): Promise<NotificationCampaignDto> => {
@@ -745,7 +745,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type NotificationCampaignsControllerCancelMutationVariables = {id: string;data?: NotificationCampaignCancelDto}
 
     /**
- * @summary Cancel a scheduled or processing campaign
+ * @summary Отменить запланированную или обрабатываемую кампанию
  */
 export const useNotificationCampaignsControllerCancel = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notificationCampaignsControllerCancel>>, TError,NotificationCampaignsControllerCancelMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}

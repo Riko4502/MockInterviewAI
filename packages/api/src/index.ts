@@ -17,6 +17,8 @@
  *    - `usersController*`, `useUsersController*`
  */
 
+export * from "./generated/endpoints/admin-notification-campaigns/admin-notification-campaigns";
+export * from "./generated/endpoints/admin-users/admin-users";
 // Generated API functions & TanStack Query v5 hooks
 export * from "./generated/endpoints/auth/auth";
 export * from "./generated/endpoints/dashboard/dashboard";
