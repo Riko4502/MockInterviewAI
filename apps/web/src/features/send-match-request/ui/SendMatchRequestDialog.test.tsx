@@ -138,8 +138,8 @@ function submit() {
   fireEvent.submit(form);
 }
 
-function postRequest() {
-  return requests.find(
+function postRequests() {
+  return requests.filter(
     (request) =>
       request.method === "POST" &&
       request.url.endsWith("/matchmaking/requests"),
@@ -154,15 +154,16 @@ describe("SendMatchRequestDialog", () => {
     const radios = await screen.findAllByRole("radio");
     expect(radios).toHaveLength(2);
     expect(getSubmitButton()).toBeDisabled();
-    expect(screen.getByText("Выберите слот для интервью")).toBeInTheDocument();
 
     fireEvent.click(radios[0]);
     expect(getSubmitButton()).toBeEnabled();
+    // до явной отправки запрос не уходит
+    expect(postRequests()).toHaveLength(0);
 
     submit();
 
-    await waitFor(() => expect(postRequest()).toBeDefined());
-    expect(postRequest()?.data).toMatchObject({
+    await waitFor(() => expect(postRequests()).toHaveLength(1));
+    expect(postRequests()[0]?.data).toMatchObject({
       targetCardId: "card-1",
       slotId: "slot-earlier",
     });
@@ -179,14 +180,14 @@ describe("SendMatchRequestDialog", () => {
 
     submit();
 
-    await waitFor(() => expect(postRequest()).toBeDefined());
-    expect(postRequest()?.data).toMatchObject({ targetCardId: "card-1" });
+    await waitFor(() => expect(postRequests()).toHaveLength(1));
+    expect(postRequests()[0]?.data).toMatchObject({ targetCardId: "card-1" });
     expect(
-      (postRequest()?.data as { slotId?: string } | undefined)?.slotId,
+      (postRequests()[0]?.data as { slotId?: string } | undefined)?.slotId,
     ).toBeUndefined();
   });
 
-  it("при 409 показывает тост, инвалидирует карточку, сбрасывает выбор и не закрывает диалог", async () => {
+  it("при 409 показывает slotConflict, инвалидирует карточку, сбрасывает выбор и не закрывает диалог", async () => {
     const card = makeCard([OPEN_EARLIER]);
     const findAllKey = getShowcaseControllerFindAllQueryKey();
     const findOneKey = getShowcaseControllerFindOneQueryKey(card.id);
@@ -214,15 +215,16 @@ describe("SendMatchRequestDialog", () => {
     expect(client.getQueryState(findOneKey)?.isInvalidated).toBe(true);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     // выбор сброшен → снова требуется выбрать слот
-    expect(screen.getByText("Выберите слот для интервью")).toBeInTheDocument();
     expect(getSubmitButton()).toBeDisabled();
   });
 
-  it("при 400 (устаревшие данные) обрабатывает так же, как 409", async () => {
+  it("при 400 показывает фактическое сообщение сервера, а не «Выберите слот»", async () => {
     const card = makeCard([OPEN_EARLIER]);
+    const serverMessage =
+      "Для отправки заявки заполните профиль: имя (от 2 символов) и никнейм (@username)";
     respond = async (config) => {
       if (config.method === "POST") {
-        throw new HttpError("slotId is required", 400);
+        throw new HttpError(serverMessage, 400);
       }
       return {};
     };
@@ -234,9 +236,13 @@ describe("SendMatchRequestDialog", () => {
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith({
         status: "error",
-        title: "Выберите слот для интервью",
+        title: serverMessage,
       }),
     );
+    expect(push).not.toHaveBeenCalledWith({
+      status: "error",
+      title: "Выберите слот для интервью",
+    });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

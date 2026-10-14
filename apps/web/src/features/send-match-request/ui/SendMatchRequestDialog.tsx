@@ -102,10 +102,16 @@ export function SendMatchRequestDialog({
 
   const cardId = card?.id;
   const cardSlots = (card?.slots ?? []) as readonly AvailabilitySlot[];
-  const hasOpenSlots = cardSlots.some(
-    (slot) =>
-      slot.status === "OPEN" && new Date(slot.startsAt).getTime() > Date.now(),
+  const now = Date.now();
+  const availableSlots = cardSlots.filter(
+    (slot) => slot.status === "OPEN" && new Date(slot.startsAt).getTime() > now,
   );
+  const hasOpenSlots = availableSlots.length > 0;
+  // Выбор считается валидным только если слот всё ещё в списке актуальных:
+  // после рефетча занятый/прошедший слот исчезает и отправлять его нельзя.
+  const isSelectedSlotAvailable =
+    selectedSlotId !== undefined &&
+    availableSlots.some((slot) => slot.id === selectedSlotId);
 
   // Сбрасываем выбранный слот при смене карточки или повторном открытии диалога,
   // чтобы не отправить устаревший `slotId` из прошлой сессии (гонка/замена карточки).
@@ -130,7 +136,10 @@ export function SendMatchRequestDialog({
             senderCardId && senderCardId !== "none" ? senderCardId : undefined,
           preferredTopic: preferredTopic.trim() || undefined,
           message: message.trim() || undefined,
-          slotId: hasOpenSlots ? selectedSlotId : undefined,
+          slotId:
+            hasOpenSlots && isSelectedSlotAvailable
+              ? selectedSlotId
+              : undefined,
         },
       },
       {
@@ -165,17 +174,12 @@ export function SendMatchRequestDialog({
         },
         onError: (err: unknown) => {
           const status = getErrorStatus(err);
-          // `409 Conflict` — слот забронирован другим кандидатом.
-          // `400 Bad Request` — у карточки уже есть OPEN-слот, а `slotId` не передан
-          // (диалог открыт по устаревшим данным). Оба случая: подтянуть карточку,
-          // сбросить выбор и не закрывать диалог.
-          if (status === 409 || status === 400) {
+          // `409 Conflict` — слот заняли при гонке бронирования: сбрасываем выбор
+          // и подтягиваем карточку, диалог не закрываем.
+          if (status === 409) {
             toast.push({
               status: "error",
-              title:
-                status === 409
-                  ? t("slots.slotConflict")
-                  : t("slots.selectSlotRequired"),
+              title: t("slots.slotConflict"),
             });
             queryClient.invalidateQueries({
               queryKey: getShowcaseControllerFindAllQueryKey(),
@@ -187,6 +191,29 @@ export function SendMatchRequestDialog({
               queryKey: getShowcaseControllerFindOneQueryKey(card.id),
             });
             setSelectedSlotId(undefined);
+            return;
+          }
+
+          // `400 Bad Request` бэкенд отдаёт по разным причинам (незаполненный
+          // профиль, лимит входящих, кулдаун после отказа, слот занят/прошёл,
+          // устаревшие данные без `slotId`). Поэтому показываем фактическое
+          // сообщение сервера, а не «Выберите слот»; карточку обновляем, чтобы
+          // подтянуть актуальные слоты (устаревший выбор сбросится сам, т.к.
+          // валидность считается по свежему списку).
+          if (status === 400) {
+            toast.push({
+              status: "error",
+              title: extractErrorMessage(err, t("matchmaking.sendError")),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindAllQueryKey(),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindMyQueryKey(),
+            });
+            queryClient.invalidateQueries({
+              queryKey: getShowcaseControllerFindOneQueryKey(card.id),
+            });
             return;
           }
 
@@ -247,21 +274,14 @@ export function SendMatchRequestDialog({
 
             {/* Слоты доступности: обязательный выбор при наличии OPEN-слотов */}
             {hasOpenSlots ? (
-              <div className="flex flex-col gap-2">
-                <SlotSelectorRadioGroup
-                  slots={cardSlots}
-                  value={selectedSlotId}
-                  onChange={setSelectedSlotId}
-                  viewerTimezone={viewerTimezone}
-                  locale={i18n.language}
-                  disabled={createMutation.isPending}
-                />
-                {!selectedSlotId && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {t("slots.selectSlotRequired")}
-                  </p>
-                )}
-              </div>
+              <SlotSelectorRadioGroup
+                slots={cardSlots}
+                value={isSelectedSlotAvailable ? selectedSlotId : undefined}
+                onChange={setSelectedSlotId}
+                viewerTimezone={viewerTimezone}
+                locale={i18n.language}
+                disabled={createMutation.isPending}
+              />
             ) : (
               <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 text-xs text-muted-foreground">
                 {t("slots.flexibleSchedule")}
@@ -346,7 +366,8 @@ export function SendMatchRequestDialog({
               variant="default"
               size="sm"
               disabled={
-                createMutation.isPending || (hasOpenSlots && !selectedSlotId)
+                createMutation.isPending ||
+                (hasOpenSlots && !isSelectedSlotAvailable)
               }
               className="gap-1.5 font-semibold shadow-xs"
             >
