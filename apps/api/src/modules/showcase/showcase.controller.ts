@@ -25,8 +25,11 @@ import {
   CreateShowcaseCardDto,
   createShowcaseCardSchema,
   PaginatedResponseDto,
+  paginatedShowcaseCardsSchema,
   ShowcaseCardResponseDto,
   ShowcaseQueryDto,
+  showcaseCardListSchema,
+  showcaseCardResponseSchema,
   showcaseQuerySchema,
   UpdateShowcaseCardDto,
   UpdateShowcaseCardStatusDto,
@@ -34,7 +37,7 @@ import {
   updateShowcaseCardStatusSchema,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { ZodBody } from "../../common/openapi/zod-openapi";
+import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { ShowcaseService } from "./showcase.service";
 
@@ -113,7 +116,14 @@ export class ShowcaseController {
     type: Number,
     description: "Размер страницы (по умолчанию 20, максимум 50)",
   })
-  @ApiResponse({ status: 200, description: "Пагинированный список анкет" })
+  @ApiResponse({
+    status: 200,
+    description: "Пагинированный список анкет",
+    schema: registerSchema(
+      "PaginatedShowcaseCardsDto",
+      paginatedShowcaseCardsSchema,
+    ),
+  })
   @ApiResponse({ status: 400, description: "Некорректные параметры query" })
   async findAll(
     @Query(new ZodValidationPipe(showcaseQuerySchema)) query: ShowcaseQueryDto,
@@ -130,7 +140,11 @@ export class ShowcaseController {
   @ApiOperation({
     summary: "Получить анкеты текущего пользователя со статистикой заявок",
   })
-  @ApiResponse({ status: 200, description: "Список анкет пользователя" })
+  @ApiResponse({
+    status: 200,
+    description: "Список анкет пользователя",
+    schema: registerSchema("ShowcaseCardListDto", showcaseCardListSchema),
+  })
   async findMy(
     @CurrentUser("sub") userId: string,
   ): Promise<ShowcaseCardResponseDto[]> {
@@ -144,7 +158,14 @@ export class ShowcaseController {
   @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: "Создать новую анкету на витрине" })
   @ZodBody(createShowcaseCardSchema, "CreateShowcaseCardDto")
-  @ApiResponse({ status: 201, description: "Анкета успешно создана" })
+  @ApiResponse({
+    status: 201,
+    description: "Анкета успешно создана",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({
     status: 400,
     description: "Не заполнен профиль или превышен лимит 5 анкет",
@@ -167,7 +188,14 @@ export class ShowcaseController {
   @Get(":id")
   @ApiOperation({ summary: "Получить детальную информацию об анкете по ID" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
-  @ApiResponse({ status: 200, description: "Данные анкеты" })
+  @ApiResponse({
+    status: 200,
+    description: "Данные анкеты",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({ status: 404, description: "Анкета не найдена" })
   async findOne(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -183,7 +211,14 @@ export class ShowcaseController {
   @ApiOperation({ summary: "Редактировать анкету (только автор)" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
   @ZodBody(updateShowcaseCardSchema, "UpdateShowcaseCardDto")
-  @ApiResponse({ status: 200, description: "Анкета успешно обновлена" })
+  @ApiResponse({
+    status: 200,
+    description: "Анкета успешно обновлена",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({
     status: 403,
     description: "Недостаточно прав для редактирования",
@@ -209,7 +244,14 @@ export class ShowcaseController {
   @ApiOperation({ summary: "Переключить статус анкеты ACTIVE <-> INACTIVE" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
   @ZodBody(updateShowcaseCardStatusSchema, "UpdateShowcaseCardStatusDto")
-  @ApiResponse({ status: 200, description: "Статус успешно изменен" })
+  @ApiResponse({
+    status: 200,
+    description: "Статус успешно изменен",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({
     status: 400,
     description: "Превышен лимит 5 активных карточек или анкета просрочена",
@@ -232,7 +274,14 @@ export class ShowcaseController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Поднять анкету в топ каталога (раз в 24 часа)" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
-  @ApiResponse({ status: 200, description: "Анкета поднята в топ" })
+  @ApiResponse({
+    status: 200,
+    description: "Анкета поднята в топ",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({
     status: 400,
     description: "Не прошёл кулдаун 24 часа или анкета не активна",
@@ -253,7 +302,14 @@ export class ShowcaseController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Продлить истекшую анкету (EXPIRED -> ACTIVE)" })
   @ApiParam({ name: "id", format: "uuid", description: "ID карточки витрины" })
-  @ApiResponse({ status: 200, description: "Анкета продлена на 15 дней" })
+  @ApiResponse({
+    status: 200,
+    description: "Анкета продлена на 15 дней",
+    schema: registerSchema(
+      "ShowcaseCardResponseDto",
+      showcaseCardResponseSchema,
+    ),
+  })
   @ApiResponse({
     status: 400,
     description: "Анкета не в статусе EXPIRED или достигнут лимит 5 анкет",

@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
+import { SessionReminderService } from "./session-reminder.service";
 import { SessionsController } from "./sessions.controller";
 import { SessionsService } from "./sessions.service";
 
@@ -6,12 +8,12 @@ import { SessionsService } from "./sessions.service";
  * Модуль интервью-сессий.
  *
  * Содержит `SessionsService` (источник правды о членстве в Postgres +
- * Redis-зеркало) и `SessionsController`. `PrismaService`/`RedisService`
- * доступны через глобальные модули.
+ * Redis-зеркало), `SessionReminderService` и `SessionsController`.
  */
 @Module({
+  imports: [NotificationsModule],
   controllers: [SessionsController],
-  providers: [SessionsService],
-  exports: [SessionsService],
+  providers: [SessionsService, SessionReminderService],
+  exports: [SessionsService, SessionReminderService],
 })
 export class SessionsModule {}

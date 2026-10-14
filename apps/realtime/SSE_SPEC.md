@@ -148,23 +148,32 @@ $$\text{data: } \langle \text{JSON Payload} \rangle \backslash\text{n}\backslash
 
 ### 4.2. Справочник типов событий
 
+Таблица приведена в соответствие словарю `packages/dto/src/realtime/sse-event.dto.ts` (ADR-004:86). Словарь — источник правды: из него генерируются Go-константы (`apps/realtime/internal/sse/events_gen.go`), его же читают `apps/api` (публикация), `apps/web` (разбор кадра) и `scripts/send-sse.mjs`. Сервис realtime имя события и payload не проверяет — он передаёт payload как `json.RawMessage`.
+
 | Event Type | Описание события | Инициатор (Producer) | Payload DTO |
 | :--- | :--- | :--- | :--- |
-| `notification.new` | Новое персональное уведомление | `apps/api` | `id`, `category`, `title`, `message`, `actionUrl`, `createdAt`, `read` |
+| `notification.new` | Новое персональное уведомление | `apps/api` | `id`, `category`, `severity?`, `title`, `message`, `actionUrl`, `createdAt`, `read` |
 | `notification.badge` | Обновление счетчика непрочитанных | `apps/api` | `unreadCount` |
 | `session.invited` | Инвайт на интервью | `apps/api` | `sessionId`, `sessionTitle`, `inviterName`, `role`, `joinUrl`, `expiresAt` |
-| `code_runner.status`| Статус выполнения тестов | `apps/code-runner` | `taskId`, `sessionId`, `status`, `passedCount`, `totalCount`, `timeMs` |
+| `code_runner.status`| Статус выполнения тестов | `apps/code-runner` | `taskId`, `sessionId`, `status`, `passedCount`, `totalCount`, `executionTimeMs` |
 | `ai.report_ready` | Готовность аналитики интервью | AI Worker | `sessionId`, `reportId`, `score`, `summary`, `reportUrl` |
-| `account.updated` | Смена баланса кредитов / тарифа | `apps/api` | `remainingCredits`, `plan`, `reason` |
-| `system.broadcast` | Общесистемный алерт / техработы | Admin / Ops | `severity` (`info`/`warn`/`crit`), `message`, `maintenanceWindow` |
-| `ping` | Heartbeat проверки живости канала | `apps/realtime` | Пустой комментарий `: ping <timestamp>\n\n` каждые 15 сек |
+| `account.updated` | Смена баланса кредитов / тарифа | `apps/api` | `remainingCredits`, `plan`, `reason?` |
+| `system.broadcast` | Общесистемный оповещение / техработы | Admin / Ops (CLI `scripts/send-sse.mjs`) | `severity` (`info`/`success`/`warning`/`error`), `message`, `maintenanceWindow?` |
+| `auth.revoked` | Причина разрыва потока при отзыве авторизации | `apps/api` (через `auth:revocations`) | `reason` |
+
+Два уточнения по разграничению словарей (ADR-004:87):
+
+1. **`category` — доменный тип из БД** (`SYSTEM | INTERVIEW | MESSAGE`, Prisma `NotificationType`), то же значение, что в REST-DTO уведомления. **`severity` — визуальная** (`info | success | warning | error`) и появляется в `payload` отдельно; сейчас её не заполняет ни один продюсер, поэтому поле необязательное.
+2. **`ping` — не событие.** Это SSE-комментарий (`: ping <timestamp>` каждые 15 секунд), который парсер `EventSource` игнорирует: у него нет ни `type`, ни `payload`. В словаре его нет по той же причине. В таблице выше он больше не значится.
+
+Продюсеры на 02.10.2026: `notification.new` и `notification.badge` публикует `apps/api` (`NotificationsService.publishNotificationEvent`), `auth.revoked` формирует сам realtime по каналу `auth:revocations`, `system.broadcast` — CLI. У `session.invited`, `code_runner.status`, `ai.report_ready` и `account.updated` продюсеров пока нет: события описаны в словаре как контракт, чтобы появление продюсера не изменило форму кадра задним числом.
 
 ---
 
 ## 5. Безопасность и управление доступом
 
 ### 5.1. Аутентификация и защита от CSRF
-1. **Заголовок `Authorization: Bearer <JWT>` — основной способ.** `apps/api` возвращает access-токен в теле ответа (`/auth/login`, `/auth/register`, `/auth/refresh`) и хранит в cookie только `refresh_token`, поэтому браузерный клиент открывает поток через `@microsoft/fetch-event-source` с заголовком `Authorization`; нативный `EventSource` заголовки выставлять не умеет и здесь неприменим.
+1. **Заголовок `Authorization: Bearer <JWT>` — основной способ.** `apps/api` возвращает access-токен в теле ответа (`/auth/login`, `/auth/register`, `/auth/refresh`) и хранит в cookie только `refresh_token`, поэтому браузерный клиент открывает поток через пакет `eventsource` с переопределённым `fetch`, который добавляет заголовок `Authorization`; нативный браузерный `EventSource` заголовки выставлять не умеет и здесь неприменим.
 2. **Чтение токена из Cookie — поддерживается, но API ее не выставляет.** Хендлер читает `HttpOnly`, `Secure`, `SameSite=Lax` Cookie с именем `JWT_ACCESS_COOKIE_NAME` (по умолчанию `access_token`), если она появится; тогда клиенту достаточно `credentials: "include"`. Приоритет у заголовка `Authorization`.
 3. **Запрет токенов в GET Query String:** Передача `?token=...` запрещена, чтобы исключить утечку JWT в access-логи балансировщиков, историю браузера и заголовок `Referer`.
 4. **Проверка живой auth-сессии (fail-closed).** Токен обязан нести `typ` (`access`/`realtime`) и непустой `sid`, а ключ `auth:session:{sid}` — существовать в Redis, иначе соединение отклоняется кодом `401`. Logout, выход со всех устройств, смена пароля и деактивация удаляют этот ключ, тогда как сам access-токен остается подписанным до `exp` (до 15 минут): без проверки клиент, разорванный по `auth:revocations`, немедленно переоткрыл бы поток тем же токеном. Проверка симметрична WebSocket-хендлеру; при `REDIS_ENABLED=false` поток недоступен.
@@ -257,7 +266,7 @@ net.ipv4.tcp_tw_reuse = 1
 - [ ] Интеграция триггеров: создание сессии, инвайт, окончание тестов в `code-runner`, генерация AI-отчета.
 
 ### Этап 3: Клиентская часть (`apps/web`)
-- [ ] Глобальный `NotificationProvider` с использованием `@microsoft/fetch-event-source`.
+- [ ] Глобальный `NotificationProvider` на пакете `eventsource` с переопределённым `fetch` для заголовка `Authorization`.
 - [ ] Обработка событий мобильных браузеров (`visibilitychange` / `online`).
 - [ ] UI-компоненты: всплывающие Toast-уведомления (`sonner`) и бейдж колокольчика с счетчиком непрочитанных.
 

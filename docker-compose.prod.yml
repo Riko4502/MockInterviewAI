@@ -74,6 +74,13 @@ services:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - LIVEKIT_TOKEN_TTL_SECONDS=${LIVEKIT_TOKEN_TTL_SECONDS:-1800}
+      - MAIL_TRANSPORT
+      - SMTP_HOST
+      - SMTP_PORT
+      - SMTP_SECURE
+      - SMTP_USER
+      - SMTP_PASSWORD
+      - SMTP_FROM
     ports:
       - "4000:4000"
     depends_on:

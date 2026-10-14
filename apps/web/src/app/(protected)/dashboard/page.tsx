@@ -1,3 +1,4 @@
+import { DashboardOnboardingBanner } from "@/features/onboarding";
 import {
   DashboardAiInsights,
   DashboardDailyChallenge,
@@ -18,6 +19,7 @@ export default function DashboardPage() {
     <DashboardFrame
       header={
         <>
+          <DashboardOnboardingBanner />
           <DashboardHero />
           <DashboardQuickActions />
         </>

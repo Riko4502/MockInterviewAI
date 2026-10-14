@@ -25,200 +25,18 @@ import {
   MatchRequestQueryDto,
   MatchRequestResponseDto,
   matchRequestQuerySchema,
+  matchRequestResponseSchema,
   PaginatedResponseDto,
+  paginatedMatchRequestsSchema,
   RejectMatchRequestDto,
   rejectMatchRequestSchema,
   UnreadMatchRequestsCountDto,
+  unreadMatchRequestsCountSchema,
 } from "@packages/dto";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { MatchmakingService } from "./matchmaking.service";
-
-const publicUserCardSchemaObject = {
-  type: "object",
-  properties: {
-    id: { type: "string", format: "uuid" },
-    displayName: { type: "string", nullable: true },
-    username: { type: "string", nullable: true },
-    avatarUrl: { type: "string", nullable: true },
-    telegramUsername: { type: "string", nullable: true },
-    gitUrl: { type: "string", nullable: true },
-  },
-  required: [
-    "id",
-    "displayName",
-    "username",
-    "avatarUrl",
-    "telegramUsername",
-    "gitUrl",
-  ],
-};
-
-const showcaseCardResponseSchemaObject = {
-  type: "object",
-  properties: {
-    id: { type: "string", format: "uuid" },
-    userId: { type: "string", format: "uuid" },
-    user: { $ref: "#/components/schemas/PublicUserCardDto" },
-    title: { type: "string", nullable: true },
-    specialization: {
-      type: "string",
-      enum: [
-        "FRONTEND",
-        "BACKEND",
-        "FULLSTACK",
-        "DEVOPS",
-        "QA",
-        "MOBILE",
-        "DATA_ML",
-        "SYSTEM_DESIGN",
-      ],
-    },
-    level: {
-      type: "string",
-      enum: ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"],
-    },
-    language: {
-      type: "string",
-      enum: ["RU", "EN", "ANY"],
-    },
-    skills: {
-      type: "array",
-      items: { type: "string" },
-    },
-    bio: { type: "string", nullable: true },
-    scheduleInfo: { type: "string", nullable: true },
-    isUrgent: { type: "boolean" },
-    status: {
-      type: "string",
-      enum: ["ACTIVE", "INACTIVE", "EXPIRED"],
-    },
-    autoRenew: { type: "boolean" },
-    bumpedAt: { type: "string", format: "date-time" },
-    expiresAt: { type: "string", format: "date-time" },
-    createdAt: { type: "string", format: "date-time" },
-    updatedAt: { type: "string", format: "date-time" },
-  },
-  required: [
-    "id",
-    "userId",
-    "user",
-    "title",
-    "specialization",
-    "level",
-    "language",
-    "skills",
-    "bio",
-    "scheduleInfo",
-    "isUrgent",
-    "status",
-    "autoRenew",
-    "bumpedAt",
-    "expiresAt",
-    "createdAt",
-    "updatedAt",
-  ],
-};
-
-const matchRequestResponseSchemaObject = {
-  type: "object",
-  properties: {
-    id: { type: "string", format: "uuid" },
-    senderId: { type: "string", format: "uuid" },
-    receiverId: { type: "string", format: "uuid" },
-    sender: { $ref: "#/components/schemas/PublicUserCardDto" },
-    receiver: { $ref: "#/components/schemas/PublicUserCardDto" },
-    targetCard: { $ref: "#/components/schemas/ShowcaseCardResponseDto" },
-    senderCard: {
-      allOf: [{ $ref: "#/components/schemas/ShowcaseCardResponseDto" }],
-      nullable: true,
-    },
-    status: {
-      type: "string",
-      enum: ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"],
-    },
-    sessionId: { type: "string", format: "uuid", nullable: true },
-    sessionStatus: {
-      type: "string",
-      enum: ["CREATED", "ACTIVE", "CLOSED"],
-      nullable: true,
-    },
-    message: { type: "string", nullable: true },
-    preferredTopic: { type: "string", nullable: true },
-    rejectReason: { type: "string", nullable: true },
-    createdAt: { type: "string", format: "date-time" },
-    updatedAt: { type: "string", format: "date-time" },
-    expiresAt: { type: "string", format: "date-time" },
-  },
-  required: [
-    "id",
-    "senderId",
-    "receiverId",
-    "sender",
-    "receiver",
-    "targetCard",
-    "senderCard",
-    "status",
-    "sessionId",
-    "message",
-    "preferredTopic",
-    "rejectReason",
-    "createdAt",
-    "updatedAt",
-    "expiresAt",
-  ],
-};
-
-const paginatedMatchRequestResponseSchemaObject = {
-  type: "object",
-  properties: {
-    data: {
-      type: "array",
-      items: { $ref: "#/components/schemas/MatchRequestResponseDto" },
-    },
-    meta: {
-      type: "object",
-      properties: {
-        total: { type: "number" },
-        page: { type: "number" },
-        limit: { type: "number" },
-        totalPages: { type: "number" },
-        hasNextPage: { type: "boolean" },
-        hasPrevPage: { type: "boolean" },
-      },
-      required: [
-        "total",
-        "page",
-        "limit",
-        "totalPages",
-        "hasNextPage",
-        "hasPrevPage",
-      ],
-    },
-  },
-  required: ["data", "meta"],
-};
-
-const unreadMatchRequestsCountSchemaObject = {
-  type: "object",
-  properties: {
-    pendingCount: { type: "number" },
-  },
-  required: ["pendingCount"],
-};
-
-registerSchema("PublicUserCardDto", publicUserCardSchemaObject);
-registerSchema("ShowcaseCardResponseDto", showcaseCardResponseSchemaObject);
-registerSchema("MatchRequestResponseDto", matchRequestResponseSchemaObject);
-registerSchema(
-  "PaginatedMatchRequestResponseDto",
-  paginatedMatchRequestResponseSchemaObject,
-);
-registerSchema(
-  "UnreadMatchRequestsCountDto",
-  unreadMatchRequestsCountSchemaObject,
-);
 
 @ApiTags("Matchmaking")
 @ApiBearerAuth()
@@ -239,7 +57,7 @@ export class MatchmakingController {
     description: "Количество непрочитанных заявок",
     schema: registerSchema(
       "UnreadMatchRequestsCountDto",
-      unreadMatchRequestsCountSchemaObject,
+      unreadMatchRequestsCountSchema,
     ),
   })
   async getUnreadCount(
@@ -262,7 +80,7 @@ export class MatchmakingController {
     description: "Заявка успешно отправлена (или согласована при авто-матче)",
     schema: registerSchema(
       "MatchRequestResponseDto",
-      matchRequestResponseSchemaObject,
+      matchRequestResponseSchema,
     ),
   })
   @ApiResponse({
@@ -320,7 +138,7 @@ export class MatchmakingController {
     description: "Пагинированный список входящих заявок",
     schema: registerSchema(
       "PaginatedMatchRequestResponseDto",
-      paginatedMatchRequestResponseSchemaObject,
+      paginatedMatchRequestsSchema,
     ),
   })
   async findIncoming(
@@ -361,7 +179,7 @@ export class MatchmakingController {
     description: "Пагинированный список исходящих заявок",
     schema: registerSchema(
       "PaginatedMatchRequestResponseDto",
-      paginatedMatchRequestResponseSchemaObject,
+      paginatedMatchRequestsSchema,
     ),
   })
   async findOutgoing(
@@ -384,7 +202,7 @@ export class MatchmakingController {
     description: "Заявка успешно принята, контакты открыты",
     schema: registerSchema(
       "MatchRequestResponseDto",
-      matchRequestResponseSchemaObject,
+      matchRequestResponseSchema,
     ),
   })
   @ApiResponse({
@@ -414,6 +232,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Заявка успешно отклонена",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,
@@ -443,6 +265,10 @@ export class MatchmakingController {
   @ApiResponse({
     status: 200,
     description: "Заявка успешно отменена",
+    schema: registerSchema(
+      "MatchRequestResponseDto",
+      matchRequestResponseSchema,
+    ),
   })
   @ApiResponse({
     status: 400,

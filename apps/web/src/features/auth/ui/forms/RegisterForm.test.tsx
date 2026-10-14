@@ -130,7 +130,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
     });
 
     // Проверяем навигацию через router.replace
-    expect(replaceMock).toHaveBeenCalledWith(paths.dashboard);
+    expect(replaceMock).toHaveBeenCalledWith(paths.onboarding);
   });
 
   it("error path: ошибка API (409 Conflict) в baseFetch пробрасывается в mutation и не сохраняет токен", async () => {

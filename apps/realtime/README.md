@@ -239,22 +239,34 @@ export interface SystemErrorPayload {
 ### 5.1. Подключение с фронтенда
 
 ```typescript
-import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { EventSource } from "eventsource";
 
-await fetchEventSource("http://localhost:8080/sse/notifications", {
-  // apps/api отдает access-токен в теле ответа и держит в cookie только
-  // refresh_token, поэтому поток открывается с заголовком Authorization.
-  // Нативный EventSource здесь не подходит: заголовки он выставлять не умеет.
-  headers: { Authorization: `Bearer ${accessToken}` },
-  onmessage(event) {
-    // event.id — Redis Stream ID, он же Last-Event-ID при переподключении
-    const envelope = JSON.parse(event.data); // BaseSSEEnvelope<TPayload>
-    handle(envelope.type, envelope.payload);
+// apps/api отдает access-токен в теле ответа и держит в cookie только
+// refresh_token, поэтому поток открывается с заголовком Authorization.
+// Нативный браузерный EventSource здесь не подходит: заголовки он
+// выставлять не умеет, поэтому используется пакет eventsource с
+// переопределённым fetch — ровно так, как в apps/web
+// (src/shared/api/realtime/notification-stream.ts).
+const stream = new EventSource("http://localhost:8080/sse/notifications", {
+  fetch: (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(input, { ...init, headers });
   },
+});
+
+stream.addEventListener("message", (event) => {
+  // event.lastEventId — Redis Stream ID, он же Last-Event-ID при переподключении
+  const envelope = JSON.parse(event.data); // BaseSSEEnvelope<TPayload>
+  handle(envelope.type, envelope.payload);
 });
 ```
 
-* Токен читается только из заголовка `Authorization: Bearer <JWT>` или из `HttpOnly` cookie с именем `JWT_ACCESS_COOKIE_NAME` (по умолчанию `access_token`). Сейчас `apps/api` такую cookie не выставляет — рабочий способ для браузера один: `Authorization` через `@microsoft/fetch-event-source`.
+* Имена событий и формы payload описаны в словаре
+  `packages/dto/src/realtime/sse-event.dto.ts`, из него же генерируются
+  константы `internal/sse/events_gen.go`; справочник — в
+  [SSE_SPEC.md](./SSE_SPEC.md).
+* Токен читается только из заголовка `Authorization: Bearer <JWT>` или из `HttpOnly` cookie с именем `JWT_ACCESS_COOKIE_NAME` (по умолчанию `access_token`). Сейчас `apps/api` такую cookie не выставляет — рабочий способ для браузера один: `Authorization` через переопределённый `fetch` пакета `eventsource`.
 * Токен обязан нести `typ` (`access`/`realtime`) и `sid`, а auth-сессия `auth:session:{sid}` — существовать в Redis. Проверка fail-closed и симметрична WebSocket-хендлеру: после logout, выхода со всех устройств или смены пароля access-токен остается подписанным еще до 15 минут, и без нее отозванный клиент переоткрыл бы поток сразу после разрыва. Побочный эффект: при `REDIS_ENABLED=false` поток отвечает **401**.
 * Передача токена в query string (`?token=...`) отклоняется с кодом **400**: это защита от утечки JWT в access-логи прокси, историю браузера и `Referer`.
 * Браузер сам переподключается и присылает `Last-Event-ID`; сервер отдает пропущенные события из Redis Stream (фаза Replay), после чего переходит в живой режим.
@@ -271,7 +283,7 @@ export interface BaseSSEEnvelope<TPayload> {
 }
 ```
 
-Типы событий и их payload описаны в [SSE_SPEC.md](./SSE_SPEC.md) (раздел 4.2) и в справочнике фронтенда `docs/frontend/data/realtime.md` (раздел 4). Дополнительно сервер отправляет служебное событие `auth.revoked` — последний кадр перед принудительным разрывом потока при смене пароля или выходе со всех устройств.
+Типы событий и их payload описаны в [SSE_SPEC.md](./SSE_SPEC.md) (раздел 4.2), в справочнике фронтенда `docs/frontend/data/realtime.md` (раздел 4) и, как источник правды, в `packages/dto/src/realtime/sse-event.dto.ts`, из которого генерируются константы `internal/sse/events_gen.go`. `ping` в перечне типов нет: это heartbeat-комментарий, а не событие.
 
 Каждые 15 секунд в поток пишется heartbeat-комментарий `: ping <unix_ms>`, который игнорируется парсером `EventSource` и удерживает соединение через прокси.
 
@@ -283,7 +295,7 @@ export interface BaseSSEEnvelope<TPayload> {
 # Персональное событие (доставляется всем вкладкам пользователя, попадает в Replay)
 XADD user:{userId}:notifications MAXLEN '~' 100 '*' \
   type notification.new \
-  payload '{"id":"ntf_1","category":"info","title":"...","message":"...","createdAt":"...","read":false}' \
+  payload '{"id":"ntf_1","category":"INTERVIEW","severity":"warning","title":"...","message":"...","actionUrl":null,"createdAt":"...","read":false}' \
   timestamp 2026-08-30T10:00:00Z
 
 # Общесистемный алерт (доставляется всем подключенным клиентам кластера, без Replay)

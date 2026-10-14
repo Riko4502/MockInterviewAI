@@ -116,7 +116,11 @@ describe("TelegramService", () => {
       expect(redisMock.getdel).toHaveBeenCalledWith(`tg:link:${sha256(TOKEN)}`);
       expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
         where: { id: USER_ID, telegramChatId: null },
-        data: { telegramChatId: CHAT_ID, telegramLocale: null },
+        data: {
+          telegramChatId: CHAT_ID,
+          telegramLocale: null,
+          telegramLinkVerified: true,
+        },
       });
       expect(result.telegramChatId).toBe(CHAT_ID);
       expect(result.role).toBe("USER");
@@ -188,7 +192,11 @@ describe("TelegramService", () => {
 
       expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
         where: { telegramChatId: CHAT_ID },
-        data: { telegramChatId: null, telegramLocale: null },
+        data: {
+          telegramChatId: null,
+          telegramLocale: null,
+          telegramLinkVerified: false,
+        },
       });
       expect(result).toEqual({ success: true });
     });

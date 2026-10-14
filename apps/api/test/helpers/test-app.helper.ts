@@ -39,14 +39,73 @@ export async function startTestApp(
   };
 }
 
-/** Мок Redis-методов для имитации недоступного Redis. */
-export interface RedisMock {
-  set: jest.Mock;
-  get: jest.Mock;
-  delete: jest.Mock;
-  expire: jest.Mock;
-  ping: jest.Mock;
-  scanKeys: jest.Mock;
+/**
+ * Мок Redis-методов для имитации недоступного Redis.
+ *
+ * Индекс не задаётся: набор методов выводится из прототипа `RedisService`.
+ */
+export type RedisMock = Record<string, jest.Mock>;
+
+/**
+ * Хуки жизненного цикла, которые вызывает сам Nest.
+ *
+ * Их нельзя превращать в отказ: подмена провайдера не должна мешать `app.init()`
+ * подняться, иначе приложение не стартует вовсе и тест проверяет не отказ
+ * Redis, а невозможность загрузки модуля.
+ */
+const LIFECYCLE_HOOKS = new Set([
+  "onModuleInit",
+  "onModuleDestroy",
+  "onApplicationShutdown",
+]);
+
+/**
+ * Собирает `RedisService`, у которого любая операция отказывает как при
+ * недоступном Redis.
+ *
+ * Методы берутся из прототипа `RedisService` намеренно. Ручной список однажды
+ * разошёлся с сервисом: `AuthSessionService.createSession` пишет сессию
+ * скриптом `eval`, которого в моке не было, поэтому регистрация падала с
+ * `TypeError: this.redisService.eval is not a function` — тем же `catch`, что и
+ * настоящий отказ Redis, и тот же `500`, то есть все проверки ответа проходили
+ * по неверной причине, а `redisMock.set` не вызывался никогда.
+ *
+ * @returns Мок, у которого каждый метод — `jest.fn`, отклоняющийся с
+ * `connect ECONNREFUSED`.
+ */
+function createRedisDownMock(): RedisMock {
+  const prototype = RedisService.prototype as unknown as object;
+  const mock: RedisMock = {};
+
+  for (const name of Object.getOwnPropertyNames(prototype)) {
+    if (name === "constructor" || LIFECYCLE_HOOKS.has(name)) {
+      continue;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+    if (typeof descriptor?.value !== "function") {
+      continue;
+    }
+    mock[name] = jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED"));
+  }
+
+  return mock;
+}
+
+/**
+ * Суммарное число обращений к Redis за время теста.
+ *
+ * Нужно вместо проверки конкретного метода: конкретный метод — деталь
+ * реализации (`createSession` сегодня пишет скриптом `eval`, завтра может
+ * перейти на `set`), а проверять надо факт «Redis был запрошен и отказал».
+ *
+ * @param mock - Мок из `startTestAppWithRedisDown`.
+ * @returns Число вызовов всех методов мока.
+ */
+export function countRedisCalls(mock: RedisMock): number {
+  return Object.values(mock).reduce(
+    (sum, method) => sum + method.mock.calls.length,
+    0,
+  );
 }
 
 /** Мок `RedisService`, эмулирующий недоступный Redis (§48 SPEC.md). */
@@ -64,14 +123,7 @@ export interface RedisDownHandles {
  * @returns Дескриптор приложения и мок Redis-операций.
  */
 export async function startTestAppWithRedisDown(): Promise<RedisDownHandles> {
-  const redisMock = {
-    set: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-    get: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-    delete: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-    expire: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-    ping: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-    scanKeys: jest.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
-  };
+  const redisMock = createRedisDownMock();
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],

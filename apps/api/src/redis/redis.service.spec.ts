@@ -228,6 +228,56 @@ describe("RedisService", () => {
       );
       expect(mockRedisInstance.expire).toHaveBeenCalledWith(stream, 604800);
     });
+
+    it("writes the timestamp field consumed by realtime", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+      const timestamp = "2026-09-28T10:00:00.000Z";
+
+      await service.xadd(
+        stream,
+        "notification.new",
+        payload,
+        100,
+        604800,
+        timestamp,
+      );
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+        "timestamp",
+        timestamp,
+      );
+    });
+
+    it("omits the timestamp field when it is not provided", async () => {
+      await service.onModuleInit();
+      const payload = { id: "n1", title: "Title", message: "Message" };
+      const stream = "user:u1:notifications";
+
+      await service.xadd(stream, "notification.new", payload);
+
+      expect(mockRedisInstance.xadd).toHaveBeenCalledWith(
+        stream,
+        "MAXLEN",
+        "~",
+        100,
+        "*",
+        "type",
+        "notification.new",
+        "payload",
+        JSON.stringify(payload),
+      );
+    });
   });
 
   describe("get", () => {

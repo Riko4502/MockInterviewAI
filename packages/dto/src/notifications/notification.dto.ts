@@ -10,6 +10,13 @@ export const notificationSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
   category: notificationTypeSchema,
+  /** Тип доменного события из общего словаря: см. notification-event.ts. */
+  type: z.string().min(1),
+  payload: z.unknown(),
+  /**
+   * Отрендеренные под язык и часовой пояс читателя значения. Ключи `title`
+   * и `message` сохранены, потому что от них зависит существующий SSE-клиент.
+   */
   title: z.string(),
   message: z.string(),
   actionUrl: z.string().nullable(),

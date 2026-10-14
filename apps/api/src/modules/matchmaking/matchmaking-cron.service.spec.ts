@@ -1,5 +1,8 @@
 import { Logger } from "@nestjs/common";
-import { MatchRequestStatus } from "../../generated/prisma/enums";
+import {
+  AvailabilitySlotStatus,
+  MatchRequestStatus,
+} from "../../generated/prisma/enums";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import {
@@ -12,13 +15,21 @@ describe("MatchmakingCronService", () => {
   let cron: MatchmakingCronService;
   let prismaMock: {
     matchRequest: {
+      findMany: jest.Mock;
+      updateManyAndReturn: jest.Mock;
+    };
+    availabilitySlot: {
       updateMany: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
   let redisServiceMock: {
     setNx: jest.Mock;
     compareAndDelete: jest.Mock;
   };
+
+  const expiredRequestId = "55555555-5555-4555-a555-555555555555";
+  const expiredRequestId2 = "66666666-6666-4666-a666-666666666666";
 
   beforeAll(() => {
     jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
@@ -33,8 +44,13 @@ describe("MatchmakingCronService", () => {
   beforeEach(() => {
     prismaMock = {
       matchRequest: {
-        updateMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        updateManyAndReturn: jest.fn().mockResolvedValue([]),
       },
+      availabilitySlot: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: jest.fn((callback) => callback(prismaMock)),
     };
 
     redisServiceMock = {
@@ -54,7 +70,17 @@ describe("MatchmakingCronService", () => {
 
   describe("handleCron", () => {
     it("успешно захватывает лок, переводит просроченные заявки в EXPIRED и освобождает лок", async () => {
-      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 4 });
+      prismaMock.matchRequest.findMany.mockResolvedValueOnce([
+        { id: expiredRequestId },
+        { id: expiredRequestId2 },
+      ]);
+      prismaMock.matchRequest.updateManyAndReturn.mockResolvedValueOnce([
+        { id: expiredRequestId },
+        { id: expiredRequestId2 },
+      ]);
+      prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+        count: 2,
+      });
 
       const result = await cron.handleCron();
 
@@ -64,22 +90,43 @@ describe("MatchmakingCronService", () => {
         MATCHMAKING_EXPIRY_LOCK_TTL_SECONDS,
       );
 
-      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledTimes(1);
-      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+      expect(prismaMock.matchRequest.updateManyAndReturn).toHaveBeenCalledWith({
         where: {
+          id: { in: [expiredRequestId, expiredRequestId2] },
           status: MatchRequestStatus.PENDING,
-          expiresAt: { lte: expect.any(Date) },
         },
-        data: {
-          status: MatchRequestStatus.EXPIRED,
-        },
+        data: { status: MatchRequestStatus.EXPIRED },
+        select: { id: true },
       });
 
-      expect(result).toEqual({ expired: 4 });
+      expect(prismaMock.availabilitySlot.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: AvailabilitySlotStatus.BOOKED,
+          bookedByRequestId: {
+            in: [expiredRequestId, expiredRequestId2],
+          },
+        },
+        data: { status: AvailabilitySlotStatus.OPEN, bookedByRequestId: null },
+      });
+
+      expect(result).toEqual({ expired: 2, slotsReleased: 2 });
       expect(redisServiceMock.compareAndDelete).toHaveBeenCalledWith(
         MATCHMAKING_EXPIRY_LOCK_KEY,
         expect.any(String),
       );
+    });
+
+    it("освобождает слоты только у заявок, реально перешедших в EXPIRED", async () => {
+      prismaMock.matchRequest.findMany.mockResolvedValueOnce([
+        { id: expiredRequestId },
+      ]);
+      // Параллельный accept успел раньше: обновление не затронуло ни одной строки.
+      prismaMock.matchRequest.updateManyAndReturn.mockResolvedValueOnce([]);
+
+      const result = await cron.processExpiredRequests();
+
+      expect(result).toEqual({ expired: 0, slotsReleased: 0 });
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
     });
 
     it("пропускает выполнение задачи, если лок уже занят другой репликой", async () => {
@@ -87,19 +134,21 @@ describe("MatchmakingCronService", () => {
 
       const result = await cron.handleCron();
 
-      expect(result).toEqual({ expired: 0 });
-      expect(prismaMock.matchRequest.updateMany).not.toHaveBeenCalled();
+      expect(result).toEqual({ expired: 0, slotsReleased: 0 });
+      expect(
+        prismaMock.matchRequest.updateManyAndReturn,
+      ).not.toHaveBeenCalled();
       expect(redisServiceMock.compareAndDelete).not.toHaveBeenCalled();
     });
 
     it("корректно перехватывает ошибку БД и гарантированно освобождает лок в finally", async () => {
-      prismaMock.matchRequest.updateMany.mockRejectedValueOnce(
+      prismaMock.$transaction.mockRejectedValueOnce(
         new Error("Database connection error"),
       );
 
       const result = await cron.handleCron();
 
-      expect(result).toEqual({ expired: 0 });
+      expect(result).toEqual({ expired: 0, slotsReleased: 0 });
       expect(redisServiceMock.compareAndDelete).toHaveBeenCalledWith(
         MATCHMAKING_EXPIRY_LOCK_KEY,
         expect.any(String),
@@ -107,8 +156,6 @@ describe("MatchmakingCronService", () => {
     });
 
     it("вызывает compareAndDelete именно с токеном текущей ноды", async () => {
-      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 1 });
-
       await cron.handleCron();
 
       const lockToken = redisServiceMock.setNx.mock.calls[0]?.[1];
@@ -121,21 +168,65 @@ describe("MatchmakingCronService", () => {
   });
 
   describe("processExpiredRequests", () => {
-    it("выполняет атомарный updateMany для просроченных PENDING заявок", async () => {
-      prismaMock.matchRequest.updateMany.mockResolvedValueOnce({ count: 7 });
+    it("не трогает БД, если истекающих заявок нет", async () => {
+      const result = await cron.processExpiredRequests();
+
+      expect(result).toEqual({ expired: 0, slotsReleased: 0 });
+      expect(
+        prismaMock.matchRequest.updateManyAndReturn,
+      ).not.toHaveBeenCalled();
+      expect(prismaMock.availabilitySlot.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("выполняет атомарный перевод просроченных PENDING заявок и освобождает их слоты", async () => {
+      prismaMock.matchRequest.findMany.mockResolvedValueOnce([
+        { id: expiredRequestId },
+      ]);
+      prismaMock.matchRequest.updateManyAndReturn.mockResolvedValueOnce([
+        { id: expiredRequestId },
+      ]);
+      prismaMock.availabilitySlot.updateMany.mockResolvedValueOnce({
+        count: 1,
+      });
 
       const result = await cron.processExpiredRequests();
 
-      expect(result).toEqual({ expired: 7 });
-      expect(prismaMock.matchRequest.updateMany).toHaveBeenCalledWith({
+      expect(result).toEqual({ expired: 1, slotsReleased: 1 });
+      expect(prismaMock.matchRequest.findMany).toHaveBeenCalledWith({
         where: {
           status: MatchRequestStatus.PENDING,
           expiresAt: { lte: expect.any(Date) },
         },
-        data: {
-          status: MatchRequestStatus.EXPIRED,
-        },
+        select: { id: true },
       });
+    });
+
+    it("повторяет транзакцию при конфликте сериализации P2034 и останавливается после успеха", async () => {
+      const p2034 = Object.assign(new Error("Serialization conflict"), {
+        code: "P2034",
+      });
+
+      prismaMock.$transaction.mockRejectedValueOnce(p2034);
+
+      await expect(cron.processExpiredRequests()).resolves.toEqual({
+        expired: 0,
+        slotsReleased: 0,
+      });
+
+      // Конфликт повторяется один раз, успешная попытка завершает цикл.
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it("пробрасывает исчерпанные конфликты сериализации наружу", async () => {
+      const p2034 = Object.assign(new Error("Serialization conflict"), {
+        code: "P2034",
+      });
+
+      prismaMock.$transaction.mockRejectedValue(p2034);
+
+      await expect(cron.processExpiredRequests()).rejects.toThrow(
+        "Serialization conflict",
+      );
     });
   });
 });

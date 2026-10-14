@@ -1,3 +1,5 @@
+import * as process from "node:process";
+
 /**
  * Возвращает типизированную конфигурацию приложения.
  *
@@ -15,6 +17,7 @@ export const configuration = () => ({
   )
     .split(",")
     .map((origin) => origin.trim()),
+  webUrl: process.env.FRONTEND_URL,
   database: {
     url: process.env.API_DATABASE_URL ?? "",
   },
@@ -50,6 +53,15 @@ export const configuration = () => ({
       process.env.JWT_REFRESH_COOKIE_NAME ??
       "refresh_token",
   },
+  // Транспорт доставки в Telegram (ADR-004:126-131). Приложение — только
+  // продюсер: консьюмер очереди живёт в `apps/telegram-bot`.
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL ?? "",
+    queue: process.env.RABBITMQ_TELEGRAM_QUEUE ?? "telegram.notifications",
+    // Публикация подтверждается брокером, но не бесконечно ждёт его:
+    // иначе при недоступном брокере релей зависнет на первой же строке.
+    publishTimeoutMs: Number(process.env.RABBITMQ_PUBLISH_TIMEOUT_MS ?? 5000),
+  },
   throttle: {
     ttl: Number(process.env.THROTTLE_TTL ?? 60000),
     limit: Number(process.env.THROTTLE_LIMIT ?? 100),
@@ -77,6 +89,21 @@ export const configuration = () => ({
       "http://localhost:9000/mock-interview-storage",
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== "false",
     maxAvatarSizeBytes: Number(process.env.MAX_AVATAR_SIZE_BYTES ?? 2_097_152),
+  },
+  mail: {
+    transport: (process.env.MAIL_TRANSPORT ?? "dev-logger") as
+      | "smtp"
+      | "dev-logger",
+    host: process.env.SMTP_HOST ?? "localhost",
+    port: Number(process.env.SMTP_PORT ?? 1025),
+    secure: process.env.SMTP_SECURE === "true",
+    user: process.env.SMTP_USER ?? "",
+    password: process.env.SMTP_PASSWORD ?? "",
+    from: process.env.SMTP_FROM ?? "MockInterviewAI <noreply@mockinterview.ai>",
+  },
+  codeRunner: {
+    url: process.env.CODE_RUNNER_URL ?? "http://localhost:8090",
+    authToken: process.env.CODE_RUNNER_AUTH_TOKEN ?? "",
   },
 });
 

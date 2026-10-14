@@ -137,6 +137,7 @@ async function main(): Promise<void> {
           email,
           passwordHash,
           roleId: adminRole.id,
+          onboardingCompleted: true,
         },
       });
       targetUserId = newUser.id;

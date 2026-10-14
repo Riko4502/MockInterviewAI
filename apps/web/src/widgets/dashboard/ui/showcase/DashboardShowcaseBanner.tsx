@@ -9,10 +9,12 @@ import {
   Typography,
   useToast,
 } from "@packages/ui";
+import Link from "next/link";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
-import { CreateShowcaseDialog } from "@/features/create-showcase";
+import { CreateCardDialog } from "@/features/manage-showcase-card";
 import { useShowcaseBumpMutation } from "../../model/use-dashboard-mutations";
 import { useShowcaseStatus } from "../../model/use-dashboard-queries";
 
@@ -72,7 +74,13 @@ export function DashboardShowcaseBanner() {
           <p className="text-sm text-muted-foreground">
             {t("emptyStates.showcase")}
           </p>
-          <CreateShowcaseDialog />
+          <div className="flex flex-wrap items-center gap-2">
+            <CreateCardDialog
+              trigger={
+                <Button variant="default">{t("showcase.create")}</Button>
+              }
+            />
+          </div>
         </>
       ) : (
         <>
@@ -86,12 +94,15 @@ export function DashboardShowcaseBanner() {
               {t("showcase.requests", { count: card.incomingRequestsCount })}
             </p>
           </div>
-          <div>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               disabled={!card.canBump || mutation.isPending}
               onClick={() => void bump()}
             >
               {t("showcase.bump")}
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={paths.partnersMy}>{t("showcase.viewMyCard")}</Link>
             </Button>
           </div>
           {!card.canBump && (

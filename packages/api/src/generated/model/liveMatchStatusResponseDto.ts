@@ -9,6 +9,8 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
+import type { LiveMatchStatusResponseDtoLevel } from './liveMatchStatusResponseDtoLevel';
+import type { LiveMatchStatusResponseDtoSpecialization } from './liveMatchStatusResponseDtoSpecialization';
 import type { LiveMatchStatusResponseDtoStatus } from './liveMatchStatusResponseDtoStatus';
 
 export interface LiveMatchStatusResponseDto {
@@ -23,4 +25,6 @@ export interface LiveMatchStatusResponseDto {
      * @maximum 9007199254740991
      */
   estimatedWaitSeconds?: number;
+  specialization?: LiveMatchStatusResponseDtoSpecialization;
+  level?: LiveMatchStatusResponseDtoLevel;
 }

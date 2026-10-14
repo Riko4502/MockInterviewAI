@@ -46,7 +46,8 @@ export class DashboardReadinessService {
           user.deviceSettings[0].preferredVideoInputLabel,
       );
     const telegramLinked = Boolean(
-      user.telegramLinkVerified && (user.telegramId || user.telegramUsername),
+      user.telegramLinkVerified &&
+        (user.telegramChatId || user.telegramUsername || user.telegramId),
     );
     const showcaseCreated = user.showcaseCards.length > 0;
     const firstMockCompleted =

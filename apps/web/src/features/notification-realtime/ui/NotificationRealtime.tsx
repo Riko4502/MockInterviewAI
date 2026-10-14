@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  getDashboardControllerGetMatchRequestsQueryKey,
+  getDashboardControllerGetReadinessQueryKey,
+  getDashboardControllerGetShowcaseStatusQueryKey,
+  getDashboardControllerGetUpcomingQueryKey,
   getNotificationsControllerGetNotificationsQueryKey,
   getNotificationsControllerGetUnreadCountQueryKey,
   type UnreadNotificationsCountDto,
@@ -67,6 +71,21 @@ export function NotificationRealtime() {
     const invalidate = () => {
       void queryClient.invalidateQueries({ queryKey: listKey });
       void queryClient.invalidateQueries({ queryKey: countKey });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetMatchRequestsQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetUpcomingQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetShowcaseStatusQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetReadinessQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+      });
     };
     const updateCount = (update: (count: number) => number) => {
       // Cancel an older HTTP response before applying the more recent event.

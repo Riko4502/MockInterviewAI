@@ -1,20 +1,31 @@
 package sse
 
-// Контракты payload'ов соответствуют справочнику типов фронтенда
-// (docs/frontend/data/realtime.md, раздел 4) и таблице событий SSE_SPEC.md (раздел 4.2).
-// Сервис realtime не декодирует payload при доставке (он передается как
-// json.RawMessage), поэтому эти структуры используются продюсерами на Go,
-// тестами и как единая точка правды по формату событий.
+// Контракты payload'ов описаны Zod-схемами в источнике правды
+// packages/dto/src/realtime/sse-event.dto.ts (ADR-004:86) и продублированы
+// здесь как точка правды для Go-продюсеров и тестов. Сервис realtime не
+// декодирует payload при доставке — тот передаётся как json.RawMessage.
 
 // NotificationNewPayload описывает новое персональное уведомление пользователя.
+//
+// Поле Category — доменный NotificationType из БД (SYSTEM | INTERVIEW |
+// MESSAGE), а не визуальная severity. До переименования здесь стоял тип
+// NotificationCategory со значениями info | success | warning | error, то есть
+// объявление поля противоречило тому, что реально приходит по проводу, и
+// расхождение было молчаливым: payload не декодируется (ADR-004:87).
+// Перечисление NotificationType намеренно не продублировано в Go: это
+// доменное перечисление БД, и вторая его копия в этом сервисе разошлась бы с
+// Prisma-схемой так же, как разошёлся NotificationCategory.
+//
+// Severity необязательна: её пока не заполняет ни один продюсер.
 type NotificationNewPayload struct {
-	ID        string               `json:"id"`
-	Category  NotificationCategory `json:"category"`
-	Title     string               `json:"title"`
-	Message   string               `json:"message"`
-	ActionURL string               `json:"actionUrl,omitempty"`
-	CreatedAt string               `json:"createdAt"`
-	Read      bool                 `json:"read"`
+	ID        string   `json:"id"`
+	Category  string   `json:"category"`
+	Severity  Severity `json:"severity,omitempty"`
+	Title     string   `json:"title"`
+	Message   string   `json:"message"`
+	ActionURL string   `json:"actionUrl,omitempty"`
+	CreatedAt string   `json:"createdAt"`
+	Read      bool     `json:"read"`
 }
 
 // NotificationBadgePayload описывает обновление счетчика непрочитанных уведомлений.
@@ -65,8 +76,11 @@ type MaintenanceWindow struct {
 }
 
 // SystemBroadcastPayload описывает общесистемный алерт для всех подключенных пользователей.
+//
+// Severity здесь — единственное место, где визуальная severity приходит от
+// продюсера: уведомления колокольчика её не несут.
 type SystemBroadcastPayload struct {
-	Severity          string             `json:"severity"`
+	Severity          Severity           `json:"severity"`
 	Message           string             `json:"message"`
 	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
 }

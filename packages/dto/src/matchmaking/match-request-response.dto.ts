@@ -1,8 +1,11 @@
-import type { MatchRequestStatus } from "../showcase/showcase.enums";
-import type {
-  PublicUserCardDto,
-  ShowcaseCardResponseDto,
+import { z } from "zod";
+import { matchRequestStatusEnum } from "../showcase/showcase.enums";
+import {
+  paginatedResponseSchema,
+  publicUserCardSchema,
+  showcaseCardResponseSchema,
 } from "../showcase/showcase-response.dto";
+import { showcaseSlotResponseSchema } from "../showcase/showcase-slot.dto";
 
 /**
  * [Response] Ответ сервера с полными данными заявки на собеседование.
@@ -15,37 +18,65 @@ import type {
  * и связанные карточки витрины (targetCard/senderCard). Это позволяет фронтенду отобразить
  * карточку отклика в интерфейсе за один сетевой запрос без водопада дополнительных запросов.
  */
+export const matchRequestResponseSchema = z.object({
+  id: z.uuid(),
 
-export type SessionStatus = "CREATED" | "ACTIVE" | "CLOSED";
-export interface MatchRequestResponseDto {
-  id: string;
+  senderId: z.uuid(),
+  receiverId: z.uuid(),
+  sender: publicUserCardSchema,
+  receiver: publicUserCardSchema,
 
-  senderId: string;
-  receiverId: string;
-  sender: PublicUserCardDto;
-  receiver: PublicUserCardDto;
-
-  targetCard: ShowcaseCardResponseDto; // Карточка витрины, на которую отправлен отклик
-  senderCard: ShowcaseCardResponseDto | null; // Прикреплённая карточка автора отклика (если указана)
+  /** Карточка витрины, на которую отправлен отклик. */
+  targetCard: showcaseCardResponseSchema,
+  /** Прикреплённая карточка автора отклика (если указана). */
+  senderCard: showcaseCardResponseSchema.nullable(),
+  /** Слот, который заявка занимает или заняла; null у заявок без расписания. */
+  slot: showcaseSlotResponseSchema.nullable(),
+  /** Сессия интервью, созданная при принятии заявки со слотом (ADR-002:62). */
+  sessionId: z.uuid().nullable(),
+  /** Статус созданной сессии интервью (ветка dev: dashboard и показ витрины). */
+  sessionStatus: z.enum(["CREATED", "ACTIVE", "CLOSED"]).nullable(),
 
   // Статус заявки и сообщения участников
-  status: MatchRequestStatus;
-  sessionId: string | null; // UUID созданной общей сессии интервью (при ACCEPTED)
-  sessionStatus?: SessionStatus | null; // Статус сессии интервью
-  message: string | null; // Сопроводительное сообщение инициатора
-  preferredTopic: string | null; // Желаемая тема мок-интервью
-  rejectReason: string | null; // Причина отклонения (заполняется при REJECTED)
+  status: matchRequestStatusEnum,
+  /** Сопроводительное сообщение инициатора. */
+  message: z.string().nullable(),
+  /** Желаемая тема мок-интервью. */
+  preferredTopic: z.string().nullable(),
+  /** Причина отклонения (заполняется при REJECTED). */
+  rejectReason: z.string().nullable(),
 
   // Временные метки
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  expiresAt: Date | string; // Срок жизни заявки (72 часа с момента создания)
-}
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  /** Срок жизни заявки (72 часа с момента создания). */
+  expiresAt: z.iso.datetime(),
+});
+
+export type MatchRequestResponseDto = z.infer<
+  typeof matchRequestResponseSchema
+>;
+
+/** Статус сессии интервью, привязанной к принятой заявке. */
+export type SessionStatus = "CREATED" | "ACTIVE" | "CLOSED";
+
+/** [Response] Пагинированный список заявок (GET /matchmaking/requests/*). */
+export const paginatedMatchRequestsSchema = paginatedResponseSchema(
+  matchRequestResponseSchema,
+);
+
+export type PaginatedMatchRequestsDto = z.infer<
+  typeof paginatedMatchRequestsSchema
+>;
 
 /**
  * [Response] Счётчик входящих заявок в статусе PENDING (ожидают ответа).
  * Легковесный ответ для бейджа в шапке сайта и колокольчика уведомлений.
  */
-export interface UnreadMatchRequestsCountDto {
-  pendingCount: number;
-}
+export const unreadMatchRequestsCountSchema = z.object({
+  pendingCount: z.number().int().nonnegative(),
+});
+
+export type UnreadMatchRequestsCountDto = z.infer<
+  typeof unreadMatchRequestsCountSchema
+>;

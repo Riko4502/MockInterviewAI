@@ -22,7 +22,7 @@ export function RegisterForm() {
     mutation: {
       onSuccess: (data) => {
         startSession(data.accessToken);
-        router.replace(paths.dashboard);
+        router.replace(paths.onboarding);
       },
     },
   });

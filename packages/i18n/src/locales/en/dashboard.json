@@ -117,7 +117,8 @@
     "pending": "Awaiting response: {{count}}",
     "loading": "Loading requests",
     "senderFallback": "Participant",
-    "timeUnspecified": "Preferred time: not specified"
+    "timeUnspecified": "Preferred time: not specified",
+    "allRequests": "All requests"
   },
   "statistics": {
     "title": "Statistics",
@@ -163,7 +164,8 @@
     "inactive": "Profile inactive",
     "loading": "Loading showcase profile",
     "bumpSuccess": "Profile bumped successfully",
-    "requests": "Incoming requests: {{count}}"
+    "requests": "Incoming requests: {{count}}",
+    "viewMyCard": "My cards"
   },
   "loading": {
     "dashboard": "Loading dashboard data",
@@ -228,6 +230,7 @@
       "hard": "Hard"
     },
     "unavailable": "AI interviews are not available yet. You can choose your preferences; starting an interview will be available later.",
+    "soon": "Soon",
     "close": "Close",
     "start": "Start interview"
   },

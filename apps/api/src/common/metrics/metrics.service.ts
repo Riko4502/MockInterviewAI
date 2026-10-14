@@ -37,6 +37,10 @@ export class MetricsService implements OnModuleInit {
   private readonly redisConnectionStatus: Gauge<string>;
   private readonly redisClientErrorsTotal: Counter<string>;
 
+  private readonly outboxUndelivered: Gauge<string>;
+  private readonly outboxOldestAgeSeconds: Gauge<string>;
+  private readonly outboxPublishFailuresTotal: Counter<string>;
+
   constructor() {
     this.httpRequestsTotal = new Counter({
       name: "http_requests_total",
@@ -79,6 +83,41 @@ export class MetricsService implements OnModuleInit {
       labelNames: ["error_type"],
       registers: [this.registry],
     });
+
+    this.outboxUndelivered = new Gauge({
+      name: "notification_outbox_undelivered",
+      help: "Number of notification outbox rows that are not delivered yet",
+      labelNames: ["status"],
+      registers: [this.registry],
+    });
+
+    this.outboxOldestAgeSeconds = new Gauge({
+      name: "notification_outbox_oldest_age_seconds",
+      help: "Age in seconds of the oldest undelivered notification outbox row",
+      registers: [this.registry],
+    });
+
+    this.outboxPublishFailuresTotal = new Counter({
+      name: "notification_outbox_publish_failures_total",
+      help: "Total number of failed notification outbox publish attempts",
+      labelNames: ["channel"],
+      registers: [this.registry],
+    });
+  }
+
+  /** Состояние буфера outbox: сколько строк не доставлено и какова oldest. */
+  setOutboxBacklog(undelivered: {
+    pending: number;
+    failed: number;
+    oldestAgeSeconds: number;
+  }): void {
+    this.outboxUndelivered.set({ status: "pending" }, undelivered.pending);
+    this.outboxUndelivered.set({ status: "failed" }, undelivered.failed);
+    this.outboxOldestAgeSeconds.set(undelivered.oldestAgeSeconds);
+  }
+
+  incOutboxPublishFailure(channel: string): void {
+    this.outboxPublishFailuresTotal.inc({ channel });
   }
 
   onModuleInit(): void {

@@ -1,4 +1,5 @@
 import { Bot, MemorySessionStorage, session } from "grammy";
+import { t } from "./i18n";
 import type { BotHandlers, SessionData, TgContext } from "./types";
 
 /**
@@ -40,4 +41,42 @@ export function createBot(
   });
 
   return bot;
+}
+
+/**
+ * Регистрирует список команд в системном меню Telegram (кнопка Menu)
+ * с поддержкой локализации (ru / en).
+ *
+ * @param api - Экземпляр Bot["api"].
+ */
+export async function setupBotCommands(
+  api: Bot<TgContext>["api"],
+): Promise<void> {
+  try {
+    // 1. Дефолтные команды (английские)
+    await api.setMyCommands([
+      { command: "start", description: t("en", "commands.start") },
+      { command: "interviews", description: t("en", "commands.interviews") },
+      { command: "me", description: t("en", "commands.me") },
+      { command: "lang", description: t("en", "commands.lang") },
+      { command: "unlink", description: t("en", "commands.unlink") },
+    ]);
+
+    // 2. Русскоязычные команды для пользователей с языком приложения 'ru'
+    await api.setMyCommands(
+      [
+        { command: "start", description: t("ru", "commands.start") },
+        { command: "interviews", description: t("ru", "commands.interviews") },
+        { command: "me", description: t("ru", "commands.me") },
+        { command: "lang", description: t("ru", "commands.lang") },
+        { command: "unlink", description: t("ru", "commands.unlink") },
+      ],
+      { language_code: "ru" },
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[telegram-bot] failed to register bot commands menu: ${message}`,
+    );
+  }
 }

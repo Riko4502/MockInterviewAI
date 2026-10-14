@@ -155,6 +155,34 @@ describe("NotificationRealtime", () => {
     expect(mocks.toast.push).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a replayed payload without createdAt and read", () => {
+    render(tree());
+    emit("notification.new", newNotification);
+    expect(client.getQueryData(countKey)).toEqual({ count: 3 });
+    expect(mocks.toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Приглашение",
+        description: "Новое интервью",
+      }),
+    );
+  });
+
+  it("accepts the current payload with createdAt and read", () => {
+    render(tree());
+    emit("notification.new", {
+      ...newNotification,
+      createdAt: "2024-08-24T11:46:40.000Z",
+      read: false,
+    });
+    expect(client.getQueryData(countKey)).toEqual({ count: 3 });
+    expect(mocks.toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Приглашение",
+        description: "Новое интервью",
+      }),
+    );
+  });
+
   it("uses the absolute badge count, including zero", () => {
     render(tree());
     emit("notification.new", newNotification);
@@ -184,6 +212,18 @@ describe("NotificationRealtime", () => {
         issues: expect.any(Array),
       }),
     );
+  });
+
+  it("still rejects a malformed createdAt", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(tree());
+    emit("notification.new", { ...newNotification, createdAt: "24.08.2024" });
+    expect(warn).toHaveBeenCalledWith(
+      "[NotificationRealtime] Invalid SSE event",
+      expect.objectContaining({ type: "notification.new" }),
+    );
+    expect(client.getQueryData(countKey)).toEqual({ count: 2 });
   });
 
   it("does not log invalid payloads in production", () => {

@@ -50,6 +50,8 @@ beforeEach(async () => {
     id: String(index),
     userId: "user",
     category: "SYSTEM",
+    type: "system.welcome",
+    payload: {},
     title: `Уведомление ${index}`,
     message: `Сообщение ${index}`,
     actionUrl: null,
@@ -189,6 +191,17 @@ describe("NotificationBell", () => {
     const user = renderBell();
     await openBell(user);
     expect(await screen.findByText("У вас пока нет уведомлений")).toBeTruthy();
+  });
+
+  it("marks each preview item with its category icon", async () => {
+    const user = renderBell();
+    await openBell(user);
+    await screen.findByText("Уведомление 0");
+    const icons = document.querySelectorAll("[data-category]");
+    expect(icons).toHaveLength(5);
+    for (const icon of icons) {
+      expect(icon.getAttribute("data-category")).toBe("SYSTEM");
+    }
   });
 
   it("blocks repeated mark-all requests and refreshes the unread count", async () => {

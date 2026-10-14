@@ -15,12 +15,14 @@
   "dependencies": {
     "@packages/dto": "workspace:^",
     "@packages/i18n": "workspace:^",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^2.2.0",
     "grammy": "^1.30.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.19.2",
     "typescript": "^5",

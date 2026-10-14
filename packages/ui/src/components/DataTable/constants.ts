@@ -2,7 +2,7 @@
  * Доступные по умолчанию варианты количества элементов на странице (неизменяемый массив).
  */
 export const DEFAULT_PAGE_SIZE_OPTIONS: readonly number[] = Object.freeze([
-  10, 20, 50,
+  10, 20, 50, 100,
 ]);
 
 /**

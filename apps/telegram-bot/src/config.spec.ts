@@ -93,3 +93,66 @@ describe("loadConfig: TELEGRAM_WEBHOOK_URL", () => {
     ).toThrow(/HTTPS/);
   });
 });
+
+describe("loadConfig: RABBITMQ_*", () => {
+  it("в dev брокер не обязателен: push-консьюмер просто не поднимается", () => {
+    const env = loadConfig(BASE_ENV);
+
+    expect(env.RABBITMQ_URL).toBeUndefined();
+    expect(env.RABBITMQ_QUEUE_NOTIFICATIONS).toBe("telegram.notifications");
+    expect(env.RABBITMQ_PREFETCH).toBe(10);
+  });
+
+  it("принимает amqp и amqps", () => {
+    expect(
+      loadConfig({
+        ...BASE_ENV,
+        RABBITMQ_URL: "amqp://guest:guest@rabbit:5672",
+      }).RABBITMQ_URL,
+    ).toBe("amqp://guest:guest@rabbit:5672");
+    expect(
+      loadConfig({ ...BASE_ENV, RABBITMQ_URL: "amqps://rabbit:5671" })
+        .RABBITMQ_URL,
+    ).toBe("amqps://rabbit:5671");
+  });
+
+  it("отклоняет не-amqp URL", () => {
+    expect(() =>
+      loadConfig({ ...BASE_ENV, RABBITMQ_URL: "http://rabbit:15672" }),
+    ).toThrow(/RABBITMQ_URL/);
+  });
+
+  it("пустая переменная трактуется как отсутствующая", () => {
+    expect(
+      loadConfig({ ...BASE_ENV, RABBITMQ_URL: "  " }).RABBITMQ_URL,
+    ).toBeUndefined();
+  });
+
+  it("в production отсутствие RABBITMQ_URL — ошибка конфигурации", () => {
+    expect(() => loadConfig({ ...BASE_ENV, NODE_ENV: "production" })).toThrow(
+      /RABBITMQ_URL/,
+    );
+  });
+
+  it("в production с RABBITMQ_URL конфигурация валидна", () => {
+    const env = loadConfig({
+      ...BASE_ENV,
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqps://rabbit:5671",
+      RABBITMQ_PREFETCH: "25",
+    });
+
+    expect(env.RABBITMQ_PREFETCH).toBe(25);
+  });
+
+  it("имя очереди и prefetch переопределяются окружением", () => {
+    const env = loadConfig({
+      ...BASE_ENV,
+      RABBITMQ_QUEUE_NOTIFICATIONS: "custom.notifications",
+      RABBITMQ_PREFETCH: "3",
+    });
+
+    expect(env.RABBITMQ_QUEUE_NOTIFICATIONS).toBe("custom.notifications");
+    expect(env.RABBITMQ_PREFETCH).toBe(3);
+  });
+});

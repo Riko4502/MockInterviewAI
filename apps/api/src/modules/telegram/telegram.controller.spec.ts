@@ -120,6 +120,16 @@ describe("TelegramController", () => {
       expect(result.telegramChatId).toBe(CHAT_ID);
     });
 
+    it("link → сервис с token, chatId и username", async () => {
+      const result = await controller.link({
+        token: TOKEN,
+        chatId: CHAT_ID,
+        username: "testuser",
+      });
+      expect(serviceMock.link).toHaveBeenCalledWith(TOKEN, CHAT_ID, "testuser");
+      expect(result.telegramChatId).toBe(CHAT_ID);
+    });
+
     it("unlink → сервис с chatId", async () => {
       const result = await controller.unlink({ chatId: CHAT_ID });
       expect(serviceMock.unlink).toHaveBeenCalledWith(CHAT_ID);

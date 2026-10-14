@@ -5,10 +5,12 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import type { CompleteOnboardingDto } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import type { AuthSessionService } from "../auth/services/auth-session.service";
+import type { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import type { StorageService } from "../storage/storage.service";
 import { UsersService } from "./users.service";
 
@@ -33,6 +35,9 @@ describe("UsersService", () => {
       create: jest.Mock;
       delete: jest.Mock;
     };
+    notificationOutbox: {
+      create: jest.Mock;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
@@ -40,6 +45,9 @@ describe("UsersService", () => {
   let redisServiceMock: jest.Mocked<Partial<RedisService>>;
   let authSessionServiceMock: {
     revokeAllUserSessions: jest.Mock;
+  };
+  let notificationDispatcherMock: {
+    dispatch: jest.Mock;
   };
   let service: UsersService;
 
@@ -58,6 +66,13 @@ describe("UsersService", () => {
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
+    onboardingCompleted: false,
+    targetRole: null,
+    targetLevel: null,
+    targetCompanies: [] as string[],
+    targetTimeline: null,
+    preferredFormat: null,
+    onboardingAt: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   };
@@ -83,6 +98,14 @@ describe("UsersService", () => {
           createdAt: new Date("2026-09-10T12:00:00.000Z"),
         }),
         delete: jest.fn().mockResolvedValue({}),
+      },
+      notificationOutbox: {
+        create: jest.fn().mockResolvedValue({
+          id: "outbox-1",
+          type: "system.welcome",
+          recipientId: mockUser.id,
+          status: "PENDING",
+        }),
       },
       userDeviceSettings: {
         findUnique: jest.fn(),
@@ -111,12 +134,16 @@ describe("UsersService", () => {
     authSessionServiceMock = {
       revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
     };
+    notificationDispatcherMock = {
+      dispatch: jest.fn().mockResolvedValue({ id: "outbox-1" }),
+    };
 
     service = new UsersService(
       prismaMock as unknown as PrismaService,
       storageServiceMock as unknown as StorageService,
       redisServiceMock as unknown as RedisService,
       authSessionServiceMock as unknown as AuthSessionService,
+      notificationDispatcherMock as unknown as NotificationDispatcher,
     );
   });
 
@@ -148,6 +175,39 @@ describe("UsersService", () => {
           passwordHash: "argon2id$hashed",
         }),
       ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it("пишет system.welcome в outbox в той же транзакции", async () => {
+      prismaMock.user.create.mockResolvedValue(mockUser);
+
+      await service.create({
+        email: "test@example.com",
+        passwordHash: "argon2id$hashed",
+      });
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      // Ключевой инвариант: диспетчер получает именно транзакционный клиент,
+      // а не this.prisma. Иначе строка outbox ушла бы в отдельную транзакцию и
+      // пережила бы откат регистрации (ADR-003:65-68).
+      expect(notificationDispatcherMock.dispatch).toHaveBeenCalledWith(
+        { type: "system.welcome", payload: {} },
+        mockUser.id,
+        prismaMock,
+      );
+    });
+
+    it("не создаёт пользователя, если диспетчер упал", async () => {
+      prismaMock.user.create.mockResolvedValue(mockUser);
+      notificationDispatcherMock.dispatch.mockRejectedValue(
+        new Error("outbox unavailable"),
+      );
+
+      await expect(
+        service.create({
+          email: "test@example.com",
+          passwordHash: "argon2id$hashed",
+        }),
+      ).rejects.toThrow("outbox unavailable");
     });
   });
 
@@ -312,6 +372,65 @@ describe("UsersService", () => {
 
       await expect(
         service.updateProfile("non-existent-id", { displayName: "New Name" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("completeOnboarding", () => {
+    it("успешно завершает онбординг и инвалидирует кэш готовности", async () => {
+      const dto: CompleteOnboardingDto = {
+        role: "FRONTEND",
+        level: "MIDDLE",
+        companies: ["yandex", "tinkoff"],
+        timeline: "soon",
+        format: "ai",
+        isSkipped: false,
+      };
+      const updatedUser = {
+        ...mockUser,
+        onboardingCompleted: true,
+        targetRole: dto.role,
+        targetLevel: dto.level,
+        targetCompanies: dto.companies,
+        targetTimeline: dto.timeline,
+        preferredFormat: dto.format,
+        onboardingAt: new Date("2026-10-03T12:00:00Z"),
+      };
+
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.completeOnboarding(mockUser.id, dto);
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockUser.id },
+          data: expect.objectContaining({
+            onboardingCompleted: true,
+            targetRole: "FRONTEND",
+            targetLevel: "MIDDLE",
+            targetCompanies: ["yandex", "tinkoff"],
+            targetTimeline: "soon",
+            preferredFormat: "ai",
+          }),
+        }),
+      );
+      expect(result.onboardingCompleted).toBe(true);
+      expect(result.targetRole).toBe("FRONTEND");
+      expect(redisServiceMock.delete).toHaveBeenCalledWith(
+        `cache:dashboard:readiness:${mockUser.id}`,
+      );
+    });
+
+    it("выбрасывает NotFoundException если пользователь не найден", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.completeOnboarding("non-existent-id", {
+          role: "FRONTEND",
+          companies: [],
+          isSkipped: false,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });

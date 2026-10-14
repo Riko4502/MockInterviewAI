@@ -16,6 +16,7 @@ import { configuration } from "./config/configuration";
 import { validate } from "./config/env.validation";
 import { AdminModule } from "./modules/admin/admin.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { CodeRunnerModule } from "./modules/code-runner/code-runner.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
 import { MailModule } from "./modules/mail/mail.module";
@@ -78,6 +79,7 @@ import { RedisModule } from "./redis/redis.module";
     TelegramModule,
     ShowcaseModule,
     MatchmakingModule,
+    CodeRunnerModule,
   ],
   providers: [
     {

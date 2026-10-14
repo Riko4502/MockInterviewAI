@@ -24,7 +24,7 @@ sequenceDiagram
         alt Пользователь не аутентифицирован
             RB-->>Admin: Редирект на /login?returnTo=/admin/users
         else Аутентифицирован, но роль != ADMIN
-            RB-->>Admin: Редирект на /dashboard или 403 Forbidden
+            RB-->>Admin: Редирект на /dashboard с Toast "Недостаточно прав"
         end
     else Роль == SystemRole.ADMIN
         Page->>Hooks: useAdminUsersControllerGetUsersList(params)
@@ -35,7 +35,7 @@ sequenceDiagram
 
     %% Поиск и фильтрация
     Admin->>Filter: Ввод поиска / выбор роли / выбор статуса (debounce 300ms)
-    Filter->>Page: Синхронизация с URLSearchParams
+    Filter->>Page: Синхронизация с URLSearchParams (очистка пустых параметров)
     Page->>Hooks: Обновление параметров запроса (сброс page = 1)
     Hooks->>API: GET /api/v1/admin/users?search=...&page=1
     API-->>Hooks: Отфильтрованный список
@@ -43,33 +43,46 @@ sequenceDiagram
 
     %% Деактивация / Активация
     Admin->>Table: Клик "Деактивировать" в меню действий строки
-    Table->>Modal: Открытие ToggleStatusDialog
+    Table->>Modal: Открытие ToggleStatusDialog (проверка targetUserId !== currentUserId)
     Admin->>Modal: Подтверждение блокировки
     Modal->>Hooks: useAdminUsersControllerUpdateStatus({ id, data: { isActive: false } })
     Hooks->>API: PATCH /api/v1/admin/users/:id/status
     API-->>Hooks: 200 OK (UserAdminResponseDto)
-    Hooks->>Modal: Инвалидация queryKey ['/api/v1/admin/users']
-    Modal-->>Admin: Toast "Пользователь успешно деактивирован, сессии отозваны"
+    Hooks->>Modal: Инвалидация queryKey списка и детального запроса пользователя
+    Modal-->>Admin: Toast "Статус пользователя успешно обновлен"
     Hooks-->>Table: Перерисовка статуса на "Деактивирован"
 ```
 
 ---
 
-## 2. Структура файлов в `apps/web` (FSD методология)
+## 2. Структура файлов в монорепозитории
 
 > [!NOTE]
-> В соответствии с правилами монорепозитория (`AGENTS.md`) прямое дублирование HTTP-клиентов запрещено: интеграция с API строится поверх типизированных хуков и моделей из **`@packages/api`** и Zod-схем **`@packages/dto`**.
+> В соответствии с правилами монорепозитория (`AGENTS.md`):
+> 1. Прямое дублирование HTTP-клиентов запрещено: интеграция с API строится поверх типизированных хуков и моделей из **`@packages/api`** и Zod-схем **`@packages/dto`**.
+> 2. Не создаётся отдельный `AdminSidebarNav`: общий шелл приложения **`@widgets/sidebar`** (`SidebarPanel`) уже содержит автоподключение группы `ADMIN_NAV_ITEMS` при роли `ADMIN`.
+> 3. Компонент **`DataTable`** в `@packages/ui` дорабатывается для универсальной поддержки как клиентской, так и серверной пагинации и сортировки.
 
 ```text
+packages/
+├── ui/src/components/DataTable/
+│   ├── types.ts                                           # Расширение DataTableProps и DataTablePaginationConfig (режимы client/server)
+│   ├── data-table.tsx                                     # Поддержка server-side пагинации (без локального slice) и внешнего onSortChange
+│   └── data-table.test.tsx                                # Тестирование client и server режимов пагинации
+│
+└── i18n/src/locales/
+    ├── ru/common.json                                     # Локализация таблицы, фильтров, бейджей, диалогов и уведомлений (RU)
+    └── en/common.json                                     # Локализация (EN)
+
 apps/web/src/
 ├── app/
 │   └── (protected)/
 │       └── admin/
-│           ├── layout.tsx                                 # RoleBoundary(SystemRole.ADMIN) + Admin Header/Nav
+│           ├── layout.tsx                                 # RoleBoundary(SystemRole.ADMIN) + Sidebar (уже создан, интеграция с общим шеллом)
 │           └── users/
-│               ├── page.tsx                               # Страница /admin/users
+│               ├── page.tsx                               # Страница /admin/users (Header, Filters, Table)
 │               └── [id]/
-│                   └── page.tsx                           # Детальная страница пользователя (опционально)
+│                   └── page.tsx                           # Детальная страница пользователя (опционально / drawer fallback)
 │
 ├── entities/
 │   └── admin-user/
@@ -87,7 +100,7 @@ apps/web/src/
 │   │   │   ├── AdminUsersFilter.tsx                       # Debounced поиск, селекторы SystemRole и isActive, кнопка сброса
 │   │   │   └── AdminUsersFilter.test.tsx
 │   │   ├── model/
-│   │   │   └── useAdminUsersFilterState.ts                # Синхронизация состояния фильтров с URLSearchParams
+│   │   │   └── useAdminUsersFilterState.ts                # Синхронизация состояния фильтров с URLSearchParams (с очисткой пустых)
 │   │   └── index.ts
 │   │
 │   ├── admin-user-create/
@@ -100,10 +113,10 @@ apps/web/src/
 │   │
 │   ├── admin-user-edit/
 │   │   ├── ui/
-│   │   │   ├── EditUserDialog.tsx                         # Модальное окно редактирования профиля и роли (без пароля)
+│   │   │   ├── EditUserDialog.tsx                         # Модальное окно редактирования (с защитой от смены собственной роли)
 │   │   │   └── EditUserDialog.test.tsx
 │   │   ├── model/
-│   │   │   └── useEditUserForm.ts                         # React Hook Form + updateUserAdminSchema (@packages/dto)
+│   │   │   └── useEditUserForm.ts                         # React Hook Form + updateUserAdminSchema (нормализация "" -> null)
 │   │   └── index.ts
 │   │
 │   ├── admin-user-status/
@@ -114,43 +127,73 @@ apps/web/src/
 │   │
 │   ├── admin-user-reset-password/
 │   │   ├── ui/
-│   │   │   ├── ResetPasswordDialog.tsx                    # Диалог подтверждения сброса пароля; после успеха показывает обновлённый UserAdminResponseDto
+│   │   │   ├── ResetPasswordDialog.tsx                    # Диалог подтверждения сброса пароля (без показа пароля в UI)
 │   │   │   └── ResetPasswordDialog.test.tsx
 │   │   └── index.ts
 │   │
 │   └── admin-user-details/
 │       ├── ui/
-│       │   └── UserDetailsDrawer.tsx                      # Боковой Drawer с подробной статистикой (sessionsCount, participationsCount)
+│       │   └── UserDetailsDrawer.tsx                      # Боковой Drawer с подробной статистикой (useAdminUsersControllerGetUserById)
 │       └── index.ts
 │
-├── widgets/
-│   ├── admin-header/
-│   │   └── ui/
-│   │       └── AdminHeader.tsx                            # Заголовок раздела, хлебные крошки, кнопка "+ Добавить пользователя"
-│   │
-│   ├── admin-users-table/
-│   │   ├── ui/
-│   │   │   ├── AdminUsersTable.tsx                        # Таблица на базе @packages/ui/DataTable
-│   │   │   ├── AdminUsersTableColumns.tsx                 # Описание колонок, сортировки, форматирования дат
-│   │   │   ├── AdminUsersTableRowActions.tsx              # Меню действий (DropdownMenu)
-│   │   │   └── AdminUsersTable.test.tsx
-│   │   └── index.ts
-│   │
-│   └── admin-sidebar/
-│       └── ui/
-│           └── AdminSidebarNav.tsx                        # Навигация панели администратора
-│
-└── shared/
-    └── config/
-        └── paths.ts                                       # Регистрация маршрута paths.adminUsers = "/admin/users"
+└── widgets/
+    └── admin-users-table/
+        ├── ui/
+        │   ├── AdminUsersTable.tsx                        # Таблица на базе обновлённого @packages/ui/DataTable (mode: "server")
+        │   ├── AdminUsersTableColumns.tsx                 # Описание колонок, сортировки, форматирования дат
+        │   ├── AdminUsersTableRowActions.tsx              # Меню действий (DropdownMenu) с проверкой currentUserId
+        │   └── AdminUsersTable.test.tsx
+        └── index.ts
 ```
 
 ---
 
-## 3. Детали технического дизайна UI компонентов
+## 3. Детали технического дизайна компонентов
 
-### 3.1. Колонки таблицы пользователей (`AdminUsersTableColumns`)
-Таблица строится с помощью `DataTable` из `@packages/ui` со следующими колонками:
+### 3.1. Универсализация `@packages/ui/DataTable` для серверной и клиентской пагинации
+
+Для устранения бага с локальным срезом данных (`sortedData.slice`) и локальной сортировкой, компонент `DataTable` расширяется следующими свойствами:
+
+1. **Конфигурация пагинации (`DataTablePaginationConfig`):**
+   ```ts
+   export interface DataTablePaginationConfig {
+     /** Текущая страница (начиная с 1). */
+     page?: number;
+     /** Количество строк на странице. */
+     pageSize?: number;
+     /** Общее количество записей (если передано, таблица работает во внешнем режиме без повторного среза). */
+     totalItems?: number;
+     /** Общее количество страниц (опционально, если передан totalItems). */
+     totalPages?: number;
+     /** Показывать ли селектор размера страницы (10, 20, 50, 100). */
+     showPageSizeSelect?: boolean;
+     /** Колбэк изменения страницы. */
+     onPageChange?: (page: number) => void;
+     /** Колбэк изменения размера страницы. */
+     onPageSizeChange?: (pageSize: number) => void;
+   }
+   ```
+2. **Логика рендера строк (`displayData`):**
+   - Если переданы `totalItems` или `totalPages`, пагинация автоматически определяется как внешняя (`isExternalPagination`): `displayData = data` (данные не нарезаются через `.slice()`, так как сервер уже вернул нужную страницу). Никаких искусственных флагов `mode: "server"` не требуется.
+   - Если `totalItems` и `totalPages` не переданы, сохраняется стандартное поведение клиентской пагинации с локальным срезом `data.slice(start, start + pageSize)`.
+   - Количество страниц рассчитывается как `totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize))`.
+3. **Серверная сортировка (`sortState` и `onSortChange` в `DataTableProps`):**
+   ```ts
+   export interface DataTableProps<T extends DataTableRow = DataTableRow> {
+     // ...
+     /** Внешнее состояние сортировки (для контролируемого/серверного режима). */
+     sortState?: DataTableSortState | null;
+     /** Колбэк при клике на сортируемую колонку (для передачи параметров sortBy / sortOrder на сервер). */
+     onSortChange?: (sortState: DataTableSortState | null) => void;
+   }
+   ```
+   В режиме серверной сортировки клик по заголовку колонки вызывает `onSortChange`, а локальная сортировка через `[...filteredData].sort(...)` отключается.
+
+---
+
+### 3.2. Колонки таблицы пользователей (`AdminUsersTableColumns`)
+
+Таблица строится с помощью `DataTable` из `@packages/ui` с передачей параметров пагинации (`totalItems`, `totalPages`, `onPageChange`):
 
 | Колонка | Описание / Отображение | Сортировка API |
 | :--- | :--- | :---: |
@@ -167,9 +210,10 @@ apps/web/src/
 
 ---
 
-### 3.2. Панель фильтрации (`AdminUsersFilter`)
+### 3.3. Панель фильтрации (`AdminUsersFilter`)
+
 1. **Поле поиска (`Input` с иконкой `SearchIcon`):**
-   - Placeholder: *"Поиск по email, имени или username..."*;
+   - Placeholder из i18n (`admin.users.filters.searchPlaceholder`);
    - Debounce 300ms;
    - Автоматический сброс на `page: 1` при вводе.
 2. **Селектор роли (`Select`):**
@@ -180,144 +224,210 @@ apps/web/src/
    - Клик по заголовкам колонок таблицы переключает `sortBy` и `sortOrder` (`asc` / `desc`).
 5. **Сброс фильтров:**
    - Кнопка "Сбросить", очищающая поисковые параметры до дефолтных.
-6. **URL State Synchronization:**
+6. **URL State Synchronization (`useAdminUsersFilterState`):**
    - Все параметры (`page`, `limit`, `search`, `role`, `isActive`, `sortBy`, `sortOrder`) синхронизированы с `URLSearchParams`.
+   - Пустые параметры (`""`, `undefined`) удаляются из URL, не засоряя строку запроса.
 
 ---
 
-### 3.3. Модальные окна и формы
+### 3.4. Модальные окна, формы и безопасность (Self-Protection)
 
 #### 1. Создание пользователя (`CreateUserDialog`):
 - **Схема валидации:** `createUserAdminSchema` из `@packages/dto`.
 - **Поля:** `email` (обязательный), `role` (`SystemRole`, default: `USER`), `username` (опционально), `displayName` (опционально).
-- **Примечание:** Поле `password` **отсутствует** — сервер генерирует криптостойкий временный пароль самостоятельно (Zero-Knowledge).
+- **Примечание:** Поле `password` **отсутствует** — сервер генерирует временный пароль самостоятельно (Zero-Knowledge).
 - **Хук:** `useAdminUsersControllerCreateUser` из `@packages/api`.
 - **Обработка ошибок:** 409 Conflict $\to$ подсветка полей `email` / `username`.
 
 #### 2. Редактирование пользователя (`EditUserDialog`):
 - **Схема валидации:** `updateUserAdminSchema` из `@packages/dto`.
 - **Поля:** `email`, `role`, `username`, `displayName`, `telegramUsername`, `gitUrl`.
-- **Особенность:** поле пароля **отсутствует** (пароль не редактируется через общий CRUD).
+- **Защита от смены собственной роли (Self-Role Protection):** Если редактируется собственный аккаунт (`targetUserId === currentUserId`, полученный через `useSession()`), селектор роли заблокирован (`disabled`) с тултипом/сообщением: *"Нельзя изменить роль собственного аккаунта"* (соответствует валидации бэкенда).
+- **Нормализация пустых строк:** Значения `telegramUsername` и `gitUrl` при очистке инпута преобразуются в `null` (`value.trim() === "" ? null : value`), чтобы пройти regex-валидацию схемы.
 - **Хук:** `useAdminUsersControllerUpdateUser` из `@packages/api`.
 
 #### 3. Управление статусом (`ToggleStatusDialog`):
 - **Хук:** `useAdminUsersControllerUpdateStatus` из `@packages/api`.
-- **Предупреждение при деактивации:**
-  > *"Вы уверены, что хотите деактивировать пользователя **{email}**? Все его активные сессии будут немедленно завершены, а доступ к платформе заблокирован."*
 - **Self-Lockout защита:** Если текущий авторизованный администратор (`currentUserId === targetUserId`), кнопка деактивации в интерфейсе заблокирована (`disabled`) с тултипом *"Нельзя деактивировать собственный аккаунт администратора"*.
 
 #### 4. Сброс пароля администратором (`ResetPasswordDialog`):
 - **Хук:** `useAdminUsersControllerResetPassword` из `@packages/api`.
-- **Действие:** После подтверждения вызывает `POST /api/v1/admin/users/:id/reset-password`. Сервер генерирует временный пароль, обновляет `passwordHash` и отзывает все активные сессии.
-- **Ответ:** `UserAdminResponseDto` (обновлённые данные пользователя). Временный пароль **не возвращается** клиенту и не отображается в UI; Toast информирует об успешном сбросе.
+- **Действие:** После подтверждения вызывает `POST /api/v1/admin/users/:id/reset-password`. Сервер генерирует временный пароль, обновляет `passwordHash` и отзывает сессии.
+- **Ответ:** `UserAdminResponseDto`. Временный пароль **не возвращается** клиенту и не отображается в UI; Toast информирует об успешном сбросе.
 
 #### 5. Детальная карточка (`UserDetailsDrawer`):
-- **Хук:** `useAdminUsersControllerGetUserDetail` из `@packages/api`.
+- **Хук:** `useAdminUsersControllerGetUserById` из `@packages/api`.
 - **Отображение:** ID, email, username, дата создания, дата деактивации, счетчик сессий (`sessionsCount`), счетчик участий в интервью (`participationsCount`).
+
+#### 6. Стратегия инвалидации кэша TanStack Query:
+После любой мутации (`createUser`, `updateUser`, `updateStatus`, `resetPassword`) синхронно инвалидируются:
+1. Кэш списка пользователей: `queryClient.invalidateQueries({ queryKey: ['/api/v1/admin/users'] })`.
+2. Кэш детальной карточки пользователя (если открыт Drawer): `queryClient.invalidateQueries({ queryKey: ['/api/v1/admin/users', id] })`.
+
+---
+
+### 3.5. Дополнительные архитектурные и платформенные нюансы (Gotchas & Best Practices)
+
+1. **Исключение soft-deleted пользователей (`isDeleted: false`):**
+   - В бэкенде `AdminUsersService.getUsersList` при отсутствии параметра `isDeleted` выбираются все записи, включая удаленные (`deletedAt !== null`).
+   - Если попытаться активировать удаленного пользователя через `updateStatus({ isActive: true })`, бэкенд возвращает ошибку `400: Cannot activate deleted user. Use restore instead`.
+   - **Решение:** Хук запроса списка пользователей в таблице обязан по умолчанию передавать параметр `isDeleted: false`.
+
+2. **Нормализация пустых строк в `CreateUserDialog`:**
+   - Поля `username` и `displayName` в `createUserAdminSchema` являются опциональными, но при наличии значений строго проверяются regex (`3-30` символов) и `min(1)`.
+   - Пустой ввод из HTML-инпута (`""`) вызовет сбой валидации Zod.
+   - **Решение:** Пустые строки перед сабмитом приводятся к `undefined` (`username: values.username?.trim() || undefined`).
+
+3. **Ограничение Radix UI `Select` (запрет `value=""`):**
+   - Библиотека `@packages/ui/Select` построена на Radix UI, который выбрасывает рантайм-ошибку при передаче пустого значения `<Select.Item value="">`.
+   - **Решение:** Для опций «Все роли» и «Все статусы» используется константа `"ALL"`, которая в хуке `useAdminUsersFilterState` преобразуется в `undefined`.
+
+4. **Предотвращение дублирования строки поиска:**
+   - Компонент `AdminUsersFilter` уже содержит поле поиска с debounce 300ms.
+   - В виджете таблицы пропс `searchable` у `DataTable` обязательно выставляется в `false`, чтобы избежать рендера двух параллельных поисковых инпутов.
+
+5. **Оптимизация рендера модальных окон (Предотвращение DOM Bloat):**
+   - Рендер диалогов редактирования, смены статуса, сброса пароля и шторки деталей внутри каждой строки таблицы порождает сотни узлов в DOM (20–100 строк $\times$ 4 модалки).
+   - **Решение:** Состояние активного диалога и выбранного пользователя (`activeDialog: { type: 'edit' | 'status' | 'reset' | 'details', user: UserAdminResponseDto } | null`) хранится на уровне виджета `AdminUsersTable`, а компоненты диалогов монтируются в единственном экземпляре.
+
+6. **Предотвращение автоскролла страницы в Next.js App Router:**
+   - Вызов `router.replace(url)` при вводе в поиск или переключении пагинации по умолчанию может скроллить окно наверх (`scroll: true`).
+   - **Решение:** Вызывать синхронизацию параметров URL строго с флагом `{ scroll: false }`.
+
+7. **Безопасность гидратации при форматировании дат (SSR Hydration Match):**
+   - Форматирование даты `createdAt` через `Intl.DateTimeFormat` при SSR на сервере и в браузере клиента может вызывать несовпадение часовых поясов (UTC против локального пояса).
+   - **Решение:** Использовать хелпер форматирования с фиксированным часовым поясом либо атрибут `suppressHydrationWarning` на контейнере даты.
+
+8. **Конфигурация Drawer для десктопного интерфейса:**
+   - По умолчанию `@packages/ui/Drawer` открывается снизу (`side="bottom"`).
+   - Для детальной карточки пользователя в `UserDetailsDrawer` для `Drawer.Content` явно задаётся `side="right"` для отображения в виде боковой панели.
 
 ---
 
 ## 4. Чеклист реализации
 
-### 📦 Часть 1: Маршрутизация и сущность (`entities/admin-user`, `shared/config`)
+### 🛠️ Часть 0: Доработка базовых пакетов (`@packages/ui`, `@packages/i18n`)
 
-- [ ] **Конфигурация путей (`shared/config/paths.ts`):**
-  - Добавить `adminUsers: "/admin/users"` в объект `paths`.
-- [ ] **UI-компоненты сущности (`entities/admin-user/ui/`):**
-  - `UserRoleBadge`: фиолетовый акцент для `SystemRole.ADMIN`, нейтральный серый для `SystemRole.USER`.
-  - `UserStatusBadge`: зеленый для `Активен`, красный для `Деактивирован`.
-  - `UserAvatarCell`: аватар с fallback инициалами, имя и `@username`.
+- [x] **Расширение `@packages/ui/DataTable`:**
+  - Добавить поддержку внешней пагинации (`totalItems?: number`, `totalPages?: number`) в `DataTablePaginationConfig` без искусственного флага `mode: "server"`.
+  - Добавить `sortState?: DataTableSortState | null` и `onSortChange?: (state: DataTableSortState | null) => void` в `DataTableProps`.
+  - Автоматически отключать клиентский `slice` при передаче `totalItems`/`totalPages` и клиентскую сортировку при наличии `onSortChange`.
+  - Покрыть unit-тестами локальную и внешнюю пагинацию (`data-table.test.tsx`).
+- [x] **Локализация `@packages/i18n`:**
+  - Добавить секцию `admin.users.*` в `packages/i18n/src/locales/ru/common.json` и `packages/i18n/src/locales/en/common.json` (заголовки колонок, статусы, бейджи, кнопки, плейсхолдеры, диалоговые окна, тосты).
 
 ---
 
-### 🔍 Часть 2: Фильтрация и синхронизация с URL (`features/admin-users-filter`)
+### 📦 Часть 1: Сущность пользователя (`entities/admin-user`)
 
-- [ ] **Хук синхронизации с URL (`useAdminUsersFilterState`):**
-  - Чтение и запись параметров `page`, `limit`, `search`, `role`, `isActive`, `sortBy`, `sortOrder` в URL search query.
-- [ ] **Компонент фильтров (`AdminUsersFilter.tsx`):**
+- [x] **UI-компоненты сущности (`entities/admin-user/ui/`):**
+  - `UserRoleBadge`: акцентный фиолетовый для `SystemRole.ADMIN`, нейтральный серый для `SystemRole.USER`.
+  - `UserStatusBadge`: зеленый для `Активен`, деструктивный красный для `Деактивирован`.
+  - `UserAvatarCell`: аватар с инициалами-фоллбэком, отображаемое имя и `@username`.
+
+---
+
+### 🔍 Часть 2: Фильтрация и URL-синхронизация (`features/admin-users-filter`)
+
+- [x] **Хук состояния фильтрации (`useAdminUsersFilterState`):**
+  - Чтение и запись `page`, `limit`, `search`, `role`, `isActive`, `sortBy`, `sortOrder`.
+  - Очистка пустых значений из строки запроса (`clean URL`).
+  - Передача `{ scroll: false }` при `router.replace` для предотвращения автоскролла страницы наверх при вводе в поиск и пагинации.
+  - Маппинг sentinel-значения `"ALL"` в `undefined` для корректной работы с Radix UI Select.
+- [x] **Компонент фильтров (`AdminUsersFilter.tsx`):**
   - Поисковый Input с debounce 300ms.
-  - Select-фильтры по роли (`SystemRole`) и статусу активности (`isActive`).
-  - Кнопка сброса при наличии активных фильтров.
+  - Селекторы роли (`SystemRole`) и активности (`isActive`) с использованием `value="ALL"` вместо запрещенного в Radix UI `value=""`.
+  - Кнопка сброса фильтров.
   - Unit-тесты `AdminUsersFilter.test.tsx`.
 
 ---
 
-### 📊 Часть 3: Таблица пользователей и пагинация (`widgets/admin-users-table`)
+### 📊 Часть 3: Таблица пользователей (`widgets/admin-users-table`)
 
-- [ ] **Колонки и рендер (`AdminUsersTableColumns.tsx`):**
-  - Форматирование дат через `@packages/utils` / `Intl.DateTimeFormat`.
-  - Интерактивная сортировка по клику на заголовки колонок (`sortBy`, `sortOrder`).
-- [ ] **Меню действий строки (`AdminUsersTableRowActions.tsx`):**
-  - `DropdownMenu`: Детали (Drawer), Редактировать (Dialog), Сбросить пароль (Dialog), Деактивировать / Активировать (Dialog).
-  - Блокировка деактивации для собственного аккаунта (`currentUserId === row.id`).
-- [ ] **Виджет таблицы (`AdminUsersTable.tsx`):**
-  - Интеграция с хуком `useAdminUsersControllerGetUsersList` из `@packages/api`.
-  - Состояния: Skeleton-загрузка, Empty-стейт "Пользователи не найдены", Error-стейт с кнопкой повтора.
+- [x] **Конфигурация колонок (`AdminUsersTableColumns.tsx`):**
+  - Интерактивная сортировка по клику (`sortBy`, `sortOrder`).
+  - Форматирование дат через `@packages/utils` / `Intl.DateTimeFormat` с защитой от SSR Hydration Mismatch (`suppressHydrationWarning` или фиксированный часовой пояс).
+- [x] **Меню действий строки (`AdminUsersTableRowActions.tsx`):**
+  - Кнопка вызова действий (DropdownMenu) без монтирования диалогов внутри каждой строки: передача событий открытия наружу (`onAction(type, user)`).
+  - Блокировка пункта деактивации для текущего пользователя (`currentUserId === row.id`).
+- [x] **Виджет таблицы (`AdminUsersTable.tsx`):**
+  - Интеграция с `useAdminUsersControllerGetUsersList` с обязательной передачей `isDeleted: false` по умолчанию (исключение soft-deleted пользователей).
+  - Интеграция с `DataTable` с параметрами внешней пагинации (`totalItems`, `totalPages`) и явным отключением встроенного поиска (`searchable={false}`).
+  - Централизованное состояние активного действия на уровне таблицы (`activeDialog: { type, user } | null`) — монтирование диалогов в единственном экземпляре для предотвращения DOM Bloat.
+  - Отображение состояний: загрузка (Skeleton), пустой результат (Empty state), ошибка (Error state с кнопкой повтора).
   - Серверная пагинация с выбором лимита строк (`10, 20, 50, 100`).
   - Unit-тесты `AdminUsersTable.test.tsx`.
 
 ---
 
-### 🪟 Часть 4: Диалоговые окна действий (`features/admin-user-*`)
+### 🪟 Часть 4: Диалоговые окна и Drawer (`features/admin-user-*`)
 
-- [ ] **Создание пользователя (`features/admin-user-create`):**
-  - `CreateUserDialog` с формой `react-hook-form` + `createUserAdminSchema` (`@packages/dto`).
-  - Интеграция с мутацией `useAdminUsersControllerCreateUser`.
-  - Поле `password` отсутствует в форме (генерация на сервере).
-  - Валидация обязательного `email` и опциональных `username`, `displayName`; подсветка 409 Conflict.
-  - Toast-уведомление об успешном создании, инвалидация кэша списка.
-- [ ] **Редактирование пользователя (`features/admin-user-edit`):**
-  - `EditUserDialog` с формой `updateUserAdminSchema` (`@packages/dto`).
-  - Интеграция с мутацией `useAdminUsersControllerUpdateUser`.
-  - Поля пароля отсутствуют.
-- [ ] **Управление статусом (`features/admin-user-status`):**
-  - `ToggleStatusDialog` с подтверждением и описанием отзыва сессий.
-  - Интеграция с мутацией `useAdminUsersControllerUpdateStatus`.
-- [ ] **Сброс пароля (`features/admin-user-reset-password`):**
-  - `ResetPasswordDialog` с диалогом подтверждения и вызовом `useAdminUsersControllerResetPassword`.
-  - Успешный ответ — `UserAdminResponseDto`; временный пароль **не показывается** в UI. Toast сообщает об успешном сбросе.
-- [ ] **Детальная информация (`features/admin-user-details`):**
-  - `UserDetailsDrawer` с интеграцией `useAdminUsersControllerGetUserDetail`.
+- [x] **Создание пользователя (`features/admin-user-create`):**
+  - `CreateUserDialog` с `react-hook-form` + `createUserAdminSchema` (без поля пароля).
+  - Нормализация пустых строк: опциональные поля `username` и `displayName` при отсутствии ввода преобразуются в `undefined`, предотвращая ошибку Zod-валидации.
+  - Мутация `useAdminUsersControllerCreateUser`, обработка 409 Conflict.
+- [x] **Редактирование пользователя (`features/admin-user-edit`):**
+  - `EditUserDialog` с `updateUserAdminSchema`.
+  - Блокировка смены роли при `row.id === currentUserId` (Self-Role Protection).
+  - Нормализация пустых полей `telegramUsername` и `gitUrl` в `null`.
+  - Мутация `useAdminUsersControllerUpdateUser`.
+- [x] **Управление статусом (`features/admin-user-status`):**
+  - `ToggleStatusDialog` с подтверждением и блокировкой деактивации себя (Self-Lockout Protection).
+  - Мутация `useAdminUsersControllerUpdateStatus`.
+- [x] **Сброс пароля (`features/admin-user-reset-password`):**
+  - `ResetPasswordDialog` с подтверждением.
+  - Мутация `useAdminUsersControllerResetPassword` (без показа временного пароля в UI).
+- [x] **Детальная информация (`features/admin-user-details`):**
+  - `UserDetailsDrawer` с хуком `useAdminUsersControllerGetUserById`.
+  - Явное указание `side="right"` для отображения боковой панели на десктопе.
+- [x] **Инвалидация кэша TanStack Query:**
+  - Инвалидация списка `['/api/v1/admin/users']` и деталей пользователя `['/api/v1/admin/users', id]`.
 
 ---
 
-### 🧭 Часть 5: Лейаут и сборка страницы (`app/(protected)/admin`)
+### 🧭 Часть 5: Страница и лейаут (`app/(protected)/admin`)
 
-- [ ] **Административный лейаут (`app/(protected)/admin/layout.tsx`):**
-  - Обертка авторизации и роли `<RoleBoundary allowedRoles={[SystemRole.ADMIN]}>`.
-  - Верхняя панель `AdminHeader` и боковая навигация `AdminSidebarNav`.
-- [ ] **Страница пользователей (`app/(protected)/admin/users/page.tsx`):**
+- [x] **Административный лейаут (`app/(protected)/admin/layout.tsx`):**
+  - Сохранение существующей проверки `<RoleBoundary allowedRoles={[SystemRole.ADMIN]}>` (уже протестирована в `admin-routing.test.tsx`).
+  - Интеграция в стандартный каркас `<Sidebar headerActions={<NotificationBell />}>`.
+- [x] **Страница пользователей (`app/(protected)/admin/users/page.tsx`):**
+  - Заголовок с кнопкой "+ Добавить пользователя".
   - Размещение `AdminUsersFilter` и `AdminUsersTable`.
-  - Кнопка "+ Добавить пользователя", открывающая `CreateUserDialog`.
 
 ---
 
 ### 🧪 Часть 6: Тестирование (Vitest & Playwright)
 
-- [ ] **Unit & Component тесты (Vitest / React Testing Library):**
-  - `AdminUsersTable`: корректный рендер строк, бейджей, пагинации.
-  - `AdminUsersFilter`: debounce поиска, вызовы обновления фильтров.
-  - `CreateUserDialog`: валидация обязательных полей (без `password`) по схеме Zod, отправка мутации.
-  - `ToggleStatusDialog`: блокировка кнопки деактивации для текущего админа.
-  - `ResetPasswordDialog`: подтверждение сброса; проверка Toast-уведомления вместо отображения временного пароля.
-- [ ] **E2E тесты (Playwright):**
-  - Авторизация под `ADMIN` $\to$ переход на `/admin/users`.
-  - Поиск пользователя по имени $\to$ отображение отфильтрованного результата.
-  - Создание нового пользователя $\to$ отображение в таблице.
-  - Смена роли пользователя $\to$ обновление бейджа.
-  - Деактивация пользователя $\to$ смена статуса на `Деактивирован`.
-  - Попытка пользователя с ролью `USER` перейти на `/admin/users` $\to$ редирект / 403 Forbidden.
+- [x] **Unit & Component тесты (Vitest):**
+  - `DataTable`: корректная работа локальной пагинации и внешней пагинации с `totalItems` / `totalPages`.
+  - `AdminUsersTable`: рендер строк, серверная пагинация, вызов сортировки, передача `isDeleted: false`, отсутствие дублирования поиска.
+  - `AdminUsersFilter`: debounce поиска, сброс параметров, работа sentinel `"ALL"`, обновление URL с `{ scroll: false }`.
+  - `CreateUserDialog`: валидация по Zod без пароля, нормализация пустых строк `"" -> undefined`.
+  - `EditUserDialog`: блокировка изменения роли собственного аккаунта.
+  - `ToggleStatusDialog`: блокировка деактивации собственного аккаунта.
+  - `UserDetailsDrawer`: открытие справа (`side="right"`), отображение данных.
+- [x] **E2E тесты (Playwright):**
+  - Полный сценарий управления пользователями под ролью `ADMIN`.
+  - Проверка защиты от доступа пользователя с ролью `USER` (редирект / 403).
 
 ---
 
-## 6. Критерии приемки (Definition of Done)
+## 5. Критерии приемки (Definition of Done)
 
 1. Раздел `/admin/users` доступен исключительно пользователям с ролью `SystemRole.ADMIN`.
-2. Таблица отображает все поля из контракта `UserAdminResponseDto` с серверной пагинацией, сортировкой и поиском.
-3. Поиск работает с debounce (300ms) и синхронизируется с `URLSearchParams`.
-4. Создание пользователя валидируется через `createUserAdminSchema` из `@packages/dto`.
-5. Редактирование пользователя валидируется через `updateUserAdminSchema` без раскрытия/редактирования пароля.
-6. Сброс пароля и деактивация работают надежно с подтверждением; деактивация собственного аккаунта заблокирована на UI и API уровнях.
-7. Физическое удаление пользователей (`DELETE`) полностью отсутствует в UI.
-8. Все мутации сопровождаются Toast-уведомлениями и инвалидацией TanStack Query кэша.
-9. Все unit- и e2e-тесты проходят без ошибок (`pnpm test`, `pnpm lint`).
+2. Компонент `DataTable` поддерживает внешнюю (серверную) пагинацию при передаче `totalItems`/`totalPages` без искусственных флагов режима, сохраняя полную обратную совместимость для локальной пагинации.
+3. Таблица отображает данные из контракта `UserAdminResponseDto` с серверной пагинацией, серверной сортировкой и поиском.
+4. Запрос пользователей по умолчанию исключает удалённые записи (`isDeleted: false`).
+5. Поиск работает с debounce (300ms) и синхронизируется с `URLSearchParams` без пустых параметров в URL и без скролла окна наверх (`{ scroll: false }`).
+6. Селекторы Radix UI не используют `value=""` (используется sentinel `"ALL"`).
+7. `searchable={false}` задан в `DataTable` таблицы для исключения двух полей поиска.
+8. Состояние модалок вынесено на уровень виджета таблицы, исключая раздувание DOM (DOM Bloat).
+9. Создание пользователя валидируется через `createUserAdminSchema` (пароль генерируется сервером, пустые строки нормализуются в `undefined`).
+10. Редактирование пользователя валидируется через `updateUserAdminSchema`, пустые опциональные поля нормализуются в `null`.
+11. Защита Self-Protection работает на обоих уровнях: деактивация себя и смена роли собственной учетной записи заблокированы на UI и API уровнях.
+12. Физическое удаление пользователей (`DELETE`) полностью отсутствует в UI.
+13. `UserDetailsDrawer` открывается с правой стороны (`side="right"`).
+14. Форматирование дат защищено от ошибок SSR-гидратации.
+15. Все строковые литералы вынесены в `@packages/i18n` (`ru` и `en`).
+16. Все мутации сопровождаются Toast-уведомлениями и инвалидацией запросов списка и конкретного пользователя.
+17. Все unit- и e2e-тесты проходят без ошибок (`pnpm test`, `pnpm lint`).

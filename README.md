@@ -55,8 +55,8 @@
 * **Frontend:** Next.js (App Router), React, TypeScript
 * **Design & UI Kit:** [Figma Design](https://www.figma.com/design/VECvKw5Y6rCYdvGafOTIsD/Untitled?node-id=0-1&p=f&t=IbAQQaPdEzqNPtJ4-0)
 * **Design System & UI Docs:** Storybook (`apps/ui-docs`) – [доступно онлайн](https://ui-docs-mocha.vercel.app/), `@packages/ui`, `@packages/icons`
-* **Realtime Service:** Go 1.26.6, WebSocket (`coder/websocket`), Chi router
-* **Code Runner Service:** Go 1.26.6, Chi router, Judge0 CE (песочница `isolate`)
+* **Realtime Service:** Go 1.26.9, WebSocket (`coder/websocket`), Chi router
+* **Code Runner Service:** Go 1.26.9, Chi router, Judge0 CE (песочница `isolate`)
 * **Backend API:** Nest.js, Prisma ORM, PostgreSQL
 * **State & Caching:** Redis (Pub/Sub + сессии)
 * **Message Broker / Queues:** RabbitMQ (асинхронные задачи и уведомления)
@@ -243,6 +243,7 @@ pnpm sse:send -i
 * 🌐 **[WebSocket Architecture](docs/WEBSOCKET_ARCHITECTURE.md)** — документация сервиса реального времени на Go.
 * 📡 **[SSE Architecture](docs/SSE_ARCHITECTURE.md)** — архитектура Server-Sent Events.
 * 🗄️ **[S3 Storage](docs/STORAGE_S3.md)** — организация объектного хранилища MinIO/S3.
+* 📧 **[Email Architecture](docs/EMAIL_ARCHITECTURE.md)** — архитектура сервиса отправки email-уведомлений, React Email шаблоны и транспорты.
 * 🌍 **[i18n Localization](docs/I18N.md)** — архитектура и руководство по интернационализации (`@packages/i18n`).
 * 🤖 **[Telegram Bot Architecture](docs/TELEGRAM_BOT_ARCHITECTURE.md)** — архитектура и интеграция Telegram-бота (`apps/telegram-bot`).
 

@@ -34,4 +34,5 @@ export interface UpdateProfileDto {
   gitUrl?: string | null;
   theme?: UpdateProfileDtoTheme;
   locale?: UpdateProfileDtoLocale;
+  timezone?: string;
 }

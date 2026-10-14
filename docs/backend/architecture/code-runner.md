@@ -6,7 +6,7 @@
 
 ## 1. Назначение и стек
 
-* **Язык:** Go 1.26 (go.mod: `go 1.26.6`)
+* **Язык:** Go 1.26 (go.mod: `go 1.26.9`)
 * **HTTP Router:** `github.com/go-chi/chi/v5`
 * **Движок песочницы:** Judge0 CE 1.13.1 (REST API)
 * **Поддерживаемые языки:** JavaScript, TypeScript, Python, Go, C++, Java

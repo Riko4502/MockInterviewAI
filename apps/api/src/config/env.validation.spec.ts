@@ -34,6 +34,7 @@ describe("Валидация переменных окружения GitHub OAut
         ...requiredEnv,
         NODE_ENV: "production",
         TELEGRAM_BOT_TOKEN: "mock_token",
+        RABBITMQ_URL: "amqp://guest:guest@rabbit:5672",
         ...github,
         [key]: githubHttp[key as keyof typeof githubHttp],
       }),
@@ -47,6 +48,7 @@ describe("Валидация переменных окружения GitHub OAut
         ...requiredEnv,
         NODE_ENV: "production",
         TELEGRAM_BOT_TOKEN: "mock_token",
+        RABBITMQ_URL: "amqp://guest:guest@rabbit:5672",
         ...github,
       }),
     ).toMatchObject(github);
@@ -125,9 +127,104 @@ describe("env.validation TELEGRAM_BOT_TOKEN", () => {
       ...requiredEnv,
       NODE_ENV: "production",
       TELEGRAM_BOT_TOKEN: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+      RABBITMQ_URL: "amqp://guest:guest@rabbit:5672",
     });
     expect(env.TELEGRAM_BOT_TOKEN).toBe(
       "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
     );
+  });
+});
+
+describe("Валидация переменных окружения Mail / SMTP", () => {
+  it("подставляет дефолтные значения почты, если они не заданы", () => {
+    const env = validate(requiredEnv);
+
+    expect(env.MAIL_TRANSPORT).toBe("dev-logger");
+    expect(env.SMTP_HOST).toBe("localhost");
+    expect(env.SMTP_PORT).toBe(1025);
+    expect(env.SMTP_SECURE).toBe("false");
+    expect(env.SMTP_USER).toBe("");
+    expect(env.SMTP_PASSWORD).toBe("");
+    expect(env.SMTP_FROM).toBe("MockInterviewAI <noreply@mockinterview.ai>");
+  });
+
+  it("валидирует и коэрсит кастомные параметры SMTP", () => {
+    const env = validate({
+      ...requiredEnv,
+      MAIL_TRANSPORT: "smtp",
+      SMTP_HOST: "smtp.resend.com",
+      SMTP_PORT: "465" as unknown as number,
+      SMTP_SECURE: "true",
+      SMTP_USER: "resend",
+      SMTP_PASSWORD: "re_secret_123",
+      SMTP_FROM: "Test <info@test.com>",
+    });
+
+    expect(env.MAIL_TRANSPORT).toBe("smtp");
+    expect(env.SMTP_HOST).toBe("smtp.resend.com");
+    expect(env.SMTP_PORT).toBe(465);
+    expect(env.SMTP_SECURE).toBe("true");
+    expect(env.SMTP_USER).toBe("resend");
+    expect(env.SMTP_PASSWORD).toBe("re_secret_123");
+    expect(env.SMTP_FROM).toBe("Test <info@test.com>");
+  });
+
+  it("отклоняет неподдерживаемый MAIL_TRANSPORT", () => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        MAIL_TRANSPORT: "sendgrid" as unknown as "smtp",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("env.validation RABBITMQ_*", () => {
+  it("в development и test брокер не обязателен: push просто выключен", () => {
+    const env = validate(requiredEnv);
+    expect(env.RABBITMQ_URL).toBeUndefined();
+    expect(env.RABBITMQ_TELEGRAM_QUEUE).toBe("telegram.notifications");
+    expect(env.RABBITMQ_PUBLISH_TIMEOUT_MS).toBe(5000);
+  });
+
+  it.each([
+    "amqp://guest:guest@rabbit:5672",
+    "amqps://rabbit:5671",
+  ])("принимает %s", (url) => {
+    expect(validate({ ...requiredEnv, RABBITMQ_URL: url }).RABBITMQ_URL).toBe(
+      url,
+    );
+  });
+
+  it("отвергает не-amqp URL", () => {
+    expect(() =>
+      validate({ ...requiredEnv, RABBITMQ_URL: "http://rabbit:15672" }),
+    ).toThrow("RABBITMQ_URL должен быть корректным amqp(s)-URL");
+  });
+
+  it("нормализует пустой URL в undefined", () => {
+    expect(
+      validate({ ...requiredEnv, RABBITMQ_URL: "   " }).RABBITMQ_URL,
+    ).toBeUndefined();
+  });
+
+  it("требует RABBITMQ_URL в production", () => {
+    expect(() =>
+      validate({
+        ...requiredEnv,
+        NODE_ENV: "production",
+        TELEGRAM_BOT_TOKEN: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+      }),
+    ).toThrow("RABBITMQ_URL is required in production environment");
+  });
+
+  it("переопределяет имя очереди и таймаут публикации", () => {
+    const env = validate({
+      ...requiredEnv,
+      RABBITMQ_TELEGRAM_QUEUE: "custom.notifications",
+      RABBITMQ_PUBLISH_TIMEOUT_MS: "1500",
+    });
+    expect(env.RABBITMQ_TELEGRAM_QUEUE).toBe("custom.notifications");
+    expect(env.RABBITMQ_PUBLISH_TIMEOUT_MS).toBe(1500);
   });
 });

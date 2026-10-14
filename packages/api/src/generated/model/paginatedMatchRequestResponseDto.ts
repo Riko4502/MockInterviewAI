@@ -9,10 +9,10 @@
  * и не возвращается в JSON response.
  * OpenAPI spec version: 0.1.0
  */
-import type { MatchRequestResponseDto } from './matchRequestResponseDto';
+import type { PaginatedMatchRequestResponseDtoDataItem } from './paginatedMatchRequestResponseDtoDataItem';
 import type { PaginatedMatchRequestResponseDtoMeta } from './paginatedMatchRequestResponseDtoMeta';
 
 export interface PaginatedMatchRequestResponseDto {
-  data: MatchRequestResponseDto[];
+  data: PaginatedMatchRequestResponseDtoDataItem[];
   meta: PaginatedMatchRequestResponseDtoMeta;
 }

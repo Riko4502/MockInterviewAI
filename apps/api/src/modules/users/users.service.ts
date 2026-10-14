@@ -11,6 +11,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  CompleteOnboardingDto,
   DeviceSettingsDto,
   Locale,
   PublicUserProfileDto,
@@ -31,6 +32,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthSessionService } from "../auth/services/auth-session.service";
+import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -58,6 +60,13 @@ const USER_PROFILE_SELECT = {
   githubId: true,
   theme: true,
   locale: true,
+  onboardingCompleted: true,
+  targetRole: true,
+  targetLevel: true,
+  targetCompanies: true,
+  targetTimeline: true,
+  preferredFormat: true,
+  onboardingAt: true,
   role: {
     select: {
       slug: true,
@@ -98,6 +107,7 @@ export class UsersService {
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => AuthSessionService))
     private readonly authSessionService: AuthSessionService,
+    private readonly notificationDispatcher: NotificationDispatcher,
   ) {}
 
   /**
@@ -227,13 +237,27 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash: data.passwordHash,
-        ...(data.githubId ? { githubId: data.githubId } : {}),
-        roleId: defaultRole.id,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash: data.passwordHash,
+          ...(data.githubId ? { githubId: data.githubId } : {}),
+          roleId: defaultRole.id,
+        },
+      });
+
+      // Строка outbox пишется в той же транзакции, что и пользователь
+      // (ADR-003:65-68). Эмит после commit терял бы событие при падении
+      // процесса между ними, а эмит внутри отдельной транзакции показал бы
+      // фантом пользователю, для которого транзакция откатилась.
+      await this.notificationDispatcher.dispatch(
+        { type: "system.welcome", payload: {} },
+        user.id,
+        tx,
+      );
+
+      return user;
     });
   }
 
@@ -328,18 +352,31 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash: data.passwordHash,
-        telegramId: data.telegramId,
-        telegramUsername: data.telegramUsername ?? null,
-        telegramLinkVerified: data.telegramLinkVerified ?? false,
-        displayName: data.displayName ?? null,
-        avatarUrl: data.avatarUrl ?? null,
-        username: null,
-        roleId: defaultRole.id,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash: data.passwordHash,
+          telegramId: data.telegramId,
+          telegramUsername: data.telegramUsername ?? null,
+          telegramLinkVerified: data.telegramLinkVerified ?? false,
+          displayName: data.displayName ?? null,
+          avatarUrl: data.avatarUrl ?? null,
+          username: null,
+          roleId: defaultRole.id,
+        },
+      });
+
+      // Приветствие шлётся наравне с email-регистрацией: точка входа другая,
+      // а инвариант «у созданного пользователя есть приветственное уведомление»
+      // должен выполняться всегда.
+      await this.notificationDispatcher.dispatch(
+        { type: "system.welcome", payload: {} },
+        user.id,
+        tx,
+      );
+
+      return user;
     });
   }
 
@@ -839,7 +876,57 @@ export class UsersService {
       permissions: (
         profile.role?.permissions ?? SystemPermission.NONE
       ).toString(),
+      onboardingCompleted: profile.onboardingCompleted ?? false,
+      targetRole: profile.targetRole ?? null,
+      targetLevel: profile.targetLevel ?? null,
+      targetCompanies: profile.targetCompanies ?? [],
+      targetTimeline: profile.targetTimeline ?? null,
+      preferredFormat: profile.preferredFormat ?? null,
+      onboardingAt: profile.onboardingAt
+        ? typeof profile.onboardingAt === "string"
+          ? profile.onboardingAt
+          : profile.onboardingAt.toISOString()
+        : null,
     };
+  }
+
+  /**
+   * Сохраняет цели подготовки и помечает онбординг как завершенный.
+   */
+  async completeOnboarding(
+    userId: string,
+    dto: CompleteOnboardingDto,
+  ): Promise<UserProfileDto> {
+    const existing = await this.findById(userId);
+    if (!existing) {
+      throw new NotFoundException("User not found");
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        onboardingCompleted: true,
+        ...(dto.isSkipped
+          ? {}
+          : {
+              targetRole: dto.role ?? null,
+              targetLevel: dto.level ?? null,
+              targetCompanies: dto.companies ?? [],
+              targetTimeline: dto.timeline ?? null,
+              preferredFormat: dto.format ?? null,
+            }),
+        onboardingAt: new Date(),
+      },
+      select: USER_PROFILE_SELECT,
+    });
+
+    this.logger.log(
+      `User ${userId} completed onboarding: role=${dto.role ?? "none"}, level=${dto.level ?? "none"}, skipped=${dto.isSkipped}`,
+    );
+
+    await this.invalidateReadinessCache(userId);
+
+    return this.mapToUserProfile(user);
   }
 
   /**

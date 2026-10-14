@@ -30,6 +30,14 @@ export default defineConfig({
         import.meta.dirname,
         "../../packages/hooks/src",
       ),
+      "@packages/i18n": path.resolve(
+        import.meta.dirname,
+        "../../packages/i18n/src",
+      ),
+      "@packages/types": path.resolve(
+        import.meta.dirname,
+        "../../packages/types/src",
+      ),
       "@packages/utils": path.resolve(
         import.meta.dirname,
         "../../packages/utils/src",

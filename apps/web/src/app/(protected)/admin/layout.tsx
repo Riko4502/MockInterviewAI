@@ -6,10 +6,13 @@ import { type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleBoundary } from "@/features/auth";
 import { paths } from "@/shared/config";
+import { NotificationBell } from "@/widgets/notifications";
+import { Sidebar } from "@/widgets/sidebar";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { push } = useToast();
   const { t } = useTranslation("common");
+
   const onDenied = useCallback(() => {
     push({
       id: "admin-access-denied",
@@ -25,7 +28,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       redirectTo={paths.dashboard}
       onDenied={onDenied}
     >
-      {children}
+      <Sidebar headerActions={<NotificationBell />}>{children}</Sidebar>
     </RoleBoundary>
   );
 }

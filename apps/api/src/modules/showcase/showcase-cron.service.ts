@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
-import { ShowcaseCardStatus } from "../../generated/prisma/enums";
+import {
+  AvailabilitySlotStatus,
+  ShowcaseCardStatus,
+} from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { SHOWCASE_LIMITS } from "./showcase.constants";
@@ -16,6 +19,8 @@ export const SHOWCASE_EXPIRY_LOCK_TTL_SECONDS = 900;
 export interface ShowcaseCronResult {
   renewed: number;
   expired: number;
+  /** Сколько слотов расписания погашено как истёкшие. */
+  slotsCancelled: number;
 }
 
 /**
@@ -25,6 +30,7 @@ export interface ShowcaseCronResult {
  * с истекшим сроком жизни (expiresAt <= now()):
  * 1. Если autoRenew = true — продлевает срок публикации на 15 дней и поднимает карточку в топ (bumpedAt = now).
  * 2. Если autoRenew = false — переводит статус карточки в EXPIRED.
+ * 3. Гасит слоты, время которых прошло (ADR-002:64).
  */
 @Injectable()
 export class ShowcaseCronService {
@@ -53,7 +59,7 @@ export class ShowcaseCronService {
       this.logger.debug(
         "Showcase expiry cron job is already running on another instance, skipping...",
       );
-      return { renewed: 0, expired: 0 };
+      return { renewed: 0, expired: 0, slotsCancelled: 0 };
     }
 
     this.logger.log(
@@ -64,14 +70,14 @@ export class ShowcaseCronService {
       // 2. Обработка просроченных карточек
       const result = await this.processExpiredCards();
       this.logger.log(
-        `Showcase cron completed: ${result.renewed} card(s) auto-renewed, ${result.expired} card(s) marked as expired.`,
+        `Showcase cron completed: ${result.renewed} card(s) auto-renewed, ${result.expired} card(s) marked as expired, ${result.slotsCancelled} slot(s) cancelled.`,
       );
       return result;
     } catch (err) {
       this.logger.error(
         `Error during showcase expiry cron execution: ${String(err)}`,
       );
-      return { renewed: 0, expired: 0 };
+      return { renewed: 0, expired: 0, slotsCancelled: 0 };
     } finally {
       // 3. Безопасное атомарное освобождение распределенного лока только владельцем (safe unlock via Lua compare-and-delete)
       await this.redisService.compareAndDelete(
@@ -87,8 +93,11 @@ export class ShowcaseCronService {
    * Использует updateMany для эффективного выполнения без N+1 запросов:
    * 1. Карточки с autoRenew = true продлеваются на CARD_LIFETIME_MS (15 дней) и бампаются в топ.
    * 2. Карточки с autoRenew = false переводятся в статус EXPIRED.
+   * 3. Слоты, время которых прошло, гасятся: иначе они навсегда оставались бы
+   *    в расписании и в ответе, а их интервалы — блокировали exclusion constraint
+   *    при добавлении новых слотов на перепубликованной карточке (ADR-002:64).
    *
-   * @returns Количество продленных и истекших карточек.
+   * @returns Количество продленных и истекших карточек, а также погашенных слотов.
    */
   async processExpiredCards(): Promise<ShowcaseCronResult> {
     const now = new Date();
@@ -119,9 +128,21 @@ export class ShowcaseCronService {
       },
     });
 
+    // 3. Гасим слоты, время которых уже прошло. Только свободные: `BOOKED`
+    //    означает, что время отдано встрече, и её прошедший слот не должен
+    //    выглядеть как свободный.
+    const cancelledSlotsResult = await this.prisma.availabilitySlot.updateMany({
+      where: {
+        status: AvailabilitySlotStatus.OPEN,
+        endsAt: { lte: now },
+      },
+      data: { status: AvailabilitySlotStatus.CANCELLED },
+    });
+
     return {
       renewed: renewedResult.count,
       expired: expiredResult.count,
+      slotsCancelled: cancelledSlotsResult.count,
     };
   }
 }

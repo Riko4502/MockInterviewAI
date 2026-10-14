@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initApiTransport, resetApiTransportState } from "@/shared/api";
+import { paths } from "@/shared/config";
 import i18n from "@/shared/lib/i18n";
 import { CompleteTelegramPageClient } from "./CompleteTelegramPageClient";
 
@@ -112,7 +113,7 @@ describe("CompleteTelegramPageClient", () => {
     await waitFor(() =>
       expect(mocks.startSession).toHaveBeenCalledWith("tg-access-token"),
     );
-    expect(mocks.replace).toHaveBeenCalledWith("/dashboard");
+    expect(mocks.replace).toHaveBeenCalledWith(paths.onboarding);
     expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull();
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/v1/auth/telegram/complete"),
