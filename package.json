@@ -36,6 +36,7 @@
     "build:email": "pnpm --filter=@packages/email build",
     "lint": "biome check --no-errors-on-unmatched",
     "format": "biome format --write --no-errors-on-unmatched",
+    "typecheck": "turbo typecheck",
     "lint:fix": "biome check --write --no-errors-on-unmatched",
     "lint:realtime": "pnpm --filter=@apps/realtime lint",
     "lint:api": "pnpm --filter api lint",

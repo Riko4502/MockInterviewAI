@@ -137,27 +137,28 @@
 - [x] Решение по `User.timezone` зафиксировано — **autodetect** (браузерная зона при `login`/`register`), `userProfileSchema.timezone` — `z.string()` required.
 - [x] Поля `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto` (в т.ч. `createMatchRequestDto.slotId`).
 - [x] Общий тип `AvailabilitySlot` определён в `@packages/types` и используется (локальных дублей нет).
-- [ ] Актуализирован `docs/frontend/data/api-contracts.md` (при изменении контрактов профиля/заявок).
+- [x] Актуализирован `docs/frontend/data/api-contracts.md` — добавлена секция «Слоты и таймзоны (ADR-002)» с полями профиля/заявок (`timezone`, `slotId`, `slots`) и правилами рендера времени.
 
 **Датирование / i18n / типобезопасность**
 - [x] Все импорты времени — из `@packages/utils` (не `@packages/utils/datetime`); прямые импорты `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment` в `apps/web/src/**` отсутствуют.
 - [x] Локаль решена: `formatInstantInTimeZone` принимает `locale` (`"ru"`/`"en"`); текстовые токены используются с явной локалью.
 - [x] i18n-ключи `slots.*`/`profile.*` добавлены в RU/EN `showcase.json`, типы обновлены.
-- [ ] `pnpm --filter web exec tsc --noEmit` — 0 ошибок (весь фронт).
-- [ ] Сквозной typecheck/lint затронутых workspace-пакетов (`packages/utils`, `packages/i18n`, `packages/api`, `packages/types`) — без деградаций.
+- [x] Typecheck автоматизирован: задача `typecheck` в `turbo.json` (`dependsOn: ["^build"]`) и корневой скрипт `pnpm typecheck`; `pnpm --filter web typecheck` (`tsc --noEmit`) — 0 ошибок (весь фронт).
+- [x] Сквозной typecheck затронутых workspace-пакетов (`packages/utils`, `packages/i18n`, `packages/api`, `packages/types`, `packages/ui`) — без деградаций.
 
 **Поведение**
 - [x] `SendMatchRequestDialog`: обязателен выбор слота при наличии OPEN-слотов; `slotId` передаётся; `409` обработан (toast + `invalidateQueries` + сброс выбора); `400` показывает фактическое сообщение сервера (а не «Выберите слот»); при отсутствии слотов — подсказка про гибкое расписание (см. task, Задача 1), `slotId` не передаётся.
 - [x] `ShowcaseCardForm`: 1–10 слотов (без BOOKED); запрет слота в прошлом; BOOKED нельзя удалить; слоты в live-preview; ответ API `422` (несуществующее локальное время, DST) показан пользователю.
 - [x] BOOKED-слоты **исключаются** из полезной нагрузки `slots` при создании/обновлении (иначе `replaceSlots` даёт `409`); в форме BOOKED отображаются только для чтения.
 - [x] `viewerTimezone` резолвится единым `useViewerTimezone()` (без инлайн-дублей фоллбэка) в [2] (готово).
-- [ ] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово), [5], [7], [8].
+- [x] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово).
+- [ ] `viewerTimezone` из `useViewerTimezone()` применяется в [5], [7], [8].
 - [x] Каталог отображает слоты в таймзоне смотрящего.
 - [ ] Заявки отображают `req.slot` в таймзоне смотрящего.
 - [ ] Профиль: выбор и сохранение IANA-таймзоны; автодетект; дашборд использует профильную таймзону.
 - [ ] Уведомления рендерят `payload.slotStartsAt` в таймзоне пользователя.
 - [ ] Отвязка Telegram/GitHub требует подтверждения с предупреждением о ревокации сессий; подтверждающий диалог реализован (общий `ConfirmDialog` в `@packages/ui` **или** зафиксирован app-local паттерн).
-- [ ] **Публичные страницы** не запрашивают профиль у неавторизованного зрителя: `useViewerTimezone({ enabled })` / `useCurrentUser({ enabled })` отключены там, где нет авторизации (иначе лишний запрос → `401`). Проверить потребителей `useViewerTimezone()` (в частности публичный каталог `ShowcaseCard`).
+- [x] **Публичные страницы** не запрашивают профиль у неавторизованного зрителя. Проверено: все потребители `useViewerTimezone()`/`useCurrentUser()` (в т.ч. каталожный `ShowcaseCard`, `ShowcaseFeed`, Sidebar/`NavUser`) находятся под `AuthBoundary mode="protected"` (роуты `(protected)/dashboard/**`, `(protected)/profile/**`, `(protected)/admin/**`), а `AuthBoundary` не рендерит `children` без авторизации; на guest-роутах потребителей нет. Лишний запрос профиля → `401` для неавторизованного зрителя сейчас не возникает. Если каталог `ShowcaseCard` станет публичным — передавать `useViewerTimezone({ enabled: isAuthenticated })` (см. `shared/datetime-and-i18n-rules-spec.md`).
 
 **Тесты**
 - [ ] Unit-тесты: `SendMatchRequestDialog`, `ShowcaseCardForm`, `ShowcaseSlotsList`, `TimezoneSelect`, `IncomingRequestCard`, `OutgoingRequestCard`, `MatchedSessionBanner`, `MyCardItem`, `NotificationItem`, `ConnectedAccountsSection`.
