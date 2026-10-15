@@ -19,7 +19,7 @@
 | 3 | [features/manage-showcase-card/slot-picker-plan.md](./features/manage-showcase-card/slot-picker-plan.md) | features | P1 | ✅ Готово |
 | 4 | [features/send-match-request/slot-selection-plan.md](./features/send-match-request/slot-selection-plan.md) | features | P0 | ✅ Готово |
 | 5 | [widgets/match-requests-hub/assigned-slot-display-plan.md](./widgets/match-requests-hub/assigned-slot-display-plan.md) | widgets | P1 | ✅ Готово |
-| 6 | [widgets/my-cards-list/slot-stats-plan.md](./widgets/my-cards-list/slot-stats-plan.md) | widgets | P1 | ⏳ Не начато |
+| 6 | [widgets/my-cards-list/slot-stats-plan.md](./widgets/my-cards-list/slot-stats-plan.md) | widgets | P1 | ✅ Готово |
 | 7 | [widgets/dashboard/timezone-sync-plan.md](./widgets/dashboard/timezone-sync-plan.md) | widgets | P2 | ⏳ Не начато |
 | 8 | [entities/notification/notification-slot-time-plan.md](./entities/notification/notification-slot-time-plan.md) | entities/notification | P2 | ⏳ Не начато |
 | 9 | [features/update-profile/timezone-and-security-plan.md](./features/update-profile/timezone-and-security-plan.md) | features | P2/P3 | ⏳ Не начато |
@@ -47,7 +47,7 @@
         │
         ├────────────────────────────────────────────┐
         v                                            v
-[1] entities/user/timezone (✅)                 [6] widgets/my-cards-list/slot-stats
+[1] entities/user/timezone (✅)                 [6] widgets/my-cards-list/slot-stats (✅)
   useViewerTimezone + TimezoneSelect               (зависит только от [0]:
    + lib/timezones                                  счётчики без форматирования времени)
         │
@@ -95,10 +95,10 @@
 4. **[2] entities/showcase-card/availability-slots** — ✅ компоненты показа слотов в витрине (использует `useViewerTimezone()`).
 5. **[3] features/manage-showcase-card/slot-picker** — ✅ конструктор слотов в форме анкеты.
 
-### Фаза D. Отображение (P1) — ⏳
+### Фаза D. Отображение (P1) — ✅ закрыто
 
 6. **[5] widgets/match-requests-hub/assigned-slot-display** — ✅ слот в заявках (`RequestSlotInfo`) + баннер запланированного интервью.
-7. **[6] widgets/my-cards-list/slot-stats** — счётчики слотов в «Моих анкетах».
+7. **[6] widgets/my-cards-list/slot-stats** — ✅ счётчики слотов в «Моих анкетах» (бейджи `slots.freeCount`/`slots.bookedCount` со ссылкой на редактирование).
 
 ### Фаза E. Таймзона и уведомления (P2) — ⏳
 
@@ -125,7 +125,7 @@
 | G1 → G2 | Правила [0] + база [1] готовы | i18n `showcase`, тип `AvailabilitySlot` (`@packages/types`), `useViewerTimezone()`/`TimezoneSelect`; `useTranslation('showcase')` типобезопасен | ✅ |
 | G2 → G3 | [4] завершён | `SendMatchRequestDialog` передаёт `slotId`, `409`/`400` обработаны; unit-тесты проходят | ✅ |
 | G3 → G4 | [2], [3] завершены | Форма сохраняет 1–10 слотов (без BOOKED), витрина показывает слоты в `viewerTimezone` | ✅ |
-| G4 → G5 | [5], [6] завершены | Заявки показывают `req.slot`, «Мои анкеты» — счётчики | ⏳ |
+| G4 → G5 | [5], [6] завершены | Заявки показывают `req.slot`, «Мои анкеты» — счётчики | ✅ |
 | G5 → Done | [7], [8], [9] завершены + финальные проверки | DoD раздела 7 | ⏳ |
 
 ## 7. Определение готовности (DoD)
@@ -155,6 +155,7 @@
 - [ ] `viewerTimezone` из `useViewerTimezone()` применяется в [7], [8].
 - [x] Каталог отображает слоты в таймзоне смотрящего.
 - [x] Заявки отображают `req.slot` в таймзоне смотрящего (плашка+статус в `IncomingRequestCard`/`OutgoingRequestCard`, баннер запланированного интервью в `MatchedSessionBanner`).
+- [x] «Мои анкеты» показывают счётчики слотов (`slots.freeCount`/`slots.bookedCount`): свободными считаются только будущие `OPEN`, `BOOKED` — все; бейджи ведут на редактирование.
 - [ ] Профиль: выбор и сохранение IANA-таймзоны; автодетект; дашборд использует профильную таймзону.
 - [ ] Уведомления рендерят `payload.slotStartsAt` в таймзоне пользователя.
 - [ ] Отвязка Telegram/GitHub требует подтверждения с предупреждением о ревокации сессий; подтверждающий диалог реализован (общий `ConfirmDialog` в `@packages/ui` **или** зафиксирован app-local паттерн).

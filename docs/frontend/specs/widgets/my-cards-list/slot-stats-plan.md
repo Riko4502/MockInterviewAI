@@ -1,14 +1,14 @@
 # План реализации: счётчики слотов в «Моих анкетах»
 
 ## 1. `MyCardItem.tsx` (EDIT)
-- [ ] Импорт `useTranslation('showcase')`
-- [ ] Посчитать `freeCount` (OPEN && `startsAt > now()`) и `bookedCount` (BOOKED) по `card.slots`
-- [ ] Добавить бейджи `t('slots.freeCount', {count: freeCount})`, `t('slots.bookedCount', {count: bookedCount})`
-- [ ] Сохранить существующий переход к редактированию
+- [x] Импорт `useTranslation('showcase')`
+- [x] Посчитать `freeCount` (OPEN && `startsAt > now()`) и `bookedCount` (BOOKED) по `card.slots`
+- [x] Добавить бейджи `t('slots.freeCount', {count: freeCount})`, `t('slots.bookedCount', {count: bookedCount})`
+- [x] Сохранить существующий переход к редактированию
 
 ## 2. Тесты
-- [ ] Unit-тест на корректные счётчики
+- [x] Unit-тест на корректные счётчики
 
 ## 3. Проверки
-- [ ] tsc без ошибок
-- [ ] i18n ключи
+- [x] tsc без ошибок
+- [x] i18n ключи
