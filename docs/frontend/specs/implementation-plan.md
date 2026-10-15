@@ -18,7 +18,7 @@
 | 2 | [entities/showcase-card/availability-slots-plan.md](./entities/showcase-card/availability-slots-plan.md) | entities/showcase-card | P1 | ✅ Готово |
 | 3 | [features/manage-showcase-card/slot-picker-plan.md](./features/manage-showcase-card/slot-picker-plan.md) | features | P1 | ✅ Готово |
 | 4 | [features/send-match-request/slot-selection-plan.md](./features/send-match-request/slot-selection-plan.md) | features | P0 | ✅ Готово |
-| 5 | [widgets/match-requests-hub/assigned-slot-display-plan.md](./widgets/match-requests-hub/assigned-slot-display-plan.md) | widgets | P1 | ⏳ Не начато |
+| 5 | [widgets/match-requests-hub/assigned-slot-display-plan.md](./widgets/match-requests-hub/assigned-slot-display-plan.md) | widgets | P1 | ✅ Готово |
 | 6 | [widgets/my-cards-list/slot-stats-plan.md](./widgets/my-cards-list/slot-stats-plan.md) | widgets | P1 | ⏳ Не начато |
 | 7 | [widgets/dashboard/timezone-sync-plan.md](./widgets/dashboard/timezone-sync-plan.md) | widgets | P2 | ⏳ Не начато |
 | 8 | [entities/notification/notification-slot-time-plan.md](./entities/notification/notification-slot-time-plan.md) | entities/notification | P2 | ⏳ Не начато |
@@ -54,7 +54,7 @@
         ├──> [2] entities/showcase-card/availability-slots   (✅)
         │            │
         │            ├──> [3] features/manage-showcase-card/slot-picker  (✅)
-        │            └──> [5] widgets/match-requests-hub/assigned-slot-display
+        │            └──> [5] widgets/match-requests-hub/assigned-slot-display (✅)
         │
         ├──> [4] features/send-match-request/slot-selection   (✅ P0, критический путь)
         ├──> [7] widgets/dashboard/timezone-sync
@@ -97,7 +97,7 @@
 
 ### Фаза D. Отображение (P1) — ⏳
 
-6. **[5] widgets/match-requests-hub/assigned-slot-display** — слот в заявках + баннер.
+6. **[5] widgets/match-requests-hub/assigned-slot-display** — ✅ слот в заявках (`RequestSlotInfo`) + баннер запланированного интервью.
 7. **[6] widgets/my-cards-list/slot-stats** — счётчики слотов в «Моих анкетах».
 
 ### Фаза E. Таймзона и уведомления (P2) — ⏳
@@ -151,10 +151,10 @@
 - [x] `ShowcaseCardForm`: 1–10 слотов (без BOOKED); запрет слота в прошлом; BOOKED нельзя удалить; слоты в live-preview; ответ API `422` (несуществующее локальное время, DST) показан пользователю.
 - [x] BOOKED-слоты **исключаются** из полезной нагрузки `slots` при создании/обновлении (иначе `replaceSlots` даёт `409`); в форме BOOKED отображаются только для чтения.
 - [x] `viewerTimezone` резолвится единым `useViewerTimezone()` (без инлайн-дублей фоллбэка) в [2] (готово).
-- [x] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово).
-- [ ] `viewerTimezone` из `useViewerTimezone()` применяется в [5], [7], [8].
+- [x] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово), [5] (✅ готово).
+- [ ] `viewerTimezone` из `useViewerTimezone()` применяется в [7], [8].
 - [x] Каталог отображает слоты в таймзоне смотрящего.
-- [ ] Заявки отображают `req.slot` в таймзоне смотрящего.
+- [x] Заявки отображают `req.slot` в таймзоне смотрящего (плашка+статус в `IncomingRequestCard`/`OutgoingRequestCard`, баннер запланированного интервью в `MatchedSessionBanner`).
 - [ ] Профиль: выбор и сохранение IANA-таймзоны; автодетект; дашборд использует профильную таймзону.
 - [ ] Уведомления рендерят `payload.slotStartsAt` в таймзоне пользователя.
 - [ ] Отвязка Telegram/GitHub требует подтверждения с предупреждением о ревокации сессий; подтверждающий диалог реализован (общий `ConfirmDialog` в `@packages/ui` **или** зафиксирован app-local паттерн).
