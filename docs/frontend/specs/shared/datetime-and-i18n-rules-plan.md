@@ -11,7 +11,7 @@
 - [x] Подтвердить доработку бэкенда [B]: `GET /profile/me` возвращает `timezone`, `PATCH /profile/me` его сохраняет; OpenAPI/Orval/`packages/api` регенерированы. Без этого `viewerTimezone` не работает.
 - [x] Зафиксировать решение по `User.timezone` (`@default("Europe/Moscow")`, non-nullable): оставить default / nullable + браузерный фоллбэк / автоопределение (см. §2.1 спецификации). От этого зависит тип `userProfileSchema`. → **Автоопределение**: браузерная IANA-зона отправляется при login/register и сохраняется один раз на первом входе (`firstLoginAt === null`); тип `userProfileSchema.timezone` — `z.string()` (required).
 - [x] Зафиксировать решение по локали `formatInstantInTimeZone` (без locale → английские месяцы/дни): расширить сигнатуру `locale?` или не использовать текстовые токены. → **Расширена сигнатура** параметром `locale` (`"ru"`/`"en"`, дефолт `"en"`, неизвестная → `en`).
-- [x] Проверить наличие `ConfirmDialog` в `@packages/ui`: **отсутствует**, существующий `Dialog` — базовый. Решить: создать общий `ConfirmDialog` в `packages/ui` или зафиксировать app-local паттерн (как `DeleteCardConfirmDialog`). → **Отложено до Фазы F [9]** (реализуется вместе с отвязкой аккаунтов).
+- [x] Проверить наличие `ConfirmDialog` в `@packages/ui`: создан в `@packages/ui` (`packages/ui/src/components/ConfirmDialog`), используется в рамках [security-unlink-adr-005-plan.md](../features/update-profile/security-unlink-adr-005-plan.md).
 - [x] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`. → импортов нет.
 - [x] Определить общий тип `AvailabilitySlot` (см. §2.1 спецификации правил) или зафиксировать конкретные generated-типы. → добавлен в `@packages/types` (`packages/types/src/slot.ts`).
 - [x] Создать ветку фичи от `dev`.
@@ -54,7 +54,7 @@
 
 ### Этап 7. P3 — Безопасная отвязка аккаунтов
 - [x] Общий `ConfirmDialog` в `packages/ui` (NEW) — создан и протестирован
-- [~] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — подключение диалога отвязки **отложено** до backend ADR-005 (ревокация сессий + подтверждение кодом из Telegram; сейчас `PATCH /profile/me` ничего не ревокирует)
+- [ ] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — подключение диалога отвязки и безопасный флоу по [security-unlink-adr-005-plan.md](../features/update-profile/security-unlink-adr-005-plan.md)
 
 ### Этап 8. Тестирование и проверка качества
 - [ ] Unit-тесты: `SendMatchRequestDialog.test.tsx`, `ShowcaseCardForm.test.tsx`, `IncomingRequestCard.test.tsx`, `OutgoingRequestCard.test.tsx`

@@ -102,5 +102,5 @@
 - `apps/web/src/features/send-match-request/*` — выбор слота при отклике + 409
 - `apps/web/src/widgets/match-requests-hub/*` — отображение `req.slot`
 - `apps/web/src/widgets/dashboard/*` — синхронизация таймзоны
-- `apps/web/src/features/update-profile/*` — таймзона профиля (+ безопасная отвязка — отложена до backend ADR-005)
+- `apps/web/src/features/update-profile/*` — таймзона профиля; безопасная отвязка по [security-unlink-adr-005-spec.md](../features/update-profile/security-unlink-adr-005-spec.md)
 - `packages/i18n/src/locales/{ru,en}/showcase.json` — тексты

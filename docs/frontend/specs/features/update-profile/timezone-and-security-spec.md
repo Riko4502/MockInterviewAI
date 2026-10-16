@@ -3,8 +3,7 @@
 ## 1. Цель
 
 Интегрировать выбор IANA-таймзоны в `GeneralTab` и добавить валидацию поля `timezone`.
-Предупреждающие диалоги безопасности при отвязке Telegram/GitHub (ADR-005)
-**отложены** до реализации backend ADR-005 (см. §3).
+Подготовить почву для безопасной отвязки Telegram/GitHub после backend ADR-005 (см. §3 и [security-unlink-adr-005-spec.md](./security-unlink-adr-005-spec.md)).
 
 ## 2. Таймзона в профиле — ✅ реализовано
 
@@ -18,36 +17,34 @@
 
 > **Предпосылка [B]** закрыта: `PATCH /profile/me` сохраняет `timezone`, `GET /profile/me` возвращает его.
 
-## 3. Безопасная отвязка аккаунтов (ADR-005) — ⛔ отложено
+## 3. Безопасная отвязка аккаунтов (ADR-005)
 
-Решение (2026-10-16): **не реализовывать** подтверждающие диалоги, пока не
-готов backend-флоу ADR-005.
+Реализация фронтенда безопасной отвязки планируется согласно
+[ADR-005](../../../adr/ADR-005.md). Детали и чек-листы — в
+[плане реализации](./security-unlink-adr-005-plan.md).
 
-Обоснование. ADR-005 (статус — «Не реализовано») требует:
-1) подтверждения отвязки Telegram **одноразовым кодом из Telegram** и
-отдельного user-facing эндпоинта; 2) **ревокации сессий** (инкремент
-`generation`) при отвязке.
+Требования (ADR-005):
+1) подтверждение отвязки Telegram **одноразовым кодом из Telegram** и
+отдельный user-facing эндпоинт (не `PATCH /profile/me`);
+2) **ревокации сессий** (инкремент `generation`) при отвязке;
+3) отдельные эндпоинты отвязки Telegram/GitHub;
+4) предупреждающие `ConfirmDialog` для Telegram/GitHub;
+5) события безопасности `TG_UNLINKED`, `GITHUB_UNLINKED`.
 
-Сегодня веб-отвязка выполняется через `PATCH /profile/me` с
-`telegramUsername: null` / `gitUrl: null`
-(`apps/api/src/modules/users/users.service.ts:462-487`); сервер очищает
-`telegramId`/`chatId`/`githubId`, но **не** инкрементирует `generation` и
-**не** ревокирует сессии. Эндпоинтов отвязки в `@packages/api` нет.
-
-Поэтому текст предупреждения «все остальные активные сессии на других
-устройствах будут принудительно завершены» был бы ложной гарантией
-безопасности. Подтверждающий шаг без него не даёт реальной защиты, а
-требуемое ADR-005 подтверждение кодом всё равно невозможно без backend.
+Текущая веб-реализация использует `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null`
+([ConnectedAccountsSection.tsx:119-151](../../../../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx#L119-L151));
+после внедрения backend-флоу ADR-005 она должна быть заменена на отдельные эндпоинты
+отвязки из `@packages/api`.
 
 | Файл | Тип | Статус |
 |---|---|---|
-| `features/update-profile/ui/ConnectedAccountsSection.tsx` | EDIT | ⛔ не изменяется |
-| `packages/ui/src/components/ConfirmDialog` | NEW | ✅ общий `ConfirmDialog` создан и протестирован, но **не подключён** |
+| `features/update-profile/ui/ConnectedAccountsSection.tsx` | EDIT | По [плану](./security-unlink-adr-005-plan.md) — добавить состояния диалогов, подключить `ConfirmDialog`, использовать новые эндпоинты отвязки, реализовать флоу с кодом Telegram |
+| `packages/ui/src/components/ConfirmDialog` | EXISTS | Общий `ConfirmDialog` используется в соответствии с [планом](./security-unlink-adr-005-plan.md) |
 
-Поведение (для будущей реализации после backend ADR-005):
-- Диалог открытия до вызова мутации.
-- Кнопки: «Отмена», «Подтвердить отвязку».
-- Использовать эндпоинты отвязки из `@packages/api`.
+Поведение (реализация по [плану](./security-unlink-adr-005-plan.md)):
+- Предупреждающий `ConfirmDialog` перед вызовом мутации (Telegram/GitHub).
+- Кнопки: «Отмена», «Подтвердить отвязку» (с корректными лейблами i18n).
+- Использование **отдельных эндпоинтов отвязки** из `@packages/api` (не `PATCH /profile/me`).
 - Подтверждение одноразовым кодом из Telegram (UI-флоу, ADR-005).
 
 ## 4. i18n
@@ -59,14 +56,16 @@
 
 - [x] Сохранение `timezone` в профиле (`UpdateProfileForm.test.tsx`, `profile-form-schema.test.ts`)
 - [x] Автодетект в `TimezoneSelect` работает (существующие тесты `TimezoneSelect`)
-- [~] Клик «Отвязать Telegram» открывает ConfirmDialog, отмена не вызывает мутацию — отложено (§3)
-- [~] Подтверждение диалога вызывает мутацию отвязки — отложено (§3)
-- [~] Аналогично для GitHub — отложено (§3)
+- [ ] Клик «Отвязать Telegram» открывает ConfirmDialog, отмена не вызывает мутацию (см. [план](./security-unlink-adr-005-plan.md))
+- [ ] Подтверждение диалога инициирует флоу подтверждения кодом из Telegram и вызывает мутацию отвязки через отдельный эндпоинт (см. [план](./security-unlink-adr-005-plan.md))
+- [ ] Аналогично для GitHub — открытие ConfirmDialog, подтверждение вызывает мутацию через отдельный эндпоинт (см. [план](./security-unlink-adr-005-plan.md))
 
 ## 6. Связи
 
 - `entities/user/ui/TimezoneSelect`
 - `@packages/utils` (`isValidTimeZone`)
-- `@packages/ui` — общий `ConfirmDialog` создан (`packages/ui/src/components/ConfirmDialog`), но не подключён до backend ADR-005
+- `@packages/ui` — общий `ConfirmDialog` (`packages/ui/src/components/ConfirmDialog`)
 - `@packages/i18n`
 - `@packages/api`
+- [security-unlink-adr-005-spec.md](./security-unlink-adr-005-spec.md)
+- [security-unlink-adr-005-plan.md](./security-unlink-adr-005-plan.md)

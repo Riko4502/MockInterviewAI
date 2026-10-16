@@ -22,7 +22,8 @@
 | 6 | [widgets/my-cards-list/slot-stats-plan.md](./widgets/my-cards-list/slot-stats-plan.md) | widgets | P1 | ✅ Готово |
 | 7 | [widgets/dashboard/timezone-sync-plan.md](./widgets/dashboard/timezone-sync-plan.md) | widgets | P2 | ✅ Готово |
 | 8 | [entities/notification/notification-slot-time-plan.md](./entities/notification/notification-slot-time-plan.md) | entities/notification | P2 | ⛔ Закрыто без изменений (см. §2.2) |
-| 9 | [features/update-profile/timezone-and-security-plan.md](./features/update-profile/timezone-and-security-plan.md) | features | P2/P3 | ✅ Таймзона готова; диалоги отвязки отложены (см. §2.2) |
+| 9 | [features/update-profile/timezone-and-security-plan.md](./features/update-profile/timezone-and-security-plan.md) | features | P2 | ✅ Таймзона готова |
+| 10 | [features/update-profile/security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) | features | P3 | ⛔ Не реализовано (требует backend ADR-005) |
 
 Статусы выше — срез по текущему состоянию репозитория. Актуализировать по мере закрытия фаз.
 
@@ -34,13 +35,13 @@
 - **Решение по `User.timezone` (✅ принято).** Автоопределение: браузерная IANA-зона отправляется при `login`/`register` и сохраняется один раз на первом входе. Тип `userProfileSchema.timezone` — `z.string()` (required). Колонка non-nullable с `@default("Europe/Moscow")`.
 - **Решение по локали (`formatInstantInTimeZone`) (✅ принято).** Сигнатура расширена параметром `locale` (`"ru"` / `"en"`, дефолт `"en"`, неизвестная → `en`) в `packages/utils/src/datetime/format.ts`.
 - **Общий тип `AvailabilitySlot` (✅ определён).** `packages/types/src/slot.ts`; локальные дублирующие интерфейсы запрещены.
-- **`ConfirmDialog` (✅ создан в `@packages/ui`, подключение — отложено).** Общий переиспользуемый компонент (`packages/ui/src/components/ConfirmDialog`: заголовок/описание/кнопки/loading + тесты) добавлен вместо app-local паттерна `DeleteCardConfirmDialog`. Подключение в `ConnectedAccountsSection` отложено до backend ADR-005 (см. §2.2).
+- **`ConfirmDialog` (✅ создан в `@packages/ui`, подключение — отложено).** Общий переиспользуемый компонент (`packages/ui/src/components/ConfirmDialog`: заголовок/описание/кнопки/loading + тесты). Подключение вместо локального `DeleteCardConfirmDialog` отложено; подключение в `ConnectedAccountsSection` — до backend ADR-005 (см. §2.2).
 - **Подсказка «гибкое расписание» (✅ решение принято, реализовано в [4]).** При отсутствии OPEN-слотов `SendMatchRequestDialog` показывает подсказку `slots.flexibleSchedule` (ключ добавлен в RU/EN `showcase.json`) и не передаёт `slotId`. Это осознанное дополнение к `slot-selection-spec.md` (task, Задача 1).
 
 ### 2.2. Закрытые без реализации пункты Фаз E/F (2026-10-16)
 
 - **[8] `entities/notification/notification-slot-time` — ⛔ не реализуется.** Спека опиралась на неверные факты: ключа `payload.slotStartsAt` в контракте нет (реальные — `proposedStartUtc`/`startUtc`), а время слота уже подставляется бэкендом в `message` в таймзоне и локали получателя (`renderNotification` + ленивый пересчёт по `renderedTimezone` в `notifications.service.ts`). Отдельный рендер на фронте дублировал бы время. Старые ссылки на `/dashboard/partners/requests` также неверны — клик идёт по `actionUrl` (`/matchmaking/requests/:id`, `/interviews/:id`). Подробности — `notification-slot-time-spec.md`.
-- **[9] Диалоги отвязки Telegram/GitHub — ⛔ отложены до backend ADR-005.** ADR-005 (статус «Не реализовано») требует подтверждения кодом из Telegram и ревокации сессий (инкремент `generation`). Сегодня веб-отвязка — это `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null` (`users.service.ts:462-487`), которое сессии **не** ревокирует. Предупреждение о завершении сессий было бы ложной гарантией. Общий `ConfirmDialog` создан и протестирован, но не подключён. Подробности — `timezone-and-security-plan.md` §3.
+- **[9] Диалоги отвязки Telegram/GitHub** — см. [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md). **Не реализовано до backend ADR-005.** ADR-005 (статус «Не реализовано») требует подтверждения кодом из Telegram и ревокации сессий (инкремент `generation`). Сегодня веб-отвязка — это `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null` (`users.service.ts:462-487`), которое сессии **не** ревокирует. Предупреждение о завершении сессий было бы ложной гарантией. Общий `ConfirmDialog` создан и протестирован, но не подключён. Подробности — `timezone-and-security-plan.md` §3, `security-unlink-adr-005-spec.md`.
 
 ## 3. Граф зависимостей
 
@@ -64,7 +65,8 @@
         ├──> [4] features/send-match-request/slot-selection   (✅ P0, критический путь)
         ├──> [7] widgets/dashboard/timezone-sync              (✅)
         ├──> [8] entities/notification/notification-slot-time (⛔ сервер уже рендерит время)
-        └──> [9] features/update-profile/timezone-and-security (✅ таймзона; ⛔ диалоги — после ADR-005)
+        ├──> [9] features/update-profile/timezone-and-security (✅ таймзона)
+        └──> [10] features/update-profile/security-unlink-adr-005 (⛔ требует backend ADR-005)
 ```
 
 Пояснения зависимостей:
@@ -80,7 +82,7 @@
 
 ## 4. Порядок выполнения
 
-> Номера шагов ниже — это **порядок исполнения**, а не ID планов из §2. Соответствие шаг→ID: `1→[0]`, `2→[1]`, `3→[4]`, `4→[2]`, `5→[3]`, `6→[5]`, `7→[6]`, `8→[7]`, `9→[8]`, `10→[9]`.
+> Номера шагов ниже — это **порядок исполнения**, а не ID планов из §2. Соответствие шаг→ID: `1→[0]`, `2→[1]`, `3→[4]`, `4→[2]`, `5→[3]`, `6→[5]`, `7→[6]`, `8→[7]`, `9→[8]`, `10→[9]`, `11→[10]`.
 
 ### Фаза 0. Backend-предусловия (✅ закрыто)
 
@@ -110,9 +112,10 @@
 8. **[7] widgets/dashboard/timezone-sync** — ✅ `useState("UTC")` заменён на `useViewerTimezone()` в `DashboardUpcomingSession`/`DashboardRecentSessions`; тесты на профильную зону добавлены.
 9. **[8] entities/notification/notification-slot-time** — ⛔ закрыто без изменений: время уже рендерит сервер; `payload.slotStartsAt` не существует (см. §2.2).
 
-### Фаза F. Безопасность (P2/P3) — ✅ закрыто (таймзона), диалоги отложены
+### Фаза F. Безопасность (P2/P3) — ✅ закрыто (таймзона)
 
-10. **[9] features/update-profile/timezone-and-security** — ✅ таймзона профиля (`profile-form-schema.ts` + `GeneralTab` + i18n), тесты; ⛔ подтверждающие диалоги отвязки отложены до backend ADR-005 (общий `ConfirmDialog` создан, но не подключён) — см. §2.2.
+10. **[9] features/update-profile/timezone-and-security** — ✅ таймзона профиля (`profile-form-schema.ts` + `GeneralTab` + i18n), тесты.
+11. **[10] features/update-profile/security-unlink-adr-005** — ⛔ не реализовано до backend ADR-005: подключение `ConfirmDialog` в `ConnectedAccountsSection`, флоу подтверждения отвязки Telegram одноразовым кодом, ревокация сессий (инкремент `generation`), отдельные эндпоинты отвязки. См. [security-unlink-adr-005-spec.md](./features/update-profile/security-unlink-adr-005-spec.md).
 
 ## 5. Параллелизация
 
@@ -131,7 +134,7 @@
 | G2 → G3 | [4] завершён | `SendMatchRequestDialog` передаёт `slotId`, `409`/`400` обработаны; unit-тесты проходят | ✅ |
 | G3 → G4 | [2], [3] завершены | Форма сохраняет 1–10 слотов (без BOOKED), витрина показывает слоты в `viewerTimezone` | ✅ |
 | G4 → G5 | [5], [6] завершены | Заявки показывают `req.slot`, «Мои анкеты» — счётчики | ✅ |
-| G5 → Done | [7], [8], [9] закрыты (в т.ч. обоснованные отказы) + финальные проверки | DoD раздела 7 | ✅ |
+| G5 → Done | [7], [8], [9] закрыты; [10] — в очереди до backend ADR-005 + финальные проверки | DoD раздела 7 | ✅ |
 
 ## 7. Определение готовности (DoD)
 
@@ -156,19 +159,18 @@
 - [x] `ShowcaseCardForm`: 1–10 слотов (без BOOKED); запрет слота в прошлом; BOOKED нельзя удалить; слоты в live-preview; ответ API `422` (несуществующее локальное время, DST) показан пользователю.
 - [x] BOOKED-слоты **исключаются** из полезной нагрузки `slots` при создании/обновлении (иначе `replaceSlots` даёт `409`); в форме BOOKED отображаются только для чтения.
 - [x] `viewerTimezone` резолвится единым `useViewerTimezone()` (без инлайн-дублей фоллбэка) в [2] (готово).
-- [x] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово), [5] (✅ готово).
 - [x] `viewerTimezone` из `useViewerTimezone()` применяется в [4] (✅ готово), [5] (✅ готово), [7] (✅ готово). В [8] не требуется — время рендерит сервер (см. §2.2).
 - [x] Каталог отображает слоты в таймзоне смотрящего.
 - [x] Заявки отображают `req.slot` в таймзоне смотрящего (плашка+статус в `IncomingRequestCard`/`OutgoingRequestCard`, баннер запланированного интервью в `MatchedSessionBanner`).
 - [x] «Мои анкеты» показывают счётчики слотов (`slots.freeCount`/`slots.bookedCount`): свободными считаются только будущие `OPEN`, `BOOKED` — все; бейджи ведут на редактирование.
 - [x] Профиль: выбор и сохранение IANA-таймзоны (`GeneralTab` + `TimezoneSelect`, двухшаговая валидация через `isValidTimeZone`); автодетект; дашборд использует профильную таймзону.
 - [x] Уведомления: время слота рендерит бэкенд в таймзоне/локали получателя (`renderNotification`), отдельный фронтенд-рендер не нужен (см. §2.2).
-- [x] Отвязка Telegram/GitHub: решение — **отложить** диалог до backend ADR-005 (ревокация сессий + подтверждение кодом из Telegram); ложное предупреждение о ревокации не показывается. Общий `ConfirmDialog` в `@packages/ui` создан и протестирован, но не подключён (см. §2.2).
+- [x] Отвязка Telegram/GitHub: фронтовая реализация отнесена к плану [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) (требует backend ADR-005). Общий `ConfirmDialog` в `@packages/ui` создан и протестирован, но не подключён до появления корректного backend-флоу.
 - [x] **Публичные страницы** не запрашивают профиль у неавторизованного зрителя. Проверено: все потребители `useViewerTimezone()`/`useCurrentUser()` (в т.ч. каталожный `ShowcaseCard`, `ShowcaseFeed`, Sidebar/`NavUser`) находятся под `AuthBoundary mode="protected"` (роуты `(protected)/dashboard/**`, `(protected)/profile/**`, `(protected)/admin/**`), а `AuthBoundary` не рендерит `children` без авторизации; на guest-роутах потребителей нет. Лишний запрос профиля → `401` для неавторизованного зрителя сейчас не возникает. Если каталог `ShowcaseCard` станет публичным — передавать `useViewerTimezone({ enabled: isAuthenticated })` (см. `shared/datetime-and-i18n-rules-spec.md`).
 
 **Тесты**
-- [x] Unit-тесты: `SendMatchRequestDialog`, `ShowcaseCardForm`, `ShowcaseSlotsList`, `TimezoneSelect`, `IncomingRequestCard`, `OutgoingRequestCard`, `MatchedSessionBanner`, `MyCardItem` (ранее). Добавлены тесты таймзоны профиля (`profile-form-schema.test.ts`, `UpdateProfileForm.test.tsx`), дашборда (`DashboardUpcomingSession.test.tsx`, `dashboard-analytics.test.tsx`) и общий `ConfirmDialog.test.tsx` (`@packages/ui`). `NotificationItem`/`ConnectedAccountsSection` — вне объёма (см. §2.2).
-- [ ] `pnpm --filter web exec vitest run` — успешно. Тесты, зависящие от `now()`, фиксируют часы (`vi.useFakeTimers()`/`setSystemTime` + сброс).
+- [x] Unit-тесты: `SendMatchRequestDialog`, `ShowcaseCardForm`, `ShowcaseSlotsList`, `TimezoneSelect`, `IncomingRequestCard`, `OutgoingRequestCard`, `MatchedSessionBanner`, `MyCardItem` (ранее). Добавлены тесты таймзоны профиля (`profile-form-schema.test.ts`, `UpdateProfileForm.test.tsx`), дашборда (`DashboardUpcomingSession.test.tsx`, `dashboard-analytics.test.tsx`) и общий `ConfirmDialog.test.tsx` (`@packages/ui`). `NotificationItem` — вне объёма (см. §2.2). `ConnectedAccountsSection` — тесты будут добавлены в рамках [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md).
+- [x] `pnpm --filter web exec vitest run` — успешно. Тесты, зависящие от `now()`, фиксируют часы (`vi.useFakeTimers()`/`setSystemTime` + сброс).
 
 ## 8. Связанные документы
 
