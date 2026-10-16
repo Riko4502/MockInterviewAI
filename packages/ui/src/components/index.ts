@@ -18,6 +18,7 @@ export * from "./Carousel";
 export * from "./Checkbox";
 export * from "./Collapsible";
 export * from "./Combobox";
+export * from "./ConfirmDialog";
 export * from "./DataTable";
 export * from "./DatePicker";
 export * from "./Dialog";

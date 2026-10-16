@@ -29,9 +29,9 @@
 
 ### 3.2. Разделение таймзон
 
-- **`viewerTimezone` (таймзона смотрящего).** Таймзона текущего авторизованного пользователя (читателя). Используется **во всех** местах отображения времени другим пользователям/для текущего пользователя: витрина карточек (`ShowcaseCard`), центр заявок (`IncomingRequestCard`, `OutgoingRequestCard`), баннер запланированного интервью (`MatchedSessionBanner`), дашборд (`DashboardUpcomingSession`, `DashboardRecentSessions`), колокольчик уведомлений (`NotificationItem`).
+- **`viewerTimezone` (таймзона смотрящего).** Таймзона текущего авторизованного пользователя (читателя). Используется **во всех** местах отображения времени другим пользователям/для текущего пользователя: витрина карточек (`ShowcaseCard`), центр заявок (`IncomingRequestCard`, `OutgoingRequestCard`), баннер запланированного интервью (`MatchedSessionBanner`), дашборд (`DashboardUpcomingSession`, `DashboardRecentSessions`). Время слотов в уведомлениях рендерит **бэкенд** (`renderNotification` подставляет инстант в `message` в таймзоне/локали получателя и перерисовывает при смене `renderedTimezone`), поэтому `NotificationItem` форматирование на клиенте не выполняет.
 - **`authorTimezone` (таймзона автора карточки).** Таймзона автора при создании/редактировании **собственной** анкеты. Используется **только** для конвертации `startsAt` (UTC) → `startsAtLocal` (`YYYY-MM-DDTHH:mm`) при инициализации формы редактирования (`EditCardView`) и для подсказки UI «Время указывается в вашей таймзоне (...)» в конструкторе слотов.
-- **Источник `viewerTimezone`.** Единый хук `useViewerTimezone()` из [1] `entities/user` (внутри: профиль `useCurrentUser()` → `user?.timezone` → зона браузера → `"UTC"`). Требует backend-предпосылки [B] (п. 2.1). Потребители [2], [4], [5], [7], [8] используют хук, инлайн-фоллбэк не дублируют. Для неавторизованного зрителя (публичный каталог) профиль недоступен — берётся браузерная зона; это ожидаемое поведение. На публичных страницах запрашивать профиль только при авторизации (`enabled` у хука), чтобы не получать 401.
+- **Источник `viewerTimezone`.** Единый хук `useViewerTimezone()` из [1] `entities/user` (внутри: профиль `useCurrentUser()` → `user?.timezone` → зона браузера → `"UTC"`). Требует backend-предпосылки [B] (п. 2.1). Потребители [2], [4], [5], [7] используют хук, инлайн-фоллбэк не дублируют. Для неавторизованного зрителя (публичный каталог) профиль недоступен — берётся браузерная зона; это ожидаемое поведение. На публичных страницах запрашивать профиль только при авторизации (`enabled` у хука), чтобы не получать 401.
 - **Формат отображения.** UTC-инстант (`startsAt`) никогда не показывается «как есть» другому пользователю. Форматирование только через `formatInstantInTimeZone(instant, viewerTimezone, format)`.
 - **Формат формы.** `startsAtLocal` — строго `YYYY-MM-DDTHH:mm`. Конвертация при редактировании: `formatInstantInTimeZone(slot.startsAt, userTimezone, "yyyy-MM-dd'T'HH:mm")`.
 
@@ -102,6 +102,5 @@
 - `apps/web/src/features/send-match-request/*` — выбор слота при отклике + 409
 - `apps/web/src/widgets/match-requests-hub/*` — отображение `req.slot`
 - `apps/web/src/widgets/dashboard/*` — синхронизация таймзоны
-- `apps/web/src/entities/notification/ui/NotificationItem.tsx` — рендер времени в уведомлениях
-- `apps/web/src/features/update-profile/*` — таймзона + безопасная отвязка
+- `apps/web/src/features/update-profile/*` — таймзона профиля (+ безопасная отвязка — отложена до backend ADR-005)
 - `packages/i18n/src/locales/{ru,en}/showcase.json` — тексты

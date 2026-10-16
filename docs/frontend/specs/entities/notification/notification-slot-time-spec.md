@@ -1,33 +1,42 @@
 # Спецификация: рендер времени слота в уведомлениях (entities/notification)
 
-## 1. Цель
+## Статус: закрыто без изменений фронта (2026-10-16)
 
-В `NotificationItem.tsx` рендерить время слота из `payload` в таймзоне текущего пользователя (`userTimezone`), если событие содержит UTC-инстант слота.
+План **не реализуется**: функциональность уже закрыта бэкендом, а исходная
+спецификация опиралась на неверные факты о payload.
 
-## 2. Контекст
+### Что оказалось на самом деле
 
-События `interview.match_proposed` и `interview.slot_booked` содержат UTC-инстанты слотов в `payload`. Отображать без учёта зоны читателя некорректно.
+1. **Ключей `payload.slotStartsAt` не существует.** Событие
+   `interview.match_proposed` несёт `payload.proposedStartUtc`, событие
+   `interview.slot_booked` — `payload.startUtc`
+   (`apps/api/src/modules/matchmaking/matchmaking.service.ts:657-697`).
+2. **Время уже рендерится в таймзоне читателя.** `renderNotification`
+   (`packages/i18n/src/render-notification.ts`) подставляет UTC-инстант в
+   `message` через `Intl.DateTimeFormat` с `timeZone` получателя, а
+   `NotificationsService` лениво перерисовывает текст при смене
+   `renderedTimezone`/`renderedLocale` (`apps/api/src/modules/notifications/notifications.service.ts:315-356, 533-577`).
+   То есть `NotificationItem` уже показывает время в зоне пользователя —
+   в составе `message`.
+3. **Action URL.** Клик по уведомлению идёт по `notification.actionUrl`
+   (`NotificationActions.tsx`). Бэкенд проставляет `/matchmaking/requests/:id`
+   и `/interviews/:id`, а не `/dashboard/partners/requests`, как утверждала
+   старая версия этого документа.
 
-## 3. Требования
+### Почему рендер на фронте не добавляется
 
-- Получить `userTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 shared-спецификации правил)
-- Если в `payload` присутствует `slotStartsAt` (UTC) — отформатировать через `formatInstantInTimeZone(payload.slotStartsAt, userTimezone, 'd MMMM yyyy, HH:mm')` и отобразить в элементе уведомления
-- При клике на уведомление использовать `actionUrl` и переходить в `/dashboard/partners/requests`
-- Форматирование **только** через фасад `@packages/utils` (корневой баррeль; подпуть `@packages/utils/datetime` отсутствует)
-- Не ломать существующий рендер других типов уведомлений
+Отдельный блок времени в `NotificationItem` дублировал бы время, уже
+входящее в `message`, что ухудшает UI без выигрыша в корректности. Правило
+§3.2 `datetime-and-i18n-rules-spec.md` (перечисляющее `NotificationItem` в
+потребителях `viewerTimezone`) устарело: форматирование выполняется на
+сервере.
 
-## 4. Файл правки
+### Что осталось как исторический план
 
-- `apps/web/src/entities/notification/ui/NotificationItem.tsx` (EDIT)
-
-## 5. Тест-кейсы
-
-- [ ] При наличии `payload.slotStartsAt` отображается отформатированное время в `userTimezone`
-- [ ] При отсутствии поля — блок времени не отображается
-- [ ] Клик ведёт по `actionUrl`
-- [ ] Не влияет на другие типы уведомлений
+См. `notification-slot-time-plan.md` — оставлен для трассируемости, пункты
+не выполняются.
 
 ## 6. Связи
 
-- `@packages/utils` — `formatInstantInTimeZone`
-- `useViewerTimezone()` (сущность user, план [1])
+- `@packages/i18n` — `renderNotification` (серверный рендер времени)
+- `apps/api/.../notifications.service.ts` — ленивый пересчёт `renderedTimezone`

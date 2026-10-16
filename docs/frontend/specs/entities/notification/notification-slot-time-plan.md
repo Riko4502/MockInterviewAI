@@ -1,19 +1,22 @@
 # План реализации: рендер времени слота в уведомлениях
 
-## 1. `NotificationItem.tsx` (EDIT)
-Путь: `apps/web/src/entities/notification/ui/NotificationItem.tsx`
+## Статус: не выполняется (см. `notification-slot-time-spec.md`)
 
-- [ ] Импорт `useCurrentUser`
-- [ ] Импорт `formatInstantInTimeZone` из `@packages/utils` (корневой баррeль; подпуть `@packages/utils/datetime` в репозитории отсутствует)
-- [ ] Вычислить `userTimezone` из `useViewerTimezone()` (см. [1]; требует backend-предпосылки [B], §2.1 спецификации правил)
-- [ ] Проверить наличие `payload.slotStartsAt` (и тип события при необходимости)
-- [ ] Если есть — отформатировать `'d MMMM yyyy, HH:mm'` и отобразить в UI
-- [ ] Клик по уведомлению использует `actionUrl` → `/dashboard/partners/requests`
+Причина: время слота уже рендерится сервером в `message` в таймзоне
+читателя, а ключей `payload.slotStartsAt` в контракте нет (реальные —
+`proposedStartUtc` и `startUtc`). Отдельный рендер на фронте дублировал бы
+время. Изменений в `apps/web` не вносится.
+
+## 1. `NotificationItem.tsx` (EDIT) — отменено
+- [~] Импорт `useCurrentUser` — не требуется
+- [~] Импорт `formatInstantInTimeZone` — не требуется
+- [~] `userTimezone` из `useViewerTimezone()` — не требуется
+- [~] Проверка `payload.slotStartsAt` — поля нет в контракте
+- [~] Форматирование `'d MMMM yyyy, HH:mm'` — уже делает сервер в `message`
+- [~] Клик по уведомлению использует `actionUrl` — уже реализовано в `NotificationActions`
 
 ## 2. Тесты
-- [ ] Тест на отображение времени при наличии `slotStartsAt`
-- [ ] Тест на отсутствие блока при отсутствии поля
+- [~] Не добавляются (нет кода на фронте)
 
 ## 3. Проверки
-- [ ] tsc без ошибок
-- [ ] Сохранена логика других типов уведомлений
+- [x] Логика других типов уведомлений не затронута

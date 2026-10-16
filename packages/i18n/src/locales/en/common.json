@@ -69,6 +69,8 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
+    "timezone": "Timezone",
+    "timezoneHelp": "The timezone is used to display slot and interview times.",
     "goalsTitle": "Preparation Goals",
     "goalsSubtitle": "Your target role, level, and companies for platform personalization.",
     "goalsEmpty": "Preparation goals are not configured yet.",
@@ -137,7 +139,8 @@
       "displayNameMax": "Name must be at most 50 characters",
       "username": "Username: 3–30 characters, letters, numbers, _ and -",
       "telegram": "Telegram: 5–32 characters, letters, numbers and _",
-      "gitUrl": "Enter a GitHub or GitLab profile URL"
+      "gitUrl": "Enter a GitHub or GitLab profile URL",
+      "timezone": "Enter a valid IANA timezone, e.g. Europe/Moscow"
     }
   },
   "notifications": {

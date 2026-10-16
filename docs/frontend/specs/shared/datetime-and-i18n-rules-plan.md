@@ -34,9 +34,9 @@
 - [x] `entities/showcase-card/ui/ShowcaseCard.tsx` (EDIT) — блок «Ближайшие слоты» в `viewerTimezone`
 
 ### Этап 4. P1 — MatchRequestsHub: отображение назначенного слота
-- [ ] `widgets/match-requests-hub/ui/IncomingRequestCard.tsx` (EDIT)
-- [ ] `widgets/match-requests-hub/ui/OutgoingRequestCard.tsx` (EDIT)
-- [ ] `widgets/match-requests-hub/ui/MatchedSessionBanner.tsx` (EDIT)
+- [x] `widgets/match-requests-hub/ui/IncomingRequestCard.tsx` (EDIT)
+- [x] `widgets/match-requests-hub/ui/OutgoingRequestCard.tsx` (EDIT)
+- [x] `widgets/match-requests-hub/ui/MatchedSessionBanner.tsx` (EDIT)
 
 ### Этап 5. P1 — i18n: namespace `showcase`
 - [x] `packages/i18n/src/locales/ru/showcase.json` (NEW/EDIT)
@@ -46,20 +46,21 @@
 ### Этап 6. P2 — Timezone + Notifications + Dashboard
 - [x] `entities/user/lib/timezones.ts` (NEW) — POPULAR_TIMEZONES, `getBrowserTimezone`
 - [x] `entities/user/ui/TimezoneSelect.tsx` (NEW) — поиск, группы, автодетект
-- [ ] `features/update-profile/ui/GeneralTab.tsx` (EDIT) — интеграция таймзоны
-- [ ] `features/update-profile/model/profile-form-schema.ts` (EDIT) — поле `timezone`
-- [ ] `widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx` (EDIT) — `userTimezone`
-- [ ] `widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx` (EDIT) — `userTimezone`
-- [ ] `entities/notification/ui/NotificationItem.tsx` (EDIT) — рендер `payload.slotStartsAt` в `userTimezone`
+- [x] `features/update-profile/ui/GeneralTab.tsx` (EDIT) — интеграция таймзоны
+- [x] `features/update-profile/model/profile-form-schema.ts` (EDIT) — поле `timezone`
+- [x] `widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx` (EDIT) — `userTimezone`
+- [x] `widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx` (EDIT) — `userTimezone`
+- [~] `entities/notification/ui/NotificationItem.tsx` (EDIT) — **отменено**: время слота уже рендерится сервером в `message` в таймзоне читателя, ключей `payload.slotStartsAt` в контракте нет (см. `entities/notification/notification-slot-time-spec.md`)
 
 ### Этап 7. P3 — Безопасная отвязка аккаунтов
-- [ ] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — ConfirmDialog при отвязке Telegram/GitHub (создать общий `ConfirmDialog` в `packages/ui` либо использовать app-local паттерн)
+- [x] Общий `ConfirmDialog` в `packages/ui` (NEW) — создан и протестирован
+- [~] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — подключение диалога отвязки **отложено** до backend ADR-005 (ревокация сессий + подтверждение кодом из Telegram; сейчас `PATCH /profile/me` ничего не ревокирует)
 
 ### Этап 8. Тестирование и проверка качества
 - [ ] Unit-тесты: `SendMatchRequestDialog.test.tsx`, `ShowcaseCardForm.test.tsx`, `IncomingRequestCard.test.tsx`, `OutgoingRequestCard.test.tsx`
 - [ ] Тесты, зависящие от `now()` (фильтр OPEN+future, «не в прошлом»), фиксируют часы: `vi.useFakeTimers()`/`vi.setSystemTime(...)` + `vi.useRealTimers()`
-- [ ] `pnpm --filter web exec tsc --noEmit`
-- [ ] Проверка запрета прямых импортов дат (grep)
+- [x] `pnpm --filter web exec tsc --noEmit`
+- [x] Проверка запрета прямых импортов дат (grep)
 - [ ] `pnpm --filter web exec vitest run`
 
 ### Этап 9. Финальная проверка (smoke)
@@ -73,12 +74,12 @@
 | Проверка | Команда/критерий | Статус |
 |---|---|---|
 | **Backend timezone [B]** | `GET /profile/me` возвращает `timezone`; `PATCH /profile/me` его сохраняет; `packages/api` регенерирован | [x] |
-| **TypeScript** | `pnpm --filter web exec tsc --noEmit` — 0 ошибок | [ ] |
+| **TypeScript** | `pnpm --filter web exec tsc --noEmit` — 0 ошибок | [x] |
 | **Запрет прямых импортов дат** | `grep -R --include="*.ts" --include="*.tsx" -E "(from ['\"](date-fns|@date-fns/tz|dayjs|luxon|date-fns-tz|moment)['\"])" apps/web/src` — пусто | [x] |
 | **Единый фасад datetime** | Весь форматинг/парсинг через `@packages/utils` (`formatInstantInTimeZone`, `resolveLocalTimeToUtc`, валидация IANA). Подпуть `@packages/utils/datetime` не использовать | [ ] |
 | **Разделение таймзон** | `viewerTimezone` для показа, `authorTimezone` для `startsAtLocal` при редактировании | [ ] |
-| **Единый резолвер tz** | `viewerTimezone` из `useViewerTimezone()` ([1]), инлайн-фоллбэк не дублируется | [ ] |
-| **IANA-валидация** | Двухшаговая: `isIanaTimeZoneFormat` + `isResolvableTimeZone`. Без whitelist через `supportedValuesOf` | [ ] |
+| **Единый резолвер tz** | `viewerTimezone` из `useViewerTimezone()` ([1]), инлайн-фоллбэк не дублируется | [x] |
+| **IANA-валидация** | Двухшаговая: `isIanaTimeZoneFormat` + `isResolvableTimeZone` (в форме через `isValidTimeZone`). Без whitelist через `supportedValuesOf` | [x] |
 | **Контракты API** | `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`. Только `startsAtLocal` + `durationMinutes` при создании/обновлении карточки | [ ] |
 | **Тип `AvailabilitySlot`** | Общий тип определён и переиспользован, локальных дублей нет | [x] |
 | **409 Conflict** | Обработан: toast, `invalidateQueries`, сброс `slotId`, диалог не закрывается | [ ] |

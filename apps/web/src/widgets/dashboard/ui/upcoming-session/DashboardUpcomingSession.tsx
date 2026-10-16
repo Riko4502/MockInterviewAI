@@ -4,15 +4,9 @@ import { UserIcon } from "@packages/icons";
 import { Avatar, Button, Card, Empty, Typography } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useViewerTimezone } from "@/entities/user";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { formatDashboardDate, formatDashboardTime } from "../../lib/formatters";
@@ -33,14 +27,10 @@ export function DashboardUpcomingSession() {
   const query = useUpcomingSession();
   const [mediaOpen, setMediaOpen] = useState(false);
   const [mediaRequested, setMediaRequested] = useState(false);
-  const [timeZone, setTimeZone] = useState("UTC");
+  const timeZone = useViewerTimezone();
   const mediaTrigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const session = query.data?.session;
-
-  useEffect(() => {
-    setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-  }, []);
 
   const refreshUpcoming = useCallback(() => {
     void queryClient.invalidateQueries({
