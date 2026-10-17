@@ -3,6 +3,7 @@ import {
   ConflictException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -11,13 +12,17 @@ import type {
   TelegramInterviewsListDto,
   TelegramUserProfileDto,
 } from "@packages/dto";
+import { revokeUserSessionsWithRetry } from "../../common/revocation/sessions-revocation";
 import type { Prisma } from "../../generated/prisma/client";
 import {
   InterviewParticipantRole,
   InterviewSessionStatus,
+  SecurityEventType,
 } from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { AuthSessionService } from "../auth/services/auth-session.service";
+import { SecurityEventsService } from "../security-events/security-events.service";
 
 const TELEGRAM_LINK_KEY_PREFIX = "tg:link:";
 
@@ -41,12 +46,15 @@ type UserWithRole = Prisma.UserGetPayload<{ include: { role: true } }>;
  */
 @Injectable()
 export class TelegramService {
+  private readonly logger = new Logger(TelegramService.name);
   private readonly botUsername: string;
   private readonly linkTtlSeconds: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly authSessionService: AuthSessionService,
+    private readonly securityEventsService: SecurityEventsService,
     configService: ConfigService,
   ) {
     this.botUsername =
@@ -137,27 +145,66 @@ export class TelegramService {
       throw new ConflictException("Telegram account is already linked");
     }
 
-    let result: { count: number };
-    try {
-      result = await this.prisma.user.updateMany({
-        where: { id: user.id, telegramChatId: null },
-        data: {
-          telegramChatId: chatId,
-          telegramLocale: null,
-          telegramLinkVerified: true,
-          ...(username ? { telegramUsername: username } : {}),
-        },
-      });
-    } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "P2002") {
-        throw new ConflictException("Telegram chat is already linked");
-      }
-      throw error;
-    }
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
 
-    if (result.count === 0) {
-      throw new ConflictException("Telegram account is already linked");
-    }
+    await this.prisma.$transaction(async (tx) => {
+      let result: { count: number };
+      try {
+        result = await tx.user.updateMany({
+          where: { id: user.id, telegramChatId: null },
+          data: {
+            telegramChatId: chatId,
+            telegramLocale: null,
+            telegramLinkVerified: true,
+            // D3: привязка — тоже security-событие. Инкремент `generation`
+            // завершает остальные сессии: чужой чат, привязанный к аккаунту,
+            // не должен пережить перепривязку.
+            generation: { increment: 1 },
+            ...(username ? { telegramUsername: username } : {}),
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "P2002"
+        ) {
+          throw new ConflictException("Telegram chat is already linked");
+        }
+        throw error;
+      }
+
+      if (result.count === 0) {
+        throw new ConflictException("Telegram account is already linked");
+      }
+
+      const afterUpdate = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { generation: true },
+      });
+      const preIncrementGeneration = afterUpdate.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: { userId: user.id, generation: preIncrementGeneration },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = preIncrementGeneration;
+
+      await this.securityEventsService.record({
+        tx,
+        userId: user.id,
+        type: SecurityEventType.TG_LINKED,
+        metadata: { channel: "telegram" },
+      });
+    });
+
+    await this.finalizeLinkRevocation(user.id, {
+      taskId,
+      taskCreatedAt,
+      taskGeneration,
+    });
 
     const updated = await this.prisma.user.findUnique({
       where: { id: user.id },
@@ -169,6 +216,44 @@ export class TelegramService {
     }
 
     return this.toProfileDto(updated);
+  }
+
+  /**
+   * Досылает ревокацию сессий после привязки Telegram (D3).
+   *
+   * Привязка уже зафиксирована в БД и аудите, поэтому сбой ревокации не должен
+   * откатывать её или отвечать ошибкой боту: durable-задача
+   * `AuthRevocationTask` остаётся воркеру `SessionRevocationCron`.
+   */
+  private async finalizeLinkRevocation(
+    userId: string,
+    task: {
+      taskId?: string;
+      taskCreatedAt?: Date;
+      taskGeneration?: number;
+    },
+  ): Promise<void> {
+    try {
+      await revokeUserSessionsWithRetry(
+        {
+          redisService: this.redis,
+          authSessionService: this.authSessionService,
+        },
+        userId,
+        task.taskCreatedAt,
+        task.taskGeneration,
+      );
+      if (task.taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: task.taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${userId} during Telegram link (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   /**

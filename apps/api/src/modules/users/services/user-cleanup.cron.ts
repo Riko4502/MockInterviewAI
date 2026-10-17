@@ -105,10 +105,19 @@ export class UserCleanupCron {
             await this.storageService.deleteFile(user.avatarUrl);
           }
 
-          // Окончательно удаляем пользователя из БД
-          await this.prisma.user.delete({
-            where: { id: user.id },
-          });
+          // Окончательно удаляем пользователя из БД. SecurityEvent связан
+          // `onDelete: Restrict` (ADR-005:125): при soft-delete события
+          // переживают аккаунт, но при окончательном затирании удаляются
+          // вместе с ним (ADR-005:127), поэтому строки событий сносятся той
+          // же транзакцией перед пользователем.
+          await this.prisma.$transaction([
+            this.prisma.securityEvent.deleteMany({
+              where: { userId: user.id },
+            }),
+            this.prisma.user.delete({
+              where: { id: user.id },
+            }),
+          ]);
 
           totalPurged++;
         } catch (err) {
