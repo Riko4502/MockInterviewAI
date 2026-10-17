@@ -68,6 +68,8 @@
 
 Документы синхронизированы: исправлены битые относительные ссылки в `timezone-and-security-spec.md` §3 и путь тест-файла (`ui/__tests__/…` → `ui/…`) во всех трёх frontend-документах; добавлены двусторонние ссылки frontend ↔ backend specs.
 
+Решения по реализации зафиксированы (2026-10-17): [backend-спека, §1.1](../../backend/specs/security-unlink-adr-005-spec.md) (D1–D14, канонический список) и [«зонтичная» frontend-спека, §3.1](./features/update-profile/security-unlink-adr-005-spec.md) (F1–F7). Ключевое: объём — только отвязка + минимальная инфраструктура аудита (D1); `PATCH /profile/me` больше не отвязывает (D2); `generation++` и `TG_LINKED` при привязке Telegram (D3); эндпоинты в `profile.controller.ts` (D4); один секрет — код, `{ code }` без токена (D5); доставка кода ботом через `RabbitMqPublisher` (D6); состояние доставки в `security_events`, свой relay (D7); in-app fallback (D8); запрет отвязки последнего способа входа (D9). Остальные события ADR-005 — отдельными задачами.
+
 ## 3. Граф зависимостей
 
 ```text
