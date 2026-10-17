@@ -46,6 +46,16 @@ export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
 
   const title = card.title?.trim() || defaultTitle;
 
+  // Свободными считаются только актуальные OPEN-слоты: прошедшие забронировать
+  // нельзя (spec §2). BOOKED учитываются все, независимо от даты начала.
+  const now = Date.now();
+  const freeCount = card.slots.filter(
+    (slot) => slot.status === "OPEN" && new Date(slot.startsAt).getTime() > now,
+  ).length;
+  const bookedCount = card.slots.filter(
+    (slot) => slot.status === "BOOKED",
+  ).length;
+
   return (
     <Card
       className={cn(
@@ -102,6 +112,20 @@ export function MyCardItem({ card, onDelete, className }: MyCardItemProps) {
             <LevelBadge level={card.level} />
             <LanguageBadge language={card.language} />
           </div>
+
+          {/* Счётчики слотов: свободные (актуальные OPEN) и забронированные */}
+          <Link
+            href={paths.partnersEdit(card.id)}
+            title={t("slots.title")}
+            className="flex w-fit flex-wrap items-center gap-1.5"
+          >
+            <Badge variant="statusInfo" className="text-xs font-medium">
+              {t("slots.freeCount", { count: freeCount })}
+            </Badge>
+            <Badge variant="waiting" className="text-xs font-medium">
+              {t("slots.bookedCount", { count: bookedCount })}
+            </Badge>
+          </Link>
         </div>
 
         {/* Навыки */}

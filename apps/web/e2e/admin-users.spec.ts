@@ -28,6 +28,7 @@ async function mockAdminSession(page: Page) {
     permissions: "0",
     theme: "system",
     locale: "ru",
+    timezone: "Europe/Moscow",
     email: "admin@example.com",
     displayName: "Главный Администратор",
     username: "superadmin",

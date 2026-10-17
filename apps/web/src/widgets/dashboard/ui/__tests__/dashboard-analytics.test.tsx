@@ -188,6 +188,22 @@ describe("Аналитика дашборда", () => {
       screen.queryByRole("link", { name: "View report" }),
     ).not.toBeInTheDocument();
   });
+  it("использует таймзону профиля смотрящего для даты завершённой сессии", async () => {
+    handle = async (config) =>
+      config.url.includes("/profile/me")
+        ? { timezone: "Pacific/Kiritimati" }
+        : {
+            items: [
+              { ...recent.items[0], completedAt: "2026-09-28T12:00:00Z" },
+            ],
+          };
+    render(
+      <QueryClientProvider client={client}>
+        <DashboardRecentSessions />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Sep 29, 2026")).toBeInTheDocument();
+  });
   it("показывает пустое состояние последних сессий", () => {
     client.setQueryData(DASHBOARD_KEYS.recent({ limit: 5 }), { items: [] });
     mount();

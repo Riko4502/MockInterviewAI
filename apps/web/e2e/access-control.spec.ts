@@ -28,6 +28,7 @@ async function mockSession(page: Page, role: "USER" | "ADMIN") {
     permissions: "0",
     theme: "system",
     locale: "ru",
+    timezone: "Europe/Moscow",
     email: "access-control@example.com",
     displayName: "Тестовый пользователь",
     username: null,

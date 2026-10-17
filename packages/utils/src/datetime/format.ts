@@ -1,5 +1,6 @@
 import { tz } from "@date-fns/tz";
-import { format } from "date-fns";
+import { format, type Locale } from "date-fns";
+import { enUS, ru } from "date-fns/locale";
 
 /**
  * Форматирование инстанта в зоне читателя (ADR-002:55, :99).
@@ -13,20 +14,34 @@ import { format } from "date-fns";
 export const DEFAULT_INSTANT_PATTERN = "yyyy-MM-dd HH:mm";
 
 /**
+ * Поддерживаемые фасадом локали для текстовых токенов (`MMMM`, `EEEE`, ...).
+ *
+ * `format` из date-fns без `locale` печатает английские названия месяцев и
+ * дней даже в RU-интерфейсе, поэтому локаль передаётся явно из i18n.
+ */
+export const INSTANT_LOCALES: Record<string, Locale> = { ru, en: enUS };
+
+/**
  * Печатает UTC-инстант в зоне получателя.
  *
  * @param instant - UTC-инстант (`Date` или ISO-строка)
  * @param timeZone - IANA-зона читателя
  * @param pattern - паттерн date-fns, по умолчанию `yyyy-MM-dd HH:mm`
+ * @param locale - локаль текстовых токенов: `"ru"` / `"en"` (по умолчанию `"en"`,
+ *   как у голого `format` date-fns). Неизвестная локаль падает в `en`.
  */
 export function formatInstantInTimeZone(
   instant: Date | string,
   timeZone: string,
   pattern: string = DEFAULT_INSTANT_PATTERN,
+  locale: string = "en",
 ): string {
   const date = typeof instant === "string" ? new Date(instant) : instant;
 
-  return format(date, pattern, { in: tz(timeZone) });
+  return format(date, pattern, {
+    in: tz(timeZone),
+    locale: INSTANT_LOCALES[locale] ?? enUS,
+  });
 }
 
 /**

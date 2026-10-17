@@ -1,0 +1,37 @@
+# Спецификация: счётчики слотов в «Моих анкетах» (widgets/my-cards-list)
+
+## 1. Цель
+
+В `MyCardItem.tsx` добавить бейджи со счётчиками слотов: «Свободно: X / Забронировано: Y».
+
+## 2. Правила подсчёта
+
+- `freeCount = card.slots.filter(s => s.status === 'OPEN' && new Date(s.startsAt) > new Date()).length`
+- `bookedCount = card.slots.filter(s => s.status === 'BOOKED').length`
+- Прошедшие `OPEN` не считаются свободными (они небронируемы); `BOOKED` считаются все.
+
+## 3. UI
+
+- Отобразить бейджи с ключами `slots.freeCount` и `slots.bookedCount`
+- При клике — переход к управлению/редактированию анкеты (существующий роут редактирования)
+- Сохранить существующую логику клика/структуру
+
+## 4. Файл правки
+
+- `widgets/my-cards-list/ui/MyCardItem.tsx` (EDIT)
+
+## 5. i18n
+
+Ключи: `slots.freeCount`, `slots.bookedCount`
+
+## 6. Тест-кейсы
+
+- [x] Корректные счётчики при наличии OPEN/BOOKED
+- [x] При пустых слотах — 0/0
+- [x] Учитываются только статусы OPEN/BOOKED
+- [x] Прошедший OPEN не попадает в `freeCount` (часы зафиксированы: `vi.useFakeTimers()`/`setSystemTime`)
+
+## 7. Связи
+
+- `@packages/i18n`
+- `@packages/api` (типы слотов)

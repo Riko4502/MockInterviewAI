@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { AppModule } from "../../src/app.module";
+import { Prisma } from "../../src/generated/prisma/client";
 import { configureApp } from "../../src/main";
 import { PrismaService } from "../../src/prisma/prisma.service";
 import { RedisService } from "../../src/redis/redis.service";
@@ -157,4 +158,24 @@ export async function stopTestApp(started: {
  */
 export function uniqueEmail(domain = "e2e.test"): string {
   return `${randomUUID()}@${domain}`;
+}
+
+/**
+ * Удаляет тестовых пользователей вместе с их security-событиями.
+ *
+ * `SecurityEvent.userId` объявлен `ON DELETE RESTRICT` (plan D12, ADR-005:127):
+ * событие переживает soft-delete и сносится только при окончательном удалении
+ * аккаунта. Поэтому teardown обязан удалить события до пользователей, иначе
+ * `user.deleteMany` падает на FK-констрейнте (как это делает
+ * `user-cleanup.cron`).
+ *
+ * @param prisma - Реальный `PrismaService` тестового приложения.
+ * @param where - Фильтр пользователей (тот же, что использовался бы напрямую).
+ */
+export async function deleteUsersWithSecurityEvents(
+  prisma: PrismaService,
+  where: Prisma.UserWhereInput,
+): Promise<void> {
+  await prisma.securityEvent.deleteMany({ where: { user: where } });
+  await prisma.user.deleteMany({ where });
 }

@@ -165,6 +165,26 @@ export function mapUserProfileToUi(dto: UserProfileDto): UserUiModel {
 
 ---
 
+## 🕒 Слоты и таймзоны (ADR-002)
+
+Контракты профиля и заявок расширены полями таймзоны и слотов. Все модели приходят из OpenAPI — ручное дублирование типов запрещено (см. выше).
+
+| Модель `@packages/api` | Поле | Тип | Назначение |
+|---|---|---|---|
+| `UserProfileDto` | `timezone` | `string` (required) | IANA-таймзона профиля — источник таймзоны смотрящего |
+| `LoginDto` / `RegisterDto` | `timezone?` | `string` | Автодетект браузерной IANA-зоны, сохраняется при первом входе |
+| `UpdateProfileDto` | `timezone?` | `string` | Смена таймзоны в профиле |
+| `CreateMatchRequestDto` | `slotId?` | `string` | Опциональный выбор слота при отправке заявки |
+| `ShowcaseCardResponseDto`, `MatchRequestResponseDto*` | `slots` | `...SlotsItem[]` | Слоты доступности (контекстные Orval-типы) |
+
+**Правила.**
+- `slots[].startsAt` — UTC-инстант (ISO-8601). В UI форматировать **только** через `formatInstantInTimeZone(instant, viewerTimezone)` из `@packages/utils` — в таймзоне **смотрящего**, а не автора.
+- Таймзона смотрящего берётся из единого хука `useViewerTimezone()` (`entities/user`); инлайн-фоллбэк на браузерную зону в компонентах не дублируется.
+- Контекстные Orval-типы слотов структурно совпадают с общим `AvailabilitySlot` из `@packages/types`; локальные дубли интерфейсов слотов создавать нельзя.
+- После изменений контрактов в бэкенде обязателен `pnpm run codegen` (см. выше).
+
+---
+
 ## 🔌 Архитектура транспорта и авторизации
 
 Пакет `@packages/api` не зависит от `apps/web` (Принцип I Конституции: `packages/*` не импортируют `apps/*`).

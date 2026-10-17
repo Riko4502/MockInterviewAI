@@ -103,6 +103,11 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
     const expectedRoutes = [
       "/api/v1/health",
       "/api/v1/profile/me",
+      "/api/v1/profile/me/telegram/unlink/request",
+      "/api/v1/profile/me/telegram/unlink/confirm",
+      "/api/v1/profile/me/github/unlink",
+      "/api/v1/profile/me/security-events",
+      "/api/v1/profile/me/security-events/{id}/seen",
       "/api/v1/profile/avatar",
       "/api/v1/profile/restore",
       "/api/v1/users/{idOrUsername}",
@@ -135,6 +140,11 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       "ChangePasswordDto",
       "UserProfileDto",
       "UpdateProfileDto",
+      "ConfirmTelegramUnlinkDto",
+      "TelegramUnlinkRequestResponseDto",
+      "SecurityUnlinkResponseDto",
+      "UnseenSecurityEventsResponseDto",
+      "MarkSecurityEventSeenResponseDto",
       "PublicUserProfileDto",
       "TicketDto",
       "TicketResponseDto",
@@ -220,6 +230,65 @@ describe("OpenAPI Generation & Contract Verification (T030)", () => {
       expect(op.responses["400"]).toBeDefined();
       expect(op.responses["401"]).toBeDefined();
       expect(op.responses["429"]).toBeDefined();
+    });
+
+    it("POST /api/v1/profile/me/telegram/unlink/request: 200 (TelegramUnlinkRequestResponseDto), 400, 401, 429", () => {
+      const op = document.paths["/api/v1/profile/me/telegram/unlink/request"]
+        ?.post as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/TelegramUnlinkRequestResponseDto",
+      );
+      // 429 — это rate limit (D5): 1 запрос / 60с на пользователя.
+      expect(op.responses["400"]).toBeDefined();
+      expect(op.responses["401"]).toBeDefined();
+      expect(op.responses["429"]).toBeDefined();
+    });
+
+    it("POST /api/v1/profile/me/telegram/unlink/confirm: 200 (SecurityUnlinkResponseDto), 400, 401, 409, 410, 429", () => {
+      const op = document.paths["/api/v1/profile/me/telegram/unlink/confirm"]
+        ?.post as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/SecurityUnlinkResponseDto",
+      );
+      // Коды ошибок — контракт (D4): INVALID_CODE/ALREADY_UNLINKED/
+      // CODE_EXPIRED/ATTEMPTS_EXCEEDED различимы по HTTP-статусу.
+      expect(op.responses["400"]).toBeDefined();
+      expect(op.responses["401"]).toBeDefined();
+      expect(op.responses["409"]).toBeDefined();
+      expect(op.responses["410"]).toBeDefined();
+      expect(op.responses["429"]).toBeDefined();
+    });
+
+    it("POST /api/v1/profile/me/github/unlink: 200 (SecurityUnlinkResponseDto), 400, 401, 409", () => {
+      const op = document.paths["/api/v1/profile/me/github/unlink"]
+        ?.post as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/SecurityUnlinkResponseDto",
+      );
+      expect(op.responses["400"]).toBeDefined();
+      expect(op.responses["401"]).toBeDefined();
+      expect(op.responses["409"]).toBeDefined();
+    });
+
+    it("GET /api/v1/profile/me/security-events: 200 (UnseenSecurityEventsResponseDto), 401", () => {
+      const op = document.paths["/api/v1/profile/me/security-events"]
+        ?.get as OperationObject;
+      const schema = (op.responses["200"] as ResponseObject)?.content?.[
+        "application/json"
+      ]?.schema as ReferenceObject;
+      expect(schema?.$ref).toBe(
+        "#/components/schemas/UnseenSecurityEventsResponseDto",
+      );
+      expect(op.responses["401"]).toBeDefined();
     });
 
     it("GET /api/v1/showcase: возвращает 200 (PaginatedShowcaseCardsDto) с непустой схемой", () => {

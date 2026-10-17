@@ -45,7 +45,7 @@ function isFieldErrorMap(value: unknown): value is Record<string, string> {
  * Глобальный фильтр исключений.
  *
  * Обрабатывает `HttpException` (возвращает санитизированное тело
- * `{ statusCode, message, error }`; для ошибок валидации `message`
+ * `{ statusCode, message, code?, error? }`; для ошибок валидации `message`
  * содержит карту `{ field: message }`) и маскирует необработанные ошибки
  * (Prisma, Redis, прочее) до `500 Internal server error` без внутренних
  * деталей в любом окружении (§47, §56 SPEC.md).
@@ -116,6 +116,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof exceptionResponse.error === "string"
         ? exceptionResponse.error
         : undefined;
+    // `code` — машиночитаемый идентификатор ошибки, на который фронт мапит
+    // i18n-ключ (D4 ADR-005, `RESET_PASSWORD_ERROR_CODES`). Пробрасывается
+    // намеренно: это часть контракта, а не внутренняя деталь, поэтому
+    // маскировке (§47) не подлежит. Остальные поля объекта отбрасываются.
+    const code =
+      typeof exceptionResponse.code === "string"
+        ? exceptionResponse.code
+        : undefined;
 
     return {
       statusCode: status,
@@ -123,6 +131,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         typeof message === "string" || Array.isArray(message)
           ? message
           : "Unknown error",
+      ...(code ? { code } : {}),
       ...(error ? { error } : {}),
     };
   }

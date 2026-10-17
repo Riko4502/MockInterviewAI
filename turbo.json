@@ -43,6 +43,10 @@
         "PATH",
         "HOME"
       ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
     }
   }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { timeZoneSchema } from "../common/timezone";
 import { normalizeEmail } from "./email";
 import { PASSWORD_MAX_LENGTH } from "./password-policy";
 
@@ -30,6 +31,12 @@ export const loginSchema = z.object({
       PASSWORD_MAX_LENGTH,
       `Пароль должен содержать максимум ${PASSWORD_MAX_LENGTH} символов`,
     ),
+  /**
+   * IANA-таймзона из браузера. Применяется сервером только на самом первом
+   * входе (`User.firstLoginAt === null`), чтобы не перезаписать явный выбор
+   * пользователя в настройках (ADR-002:53).
+   */
+  timezone: timeZoneSchema.optional(),
 });
 
 /** Типизированный DTO входа. */

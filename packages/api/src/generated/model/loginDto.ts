@@ -18,4 +18,5 @@ export interface LoginDto {
      * @maxLength 128
      */
   password: string;
+  timezone?: string;
 }

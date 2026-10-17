@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import {
+  type RequestConfig,
   resetHttpTransport,
   setHttpTransport,
   type UpcomingSessionResponseDtoSession,
@@ -134,6 +135,21 @@ describe("Ближайшая сессия (DashboardUpcomingSession)", () => {
       await screen.findByRole("button", { name: "Проверить связь" }),
     );
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("форматирует дату и время сессии в таймзоне профиля смотрящего", async () => {
+    setHttpTransport(async <T,>(config: RequestConfig): Promise<T> => {
+      if (config.url.includes("/profile/me")) {
+        return { timezone: "Pacific/Kiritimati" } as T;
+      }
+      return {
+        hasUpcoming: true,
+        session: { ...session, scheduledAt: "2026-10-01T12:00:00.000Z" },
+      } as T;
+    });
+    renderWidget();
+    expect(await screen.findByText("02:00")).toBeInTheDocument();
+    expect(screen.getByText(/2 окт/)).toBeInTheDocument();
   });
 
   it("показывает изолированную ошибку с возможностью повторной попытки", async () => {

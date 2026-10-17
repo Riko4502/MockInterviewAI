@@ -171,4 +171,28 @@ describe("registerSchema", () => {
       expect(r.success).toBe(false);
     });
   });
+
+  describe("timezone (ADR-002)", () => {
+    it("валидная IANA-таймзона проходит и сохраняется как прислана", () => {
+      const result = registerSchema.parse(
+        validInput({ timezone: "Asia/Tokyo" }),
+      );
+      expect(result.timezone).toBe("Asia/Tokyo");
+    });
+
+    it("невалидная таймзона отклоняется", () => {
+      const r = registerSchema.safeParse(validInput({ timezone: "Not/AZone" }));
+      expect(r.success).toBe(false);
+    });
+
+    it("offset-форма отклоняется (двухшаговая валидация, ADR-002:50)", () => {
+      const r = registerSchema.safeParse(validInput({ timezone: "+04:00" }));
+      expect(r.success).toBe(false);
+    });
+
+    it("timezone опционален", () => {
+      const result = registerSchema.parse(validInput());
+      expect(result.timezone).toBeUndefined();
+    });
+  });
 });

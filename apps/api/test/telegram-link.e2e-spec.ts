@@ -1,5 +1,6 @@
 import request from "supertest";
 import {
+  deleteUsersWithSecurityEvents,
   type StartedApp,
   startTestApp,
   stopTestApp,
@@ -23,13 +24,13 @@ describe("E2E: Telegram internal API (§6–§7 TELEGRAM_BOT_ARCHITECTURE.md)", 
   });
 
   afterAll(async () => {
-    await started.prisma.user.deleteMany({
-      where: {
-        OR: [
-          { email: { in: usedEmails } },
-          { telegramChatId: { in: usedChatIds } },
-        ],
-      },
+    // Связывание Telegram пишет `TG_LINKED` (D3), поэтому cleanup обязан
+    // снести security-события до пользователей (FK RESTRICT, D12).
+    await deleteUsersWithSecurityEvents(started.prisma, {
+      OR: [
+        { email: { in: usedEmails } },
+        { telegramChatId: { in: usedChatIds } },
+      ],
     });
     await stopTestApp(started);
   });

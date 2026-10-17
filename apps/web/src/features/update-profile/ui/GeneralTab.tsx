@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { setPreferenceCookies } from "@/entities/user";
+import { setPreferenceCookies, TimezoneSelect } from "@/entities/user";
 import "@/shared/lib/i18n";
 import {
   createProfileFormSchema,
@@ -50,6 +50,7 @@ export function GeneralTab({ user }: GeneralTabProps) {
       gitUrl: user.gitUrl ?? "",
       theme: user.theme ?? "dark",
       locale: user.locale ?? "ru",
+      timezone: user.timezone,
     }),
     [user],
   );
@@ -103,6 +104,7 @@ export function GeneralTab({ user }: GeneralTabProps) {
             gitUrl: updatedUser.gitUrl ?? "",
             theme: updatedUser.theme ?? "dark",
             locale: updatedUser.locale ?? "ru",
+            timezone: updatedUser.timezone,
           });
           toast.push({
             status: "success",
@@ -293,6 +295,28 @@ export function GeneralTab({ user }: GeneralTabProps) {
                       </Select>
                     )}
                   />
+                </Field.Content>
+              </Field>
+
+              <Field className="sm:col-span-2" invalid={!!errors.timezone}>
+                <Field.Label>{t("profile.timezone")}</Field.Label>
+                <Field.Content>
+                  <Controller
+                    control={control}
+                    name="timezone"
+                    render={({ field }) => (
+                      <TimezoneSelect
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={isSaving}
+                        aria-label={t("profile.timezone")}
+                      />
+                    )}
+                  />
+                  <Field.Description>
+                    {t("profile.timezoneHelp")}
+                  </Field.Description>
+                  <Field.Error>{errors.timezone?.message}</Field.Error>
                 </Field.Content>
               </Field>
             </div>

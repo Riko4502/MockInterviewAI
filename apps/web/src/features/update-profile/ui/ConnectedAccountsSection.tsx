@@ -4,6 +4,7 @@ import type { UserProfileDto } from "@packages/api";
 import {
   getProfileControllerGetMyProfileQueryKey,
   useAuthControllerOauthProviders,
+  useProfileControllerUnlinkGithub,
   useTelegramControllerCreateLinkToken,
 } from "@packages/api";
 import { CheckIcon, CopyIcon, GithubIcon, TelegramIcon } from "@packages/icons";
@@ -11,17 +12,35 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dialog,
+  Field,
+  Input,
   Spin,
   Typography,
   useToast,
 } from "@packages/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSession } from "@/entities/session";
 import { getApiUrl } from "@/shared/api/config/endpoints";
+import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
-import { useUpdateProfile } from "../model/use-profile-mutations";
+import { getUnlinkErrorKey } from "../model/unlink-error";
+import { useTelegramUnlinkFlow } from "../model/use-telegram-unlink-flow";
+
+/**
+ * Пауза перед уходом на логин после успешной отвязки (F4).
+ *
+ * Отвязка отзывает все сессии, включая текущую, поэтому возвращаться на живой
+ * профиль некуда — даём время прочитать тост успеха.
+ */
+export const UNLINK_REDIRECT_DELAY_MS = 1500;
+
+/** Минимальная длина одноразового кода отвязки Telegram (D5). */
+const TELEGRAM_UNLINK_CODE_LENGTH = 6;
 
 type ConnectedAccountsSectionProps = {
   user: UserProfileDto;
@@ -31,15 +50,22 @@ export function ConnectedAccountsSection({
   user,
 }: ConnectedAccountsSectionProps) {
   const { t } = useTranslation("common");
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const session = useSession({ optional: true });
   const toast = useToast();
   const [isTgDialogOpen, setIsTgDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isTgUnlinkConfirmOpen, setIsTgUnlinkConfirmOpen] = useState(false);
+  const [isTgCodeOpen, setIsTgCodeOpen] = useState(false);
+  const [isGithubUnlinkOpen, setIsGithubUnlinkOpen] = useState(false);
+  const [code, setCode] = useState("");
 
   const createLinkTokenMutation = useTelegramControllerCreateLinkToken();
-  const updateProfileMutation = useUpdateProfile();
+  const unlinkGithubMutation = useProfileControllerUnlinkGithub();
+  const telegramUnlinkFlow = useTelegramUnlinkFlow();
 
   const { data: oauthProviders } = useAuthControllerOauthProviders({
     query: { retry: false },
@@ -55,8 +81,7 @@ export function ConnectedAccountsSection({
       ? user.githubLinkVerified && user.gitUrl
       : user.gitUrl,
   );
-  const isPending =
-    updateProfileMutation.isPending || createLinkTokenMutation.isPending;
+  const isPending = createLinkTokenMutation.isPending;
 
   useEffect(() => {
     if (!isTgDialogOpen) {
@@ -123,38 +148,61 @@ export function ConnectedAccountsSection({
     });
   };
 
-  const handleUnlinkTelegram = () => {
-    updateProfileMutation.mutate(
-      { data: { telegramUsername: null } },
-      {
-        onSuccess: () => {
-          toast.push({
-            status: "success",
-            title: t("profile.telegramUnlinkSuccess"),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getProfileControllerGetMyProfileQueryKey(),
-          });
-        },
-      },
+  /**
+   * Общий финал успешной отвязки (F4): тост, инвалидация кэша профиля и уход
+   * на логин — сервер отозвал все сессии, включая текущую, возвращаться на
+   * живой профиль некуда.
+   */
+  const handleUnlinkSuccess = (title: string) => {
+    toast.push({ status: "success", title });
+    void queryClient.invalidateQueries({
+      queryKey: getProfileControllerGetMyProfileQueryKey(),
+    });
+
+    setTimeout(() => {
+      session?.clearSession();
+      queryClient.clear();
+      router.replace(paths.login);
+    }, UNLINK_REDIRECT_DELAY_MS);
+  };
+
+  /** Переход от предупреждения к шагу ввода одноразового кода (F3). */
+  const handleTelegramUnlinkConfirm = () => {
+    setIsTgUnlinkConfirmOpen(false);
+    setCode("");
+    setIsTgCodeOpen(true);
+    telegramUnlinkFlow.requestCode();
+  };
+
+  const handleCodeSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (telegramUnlinkFlow.isBusy || telegramUnlinkFlow.isCodeExpired) return;
+
+    telegramUnlinkFlow.submitCode(code, () =>
+      handleUnlinkSuccess(t("profile.telegramUnlinkSuccess")),
     );
   };
 
-  const handleUnlinkGithub = () => {
-    updateProfileMutation.mutate(
-      { data: { gitUrl: null } },
-      {
-        onSuccess: () => {
-          toast.push({
-            status: "success",
-            title: t("profile.githubUnlinkSuccess"),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getProfileControllerGetMyProfileQueryKey(),
-          });
-        },
+  const handleGithubUnlinkConfirm = () => {
+    unlinkGithubMutation.mutate(undefined, {
+      onSuccess: () => {
+        setIsGithubUnlinkOpen(false);
+        handleUnlinkSuccess(t("profile.githubUnlinkSuccess"));
       },
-    );
+      // Ошибка — диалог остаётся открытым для повтора.
+      onError: (error) => {
+        toast.push({
+          status: "error",
+          title: t(getUnlinkErrorKey(error, "github")),
+        });
+      },
+    });
+  };
+
+  const closeTelegramCodeDialog = () => {
+    setIsTgCodeOpen(false);
+    setCode("");
+    telegramUnlinkFlow.reset();
   };
 
   useEffect(() => {
@@ -256,11 +304,8 @@ export function ConnectedAccountsSection({
                     variant="outline"
                     size="sm"
                     disabled={isPending}
-                    onClick={handleUnlinkTelegram}
+                    onClick={() => setIsTgUnlinkConfirmOpen(true)}
                   >
-                    {updateProfileMutation.isPending ? (
-                      <Spin size="sm" variant="current" aria-hidden="true" />
-                    ) : null}
                     {t("profile.telegramUnlinkButton")}
                   </Button>
                 ) : (
@@ -322,11 +367,8 @@ export function ConnectedAccountsSection({
                     variant="outline"
                     size="sm"
                     disabled={isPending}
-                    onClick={handleUnlinkGithub}
+                    onClick={() => setIsGithubUnlinkOpen(true)}
                   >
-                    {updateProfileMutation.isPending ? (
-                      <Spin size="sm" variant="current" aria-hidden="true" />
-                    ) : null}
                     {t("profile.githubUnlinkButton")}
                   </Button>
                 ) : oauthProviders?.github ? (
@@ -441,6 +483,137 @@ export function ConnectedAccountsSection({
           </Dialog.Footer>
         </Dialog.Content>
       </Dialog>
+
+      {/* Предупреждение перед отвязкой Telegram (F4: все сессии). */}
+      <ConfirmDialog
+        open={isTgUnlinkConfirmOpen}
+        onOpenChange={setIsTgUnlinkConfirmOpen}
+        title={t("profile.telegramUnlinkConfirmTitle")}
+        description={t("profile.telegramUnlinkConfirmDesc")}
+        confirmLabel={t("profile.telegramUnlinkConfirmAction")}
+        cancelLabel={t("actions.cancel")}
+        confirmVariant="destructive"
+        onConfirm={handleTelegramUnlinkConfirm}
+      />
+
+      {/* Шаг ввода одноразового кода из Telegram (F3). */}
+      <Dialog
+        open={isTgCodeOpen}
+        onOpenChange={(open) => {
+          if (!telegramUnlinkFlow.isBusy && !open) closeTelegramCodeDialog();
+        }}
+      >
+        <Dialog.Content>
+          <Dialog.Header>
+            <Dialog.Title>{t("profile.telegramUnlinkCodeTitle")}</Dialog.Title>
+            <Dialog.Description>
+              {t("profile.telegramUnlinkCodeDesc")}
+            </Dialog.Description>
+          </Dialog.Header>
+
+          <form
+            onSubmit={handleCodeSubmit}
+            className="my-4 flex flex-col gap-4"
+          >
+            <Field invalid={telegramUnlinkFlow.errorKey !== null}>
+              <Field.Label>{t("profile.telegramUnlinkCodeLabel")}</Field.Label>
+              <Field.Content>
+                <Input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={TELEGRAM_UNLINK_CODE_LENGTH}
+                  placeholder={t("profile.telegramUnlinkCodePlaceholder")}
+                  value={code}
+                  disabled={
+                    telegramUnlinkFlow.isBusy ||
+                    telegramUnlinkFlow.isCodeExpired
+                  }
+                  onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                    setCode(
+                      event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, TELEGRAM_UNLINK_CODE_LENGTH),
+                    )
+                  }
+                />
+                {telegramUnlinkFlow.errorKey ? (
+                  <Field.Error>{t(telegramUnlinkFlow.errorKey)}</Field.Error>
+                ) : null}
+              </Field.Content>
+            </Field>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              {telegramUnlinkFlow.isCodeExpired ? (
+                <span>{t("profile.telegramUnlinkCodeExpiredNotice")}</span>
+              ) : telegramUnlinkFlow.codeTtlSeconds !== null ? (
+                <span>
+                  {t("profile.telegramUnlinkCodeTtl", {
+                    seconds: telegramUnlinkFlow.codeTtlSeconds,
+                  })}
+                </span>
+              ) : null}
+
+              {telegramUnlinkFlow.resendIn > 0 ? (
+                <span>
+                  {t("profile.telegramUnlinkCodeResendIn", {
+                    seconds: telegramUnlinkFlow.resendIn,
+                  })}
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={telegramUnlinkFlow.isBusy}
+                  onClick={telegramUnlinkFlow.requestCode}
+                >
+                  {t("profile.telegramUnlinkCodeResend")}
+                </Button>
+              )}
+            </div>
+
+            <Dialog.Footer>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={telegramUnlinkFlow.isBusy}
+                onClick={closeTelegramCodeDialog}
+              >
+                {t("actions.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  telegramUnlinkFlow.isBusy ||
+                  telegramUnlinkFlow.isCodeExpired ||
+                  code.length !== TELEGRAM_UNLINK_CODE_LENGTH
+                }
+                aria-busy={telegramUnlinkFlow.isBusy}
+              >
+                {telegramUnlinkFlow.isBusy ? (
+                  <Spin size="sm" variant="current" aria-hidden="true" />
+                ) : null}
+                {telegramUnlinkFlow.isBusy
+                  ? t("profile.telegramUnlinkCodeConfirming")
+                  : t("profile.telegramUnlinkCodeSubmit")}
+              </Button>
+            </Dialog.Footer>
+          </form>
+        </Dialog.Content>
+      </Dialog>
+
+      {/* Предупреждение перед отвязкой GitHub (F4: все сессии). */}
+      <ConfirmDialog
+        open={isGithubUnlinkOpen}
+        onOpenChange={setIsGithubUnlinkOpen}
+        title={t("profile.githubUnlinkConfirmTitle")}
+        description={t("profile.githubUnlinkConfirmDesc")}
+        confirmLabel={t("profile.githubUnlinkConfirmAction")}
+        cancelLabel={t("actions.cancel")}
+        confirmVariant="destructive"
+        isPending={unlinkGithubMutation.isPending}
+        onConfirm={handleGithubUnlinkConfirm}
+      />
     </>
   );
 }

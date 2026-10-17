@@ -125,6 +125,143 @@
         "tags": ["Profile"]
       }
     },
+    "/api/v1/profile/me/telegram/unlink/request": {
+      "post": {
+        "operationId": "ProfileController_requestTelegramUnlink",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Код отправлен в Telegram",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramUnlinkRequestResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Telegram не привязан (`TELEGRAM_NOT_LINKED`)"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "429": {
+            "description": "Слишком много запросов"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Запросить код отвязки Telegram",
+        "tags": ["Profile"]
+      }
+    },
+    "/api/v1/profile/me/telegram/unlink/confirm": {
+      "post": {
+        "operationId": "ProfileController_confirmTelegramUnlink",
+        "parameters": [
+          {
+            "name": "user-agent",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTelegramUnlinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Telegram отвязан",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityUnlinkResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Неверный код (`INVALID_CODE`)"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "409": {
+            "description": "Уже отвязано (`ALREADY_UNLINKED`)"
+          },
+          "410": {
+            "description": "Код истёк (`CODE_EXPIRED`)"
+          },
+          "429": {
+            "description": "Исчерпан лимит попыток (`ATTEMPTS_EXCEEDED`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Подтвердить отвязку Telegram одноразовым кодом",
+        "tags": ["Profile"]
+      }
+    },
+    "/api/v1/profile/me/github/unlink": {
+      "post": {
+        "operationId": "ProfileController_unlinkGithub",
+        "parameters": [
+          {
+            "name": "user-agent",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GitHub отвязан",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityUnlinkResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "GitHub не привязан (`GITHUB_NOT_LINKED`)"
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "409": {
+            "description": "Последний способ входа (`LAST_AUTH_METHOD`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отвязать GitHub",
+        "tags": ["Profile"]
+      }
+    },
     "/api/v1/profile/onboarding": {
       "post": {
         "operationId": "ProfileController_completeOnboarding",
@@ -1203,6 +1340,75 @@
         ],
         "summary": "Delete notification",
         "tags": ["Notifications"]
+      }
+    },
+    "/api/v1/profile/me/security-events": {
+      "get": {
+        "operationId": "SecurityEventsController_getUnseen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Непросмотренные security-события",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnseenSecurityEventsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить непросмотренные security-события",
+        "tags": ["Security events"]
+      }
+    },
+    "/api/v1/profile/me/security-events/{id}/seen": {
+      "post": {
+        "operationId": "SecurityEventsController_markSeen",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Событие отмечено просмотренным",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkSecurityEventSeenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "404": {
+            "description": "Событие не найдено"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отметить security-событие просмотренным",
+        "tags": ["Security events"]
       }
     },
     "/api/v1/admin/users": {
@@ -3736,6 +3942,59 @@
         },
         "required": ["success"]
       },
+      "UnseenSecurityEventsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "ACCOUNT_REGISTERED",
+                    "FIRST_LOGIN",
+                    "PASSWORD_CHANGED",
+                    "PASSWORD_RESET_REQUESTED",
+                    "PASSWORD_RESET_COMPLETED",
+                    "LOGIN_FROM_NEW_DEVICE",
+                    "TG_LINKED",
+                    "TG_UNLINKED",
+                    "GITHUB_LINKED",
+                    "GITHUB_UNLINKED",
+                    "PROFILE_CHANGED",
+                    "ACCOUNT_DEACTIVATED",
+                    "ACCOUNT_RESTORED"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": ["id", "type", "createdAt"]
+            }
+          }
+        },
+        "required": ["items"]
+      },
+      "MarkSecurityEventSeenResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["success"]
+      },
       "UserProfileDto": {
         "type": "object",
         "properties": {
@@ -3787,6 +4046,9 @@
           "locale": {
             "type": "string",
             "enum": ["ru", "en"]
+          },
+          "timezone": {
+            "type": "string"
           },
           "updatedAt": {
             "type": "string",
@@ -3859,6 +4121,7 @@
           "permissions",
           "theme",
           "locale",
+          "timezone",
           "updatedAt"
         ]
       },
@@ -3901,6 +4164,41 @@
             "type": "string"
           }
         }
+      },
+      "TelegramUnlinkRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": ["sent", "expiresAt"]
+      },
+      "ConfirmTelegramUnlinkDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": ["code"]
+      },
+      "SecurityUnlinkResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["success"]
       },
       "CompleteOnboardingDto": {
         "type": "object",
@@ -4229,6 +4527,9 @@
           "passwordConfirmation": {
             "type": "string",
             "minLength": 1
+          },
+          "timezone": {
+            "type": "string"
           }
         },
         "required": ["email", "password", "passwordConfirmation"]
@@ -4245,6 +4546,9 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          },
+          "timezone": {
+            "type": "string"
           }
         },
         "required": ["email", "password"]

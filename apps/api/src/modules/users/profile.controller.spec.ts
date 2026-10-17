@@ -1,6 +1,7 @@
 import type { ConfigService } from "@nestjs/config";
 import type { CompleteOnboardingDto } from "@packages/dto";
 import type { Response } from "express";
+import { UserThrottlerGuard } from "../../common/guards/user-throttler.guard";
 import { ProfileController } from "./profile.controller";
 import type { UsersService } from "./users.service";
 
@@ -15,6 +16,9 @@ describe("ProfileController", () => {
     getDeviceSettings: jest.Mock;
     upsertDeviceSettings: jest.Mock;
     completeOnboarding: jest.Mock;
+    requestTelegramUnlink: jest.Mock;
+    confirmTelegramUnlink: jest.Mock;
+    unlinkGithub: jest.Mock;
   };
   let configServiceMock: jest.Mocked<Partial<ConfigService>>;
   let responseMock: { clearCookie: jest.Mock };
@@ -48,6 +52,12 @@ describe("ProfileController", () => {
       getDeviceSettings: jest.fn(),
       upsertDeviceSettings: jest.fn(),
       completeOnboarding: jest.fn(),
+      requestTelegramUnlink: jest.fn().mockResolvedValue({
+        sent: true,
+        expiresAt: "2026-09-10T12:10:00.000Z",
+      }),
+      confirmTelegramUnlink: jest.fn().mockResolvedValue({ success: true }),
+      unlinkGithub: jest.fn().mockResolvedValue({ success: true }),
     };
     configServiceMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -203,5 +213,62 @@ describe("ProfileController", () => {
       onboardingDto,
     );
     expect(result.onboardingCompleted).toBe(true);
+  });
+
+  describe("secure unlink (ADR-005)", () => {
+    function guardsOf(method: string): unknown[] {
+      return Reflect.getMetadata(
+        "__guards__",
+        ProfileController.prototype[method as keyof ProfileController],
+      ) as unknown[];
+    }
+
+    it("requestTelegramUnlink защищён UserThrottlerGuard (1 запрос / 60с на пользователя)", () => {
+      expect(guardsOf("requestTelegramUnlink")).toContain(UserThrottlerGuard);
+    });
+
+    it("requestTelegramUnlink вызывает сервис с userId и возвращает expiresAt", async () => {
+      const result = await controller.requestTelegramUnlink(mockProfile.id);
+
+      expect(usersServiceMock.requestTelegramUnlink).toHaveBeenCalledWith(
+        mockProfile.id,
+      );
+      expect(result).toEqual({
+        sent: true,
+        expiresAt: "2026-09-10T12:10:00.000Z",
+      });
+    });
+
+    it("confirmTelegramUnlink пробрасывает код, ip и user-agent в сервис", async () => {
+      const result = await controller.confirmTelegramUnlink(
+        mockProfile.id,
+        { code: "123456" },
+        "203.0.113.7",
+        "Mozilla/5.0",
+      );
+
+      expect(usersServiceMock.confirmTelegramUnlink).toHaveBeenCalledWith(
+        mockProfile.id,
+        "123456",
+        "203.0.113.7",
+        "Mozilla/5.0",
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it("unlinkGithub пробрасывает ip и user-agent в сервис", async () => {
+      const result = await controller.unlinkGithub(
+        mockProfile.id,
+        "203.0.113.7",
+        undefined,
+      );
+
+      expect(usersServiceMock.unlinkGithub).toHaveBeenCalledWith(
+        mockProfile.id,
+        "203.0.113.7",
+        undefined,
+      );
+      expect(result).toEqual({ success: true });
+    });
   });
 });

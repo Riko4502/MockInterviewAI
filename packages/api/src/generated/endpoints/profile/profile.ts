@@ -32,11 +32,14 @@ import type {
   AvatarDeleteResponseDto,
   AvatarUploadResponseDto,
   CompleteOnboardingDto,
+  ConfirmTelegramUnlinkDto,
   DeviceSettingsDto,
   MessageResponseDto,
   ProfileControllerGetDeviceSettingsParams,
   ProfileControllerUploadAvatarBody,
   RestoreProfileResponseDto,
+  SecurityUnlinkResponseDto,
+  TelegramUnlinkRequestResponseDto,
   UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto
@@ -319,6 +322,231 @@ export const useProfileControllerDeleteMyProfile = <TError = void,
         TContext
       > => {
       return useMutation(getProfileControllerDeleteMyProfileMutationOptions(options), queryClient);
+    }
+    export const getProfileControllerRequestTelegramUnlinkUrl = () => {
+
+
+
+
+  return `/api/v1/profile/me/telegram/unlink/request`
+}
+
+/**
+ * @summary Запросить код отвязки Telegram
+ */
+export const profileControllerRequestTelegramUnlink = async ( options?: Parameters<typeof customInstance>[1]): Promise<TelegramUnlinkRequestResponseDto> => {
+
+  return customInstance<TelegramUnlinkRequestResponseDto>(getProfileControllerRequestTelegramUnlinkUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getProfileControllerRequestTelegramUnlinkMutationKey = () => ['profileControllerRequestTelegramUnlink'] as const;
+
+export const getProfileControllerRequestTelegramUnlinkMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>, TError,void, TContext> => {
+
+const mutationKey = getProfileControllerRequestTelegramUnlinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>, void> = () => {
+
+
+          return  profileControllerRequestTelegramUnlink(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProfileControllerRequestTelegramUnlinkMutationResult = NonNullable<Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>>
+
+    export type ProfileControllerRequestTelegramUnlinkMutationError = void
+
+
+    /**
+ * @summary Запросить код отвязки Telegram
+ */
+export const useProfileControllerRequestTelegramUnlink = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof profileControllerRequestTelegramUnlink>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getProfileControllerRequestTelegramUnlinkMutationOptions(options), queryClient);
+    }
+    export const getProfileControllerConfirmTelegramUnlinkUrl = () => {
+
+
+
+
+  return `/api/v1/profile/me/telegram/unlink/confirm`
+}
+
+/**
+ * @summary Подтвердить отвязку Telegram одноразовым кодом
+ */
+export const profileControllerConfirmTelegramUnlink = async (confirmTelegramUnlinkDto: ConfirmTelegramUnlinkDto, options?: Parameters<typeof customInstance>[1]): Promise<SecurityUnlinkResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<SecurityUnlinkResponseDto>(getProfileControllerConfirmTelegramUnlinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(confirmTelegramUnlinkDto)
+  }
+);}
+
+
+
+
+
+export const getProfileControllerConfirmTelegramUnlinkMutationKey = () => ['profileControllerConfirmTelegramUnlink'] as const;
+
+export const getProfileControllerConfirmTelegramUnlinkMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>, TError,ProfileControllerConfirmTelegramUnlinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>, TError,ProfileControllerConfirmTelegramUnlinkMutationVariables, TContext> => {
+
+const mutationKey = getProfileControllerConfirmTelegramUnlinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>, ProfileControllerConfirmTelegramUnlinkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  profileControllerConfirmTelegramUnlink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProfileControllerConfirmTelegramUnlinkMutationResult = NonNullable<Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>>
+    export type ProfileControllerConfirmTelegramUnlinkMutationBody = ConfirmTelegramUnlinkDto
+    export type ProfileControllerConfirmTelegramUnlinkMutationError = void
+    export type ProfileControllerConfirmTelegramUnlinkMutationVariables = {data: ConfirmTelegramUnlinkDto}
+
+    /**
+ * @summary Подтвердить отвязку Telegram одноразовым кодом
+ */
+export const useProfileControllerConfirmTelegramUnlink = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>, TError,ProfileControllerConfirmTelegramUnlinkMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof profileControllerConfirmTelegramUnlink>>,
+        TError,
+        ProfileControllerConfirmTelegramUnlinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getProfileControllerConfirmTelegramUnlinkMutationOptions(options), queryClient);
+    }
+    export const getProfileControllerUnlinkGithubUrl = () => {
+
+
+
+
+  return `/api/v1/profile/me/github/unlink`
+}
+
+/**
+ * @summary Отвязать GitHub
+ */
+export const profileControllerUnlinkGithub = async ( options?: Parameters<typeof customInstance>[1]): Promise<SecurityUnlinkResponseDto> => {
+
+  return customInstance<SecurityUnlinkResponseDto>(getProfileControllerUnlinkGithubUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getProfileControllerUnlinkGithubMutationKey = () => ['profileControllerUnlinkGithub'] as const;
+
+export const getProfileControllerUnlinkGithubMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerUnlinkGithub>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof profileControllerUnlinkGithub>>, TError,void, TContext> => {
+
+const mutationKey = getProfileControllerUnlinkGithubMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof profileControllerUnlinkGithub>>, void> = () => {
+
+
+          return  profileControllerUnlinkGithub(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProfileControllerUnlinkGithubMutationResult = NonNullable<Awaited<ReturnType<typeof profileControllerUnlinkGithub>>>
+
+    export type ProfileControllerUnlinkGithubMutationError = void
+
+
+    /**
+ * @summary Отвязать GitHub
+ */
+export const useProfileControllerUnlinkGithub = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof profileControllerUnlinkGithub>>, TError,void, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof profileControllerUnlinkGithub>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getProfileControllerUnlinkGithubMutationOptions(options), queryClient);
     }
     export const getProfileControllerCompleteOnboardingUrl = () => {
 

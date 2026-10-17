@@ -17,6 +17,7 @@ vi.mock("../model/use-showcase-mutations", () => ({
 const mockCurrentUser = vi.fn();
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => mockCurrentUser(),
+  useViewerTimezone: () => "Europe/Moscow",
   UserAvatar: ({ name }: { name: string }) => (
     <div data-testid="user-avatar">{name}</div>
   ),
