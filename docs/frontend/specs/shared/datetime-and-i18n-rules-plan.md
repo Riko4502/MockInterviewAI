@@ -1,0 +1,127 @@
+# План реализации: единые правила работы с датой/временем и i18n
+
+## 1. Цель плана
+
+Собрать единый чек-лист проверок и порядок внедрения кросс-нарезных правил для всей фичи слотов/таймзон/безопасности отвязки.
+
+## 2. Этапы внедрения (0–9)
+
+### Этап 0. Подготовка (0.25–0.5 ч)
+- [x] Ознакомиться с экспортами `@packages/utils` (корневой баррeль): `formatInstantInTimeZone`, `isIanaTimeZoneFormat`, `isResolvableTimeZone`, `resolveLocalTimeToUtc`, `utcToLocalDateTime`. Подпуть `@packages/utils/datetime` в репозитории **отсутствует** — импортировать из `@packages/utils`.
+- [x] Подтвердить доработку бэкенда [B]: `GET /profile/me` возвращает `timezone`, `PATCH /profile/me` его сохраняет; OpenAPI/Orval/`packages/api` регенерированы. Без этого `viewerTimezone` не работает.
+- [x] Зафиксировать решение по `User.timezone` (`@default("Europe/Moscow")`, non-nullable): оставить default / nullable + браузерный фоллбэк / автоопределение (см. §2.1 спецификации). От этого зависит тип `userProfileSchema`. → **Автоопределение**: браузерная IANA-зона отправляется при login/register и сохраняется один раз на первом входе (`firstLoginAt === null`); тип `userProfileSchema.timezone` — `z.string()` (required).
+- [x] Зафиксировать решение по локали `formatInstantInTimeZone` (без locale → английские месяцы/дни): расширить сигнатуру `locale?` или не использовать текстовые токены. → **Расширена сигнатура** параметром `locale` (`"ru"`/`"en"`, дефолт `"en"`, неизвестная → `en`).
+- [x] Проверить наличие `ConfirmDialog` в `@packages/ui`: создан в `@packages/ui` (`packages/ui/src/components/ConfirmDialog`), готов к подключению в рамках [security-unlink-adr-005-plan.md](../features/update-profile/security-unlink-adr-005-plan.md) (пока **не** подключён — ждёт backend ADR-005).
+- [x] Быстрый поиск прямых импортов дат в `apps/web/src`: `date-fns`, `@date-fns/tz`, `dayjs`, `luxon`, `date-fns-tz`, `moment`. → импортов нет.
+- [x] Определить общий тип `AvailabilitySlot` (см. §2.1 спецификации правил) или зафиксировать конкретные generated-типы. → добавлен в `@packages/types` (`packages/types/src/slot.ts`).
+- [x] Создать ветку фичи от `dev`.
+
+### Этап 1. P0 — SendMatchRequest: выбор слота + 409
+- [ ] `features/send-match-request/ui/SlotSelectorRadioGroup.tsx` (NEW)
+- [ ] `features/send-match-request/ui/SendMatchRequestDialog.tsx` (EDIT) — интеграция, обязательность выбора, обработка 409 (toast + invalidateQueries + сброс slotId)
+
+### Этап 2. P1 — Manage showcase: конструктор слотов
+- [x] `features/manage-showcase-card/model/showcase-form-schema.ts` (EDIT) — `slotItemSchema`, `slots`, мапперы
+- [x] `features/manage-showcase-card/ui/SlotPickerField.tsx` (NEW) — FieldArray, дата/время/длительность, проверка «не в прошлом», блокировка удаления BOOKED
+- [x] `features/manage-showcase-card/ui/ShowcaseCardLivePreview.tsx` (EDIT)
+- [x] `features/manage-showcase-card/ui/EditCardView.tsx` (EDIT) — UTC→startsAtLocal в `userTimezone`
+- [x] `features/manage-showcase-card/ui/ShowcaseCardForm.tsx` (EDIT) — интеграция
+
+### Этап 3. P1 — ShowcaseCard: отображение слотов в витрине
+- [x] `entities/showcase-card/ui/ShowcaseSlotBadge.tsx` (NEW)
+- [x] `entities/showcase-card/ui/ShowcaseSlotsList.tsx` (NEW) — фильтр OPEN+future, сортировка, макс. 3 + `+N ещё`
+- [x] `entities/showcase-card/lib/format-card-slot.ts` (NEW)
+- [x] `entities/showcase-card/ui/ShowcaseCard.tsx` (EDIT) — блок «Ближайшие слоты» в `viewerTimezone`
+
+### Этап 4. P1 — MatchRequestsHub: отображение назначенного слота
+- [x] `widgets/match-requests-hub/ui/IncomingRequestCard.tsx` (EDIT)
+- [x] `widgets/match-requests-hub/ui/OutgoingRequestCard.tsx` (EDIT)
+- [x] `widgets/match-requests-hub/ui/MatchedSessionBanner.tsx` (EDIT)
+
+### Этап 5. P1 — i18n: namespace `showcase`
+- [x] `packages/i18n/src/locales/ru/showcase.json` (NEW/EDIT)
+- [x] `packages/i18n/src/locales/en/showcase.json` (NEW/EDIT)
+- [x] Обновление типов i18n в `packages/i18n` (namespace `showcase`)
+
+### Этап 6. P2 — Timezone + Notifications + Dashboard
+- [x] `entities/user/lib/timezones.ts` (NEW) — POPULAR_TIMEZONES, `getBrowserTimezone`
+- [x] `entities/user/ui/TimezoneSelect.tsx` (NEW) — поиск, группы, автодетект
+- [x] `features/update-profile/ui/GeneralTab.tsx` (EDIT) — интеграция таймзоны
+- [x] `features/update-profile/model/profile-form-schema.ts` (EDIT) — поле `timezone`
+- [x] `widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx` (EDIT) — `userTimezone`
+- [x] `widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx` (EDIT) — `userTimezone`
+- [~] `entities/notification/ui/NotificationItem.tsx` (EDIT) — **отменено**: время слота уже рендерится сервером в `message` в таймзоне читателя, ключей `payload.slotStartsAt` в контракте нет (см. `entities/notification/notification-slot-time-spec.md`)
+
+### Этап 7. P3 — Безопасная отвязка аккаунтов
+- [x] Общий `ConfirmDialog` в `packages/ui` (NEW) — создан и протестирован
+- [ ] `features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT) — подключение диалога отвязки и безопасный флоу по [security-unlink-adr-005-plan.md](../features/update-profile/security-unlink-adr-005-plan.md)
+
+### Этап 8. Тестирование и проверка качества
+- [ ] Unit-тесты: `SendMatchRequestDialog.test.tsx`, `ShowcaseCardForm.test.tsx`, `IncomingRequestCard.test.tsx`, `OutgoingRequestCard.test.tsx`
+- [ ] Тесты, зависящие от `now()` (фильтр OPEN+future, «не в прошлом»), фиксируют часы: `vi.useFakeTimers()`/`vi.setSystemTime(...)` + `vi.useRealTimers()`
+- [x] `pnpm --filter web exec tsc --noEmit`
+- [x] Проверка запрета прямых импортов дат (grep)
+- [ ] `pnpm --filter web exec vitest run`
+
+### Этап 9. Финальная проверка (smoke)
+- [ ] i18n-ключи вместо хардкода
+- [ ] Корректность timezone-контекстов (viewer/author)
+- [ ] Поведение пустых массивов слотов
+- [ ] 409: диалог открыт, выбор сброшен, тост показан
+
+## 3. Контрольные проверки (must-have)
+
+| Проверка | Команда/критерий | Статус |
+|---|---|---|
+| **Backend timezone [B]** | `GET /profile/me` возвращает `timezone`; `PATCH /profile/me` его сохраняет; `packages/api` регенерирован | [x] |
+| **TypeScript** | `pnpm --filter web exec tsc --noEmit` — 0 ошибок | [x] |
+| **Запрет прямых импортов дат** | `grep -R --include="*.ts" --include="*.tsx" -E "(from ['\"](date-fns|@date-fns/tz|dayjs|luxon|date-fns-tz|moment)['\"])" apps/web/src` — пусто | [x] |
+| **Единый фасад datetime** | Весь форматинг/парсинг через `@packages/utils` (`formatInstantInTimeZone`, `resolveLocalTimeToUtc`, валидация IANA). Подпуть `@packages/utils/datetime` не использовать | [ ] |
+| **Разделение таймзон** | `viewerTimezone` для показа, `authorTimezone` для `startsAtLocal` при редактировании | [ ] |
+| **Единый резолвер tz** | `viewerTimezone` из `useViewerTimezone()` ([1]), инлайн-фоллбэк не дублируется | [x] |
+| **IANA-валидация** | Двухшаговая: `isIanaTimeZoneFormat` + `isResolvableTimeZone` (в форме через `isValidTimeZone`). Без whitelist через `supportedValuesOf` | [x] |
+| **Контракты API** | `slots`/`slotId` типизированы через `@packages/api`/`@packages/dto`. Только `startsAtLocal` + `durationMinutes` при создании/обновлении карточки | [ ] |
+| **Тип `AvailabilitySlot`** | Общий тип определён и переиспользован, локальных дублей нет | [x] |
+| **409 Conflict** | Обработан: toast, `invalidateQueries`, сброс `slotId`, диалог не закрывается | [ ] |
+| **422 Unprocessable** | Ответ API на несуществующее локальное время (DST) показан пользователю | [ ] |
+| **Бизнес-правила** | Обязательность выбора при наличии OPEN+future, 1–10 слотов, запрет слота в прошлом, BOOKED нельзя удалить | [ ] |
+| **BOOKED не в payload** | BOOKED-слоты не сериализуются в `slots` при create/update (иначе `409` из `replaceSlots`) | [ ] |
+| **Локаль форматирования** | `formatInstantInTimeZone` с locale или без текстовых токенов месяцев/дней | [x] |
+| **Решение по `User.timezone`** | Default Moscow / nullable + браузерный фоллбэк / автоопределение — зафиксировано до [B] | [x] |
+| **i18n namespace `showcase`** | Ключи `slots.*`, `profile.*` в RU/EN, типы обновлены | [x] |
+| **Тесты web** | `pnpm --filter web exec vitest run` — успешно | [ ] |
+
+## 4. Список файлов к созданию/правке (сводка)
+
+### Новые
+- `entities/user/model/use-viewer-timezone.ts`
+- `entities/showcase-card/ui/ShowcaseSlotBadge.tsx`
+- `entities/showcase-card/ui/ShowcaseSlotsList.tsx`
+- `entities/showcase-card/lib/format-card-slot.ts`
+- `entities/user/lib/timezones.ts`
+- `entities/user/ui/TimezoneSelect.tsx`
+- `features/send-match-request/ui/SlotSelectorRadioGroup.tsx`
+- `features/manage-showcase-card/ui/SlotPickerField.tsx`
+
+### Правки
+- `entities/showcase-card/ui/ShowcaseCard.tsx`
+- `entities/notification/ui/NotificationItem.tsx`
+- `features/send-match-request/ui/SendMatchRequestDialog.tsx`
+- `features/manage-showcase-card/model/showcase-form-schema.ts`
+- `features/manage-showcase-card/ui/ShowcaseCardLivePreview.tsx`
+- `features/manage-showcase-card/ui/EditCardView.tsx`
+- `features/manage-showcase-card/ui/ShowcaseCardForm.tsx`
+- `features/update-profile/ui/GeneralTab.tsx`
+- `features/update-profile/model/profile-form-schema.ts`
+- `features/update-profile/ui/ConnectedAccountsSection.tsx`
+- `widgets/match-requests-hub/ui/IncomingRequestCard.tsx`
+- `widgets/match-requests-hub/ui/OutgoingRequestCard.tsx`
+- `widgets/match-requests-hub/ui/MatchedSessionBanner.tsx`
+- `widgets/my-cards-list/ui/MyCardItem.tsx`
+- `widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx`
+- `widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx`
+
+### i18n
+- `packages/i18n/src/locales/ru/showcase.json`
+- `packages/i18n/src/locales/en/showcase.json`
+- Обновление типов в `packages/i18n`

@@ -15,6 +15,7 @@ describe("userProfileSchema and publicUserProfileSchema", () => {
     permissions: "0",
     theme: "dark",
     locale: "ru",
+    timezone: "Europe/Moscow",
     updatedAt: "2026-08-02T00:00:00.000Z",
   };
 

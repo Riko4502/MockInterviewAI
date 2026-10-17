@@ -22,6 +22,10 @@ vi.mock("@/entities/session", () => ({
   }),
 }));
 
+vi.mock("@/entities/user", () => ({
+  getBrowserTimezone: () => "Europe/Moscow",
+}));
+
 vi.mock("@/shared/api/http/base", () => ({
   baseFetch: vi.fn(),
   HttpError: class HttpError extends Error {
@@ -111,6 +115,7 @@ describe("LoginForm Integration Flow (T032)", () => {
         body: JSON.stringify({
           email: "developer@example.com",
           password: "StrongPassword123!",
+          timezone: "Europe/Moscow",
         }),
       }),
     );

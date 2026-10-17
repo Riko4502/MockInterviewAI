@@ -7,6 +7,7 @@ import {
   type UpdateProfileDto,
   USERNAME_REGEX,
 } from "@packages/dto";
+import { isValidTimeZone } from "@packages/utils";
 import { z } from "zod";
 
 type ProfileErrorKey =
@@ -14,7 +15,8 @@ type ProfileErrorKey =
   | "profile.errors.displayNameMax"
   | "profile.errors.username"
   | "profile.errors.telegram"
-  | "profile.errors.gitUrl";
+  | "profile.errors.gitUrl"
+  | "profile.errors.timezone";
 
 export function createProfileFormSchema(t: (key: ProfileErrorKey) => string) {
   return z.object({
@@ -44,6 +46,11 @@ export function createProfileFormSchema(t: (key: ProfileErrorKey) => string) {
       ),
     theme: z.enum(THEME_MODES),
     locale: z.enum(locales),
+    timezone: z
+      .string()
+      .trim()
+      .min(1, t("profile.errors.timezone"))
+      .refine(isValidTimeZone, t("profile.errors.timezone")),
   });
 }
 
@@ -80,6 +87,9 @@ export function toUpdateProfileDto(
   }
   if (!dirtyFields || dirtyFields.locale) {
     dto.locale = values.locale;
+  }
+  if (!dirtyFields || dirtyFields.timezone) {
+    dto.timezone = values.timezone.trim();
   }
 
   return dto;

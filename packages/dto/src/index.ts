@@ -45,6 +45,7 @@ export {
   type TestCaseResultDto,
   testCaseResultSchema,
 } from "./code-runner/run-code.dto";
+export { timeZoneSchema } from "./common/timezone";
 // Dashboard
 export * from "./dashboard";
 export {

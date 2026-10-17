@@ -1,8 +1,8 @@
 "use client";
 
 import { Card, Typography } from "@packages/ui";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useViewerTimezone } from "@/entities/user";
 import "@/shared/lib/i18n";
 import { formatDashboardDate } from "../../lib/formatters";
 import { useRecentSessions } from "../../model/use-dashboard-queries";
@@ -12,10 +12,7 @@ import { DashboardWidgetError } from "../shared/DashboardWidgetError";
 export function DashboardRecentSessions() {
   const { t, i18n } = useTranslation("dashboard");
   const query = useRecentSessions({ limit: 5 });
-  const [timeZone, setTimeZone] = useState("UTC");
-  useEffect(() => {
-    setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-  }, []);
+  const timeZone = useViewerTimezone();
   if (query.isPending)
     return <DashboardListSkeleton title={t("recentSessions.title")} />;
   const locale = i18n.resolvedLanguage?.startsWith("en") ? "en" : "ru";

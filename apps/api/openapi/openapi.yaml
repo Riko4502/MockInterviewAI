@@ -2445,6 +2445,8 @@ components:
           enum:
             - ru
             - en
+        timezone:
+          type: string
         updatedAt:
           type: string
           format: date-time
@@ -2507,6 +2509,7 @@ components:
         - permissions
         - theme
         - locale
+        - timezone
         - updatedAt
     UpdateProfileDto:
       type: object
@@ -2814,6 +2817,8 @@ components:
         passwordConfirmation:
           type: string
           minLength: 1
+        timezone:
+          type: string
       required:
         - email
         - password
@@ -2829,6 +2834,8 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+        timezone:
+          type: string
       required:
         - email
         - password

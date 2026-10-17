@@ -63,6 +63,7 @@ describe("UsersService", () => {
     gitUrl: "https://github.com/ivan_dev",
     theme: "DARK",
     locale: "ru",
+    timezone: "Europe/Moscow",
     role: { slug: SystemRole.USER, permissions: SystemPermission.USERS_READ },
     deletedAt: null,
     generation: 1,
@@ -292,6 +293,28 @@ describe("UsersService", () => {
       );
       expect(result.theme).toBe("light");
       expect(result.locale).toBe("en");
+    });
+
+    it("сохраняет IANA-таймзону пользователя", async () => {
+      const updatedProfile = {
+        ...mockUser,
+        timezone: "Asia/Tokyo",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      prismaMock.user.update.mockResolvedValue(updatedProfile);
+
+      const result = await service.updateProfile(mockUser.id, {
+        timezone: "Asia/Tokyo",
+      });
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            timezone: "Asia/Tokyo",
+          }),
+        }),
+      );
+      expect(result.timezone).toBe("Asia/Tokyo");
     });
 
     it("сбрасывает telegramId, telegramChatId и telegramLinkVerified при отвязке telegramUsername: null", async () => {

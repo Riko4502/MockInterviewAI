@@ -26,6 +26,7 @@ vi.mock("../model/use-showcase-mutations", () => ({
 const mockCurrentUser = vi.fn();
 vi.mock("@/entities/user", () => ({
   useCurrentUser: () => mockCurrentUser(),
+  useViewerTimezone: () => "Europe/Moscow",
   UserAvatar: ({ name }: { name: string }) => (
     <div data-testid="user-avatar">{name}</div>
   ),
@@ -56,6 +57,7 @@ describe("EditCardView", () => {
         displayName: "Иван Петров",
         username: "ipetrov",
         avatarUrl: null,
+        timezone: "Europe/Moscow",
       },
     });
   });
@@ -134,6 +136,58 @@ describe("EditCardView", () => {
     expect(
       screen.getByText("Специализацию нельзя изменить после создания анкеты"),
     ).toBeInTheDocument();
+  });
+
+  it("должен маппить UTC-слоты карточки в локальное время автора и сохранять BOOKED", () => {
+    mockShowcaseCard.mockReturnValue({
+      data: {
+        id: "card-1",
+        userId: "u-1",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        language: "RU",
+        skills: ["React"],
+        status: "ACTIVE",
+        isUrgent: false,
+        autoRenew: false,
+        user: {
+          id: "u-1",
+          displayName: "Иван Петров",
+          username: "ipetrov",
+          avatarUrl: null,
+        },
+        slots: [
+          {
+            id: "s1",
+            startsAt: "2999-01-01T07:00:00.000Z",
+            durationMinutes: 60,
+            status: "OPEN",
+          },
+          {
+            id: "s2",
+            startsAt: "2000-01-01T06:15:00.000Z",
+            durationMinutes: 45,
+            status: "OPEN",
+          },
+          {
+            id: "s3",
+            startsAt: "2999-02-01T07:30:00.000Z",
+            durationMinutes: 30,
+            status: "BOOKED",
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(<EditCardView cardId="card-1" />);
+
+    // Europe/Moscow = UTC+3: 07:00Z → 10:00, 07:30Z → 10:30
+    expect(screen.getAllByText(/10:00/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/10:30/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Забронирован")).toBeInTheDocument();
+    // Прошедший открытый слот (06:15Z → 09:15) отфильтрован
+    expect(screen.queryByText(/09:15/)).not.toBeInTheDocument();
   });
 
   it("должен перенаправлять на список анкет при нажатии кнопки 'Отмена'", () => {

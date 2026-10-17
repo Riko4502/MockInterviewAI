@@ -34,6 +34,38 @@ describe("formatInstantInTimeZone", () => {
       ),
     ).toBe("2026-01-21 02:30");
   });
+
+  it("печатает текстовые токены по-английски по умолчанию (§3.1)", () => {
+    expect(
+      formatInstantInTimeZone(
+        new Date("2026-10-20T13:00:00.000Z"),
+        "Europe/Moscow",
+        "d MMMM yyyy, EEEE",
+      ),
+    ).toBe("20 October 2026, Tuesday");
+  });
+
+  it("печатает русские названия месяцев/дней при locale 'ru'", () => {
+    expect(
+      formatInstantInTimeZone(
+        new Date("2026-10-20T13:00:00.000Z"),
+        "Europe/Moscow",
+        "d MMMM yyyy, EEEE",
+        "ru",
+      ),
+    ).toBe("20 октября 2026, вторник");
+  });
+
+  it("неизвестная локаль падает в английскую", () => {
+    expect(
+      formatInstantInTimeZone(
+        new Date("2026-10-20T13:00:00.000Z"),
+        "Europe/Moscow",
+        "d MMMM yyyy, EEEE",
+        "de",
+      ),
+    ).toBe("20 October 2026, Tuesday");
+  });
 });
 
 describe("formatDateTime", () => {

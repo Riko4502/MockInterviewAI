@@ -8,10 +8,11 @@ import {
   LevelBadge,
   SpecializationBadge,
 } from "@/entities/showcase-card";
-import { UserAvatar } from "@/entities/user";
+import { UserAvatar, useViewerTimezone } from "@/entities/user";
 import "@/shared/lib/i18n";
 import { MatchedSessionBanner } from "./MatchedSessionBanner";
 import { MatchRequestStatusBadge } from "./MatchRequestStatusBadge";
+import { RequestSlotInfo } from "./RequestSlotInfo";
 
 export interface OutgoingRequestCardProps {
   req: MatchRequestResponseDto;
@@ -25,6 +26,7 @@ export function OutgoingRequestCard({
   isCancelPending = false,
 }: OutgoingRequestCardProps) {
   const { t } = useTranslation("showcase");
+  const viewerTimezone = useViewerTimezone();
 
   const receiverName =
     req.receiver.displayName ||
@@ -81,11 +83,18 @@ export function OutgoingRequestCard({
           </p>
         )}
 
+        {/* Слот собеседования, если заявка его содержит */}
+        {req.slot && (
+          <RequestSlotInfo slot={req.slot} viewerTimezone={viewerTimezone} />
+        )}
+
         {/* Если заявка принята собеседником — показываем переход в интерактивную комнату */}
         {isAccepted && (
           <MatchedSessionBanner
             sessionId={req.sessionId}
             sessionStatus={req.sessionStatus}
+            scheduledAt={req.slot?.startsAt ?? null}
+            viewerTimezone={viewerTimezone}
           />
         )}
       </div>
