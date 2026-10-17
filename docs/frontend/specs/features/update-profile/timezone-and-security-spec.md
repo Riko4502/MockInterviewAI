@@ -20,8 +20,12 @@
 ## 3. Безопасная отвязка аккаунтов (ADR-005)
 
 Реализация фронтенда безопасной отвязки планируется согласно
-[ADR-005](../../../adr/ADR-005.md). Детали и чек-листы — в
-[плане реализации](./security-unlink-adr-005-plan.md).
+[ADR-005](../../../../adr/ADR-005.md), после появления backend-флоу
+([backend-спека](../../../../backend/specs/security-unlink-adr-005-spec.md),
+[backend-план](../../../../backend/specs/security-unlink-adr-005-plan.md)).
+Общие требования и DoD — в [спеке](./security-unlink-adr-005-spec.md) и
+[плане реализации](./security-unlink-adr-005-plan.md); детальный UI-флоу —
+в [frontend-спеке](./security-unlink-frontend-spec.md).
 
 Требования (ADR-005):
 1) подтверждение отвязки Telegram **одноразовым кодом из Telegram** и
@@ -32,7 +36,7 @@
 5) события безопасности `TG_UNLINKED`, `GITHUB_UNLINKED`.
 
 Текущая веб-реализация использует `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null`
-([ConnectedAccountsSection.tsx:119-151](../../../../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx#L119-L151));
+([ConnectedAccountsSection.tsx:119-151](../../../../../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx#L119-L151));
 после внедрения backend-флоу ADR-005 она должна быть заменена на отдельные эндпоинты
 отвязки из `@packages/api`.
 
@@ -69,3 +73,4 @@
 - `@packages/api`
 - [security-unlink-adr-005-spec.md](./security-unlink-adr-005-spec.md)
 - [security-unlink-adr-005-plan.md](./security-unlink-adr-005-plan.md)
+- [security-unlink-frontend-spec.md](./security-unlink-frontend-spec.md)

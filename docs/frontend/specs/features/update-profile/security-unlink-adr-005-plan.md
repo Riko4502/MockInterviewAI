@@ -10,14 +10,14 @@
 
 ## Зависимости
 
-- **Backend (критично)**: наличие user-facing эндпоинтов отвязки по ADR-005. После их появления — регенерация OpenAPI → Orval → `@packages/api` (появятся хуки мутаций).
+- **Backend (критично)**: наличие user-facing эндпоинтов отвязки по ADR-005 — [backend-спека](../../../../backend/specs/security-unlink-adr-005-spec.md), [backend-план](../../../../backend/specs/security-unlink-adr-005-plan.md). После их появления — регенерация OpenAPI → Orval → `@packages/api` (появятся хуки мутаций).
 - **Существующий примитив**: `@packages/ui/src/components/ConfirmDialog` — готов к использованию.
 - **i18n**: добавление ключей в `packages/i18n/src/locales/{ru,en}/common.json`.
 - **Текущая реализация**: `apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx`.
 
 ## 1. Исследование и подготовка (до кодинга)
 
-- [ ] Ознакомиться с актуальным OpenAPI (после backend-работ по ADR-005) на предмет эндпоинтов отвязки (Telegram/GitHub). Зафиксировать имена путей, тела запросов/ответов, возможные статусы ошибок.
+- [ ] Ознакомиться с актуальным OpenAPI (после backend-работ по ADR-005) на предмет эндпоинтов отвязки (Telegram/GitHub). Зафиксировать имена путей, тела запросов/ответов, возможные статусы ошибок. Backend-контракт работ — [backend-план](../../../../backend/specs/security-unlink-adr-005-plan.md).
 - [ ] Проверить наличие сгенерированных хуков в `@packages/api` (например, `useAuthController*Unlink*` или аналогичные). Если отсутствуют — зафиксировать требование к регенерации API.
 - [ ] Уточнить контракт флоу подтверждения отвязки Telegram кодом (одноразовый токен с TTL: как запрашивается токен, как передаётся код, формат ответа).
 - [ ] Свериться с текстами из ADR-005 и задачей №7 (см. источники).
@@ -156,9 +156,11 @@
 
 ## 5. Тесты
 
-Путь: `apps/web/src/features/update-profile/ui/__tests__/ConnectedAccountsSection.test.tsx`
+Путь: `apps/web/src/features/update-profile/ui/ConnectedAccountsSection.test.tsx`
 
 Создать/обновить unit-тесты с использованием `@testing-library/react` + `vitest`.
+
+> **Важно (существующие тесты).** Сейчас `ConnectedAccountsSection.test.tsx` содержит кейсы, проверяющие **немедленную** отвязку по клику (`вызывает отвязку Telegram/GitHub при клике на соответствующую кнопку`) — они опираются на текущий `PATCH /profile/me`-флоу и должны быть переписаны под «клик → диалог → подтверждение».
 
 ### Обязательные кейсы
 
@@ -204,7 +206,7 @@
 ## 7. DoD по плану
 
 - [ ] Все пункты 1–6 выполнены.
-- [ ] Изменения соответствуют спецификации `security-unlink-adr-005-spec.md`.
+- [ ] Изменения соответствуют спецификации [security-unlink-adr-005-spec.md](./security-unlink-adr-005-spec.md) и [security-unlink-frontend-spec.md](./security-unlink-frontend-spec.md).
 - [ ] Код ревью пройден (соответствие правилам AGENTS.md).
 - [ ] Нет регрессий в существующем функционале (привязка Telegram через виджет, привязка GitHub OAuth).
 

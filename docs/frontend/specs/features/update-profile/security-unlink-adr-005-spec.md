@@ -4,6 +4,8 @@
 
 Сформулировать требования к фронтенду для реализации безопасной отвязки привязанных аккаунтов (Telegram, GitHub) после появления backend-флоу по [ADR-005](../../../../../docs/adr/ADR-005.md).
 
+**Роль документа:** это «зонтичная» спека — общие требования, зависимости и DoD. Детальный UI-флоу (шаги, состояния, тексты, тест-кейсы) вынесен в [security-unlink-frontend-spec.md](./security-unlink-frontend-spec.md); порядок работ — в [security-unlink-adr-005-plan.md](./security-unlink-adr-005-plan.md). Backend-часть — в `docs/backend/specs/` (см. §2).
+
 Ключевые требования ADR-005, которые необходимо отразить на фронте:
 
 - Подтверждение отвязки Telegram **одноразовым кодом из Telegram** (одноразовый токен с TTL).
@@ -14,6 +16,9 @@
 ## 2. Источники требований
 
 - [ADR-005: Security-уведомления и аудит событий безопасности](../../../../../docs/adr/ADR-005.md) — разделы «Принятое решение», «Последствия», описание подтверждаемой отвязки Telegram и ревокации сессий.
+- [Backend спецификация: безопасная отвязка аккаунтов по ADR-005](../../../../backend/specs/security-unlink-adr-005-spec.md) и [backend план](../../../../backend/specs/security-unlink-adr-005-plan.md) — обязательная зависимость: user-facing эндпоинты отвязки и флоу кода.
+- [Frontend спецификация (UI-флоу): безопасная отвязка аккаунтов](./security-unlink-frontend-spec.md) — детализация UI-флоу и тест-кейсов.
+- [Frontend план: безопасная отвязка аккаунтов](./security-unlink-adr-005-plan.md) — порядок работ.
 - [Задача: Frontend for slot scheduling, interview booking, and security (ADR-002…ADR-005)](../../../../../docs/tasks/frontend%20for%20slot%20scheduling%2C%20interview%20booking%2C%20and%20security%20%28ADR-002%E2%80%A6ADR-005%29.md) — Задача 7 (P3): Предупреждающие диалоги безопасности при отвязке аккаунтов.
 - [Спецификация: таймзона в профиле и безопасная отвязка аккаунтов](./timezone-and-security-spec.md) — раздел 3 (отложено до backend ADR-005).
 - [План: таймзона в профиле и безопасная отвязка аккаунтов](./timezone-and-security-plan.md) — раздел 3 (отложено).
@@ -70,7 +75,7 @@
 
 ### 6.1. Зависимости (внешние по задаче)
 
-- Backend: реализация эндпоинтов отвязки по ADR-005 (user-facing эндпоинты для отвязки Telegram/GitHub), генерация OpenAPI → Orval → `@packages/api`.
+- Backend: реализация эндпоинтов отвязки по [ADR-005](../../../../../docs/adr/ADR-005.md) ([backend-план](../../../../backend/specs/security-unlink-adr-005-plan.md)) — user-facing эндпоинты для отвязки Telegram/GitHub, генерация OpenAPI → Orval → `@packages/api`.
 - При отсутствии сгенерированных хуков в `@packages/api` — дождаться регенерации перед подключением UI.
 
 ### 6.2. Внутренние зависимости
@@ -108,7 +113,7 @@
 - `apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx` (EDIT)
 - `apps/web/src/features/update-profile/model/*` (EDIT — при необходимости состояний флоу Telegram-кода)
 - `packages/i18n/src/locales/{ru,en}/common.json` (EDIT) — тексты диалогов, инструкций, тостов
-- `apps/web/src/features/update-profile/ui/__tests__/ConnectedAccountsSection.test.tsx` (NEW/EDIT) — unit-тесты
+- `apps/web/src/features/update-profile/ui/ConnectedAccountsSection.test.tsx` (NEW/EDIT) — unit-тесты
 - `@packages/ui/src/components/ConfirmDialog/*` (EXISTING — не изменять)
 
 ## 9. Риски

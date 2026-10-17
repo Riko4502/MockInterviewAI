@@ -17,6 +17,7 @@
 - [ADR-005: Security-уведомления и аудит событий безопасности](../../adr/ADR-005.md) — разделы «Принятое решение», «Последствия», описание подтверждаемой отвязки Telegram и ревокации сессий.
 - [Задача: Frontend for slot scheduling, interview booking, and security (ADR-002…ADR-005)](../../tasks/frontend%20for%20slot%20scheduling%2C%20interview%20booking%2C%20and%20security%20%28ADR-002%E2%80%A6ADR-005%29.md) — Задача 7 (P3): Предупреждающие диалоги безопасности при отвязке аккаунтов.
 - Текущая реализация: [`apps/api/src/modules/users/users.service.ts`](../../../apps/api/src/modules/users/users.service.ts) — метод `updateProfile` обнуляет `telegramUsername`/`gitUrl` без ревокации сессий.
+- [Frontend спецификация: безопасная отвязка (UI-флоу)](../../frontend/specs/features/update-profile/security-unlink-frontend-spec.md) — потребитель эндпоинтов и флоу кода.
 - Security/audit: модель `SecurityEvent`, сервисы аудита безопасности.
 
 ## 3. Обоснование

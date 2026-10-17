@@ -150,6 +150,7 @@
 
 ## 9. Примечания
 
+- **Потребители контракта.** После генерации OpenAPI эндпоинты используются фронтендом: [спецификация UI-флоу](../../frontend/specs/features/update-profile/security-unlink-frontend-spec.md), [план](../../frontend/specs/features/update-profile/security-unlink-adr-005-plan.md), «зонтичная» [спека](../../frontend/specs/features/update-profile/security-unlink-adr-005-spec.md).
 - **Не изменять `PATCH /profile/me`** для операций отвязки — сохранить обратную совместимость. Новые эндпоинты — единственный путь для безопасной отвязки по ADR-005.
 - **Транзакционность**: при создании SecurityEvent и обновлении User лучше использовать транзакцию там, где это логично.
 - **Redis vs DB**: для одноразовых токенов с коротким TTL Redis предпочтительнее (авто-экспирация). Если Redis недоступен в окружении — рассмотреть хранение в БД с `expiresAt` + фоновую очистку.

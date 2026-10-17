@@ -23,7 +23,7 @@
 | 7 | [widgets/dashboard/timezone-sync-plan.md](./widgets/dashboard/timezone-sync-plan.md) | widgets | P2 | ✅ Готово |
 | 8 | [entities/notification/notification-slot-time-plan.md](./entities/notification/notification-slot-time-plan.md) | entities/notification | P2 | ⛔ Закрыто без изменений (см. §2.2) |
 | 9 | [features/update-profile/timezone-and-security-plan.md](./features/update-profile/timezone-and-security-plan.md) | features | P2 | ✅ Таймзона готова |
-| 10 | [features/update-profile/security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) | features | P3 | ⛔ Не реализовано (требует backend ADR-005) |
+| 10 | [features/update-profile/security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) — спеки: [зонтичная](./features/update-profile/security-unlink-adr-005-spec.md), [UI-флоу](./features/update-profile/security-unlink-frontend-spec.md) | features | P3 | ⛔ Не реализовано (требует backend ADR-005: [spec](../../backend/specs/security-unlink-adr-005-spec.md) / [plan](../../backend/specs/security-unlink-adr-005-plan.md)) |
 
 Статусы выше — срез по текущему состоянию репозитория. Актуализировать по мере закрытия фаз.
 
@@ -41,7 +41,32 @@
 ### 2.2. Закрытые без реализации пункты Фаз E/F (2026-10-16)
 
 - **[8] `entities/notification/notification-slot-time` — ⛔ не реализуется.** Спека опиралась на неверные факты: ключа `payload.slotStartsAt` в контракте нет (реальные — `proposedStartUtc`/`startUtc`), а время слота уже подставляется бэкендом в `message` в таймзоне и локали получателя (`renderNotification` + ленивый пересчёт по `renderedTimezone` в `notifications.service.ts`). Отдельный рендер на фронте дублировал бы время. Старые ссылки на `/dashboard/partners/requests` также неверны — клик идёт по `actionUrl` (`/matchmaking/requests/:id`, `/interviews/:id`). Подробности — `notification-slot-time-spec.md`.
-- **[9] Диалоги отвязки Telegram/GitHub** — см. [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md). **Не реализовано до backend ADR-005.** ADR-005 (статус «Не реализовано») требует подтверждения кодом из Telegram и ревокации сессий (инкремент `generation`). Сегодня веб-отвязка — это `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null` (`users.service.ts:462-487`), которое сессии **не** ревокирует. Предупреждение о завершении сессий было бы ложной гарантией. Общий `ConfirmDialog` создан и протестирован, но не подключён. Подробности — `timezone-and-security-plan.md` §3, `security-unlink-adr-005-spec.md`.
+- **[9] Диалоги отвязки Telegram/GitHub** — см. [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) ([требования](./features/update-profile/security-unlink-adr-005-spec.md), [UI-флоу](./features/update-profile/security-unlink-frontend-spec.md)). **Не реализовано до backend ADR-005** ([backend spec](../../backend/specs/security-unlink-adr-005-spec.md) / [plan](../../backend/specs/security-unlink-adr-005-plan.md)). ADR-005 (статус «Не реализовано») требует подтверждения кодом из Telegram и ревокации сессий (инкремент `generation`). Сегодня веб-отвязка — это `PATCH /profile/me` с `telegramUsername: null` / `gitUrl: null` (`users.service.ts:462-487`), которое сессии **не** ревокирует. Предупреждение о завершении сессий было бы ложной гарантией. Общий `ConfirmDialog` создан и протестирован, но не подключён. Подробности — [timezone-and-security-plan.md](./features/update-profile/timezone-and-security-plan.md) §3, а также §2.3 ниже.
+
+### 2.3. Срез по ADR-005 (проверка кода, 2026-10-17)
+
+Ни backend-, ни frontend-реализация ADR-005 не начата; закрыта только инфраструктурная предпосылка по первому входу. Актуальный срез — ниже, статусы §2 соответствуют ему.
+
+**Backend (`apps/api`) — ⛔ не реализовано:**
+
+- ✅ `User.firstLoginAt` — колонка есть (`apps/api/prisma/schema.prisma:48`, миграция `20260930122237_add_user_timezone_and_first_login_at`) и проставляется в `loginUser` (`auth.service.ts:398-413`).
+- ✅ Инфраструктура ревокации (`generation`, `access-token.guard`, logout-all) — из более ранних задач.
+- ❌ Модели `SecurityEvent` / модуля `security-events` нет (0 совпадений в `apps/api`).
+- ❌ User-facing эндпоинтов отвязки нет: существует только внутренний `POST /telegram/unlink` для бота (`@Public()` + `InternalServiceKeyGuard`).
+- ❌ Флоу одноразового кода из Telegram отсутствует.
+- ❌ `PATCH /profile/me` (`users.service.ts`) обнуляет `telegramUsername`/`gitUrl` без инкремента `generation` — сессии не ревокируются.
+- ❌ `resetPassword` (`auth.service.ts`) не обнуляет `githubId` (в файле нет упоминаний `githubId`/`gitUrl`).
+- ❌ `PROFILE_CHANGED`, retention `SecurityEvent`, security-уведомления — отсутствуют.
+
+**Frontend (`apps/web`) — ⛔ не реализовано:**
+
+- ✅ `ConfirmDialog` создан и протестирован в `packages/ui` (`packages/ui/src/components/ConfirmDialog`).
+- ❌ `ConnectedAccountsSection.tsx` вызывает `updateProfileMutation.mutate({ telegramUsername: null })` / `{ gitUrl: null }` прямо по клику (строки 119-151, 252, 318) — без `ConfirmDialog`.
+- ❌ i18n-ключей `profile.telegramUnlinkConfirm*` / `*Code*` нет (есть только кнопки/тосты).
+- ❌ Хука флоу кода (`useTelegramUnlinkFlow`) нет.
+- ⚠️ Существующие тесты `ConnectedAccountsSection.test.tsx` фиксируют «немедленную» отвязку по клику — при подключении диалога их нужно переписать.
+
+Документы синхронизированы: исправлены битые относительные ссылки в `timezone-and-security-spec.md` §3 и путь тест-файла (`ui/__tests__/…` → `ui/…`) во всех трёх frontend-документах; добавлены двусторонние ссылки frontend ↔ backend specs.
 
 ## 3. Граф зависимостей
 
@@ -66,7 +91,7 @@
         ├──> [7] widgets/dashboard/timezone-sync              (✅)
         ├──> [8] entities/notification/notification-slot-time (⛔ сервер уже рендерит время)
         ├──> [9] features/update-profile/timezone-and-security (✅ таймзона)
-        └──> [10] features/update-profile/security-unlink-adr-005 (⛔ требует backend ADR-005)
+        └──> [10] features/update-profile/security-unlink-adr-005 (⛔ требует backend ADR-005: docs/backend/specs/security-unlink-adr-005-{spec,plan}.md)
 ```
 
 Пояснения зависимостей:
@@ -115,7 +140,7 @@
 ### Фаза F. Безопасность (P2/P3) — ✅ закрыто (таймзона)
 
 10. **[9] features/update-profile/timezone-and-security** — ✅ таймзона профиля (`profile-form-schema.ts` + `GeneralTab` + i18n), тесты.
-11. **[10] features/update-profile/security-unlink-adr-005** — ⛔ не реализовано до backend ADR-005: подключение `ConfirmDialog` в `ConnectedAccountsSection`, флоу подтверждения отвязки Telegram одноразовым кодом, ревокация сессий (инкремент `generation`), отдельные эндпоинты отвязки. См. [security-unlink-adr-005-spec.md](./features/update-profile/security-unlink-adr-005-spec.md).
+11. **[10] features/update-profile/security-unlink-adr-005** — ⛔ не реализовано до backend ADR-005 ([backend spec](../../backend/specs/security-unlink-adr-005-spec.md) / [plan](../../backend/specs/security-unlink-adr-005-plan.md)): подключение `ConfirmDialog` в `ConnectedAccountsSection`, флоу подтверждения отвязки Telegram одноразовым кодом, ревокация сессий (инкремент `generation`), отдельные эндпоинты отвязки. Требования — [security-unlink-adr-005-spec.md](./features/update-profile/security-unlink-adr-005-spec.md), UI-флоу — [security-unlink-frontend-spec.md](./features/update-profile/security-unlink-frontend-spec.md), порядок работ — [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md). См. §2.3.
 
 ## 5. Параллелизация
 
@@ -165,7 +190,7 @@
 - [x] «Мои анкеты» показывают счётчики слотов (`slots.freeCount`/`slots.bookedCount`): свободными считаются только будущие `OPEN`, `BOOKED` — все; бейджи ведут на редактирование.
 - [x] Профиль: выбор и сохранение IANA-таймзоны (`GeneralTab` + `TimezoneSelect`, двухшаговая валидация через `isValidTimeZone`); автодетект; дашборд использует профильную таймзону.
 - [x] Уведомления: время слота рендерит бэкенд в таймзоне/локали получателя (`renderNotification`), отдельный фронтенд-рендер не нужен (см. §2.2).
-- [x] Отвязка Telegram/GitHub: фронтовая реализация отнесена к плану [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) (требует backend ADR-005). Общий `ConfirmDialog` в `@packages/ui` создан и протестирован, но не подключён до появления корректного backend-флоу.
+- [x] Отвязка Telegram/GitHub: фронтовая реализация отнесена к [security-unlink-adr-005-plan.md](./features/update-profile/security-unlink-adr-005-plan.md) ([требования](./features/update-profile/security-unlink-adr-005-spec.md), [UI-флоу](./features/update-profile/security-unlink-frontend-spec.md)) и требует backend [ADR-005](../../adr/ADR-005.md) ([spec](../../backend/specs/security-unlink-adr-005-spec.md) / [plan](../../backend/specs/security-unlink-adr-005-plan.md)). Общий `ConfirmDialog` в `@packages/ui` создан и протестирован, но не подключён до появления корректного backend-флоу (см. §2.3).
 - [x] **Публичные страницы** не запрашивают профиль у неавторизованного зрителя. Проверено: все потребители `useViewerTimezone()`/`useCurrentUser()` (в т.ч. каталожный `ShowcaseCard`, `ShowcaseFeed`, Sidebar/`NavUser`) находятся под `AuthBoundary mode="protected"` (роуты `(protected)/dashboard/**`, `(protected)/profile/**`, `(protected)/admin/**`), а `AuthBoundary` не рендерит `children` без авторизации; на guest-роутах потребителей нет. Лишний запрос профиля → `401` для неавторизованного зрителя сейчас не возникает. Если каталог `ShowcaseCard` станет публичным — передавать `useViewerTimezone({ enabled: isAuthenticated })` (см. `shared/datetime-and-i18n-rules-spec.md`).
 
 **Тесты**
@@ -175,6 +200,11 @@
 ## 8. Связанные документы
 
 - [Задача: Frontend for slot scheduling, interview booking, and security (ADR-002…ADR-005)](../../tasks/frontend%20for%20slot%20scheduling%2C%20interview%20booking%2C%20and%20security%20%28ADR-002%E2%80%A6ADR-005%29.md)
+- [Frontend спецификация: безопасная отвязка по ADR-005](./features/update-profile/security-unlink-adr-005-spec.md)
+- [Frontend спецификация: UI-флоу отвязки](./features/update-profile/security-unlink-frontend-spec.md)
+- [Frontend план: безопасная отвязка по ADR-005](./features/update-profile/security-unlink-adr-005-plan.md)
+- [Backend спецификация: безопасная отвязка по ADR-005](../../backend/specs/security-unlink-adr-005-spec.md)
+- [Backend план: безопасная отвязка по ADR-005](../../backend/specs/security-unlink-adr-005-plan.md)
 - [ADR-002: Расписание собеседований, слоты доступности и таймзоны](../../adr/ADR-002.md)
 - [ADR-003: Доменные события и диспетчер уведомлений](../../adr/ADR-003.md)
 - [ADR-004: Транспорт доставки уведомлений](../../adr/ADR-004.md)

@@ -4,6 +4,8 @@
 
 Сформулировать требования к фронтенду для реализации безопасной отвязки привязанных аккаунтов (Telegram, GitHub) с использованием новых backend-эндпоинтов по [ADR-005](../../../../../docs/adr/ADR-005.md).
 
+**Роль документа:** детализация UI-флоу к «зонтичной» [спецификации security-unlink-adr-005-spec.md](./security-unlink-adr-005-spec.md); общие требования/DoD — там, порядок работ — в [плане](./security-unlink-adr-005-plan.md).
+
 Фокус на UI: `ConfirmDialog`, предупреждения при отвязке Telegram/GitHub, UI-флоу подтверждения одноразового кода из Telegram (запрос кода/ввод кода/подтверждение), переход на новые эндпоинты из `@packages/api`, i18n, тесты.
 
 ## 2. Источники требований
@@ -109,7 +111,7 @@ UI должен:
 - `apps/web/src/features/update-profile/model/useTelegramUnlinkFlow.ts` (NEW — опционально)
 - `packages/i18n/src/locales/ru/common.json` (EDIT)
 - `packages/i18n/src/locales/en/common.json` (EDIT)
-- `apps/web/src/features/update-profile/ui/__tests__/ConnectedAccountsSection.test.tsx` (EDIT/NEW)
+- `apps/web/src/features/update-profile/ui/ConnectedAccountsSection.test.tsx` (EDIT/NEW)
 
 ## 8. Риски
 
