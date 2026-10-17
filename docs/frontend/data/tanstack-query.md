@@ -7,7 +7,7 @@
 
 ## 1. Где находится инфраструктура TanStack Query?
 
-* **Создание инстанса QueryClient и React Provider:** [apps/web/src/shared/api/client.tsx](../../../apps/web/src/shared/api/client.tsx) (`QueryProvider`).
+* **Создание инстанса QueryClient и React Provider:** [apps/web/src/app/providers/QueryProvider.tsx](../../../apps/web/src/app/providers/QueryProvider.tsx) (`QueryProvider`); подключается через `app/providers/AppProviders.tsx`.
 * **Подключение в корневой Layout:** [apps/web/src/app/layout.tsx](../../../apps/web/src/app/layout.tsx).
 * **Сгенерированные хуки запросов и мутаций:** `@packages/api` (генерируются Orval автоматически).
 

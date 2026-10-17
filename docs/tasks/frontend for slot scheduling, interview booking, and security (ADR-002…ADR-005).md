@@ -34,14 +34,14 @@
 ### 1.3. Обязательность выбора слота при отклике и обработка 409 Conflict (ADR-002)
 
 - **Критическое бизнес-правило:**
-  В DTO отклика [`createMatchRequestSchema`](../packages/dto/src/matchmaking/matchmaking.dto.ts) добавлено поле `slotId?: string`.
+  В DTO отклика [`createMatchRequestSchema`](../../packages/dto/src/matchmaking/matchmaking.dto.ts) добавлено поле `slotId?: string`.
   Если у целевой карточки в витрине есть хотя бы один открытый слот (`status === "OPEN"`), поле `slotId` **является строго обязательным** на бэкенде (`matchmaking.service.ts:524`). Попытка отправить отклик без слота приводит к `400 Bad Request` («Для карточки с расписанием необходимо выбрать слот»).
 - **Атомарный claim и гонка двух кандидатов:**
   При создании отклика бэкенд в `Serializable`-транзакции выполняет атомарный `UPDATE` слота в статус `BOOKED`. Если два кандидата одновременно кликнут на один и тот же слот:
   - Первый кандидат получит `200 OK` (слот забронирован за ним, создана заявка `PENDING`);
   - Второй кандидат получит `409 Conflict` с текстом ошибки «Слот уже занят».
 - **Требование к фронтенду:**
-  Модалка отклика [`SendMatchRequestDialog`](../apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx) **обязана**:
+  Модалка отклика [`SendMatchRequestDialog`](../../apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx) **обязана**:
   1. Отображать открытые слоты целевой карточки в часовом поясе кандидата.
   2. Блокировать отправку отклика, если слот не выбран (при наличии слотов у анкеты).
   3. Перехватывать ошибку `409 Conflict`, показывать понятный Toast и обновлять список слотов, предлагая выбрать другое свободное время.
@@ -57,7 +57,7 @@
 ### 1.5. Безопасность и подтверждение отвязки аккаунтов (ADR-005)
 
 - **Проблема текущей реализации фронтенда:**
-  В [`ConnectedAccountsSection.tsx`](../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx) кнопки отвязки Telegram и GitHub сейчас вызывают `updateProfileMutation.mutate({ data: { telegramUsername: null } })` и `{ data: { gitUrl: null } }`.
+  В [`ConnectedAccountsSection.tsx`](../../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx) кнопки отвязки Telegram и GitHub сейчас вызывают `updateProfileMutation.mutate({ data: { telegramUsername: null } })` и `{ data: { gitUrl: null } }`.
   Это не отзывает токены сессий в базе, не очищает `githubId` / `telegramId` и не генерирует аудит-события.
 - **Требование ADR-005 к фронтенду:**
   Любое действие по отвязке стороннего сервиса должно сопровождаться предупреждающим диалогом о завершении других активных сессий (ревокация через `generation + 1`). Для Telegram в целевой архитектуре вводится подтверждение одноразовым кодом из бота.
@@ -192,7 +192,7 @@ apps/web/src/
 ### Задача 1 (P0): Выбор и бронирование слота при отправке отклика (`features/send-match-request`)
 
 #### Описание проблемы
-В настоящее время [`SendMatchRequestDialog.tsx`](../apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx) отправляет в мутацию только `{ targetCardId, senderCardId, preferredTopic, message }`. Поле `slotId` отсутствует.
+В настоящее время [`SendMatchRequestDialog.tsx`](../../apps/web/src/features/send-match-request/ui/SendMatchRequestDialog.tsx) отправляет в мутацию только `{ targetCardId, senderCardId, preferredTopic, message }`. Поле `slotId` отсутствует.
 Если автор анкеты добавил слоты доступности, бэкенд возвращает `400 Bad Request`. Откликнуться на такие карточки невозможно.
 
 #### Что необходимо сделать
@@ -200,7 +200,7 @@ apps/web/src/
    - Получить слоты из `card.slots`.
    - Отфильтровать активные слоты: `slot.status === 'OPEN'` и `new Date(slot.startsAt) > new Date()`.
    - Отсортировать по возрастанию времени старта.
-2. **UI выбора слота ([`SlotSelectorRadioGroup.tsx`](../apps/web/src/features/send-match-request/ui/SlotSelectorRadioGroup.tsx)):**
+2. **UI выбора слота ([`SlotSelectorRadioGroup.tsx`](../../apps/web/src/features/send-match-request/ui/SlotSelectorRadioGroup.tsx)):**
    - Если у анкеты **есть доступные слоты**:
      - Отобразить блок: *«Выберите удобное время для интервью»*.
      - Вывести карточки слотов с датой, временем начала и длительностью в таймзоне текущего кандидата:
@@ -223,7 +223,7 @@ apps/web/src/
 Кандидаты не могут указать свои окна доступности: форма создания анкеты содержит только опциональное текстовое поле `scheduleInfo`.
 
 #### Что необходимо сделать
-1. **Обновление Zod-схемы ([`showcase-form-schema.ts`](../apps/web/src/features/manage-showcase-card/model/showcase-form-schema.ts)):**
+1. **Обновление Zod-схемы ([`showcase-form-schema.ts`](../../apps/web/src/features/manage-showcase-card/model/showcase-form-schema.ts)):**
    ```typescript
    export const slotItemSchema = z.object({
      id: z.string().optional(), // для существующих слотов
@@ -239,14 +239,14 @@ apps/web/src/
        ? values.slots.map(s => ({ startsAtLocal: s.startsAtLocal, durationMinutes: s.durationMinutes }))
        : undefined
      ```
-2. **Компонент управления слотами ([`SlotPickerField.tsx`](../apps/web/src/features/manage-showcase-card/ui/SlotPickerField.tsx)):**
+2. **Компонент управления слотами ([`SlotPickerField.tsx`](../../apps/web/src/features/manage-showcase-card/ui/SlotPickerField.tsx)):**
    - Выбор даты (HTML `<input type="date">` или кастомный пикер из `@packages/ui`).
    - Выбор времени начала (`<input type="time">`).
    - Выбор длительности (`Select`: 30, 45, 60, 90, 120 минут).
    - Кнопка *«Добавить слот»*.
    - Список уже добавленных слотов в виде плашек с кнопкой удаления (крестик).
    - Информационная подсказка: *«Время указывается в вашей таймзоне ({user.timezone})»*.
-3. **Редактирование карточки ([`EditCardView.tsx`](../apps/web/src/features/manage-showcase-card/ui/EditCardView.tsx)):**
+3. **Редактирование карточки ([`EditCardView.tsx`](../../apps/web/src/features/manage-showcase-card/ui/EditCardView.tsx)):**
    - При инициализации формы маппить пришедшие с бэкенда UTC-слоты (`startsAt`) в локальные строки `startsAtLocal` пользователя с помощью `formatInstantInTimeZone(slot.startsAt, userTimezone, "yyyy-MM-dd'T'HH:mm")`.
    - Если слот находится в статусе `BOOKED`, отображать на нем бейдж *«Забронирован»* и блокировать его удаление без подтверждения.
 
@@ -258,13 +258,13 @@ apps/web/src/
 Кандидаты в общем каталоге не видят, на какое время автор открыт для интервью. В личных карточках автор не видит статус занятости своих слотов.
 
 #### Что необходимо сделать
-1. **Витрина каталога ([`ShowcaseCard.tsx`](../apps/web/src/entities/showcase-card/ui/ShowcaseCard.tsx)):**
+1. **Витрина каталога ([`ShowcaseCard.tsx`](../../apps/web/src/entities/showcase-card/ui/ShowcaseCard.tsx)):**
    - Если у карточки есть `slots` со статусом `OPEN`:
      - Отобразить блок *«Ближайшие слоты:»*.
      - Отрендерить до 3 первых слотов в виде компактных бейджей с иконкой часов/календаря:
        `ShowcaseSlotBadge: {formatInstantInTimeZone(slot.startsAt, viewerTimezone, 'EEE, d MMM HH:mm')}`.
      - Если слотов больше трех, вывести счетчик `+N еще`.
-2. **Мои анкеты ([`MyCardItem.tsx`](../apps/web/src/widgets/my-cards-list/ui/MyCardItem.tsx)):**
+2. **Мои анкеты ([`MyCardItem.tsx`](../../apps/web/src/widgets/my-cards-list/ui/MyCardItem.tsx)):**
    - В блоке статистики автора отображать бейдж слотов:
      - `Свободно: X / Забронировано: Y`.
      - При клике — быстрый переход к управлению расписанием.
@@ -274,7 +274,7 @@ apps/web/src/
 ### Задача 4 (P1): Отображение назначенного времени в центре заявок (`widgets/match-requests-hub`)
 
 #### Описание проблемы
-Входящие и исходящие заявки в [`IncomingRequestCard.tsx`](../apps/web/src/widgets/match-requests-hub/ui/IncomingRequestCard.tsx) и [`OutgoingRequestCard.tsx`](../apps/web/src/widgets/match-requests-hub/ui/OutgoingRequestCard.tsx) игнорируют поле `req.slot`, из-за чего участники не знают, на какое время предложена встреча.
+Входящие и исходящие заявки в [`IncomingRequestCard.tsx`](../../apps/web/src/widgets/match-requests-hub/ui/IncomingRequestCard.tsx) и [`OutgoingRequestCard.tsx`](../../apps/web/src/widgets/match-requests-hub/ui/OutgoingRequestCard.tsx) игнорируют поле `req.slot`, из-за чего участники не знают, на какое время предложена встреча.
 
 #### Что необходимо сделать
 1. **Блок слота в заявке:**
@@ -285,7 +285,7 @@ apps/web/src/
        - Продолжительность (`${req.slot.durationMinutes} мин`);
        - Статус слота (`OPEN` — ожидает подтверждения заявки, `BOOKED` — забронирован под данную заявку).
 2. **После принятия заявки (`req.status === 'ACCEPTED'`):**
-   - В баннере перехода в интервью ([`MatchedSessionBanner.tsx`](../apps/web/src/widgets/match-requests-hub/ui/MatchedSessionBanner.tsx)) показывать: *«Интервью запланировано на {formattedDate}»*.
+   - В баннере перехода в интервью ([`MatchedSessionBanner.tsx`](../../apps/web/src/widgets/match-requests-hub/ui/MatchedSessionBanner.tsx)) показывать: *«Интервью запланировано на {formattedDate}»*.
 
 ---
 
@@ -293,14 +293,14 @@ apps/web/src/
 
 #### Описание проблемы
 1. Пользователь не может изменить свою таймзону (вкладка `GeneralTab` не имеет такого поля).
-2. Виджеты дашборда [`DashboardUpcomingSession.tsx`](../apps/web/src/widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx) и [`DashboardRecentSessions.tsx`](../apps/web/src/widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx) содержат хардкод `useState("UTC")`.
+2. Виджеты дашборда [`DashboardUpcomingSession.tsx`](../../apps/web/src/widgets/dashboard/ui/upcoming-session/DashboardUpcomingSession.tsx) и [`DashboardRecentSessions.tsx`](../../apps/web/src/widgets/dashboard/ui/analytics/DashboardRecentSessions.tsx) содержат хардкод `useState("UTC")`.
 
 #### Что необходимо сделать
-1. **Селектор таймзоны ([`TimezoneSelect.tsx`](../apps/web/src/entities/user/ui/TimezoneSelect.tsx)):**
+1. **Селектор таймзоны ([`TimezoneSelect.tsx`](../../apps/web/src/entities/user/ui/TimezoneSelect.tsx)):**
    - Выпадающий список популярных IANA-таймзон с группировкой по регионам (Европа, Азия, Америка и т.д.).
    - Поле поиска по названию города/зоны.
    - Кнопка *«Определить по браузеру»* (`Intl.DateTimeFormat().resolvedOptions().timeZone`).
-2. **Интеграция в [`GeneralTab.tsx`](../apps/web/src/features/update-profile/ui/GeneralTab.tsx):**
+2. **Интеграция в [`GeneralTab.tsx`](../../apps/web/src/features/update-profile/ui/GeneralTab.tsx):**
    - Добавить поле `timezone` в форму профиля.
    - При сохранении отправлять в `useUpdateProfile`.
 3. **Синхронизация дашборда:**
@@ -315,7 +315,7 @@ apps/web/src/
 События `interview.match_proposed` и `interview.slot_booked` содержат UTC-инстанты слотов в `payload`. Если отображать их без учета зоны читателя, пользователь получит неверное время.
 
 #### Что необходимо сделать
-- В [`NotificationItem.tsx`](../apps/web/src/entities/notification/ui/NotificationItem.tsx) проверять тип события:
+- В [`NotificationItem.tsx`](../../apps/web/src/entities/notification/ui/NotificationItem.tsx) проверять тип события:
   - Если событие связано с интервью и в `payload` передан `slotStartsAt`:
     - Форматировать время в зоне пользователя: `formatInstantInTimeZone(payload.slotStartsAt, userTimezone)`.
   - При клике на уведомление осуществлять переход по `actionUrl` (в `/dashboard/partners/requests`).
@@ -328,7 +328,7 @@ apps/web/src/
 Отвязка аккаунтов сейчас происходит мгновенно через вызов `updateProfile`, без предупреждения пользователя о последствиях для безопасности (ADR-005).
 
 #### Что необходимо сделать
-- В [`ConnectedAccountsSection.tsx`](../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx):
+- В [`ConnectedAccountsSection.tsx`](../../apps/web/src/features/update-profile/ui/ConnectedAccountsSection.tsx):
   - При нажатии *«Отвязать Telegram»* или *«Отвязать GitHub»* открывать `ConfirmDialog`:
     - Предупреждение: *«Внимание: при отвязке аккаунта все остальные активные сессии на других устройствах будут принудительно завершены в целях безопасности»*.
     - Кнопки: «Отмена» и «Подтвердить отвязку».
@@ -338,7 +338,7 @@ apps/web/src/
 ### Задача 8 (P1): Локализация всех новых элементов интерфейса (`@packages/i18n`)
 
 #### Что необходимо сделать
-Добавить в файлы локализации [`packages/i18n/src/locales/ru/showcase.json`](../packages/i18n/src/locales/ru/showcase.json) и `en/showcase.json`:
+Добавить в файлы локализации [`packages/i18n/src/locales/ru/showcase.json`](../../packages/i18n/src/locales/ru/showcase.json) и `en/showcase.json`:
 - Блок `slots`:
   - `title`: «Слоты доступности» / «Availability Slots»
   - `addSlot`: «Добавить слот» / «Add Slot»
