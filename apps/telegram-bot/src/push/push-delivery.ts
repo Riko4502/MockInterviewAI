@@ -1,4 +1,4 @@
-import { parseNotificationEvent } from "@packages/dto";
+import { parsePushEvent } from "@packages/dto";
 import { renderNotification } from "@packages/i18n";
 import { GrammyError } from "grammy";
 
@@ -219,9 +219,10 @@ export interface RenderedPush {
  * Текст собирает `renderNotification` из `@packages/i18n` — тот же рендер,
  * которым пользуется in-app-путь, поэтому тексты не разъезжаются.
  *
- * `parseNotificationEvent` здесь — граница доверия: сообщение в очереди
- * чужой процесс, и неизвестный тип события или лишние поля payload'а должны
- * приводить к отказу, а не к отправке как есть.
+ * `parsePushEvent` здесь — граница доверия: сообщение в очереди чужой
+ * процесс, и неизвестный тип события или лишние поля payload'а должны
+ * приводить к отказу, а не к отправке как есть. Словарь объединяет доменные
+ * уведомления и security-события (ADR-005), у которых отдельный словарь рендера.
  *
  * @param envelope - Конверт из очереди.
  * @param webAppUrl - Значение `WEB_APP_URL` для абсолютной ссылки.
@@ -231,7 +232,7 @@ export function renderPush(
   envelope: PushEnvelope,
   webAppUrl: string,
 ): RenderedPush {
-  const event = parseNotificationEvent(envelope.event);
+  const event = parsePushEvent(envelope.event);
   const locale = resolveLocale(undefined, envelope.locale, undefined);
   const { title, message } = renderNotification(event.type, event.payload, {
     locale,
