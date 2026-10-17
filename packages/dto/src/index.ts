@@ -129,6 +129,23 @@ export {
   systemWelcomePayloadSchema,
 } from "./notifications/notification-event";
 export {
+  type PushEvent,
+  parsePushEvent,
+  pushEventSchema,
+  type SecurityGithubUnlinkedEvent,
+  type SecurityNotificationEvent,
+  type SecurityNotificationEventType,
+  type SecurityTelegramUnlinkCodeEvent,
+  type SecurityTelegramUnlinkedEvent,
+  securityGithubUnlinkedEventSchema,
+  securityGithubUnlinkedPayloadSchema,
+  securityNotificationEventSchema,
+  securityTelegramUnlinkCodeEventSchema,
+  securityTelegramUnlinkCodePayloadSchema,
+  securityTelegramUnlinkedEventSchema,
+  securityTelegramUnlinkedPayloadSchema,
+} from "./notifications/security-notification-event";
+export {
   clientIdSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
@@ -259,6 +276,7 @@ export {
   yjsUpdateEnvelopeSchema,
   yjsUpdatePayloadSchema,
 } from "./realtime/websocket-events.dto";
+export * from "./security";
 export {
   type CreateSessionResponseDto,
   createSessionResponseSchema,
