@@ -94,7 +94,7 @@ describe("Ближайшая сессия (DashboardUpcomingSession)", () => {
     ).toHaveAttribute("href", "/dashboard/sandbox");
     expect(
       screen.getByRole("link", { name: "Найти партнера" }),
-    ).toHaveAttribute("href", "/dashboard#live-match");
+    ).toHaveAttribute("href", "/dashboard/partners");
   });
 
   it("блокирует подключение, пока сервер сообщает об отсутствии готовности", async () => {

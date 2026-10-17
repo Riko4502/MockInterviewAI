@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import { createServer } from "node:http";
 import { webhookCallback } from "grammy";
 import { initApiClient } from "./api-client";
-import { createBot } from "./bot";
+import { createBot, setupBotCommands } from "./bot";
 import { loadConfig, WEBHOOK_PATH } from "./config";
 import { createHandlers } from "./handlers";
 import { PushConsumer } from "./push/push-consumer";
@@ -14,6 +14,7 @@ import { PushConsumer } from "./push/push-consumer";
  * - загрузка и валидация окружения (`loadConfig`);
  * - инициализация HTTP-клиента внутреннего API (`initApiClient`);
  * - создание бота с зарегистрированными командами (`createBot`);
+ * - регистрация меню команд в Telegram API (`setupBotCommands`);
  * - режим получения updates по наличию `TELEGRAM_WEBHOOK_URL`:
  *   webhook (prod) либо Long Polling (dev);
  * - консьюмер очереди push-уведомлений при заданном `RABBITMQ_URL`
@@ -31,6 +32,8 @@ export async function main(): Promise<void> {
   });
 
   const bot = createBot(env.TELEGRAM_BOT_TOKEN, createHandlers(env));
+
+  await setupBotCommands(bot.api);
 
   const push =
     env.RABBITMQ_URL === undefined

@@ -11,6 +11,18 @@
     "interview.slot_booked": {
       "title": "Слот подтверждён",
       "message": "{{otherParticipantName}} подтвердил интервью на {{startUtc}}."
+    },
+    "interview.match_request_received": {
+      "title": "Новая заявка на интервью",
+      "message": "{{senderName}} отправил(-а) вам заявку на совместное интервью."
+    },
+    "interview.reminder_15m": {
+      "title": "Интервью скоро начнется",
+      "message": "Собеседование с {{otherParticipantName}} начнется через 15 минут (в {{startUtc}})."
+    },
+    "interview.partner_joined": {
+      "title": "Собеседник в комнате",
+      "message": "{{partnerName}} уже в комнате интервью. Присоединяйтесь!"
     }
   },
   "fallback": {

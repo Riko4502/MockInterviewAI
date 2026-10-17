@@ -4,9 +4,9 @@ import type { UserProfileDto } from "@packages/api";
 import {
   getProfileControllerGetMyProfileQueryKey,
   useAuthControllerOauthProviders,
-  useAuthControllerTelegramLink,
+  useTelegramControllerCreateLinkToken,
 } from "@packages/api";
-import { GithubIcon, TelegramIcon } from "@packages/icons";
+import { CheckIcon, CopyIcon, GithubIcon, TelegramIcon } from "@packages/icons";
 import {
   Badge,
   Button,
@@ -34,15 +34,11 @@ export function ConnectedAccountsSection({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [isTgDialogOpen, setIsTgDialogOpen] = useState(false);
-  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(
-    null,
-  );
-  const [scriptStatus, setScriptStatus] = useState<
-    "loading" | "ready" | "error"
-  >("loading");
+  const [linkUrl, setLinkUrl] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-  const linkTelegramMutation = useAuthControllerTelegramLink();
+  const createLinkTokenMutation = useTelegramControllerCreateLinkToken();
   const updateProfileMutation = useUpdateProfile();
 
   const { data: oauthProviders } = useAuthControllerOauthProviders({
@@ -60,61 +56,72 @@ export function ConnectedAccountsSection({
       : user.gitUrl,
   );
   const isPending =
-    linkTelegramMutation.isPending || updateProfileMutation.isPending;
+    updateProfileMutation.isPending || createLinkTokenMutation.isPending;
 
   useEffect(() => {
-    if (!isTgDialogOpen || !botUsername || !containerNode) return;
+    if (!isTgDialogOpen) {
+      setLinkUrl(null);
+      setTokenError(null);
+      return;
+    }
 
-    setScriptStatus("loading");
+    createLinkTokenMutation.mutate(undefined, {
+      onSuccess: (res) => {
+        setLinkUrl(res.linkUrl);
+      },
+      onError: () => {
+        setTokenError(t("profile.telegramLinkError"));
+      },
+    });
+  }, [isTgDialogOpen, t, createLinkTokenMutation.mutate]);
 
-    window.onTelegramAuth = (telegramUser) => {
-      linkTelegramMutation.mutate(
-        { data: telegramUser },
-        {
-          onSuccess: () => {
-            toast.push({
-              status: "success",
-              title: t("profile.telegramLinkSuccess"),
-            });
-            queryClient.invalidateQueries({
-              queryKey: getProfileControllerGetMyProfileQueryKey(),
-            });
-            setIsTgDialogOpen(false);
-          },
-          onError: () => {
-            toast.push({
-              status: "error",
-              title: t("profile.telegramLinkError"),
-            });
-          },
-        },
-      );
-    };
+  useEffect(() => {
+    if (!isTgDialogOpen || isTelegramLinked) return;
 
-    const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js";
-    script.async = true;
-    script.dataset.telegramLogin = botUsername;
-    script.dataset.size = "large";
-    script.dataset.onauth = "onTelegramAuth(user)";
-    script.onload = () => setScriptStatus("ready");
-    script.onerror = () => setScriptStatus("error");
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({
+        queryKey: getProfileControllerGetMyProfileQueryKey(),
+      });
+    }, 2500);
 
-    containerNode.appendChild(script);
+    return () => clearInterval(interval);
+  }, [isTgDialogOpen, isTelegramLinked, queryClient]);
 
-    return () => {
-      containerNode.replaceChildren();
-      delete window.onTelegramAuth;
-    };
-  }, [
-    isTgDialogOpen,
-    botUsername,
-    containerNode,
-    linkTelegramMutation,
-    queryClient,
-    t,
-    toast,
-  ]);
+  useEffect(() => {
+    if (isTgDialogOpen && isTelegramLinked) {
+      toast.push({
+        status: "success",
+        title: t("profile.telegramLinkSuccess"),
+      });
+      const timer = setTimeout(() => {
+        setIsTgDialogOpen(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isTgDialogOpen, isTelegramLinked, t, toast]);
+
+  const handleCopyLink = () => {
+    if (!linkUrl) return;
+    navigator.clipboard.writeText(linkUrl);
+    setIsCopied(true);
+    toast.push({
+      status: "success",
+      title: t("profile.telegramLinkCopied"),
+    });
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleRetryToken = () => {
+    setTokenError(null);
+    createLinkTokenMutation.mutate(undefined, {
+      onSuccess: (res) => {
+        setLinkUrl(res.linkUrl);
+      },
+      onError: () => {
+        setTokenError(t("profile.telegramLinkError"));
+      },
+    });
+  };
 
   const handleUnlinkTelegram = () => {
     updateProfileMutation.mutate(
@@ -236,7 +243,7 @@ export function ConnectedAccountsSection({
                   </div>
                   <p className="text-xs text-muted-foreground break-words">
                     {isTelegramLinked
-                      ? `@${user.telegramUsername?.replace(/^@/, "")}`
+                      ? `@${user.telegramUsername?.replace(/^@/, "") || "connected"}`
                       : t("profile.telegramLinkDesc")}
                   </p>
                 </div>
@@ -339,9 +346,7 @@ export function ConnectedAccountsSection({
       {/* Telegram Link Dialog */}
       <Dialog
         open={isTgDialogOpen}
-        onOpenChange={(open) =>
-          !linkTelegramMutation.isPending && setIsTgDialogOpen(open)
-        }
+        onOpenChange={(open) => !isPending && setIsTgDialogOpen(open)}
       >
         <Dialog.Content>
           <Dialog.Header>
@@ -351,42 +356,84 @@ export function ConnectedAccountsSection({
             </Dialog.Description>
           </Dialog.Header>
 
-          <div className="my-6 flex flex-col items-center justify-center gap-3">
-            <div
-              ref={setContainerNode}
-              className="flex min-h-10 justify-center"
-            />
-
-            {!botUsername ? (
-              <p className="text-center text-sm text-destructive">
-                {t("profile.telegramNotConfigured")}
-              </p>
-            ) : scriptStatus === "loading" ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spin size="sm" variant="current" aria-hidden="true" />
-                <Typography.P>
-                  {t("profile.telegramWidgetLoading")}
+          <div className="my-4 flex flex-col gap-4">
+            {isTelegramLinked ? (
+              <div className="flex flex-col items-center gap-2 p-4 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+                  <CheckIcon className="size-6" />
+                </div>
+                <Typography.H4 className="text-foreground">
+                  {t("profile.telegramLinkSuccess")}
+                </Typography.H4>
+              </div>
+            ) : createLinkTokenMutation.isPending ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-6 text-muted-foreground">
+                <Spin size="md" variant="current" aria-hidden="true" />
+                <Typography.P>{t("profile.telegramTokenLoading")}</Typography.P>
+              </div>
+            ) : tokenError ? (
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <Typography.P className="text-destructive">
+                  {tokenError}
                 </Typography.P>
+                <Button variant="outline" size="sm" onClick={handleRetryToken}>
+                  {t("errors.retry", "Повторить")}
+                </Button>
               </div>
-            ) : scriptStatus === "error" ? (
-              <p className="text-center text-sm text-destructive">
-                {t("profile.telegramWidgetError")}
-              </p>
-            ) : null}
+            ) : linkUrl ? (
+              <>
+                <div className="rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground flex flex-col gap-1.5">
+                  <p>1. {t("profile.telegramStep1")}</p>
+                  <p>2. {t("profile.telegramStep2")}</p>
+                  <p>3. {t("profile.telegramStep3")}</p>
+                </div>
 
-            {linkTelegramMutation.isPending && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spin size="sm" variant="current" aria-hidden="true" />
-                <Typography.P>{t("profile.saving")}</Typography.P>
-              </div>
-            )}
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="w-full gap-2 bg-[#229ED9] text-white hover:bg-[#229ED9]/90 font-medium"
+                  >
+                    <a href={linkUrl} target="_blank" rel="noopener noreferrer">
+                      <TelegramIcon size="sm" aria-hidden="true" />
+                      {t("profile.telegramOpenBot")}
+                    </a>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    className="w-full gap-1.5"
+                  >
+                    {isCopied ? (
+                      <>
+                        <CheckIcon className="size-4 text-success" />
+                        {t("profile.telegramLinkCopied")}
+                      </>
+                    ) : (
+                      <>
+                        <CopyIcon className="size-4" />
+                        {t("profile.telegramCopyLink")}
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
+                  <Spin size="sm" variant="current" aria-hidden="true" />
+                  <span>{t("profile.telegramWaitingConfirmation")}</span>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <Dialog.Footer>
             <Button
               type="button"
               variant="outline"
-              disabled={linkTelegramMutation.isPending}
+              disabled={isPending}
               onClick={() => setIsTgDialogOpen(false)}
             >
               {t("actions.cancel")}

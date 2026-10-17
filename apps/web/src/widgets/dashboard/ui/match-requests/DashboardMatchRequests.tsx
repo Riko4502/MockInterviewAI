@@ -8,8 +8,10 @@ import {
   Typography,
   useToast,
 } from "@packages/ui";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import {
   useAcceptMatchMutation,
@@ -53,9 +55,21 @@ export function DashboardMatchRequests() {
   const items = query.data?.items.filter((item) => !pending.has(item.id)) ?? [];
   return (
     <Card className="min-h-64 gap-4">
-      <Typography as="h2" variant="large">
-        {t("matchRequests.title")}
-      </Typography>
+      <div className="flex items-center justify-between gap-2">
+        <Typography as="h2" variant="large">
+          {t("matchRequests.title")}
+        </Typography>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs font-normal"
+        >
+          <Link href={paths.partnersRequests}>
+            {t("matchRequests.allRequests")}
+          </Link>
+        </Button>
+      </div>
       {!query.data ? (
         <Alert variant="destructive">
           <Alert.Description>{t("errors.matchRequests")}</Alert.Description>

@@ -79,7 +79,7 @@ export function DashboardUpcomingSession() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href={`${paths.dashboard}#live-match`}>
+                <Link href={paths.partners}>
                   {t("upcomingSession.findPartner")}
                 </Link>
               </Button>

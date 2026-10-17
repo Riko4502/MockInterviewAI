@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
@@ -17,6 +18,7 @@ import {
 } from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
 import {
   sessionActiveKey,
   sessionInviteKey,
@@ -262,6 +264,8 @@ export class SessionsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     configService: ConfigService,
+    @Optional()
+    private readonly notificationDispatcher?: NotificationDispatcher,
   ) {
     this.mirrorTtlSeconds =
       configService.get<number>("sessions.mirrorTtlSeconds") ?? 2 * 60 * 60;
@@ -685,6 +689,56 @@ export class SessionsService {
     );
 
     await this.invalidateUserDashboard(userId);
+
+    const dispatcher = this.notificationDispatcher;
+    if (dispatcher) {
+      const lockKey = `session:${sessionId}:joined_notified:${userId}`;
+      const shouldNotify = await this.redis.setNx(lockKey, "1", 86400);
+
+      if (shouldNotify) {
+        const otherParticipant =
+          await this.prisma.interviewParticipant.findFirst({
+            where: {
+              sessionId,
+              userId: { not: userId },
+            },
+            include: {
+              user: { select: { id: true, displayName: true } },
+            },
+          });
+
+        if (otherParticipant) {
+          const currentUser = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { displayName: true },
+          });
+
+          try {
+            await this.prisma.$transaction(async (tx) => {
+              await dispatcher.dispatch(
+                {
+                  type: "interview.partner_joined",
+                  payload: {
+                    sessionId,
+                    partnerName: currentUser?.displayName ?? "Собеседник",
+                  },
+                },
+                otherParticipant.userId,
+                tx,
+                `/dashboard/sandbox?room=${sessionId}`,
+              );
+            });
+            this.logger.log(
+              `Dispatched partner_joined notification to ${otherParticipant.userId} for session ${sessionId}`,
+            );
+          } catch (err) {
+            this.logger.warn(
+              `Failed to dispatch partner_joined notification: ${err}`,
+            );
+          }
+        }
+      }
+    }
 
     return {
       role: participant.role as InterviewParticipantRole,

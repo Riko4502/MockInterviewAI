@@ -1,6 +1,7 @@
 import {
   getDashboardControllerGetDailyChallengeQueryKey,
   getDashboardControllerGetInsightsQueryKey,
+  getDashboardControllerGetLiveMatchStatusQueryKey,
   getDashboardControllerGetMatchRequestsQueryKey,
   getDashboardControllerGetReadinessQueryKey,
   getDashboardControllerGetRecentSessionsQueryKey,
@@ -15,7 +16,7 @@ export const DASHBOARD_KEYS = {
   upcoming: getDashboardControllerGetUpcomingQueryKey,
   readiness: getDashboardControllerGetReadinessQueryKey,
   dailyChallenge: getDashboardControllerGetDailyChallengeQueryKey,
-  liveMatch: () => ["dashboard", "live-match"] as const,
+  liveMatch: getDashboardControllerGetLiveMatchStatusQueryKey,
   liveMatchParameters: () => ["dashboard", "live-match-parameters"] as const,
   matches: getDashboardControllerGetMatchRequestsQueryKey,
   stats: getDashboardControllerGetStatsQueryKey,

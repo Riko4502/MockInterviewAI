@@ -3,7 +3,10 @@
 import {
   type DashboardMatchRequestsResponseDto,
   getDashboardControllerToggleLiveMatchMutationKey,
+  getMatchmakingControllerFindIncomingQueryKey,
+  getMatchmakingControllerGetUnreadCountQueryKey,
   type LiveMatchToggleDto,
+  useDashboardControllerGetLiveMatchStatus,
   useDashboardControllerToggleLiveMatch,
   useMatchmakingControllerAccept,
   useMatchmakingControllerReject,
@@ -28,12 +31,17 @@ interface LiveMatchContext {
   previous: LiveMatchState | null;
 }
 
-// Контракт GET-запроса статуса отсутствует: null означает неизвестное состояние, а не предполагаемый IDLE.
+/**
+ * Получение текущего статуса Live Match с сервера.
+ * Опрашивает сервер раз в 3 секунды, только пока статус SEARCHING.
+ */
 export function useLiveMatchStateQuery() {
-  return useQuery<LiveMatchState | null>({
-    queryKey: DASHBOARD_KEYS.liveMatch(),
-    queryFn: skipToken,
-    initialData: null,
+  return useDashboardControllerGetLiveMatchStatus({
+    query: {
+      refetchInterval: (query) =>
+        query.state.data?.status === "SEARCHING" ? 3000 : false,
+      staleTime: 2000,
+    },
   });
 }
 
@@ -113,7 +121,15 @@ export function useAcceptMatchMutation() {
             };
           },
         );
-        await client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() });
+        await Promise.all([
+          client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+          }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+          }),
+        ]);
       },
     },
   });
@@ -139,7 +155,15 @@ export function useRejectMatchMutation() {
             };
           },
         );
-        await client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() });
+        await Promise.all([
+          client.invalidateQueries({ queryKey: DASHBOARD_KEYS.matches() }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerFindIncomingQueryKey(),
+          }),
+          client.invalidateQueries({
+            queryKey: getMatchmakingControllerGetUnreadCountQueryKey(),
+          }),
+        ]);
       },
     },
   });

@@ -23,6 +23,10 @@ describe("DashboardLiveMatchService", () => {
     expire: jest.Mock;
     publish: jest.Mock;
     eval: jest.Mock;
+    set: jest.Mock;
+    get: jest.Mock;
+    delete: jest.Mock;
+    zscore: jest.Mock;
   };
 
   beforeEach(() => {
@@ -41,6 +45,10 @@ describe("DashboardLiveMatchService", () => {
       expire: jest.fn().mockResolvedValue(1),
       publish: jest.fn().mockResolvedValue(1),
       eval: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(undefined),
+      zscore: jest.fn().mockResolvedValue(null),
     };
     service = new DashboardLiveMatchService(
       sessionsServiceMock as unknown as SessionsService,
@@ -93,6 +101,8 @@ describe("DashboardLiveMatchService", () => {
 
     expect(res).toEqual({
       status: "SEARCHING",
+      specialization: "FRONTEND",
+      level: "JUNIOR",
       estimatedWaitSeconds: 45,
     });
     expect(redisMock.zremrangebyscore).toHaveBeenCalledWith(
@@ -123,6 +133,8 @@ describe("DashboardLiveMatchService", () => {
     expect(res).toEqual({
       status: "MATCHED",
       sessionId: "live-session-123",
+      specialization: "FRONTEND",
+      level: "MIDDLE",
     });
     expect(redisMock.eval).toHaveBeenCalledWith(
       MATCH_OR_ENQUEUE_LUA,
@@ -157,6 +169,8 @@ describe("DashboardLiveMatchService", () => {
 
     expect(res).toEqual({
       status: "SEARCHING",
+      specialization: "FRONTEND",
+      level: "MIDDLE",
       estimatedWaitSeconds: 45,
     });
     expect(sessionsServiceMock.createLiveMatchSession).toHaveBeenCalledWith(
@@ -200,6 +214,8 @@ describe("DashboardLiveMatchService", () => {
     expect(res).toEqual({
       status: "MATCHED",
       sessionId: "live-session-123",
+      specialization: "FRONTEND",
+      level: "MIDDLE",
     });
     // Ни партнёр, ни пользователь НЕ возвращаются в очередь!
     expect(redisMock.zadd).not.toHaveBeenCalled();
@@ -215,5 +231,98 @@ describe("DashboardLiveMatchService", () => {
       "live_match:notify:partner-2",
       JSON.stringify({ sessionId: "live-session-123" }),
     );
+  });
+
+  describe("getLiveMatchStatus", () => {
+    it("should return IDLE when user has no active queue", async () => {
+      redisMock.get.mockResolvedValue(null);
+
+      const status = await service.getLiveMatchStatus("user-1");
+
+      expect(status).toEqual({ status: "IDLE" });
+    });
+
+    it("should return MATCHED if user recently matched and clear matched key", async () => {
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "live_user_matched:user-1") {
+          return JSON.stringify({
+            sessionId: "session-matched-456",
+            specialization: "FRONTEND",
+            level: "MIDDLE",
+          });
+        }
+        return null;
+      });
+
+      const status = await service.getLiveMatchStatus("user-1");
+
+      expect(status).toEqual({
+        status: "MATCHED",
+        sessionId: "session-matched-456",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+      });
+      expect(redisMock.delete).toHaveBeenCalledWith("live_user_matched:user-1");
+    });
+
+    it("should return SEARCHING with specialization and level when user is currently in queue", async () => {
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "live_user_queue:user-1") {
+          return JSON.stringify({
+            specialization: "FRONTEND",
+            level: "MIDDLE",
+            enqueuedAt: Date.now(),
+          });
+        }
+        return null;
+      });
+      redisMock.zscore.mockResolvedValue(Date.now());
+
+      const status = await service.getLiveMatchStatus("user-1");
+
+      expect(status).toEqual({
+        status: "SEARCHING",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        estimatedWaitSeconds: 45,
+      });
+    });
+
+    it("should clean up and return IDLE when queue item has expired (> 5 minutes)", async () => {
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "live_user_queue:user-1") {
+          return JSON.stringify({
+            specialization: "FRONTEND",
+            level: "MIDDLE",
+            enqueuedAt: Date.now() - 6 * 60 * 1000,
+          });
+        }
+        return null;
+      });
+
+      const status = await service.getLiveMatchStatus("user-1");
+
+      expect(status).toEqual({ status: "IDLE" });
+      expect(redisMock.delete).toHaveBeenCalledWith("live_user_queue:user-1");
+    });
+
+    it("should clean up and return IDLE when user is no longer in Redis ZSET", async () => {
+      redisMock.get.mockImplementation(async (key: string) => {
+        if (key === "live_user_queue:user-1") {
+          return JSON.stringify({
+            specialization: "FRONTEND",
+            level: "MIDDLE",
+            enqueuedAt: Date.now(),
+          });
+        }
+        return null;
+      });
+      redisMock.zscore.mockResolvedValue(null);
+
+      const status = await service.getLiveMatchStatus("user-1");
+
+      expect(status).toEqual({ status: "IDLE" });
+      expect(redisMock.delete).toHaveBeenCalledWith("live_user_queue:user-1");
+    });
   });
 });

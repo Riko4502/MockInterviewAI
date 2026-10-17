@@ -18,7 +18,7 @@ vi.mock("@packages/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@packages/api")>();
   return {
     ...actual,
-    useAuthControllerTelegramLink: () => ({
+    useTelegramControllerCreateLinkToken: () => ({
       mutate: linkTelegramMutateMock,
       isPending: false,
     }),

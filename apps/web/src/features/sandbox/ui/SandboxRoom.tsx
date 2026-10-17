@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { validate as isValidUUID } from "uuid";
 import { authToken } from "@/shared/api";
 import "@/shared/lib/i18n";
+import { useSandboxStore } from "../model/useSandboxStore";
 import { SandboxRoomError } from "./SandboxRoomError";
 import { SandboxRoomLoading } from "./SandboxRoomLoading";
 import { SandboxRoomWorkspace } from "./SandboxRoomWorkspace";
@@ -25,6 +26,15 @@ export function SandboxRoom({ onSessionReady }: SandboxRoomProps = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useTranslation("interview");
+
+  const problemId = searchParams.get("problemId");
+  const setTaskId = useSandboxStore((s) => s.setTaskId);
+
+  useEffect(() => {
+    if (problemId) {
+      setTaskId(problemId);
+    }
+  }, [problemId, setTaskId]);
 
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);

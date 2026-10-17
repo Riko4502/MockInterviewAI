@@ -1118,6 +1118,20 @@ paths:
       security: *a8
       summary: Включить или выключить режим мгновенного поиска напарника
       tags: *a9
+  /api/v1/dashboard/live-match/status:
+    get:
+      operationId: DashboardController_getLiveMatchStatus
+      parameters: []
+      responses:
+        "200":
+          description: Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveMatchStatusResponseDto"
+      security: *a8
+      summary: Получить текущий статус живого поиска напарника
+      tags: *a9
   /api/v1/dashboard/match-requests:
     get:
       operationId: DashboardController_getMatchRequests
@@ -1716,6 +1730,24 @@ paths:
       security: *a14
       summary: Cancel a scheduled or processing campaign
       tags: *a15
+  /api/v1/telegram/link-token:
+    post:
+      operationId: TelegramController_createLinkToken
+      parameters: []
+      responses:
+        "200":
+          description: Ссылка на привязку Telegram
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkTokenResponseDto"
+        "401":
+          description: Не авторизован
+        "429":
+          description: Слишком много запросов
+      summary: Генерация одноразового токена привязки Telegram
+      tags:
+        - telegram
   /api/v1/showcase:
     get:
       operationId: ShowcaseController_findAll
@@ -3548,8 +3580,6 @@ components:
             - LEAD
       required:
         - isSearching
-        - specialization
-        - level
     LiveMatchStatusResponseDto:
       type: object
       properties:
@@ -3568,6 +3598,24 @@ components:
           type: integer
           minimum: -9007199254740991
           maximum: 9007199254740991
+        specialization:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - FULLSTACK
+            - DEVOPS
+            - QA
+            - MOBILE
+            - DATA_ML
+            - SYSTEM_DESIGN
+        level:
+          type: string
+          enum:
+            - JUNIOR
+            - MIDDLE
+            - SENIOR
+            - LEAD
       required:
         - status
     DashboardMatchRequestsResponseDto:
@@ -6113,3 +6161,11 @@ components:
             - INACTIVE
       required:
         - status
+    LinkTokenResponseDto:
+      type: object
+      properties:
+        linkUrl:
+          type: string
+          minLength: 1
+      required:
+        - linkUrl

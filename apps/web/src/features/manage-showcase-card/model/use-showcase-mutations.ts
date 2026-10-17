@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  getDashboardControllerGetReadinessQueryKey,
+  getDashboardControllerGetShowcaseStatusQueryKey,
   getShowcaseControllerFindAllQueryKey,
   getShowcaseControllerFindMyQueryKey,
   getShowcaseControllerFindOneQueryKey,
@@ -54,6 +56,12 @@ export function useShowcaseMutations() {
       }),
       queryClient.invalidateQueries({
         queryKey: getShowcaseControllerFindAllQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetShowcaseStatusQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetReadinessQueryKey(),
       }),
       queryClient.invalidateQueries({
         queryKey: ["dashboard"],
