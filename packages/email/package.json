@@ -22,16 +22,16 @@
     "@packages/i18n": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
-    "@react-email/ui": "6.11.0",
+    "@biomejs/biome": "2.5.15",
+    "@react-email/ui": "6.11.2",
     "@types/node": "^24",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "react-email": "^6.11.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react-email": "^6.11.2",
     "typescript": "^5"
   }
 }
