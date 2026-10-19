@@ -58,6 +58,7 @@ const baseUser: UserProfileDto = {
   githubLinkVerified: false,
   theme: "dark",
   locale: "ru",
+  timezone: "Europe/Moscow",
   role: "USER",
   permissions: "0",
   createdAt: "2026-01-01T00:00:00.000Z",

@@ -28,6 +28,7 @@ const defaultValues: ShowcaseFormValues = {
   scheduleInfo: "",
   isUrgent: false,
   autoRenew: false,
+  slots: [],
 };
 
 export interface CreateCardDialogProps {
@@ -51,6 +52,8 @@ export function CreateCardDialog({
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : internalOpen;
 
+  const authorTimezone = user?.timezone || "UTC";
+
   const handleOpenChange = (next: boolean) => {
     if (isCreating) return;
     if (!isControlled) {
@@ -66,8 +69,9 @@ export function CreateCardDialog({
           key: string,
           options?: Record<string, unknown>,
         ) => string,
+        authorTimezone,
       ),
-    [t],
+    [t, authorTimezone],
   );
 
   const form = useForm<ShowcaseFormValues>({
@@ -154,7 +158,11 @@ export function CreateCardDialog({
             <div className="grid gap-6 lg:grid-cols-12 items-start py-2">
               {/* Левая колонка: Форма ввода данных */}
               <div className="lg:col-span-7 flex flex-col gap-4">
-                <ShowcaseCardForm form={form} onSubmit={handleSubmitForm} />
+                <ShowcaseCardForm
+                  form={form}
+                  onSubmit={handleSubmitForm}
+                  authorTimezone={authorTimezone}
+                />
               </div>
 
               {/* Правая колонка: Live Preview */}
@@ -162,6 +170,7 @@ export function CreateCardDialog({
                 <ShowcaseCardLivePreview
                   values={watchedValues}
                   user={user}
+                  authorTimezone={authorTimezone}
                   className="rounded-2xl border border-border/70 bg-card/60 p-4 shadow-xs"
                 />
               </div>

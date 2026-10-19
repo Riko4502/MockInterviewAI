@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/entities/session";
+import { getBrowserTimezone } from "@/entities/user";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import { getErrorMessage } from "../../lib/getErrorMessage";
@@ -39,7 +40,9 @@ export function LoginForm() {
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate({ data });
+    loginMutation.mutate({
+      data: { ...data, timezone: getBrowserTimezone() },
+    });
   };
 
   return (

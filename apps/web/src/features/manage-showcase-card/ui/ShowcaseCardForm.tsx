@@ -16,10 +16,12 @@ import type { ShowcaseFormValues } from "../model/showcase-form-schema";
 import { useSkillSuggestions } from "../model/use-skill-suggestions";
 import { ShowcaseCardSettings } from "./ShowcaseCardSettings";
 import { SkillSuggestionButton } from "./SkillSuggestionButton";
+import { SlotPickerField } from "./SlotPickerField";
 
 export interface ShowcaseCardFormProps {
   form: UseFormReturn<ShowcaseFormValues>;
   onSubmit: (values: ShowcaseFormValues) => void;
+  authorTimezone: string;
   className?: string;
   disableSpecialization?: boolean;
 }
@@ -27,6 +29,7 @@ export interface ShowcaseCardFormProps {
 export function ShowcaseCardForm({
   form,
   onSubmit,
+  authorTimezone,
   className,
   disableSpecialization = false,
 }: ShowcaseCardFormProps) {
@@ -44,6 +47,11 @@ export function ShowcaseCardForm({
   const currentSkills = watch("skills") || [];
   const currentBio = watch("bio") || "";
   const currentSchedule = watch("scheduleInfo") || "";
+  const currentSlots = watch("slots") || [];
+
+  // Слоты вытесняют свободный текст (ADR-002:63; showcase.mapper.ts:67): пока
+  // задан хотя бы один слот, поле «Удобное время и формат» не показывается.
+  const hasSlots = currentSlots.length > 0;
 
   const popularSkills = useSkillSuggestions(currentSpecialization);
 
@@ -246,26 +254,31 @@ export function ShowcaseCardForm({
           </Field.Content>
         </Field>
 
-        {/* Расписание / доступное время */}
-        <Field invalid={!!errors.scheduleInfo}>
-          <Field.Label className="flex items-center justify-between">
-            <span>{t("form.scheduleLabel")}</span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {currentSchedule.length}/300
-            </span>
-          </Field.Label>
-          <Field.Content>
-            <Input
-              placeholder={t("form.schedulePlaceholder")}
-              maxLength={300}
-              {...register("scheduleInfo")}
-            />
-            <Field.Error>{errors.scheduleInfo?.message}</Field.Error>
-          </Field.Content>
-        </Field>
+        {/* Расписание / доступное время (скрывается при наличии слотов) */}
+        {!hasSlots && (
+          <Field invalid={!!errors.scheduleInfo}>
+            <Field.Label className="flex items-center justify-between">
+              <span>{t("form.scheduleLabel")}</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                {currentSchedule.length}/300
+              </span>
+            </Field.Label>
+            <Field.Content>
+              <Input
+                placeholder={t("form.schedulePlaceholder")}
+                maxLength={300}
+                {...register("scheduleInfo")}
+              />
+              <Field.Error>{errors.scheduleInfo?.message}</Field.Error>
+            </Field.Content>
+          </Field>
+        )}
 
         {/* Переключатели isUrgent и autoRenew */}
         <ShowcaseCardSettings control={control} />
+
+        {/* Конструктор слотов доступности */}
+        <SlotPickerField control={control} authorTimezone={authorTimezone} />
       </div>
     </form>
   );

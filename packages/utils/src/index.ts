@@ -5,6 +5,7 @@ export {
   type FormatDateTimeOptions,
   formatDateTime,
   formatInstantInTimeZone,
+  INSTANT_LOCALES,
 } from "./datetime/format";
 export {
   LOCAL_DATE_TIME_REGEX,

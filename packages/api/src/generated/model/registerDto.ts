@@ -20,4 +20,5 @@ export interface RegisterDto {
   password: string;
   /** @minLength 1 */
   passwordConfirmation: string;
+  timezone?: string;
 }

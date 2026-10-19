@@ -129,7 +129,7 @@ apps/web/src/
 
 ## 4. Интеграция в форму профиля (`UpdateProfileForm.tsx`)
 
-В [`UpdateProfileForm.tsx`](file:///d:/%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D1%8B/MockInterviewAI/apps/web/src/features/update-profile/ui/UpdateProfileForm.tsx):
+В [`UpdateProfileForm.tsx`](../../apps/web/src/features/update-profile/ui/UpdateProfileForm.tsx):
 1. Добавляем тип вкладки: `type ProfileTab = "general" | "accounts" | "security" | "notifications";`
 2. В `Tabs.List` добавляем кнопку с `BellIcon`:
    ```tsx
