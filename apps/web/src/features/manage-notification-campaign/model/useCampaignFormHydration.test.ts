@@ -27,10 +27,12 @@ describe("useCampaignFormHydration", () => {
     updatedAt: "2026-05-01T10:00:00.000Z",
     cancelledAt: null,
     cancellationReason: null,
-    creatorId: null,
     cancelledById: null,
     creator: null,
     recipientUserIds: ["user-1"],
+    readCount: 0,
+    lastProcessedUserId: null,
+    createdById: null,
   };
 
   it("hydrates form on first load, but ignores background refetches with the same campaign id", async () => {
