@@ -37,7 +37,7 @@
       "themeTooltip": "Current editor theme: {{theme}}. Click to switch",
       "resetCodeTooltip": "Reset code to starter template",
       "resetCode": "Reset",
-      "runCodeTooltip": "Code execution is temporarily unavailable",
+      "runCodeTooltip": "Run code (execute solution)",
       "runCode": "Run Code"
     },
     "tabs": {
@@ -153,9 +153,12 @@
       },
       "time": "Time: {{time}} ms",
       "unavailable": "Code execution is temporarily unavailable.",
-      "running": "Running test cases...",
+      "running": "Executing code...",
       "allPassed": "All test cases passed successfully!",
       "passedCount": "Passed {{passed}} of {{total}} tests",
+      "executionSuccess": "Code executed successfully",
+      "executionFailed": "Code execution failed",
+      "checkLogsHint": "No test cases specified. Program output (stdout/stderr) is available in the Logs tab.",
       "testCase": "Test case {{number}}",
       "input": "Input:",
       "expected": "Expected:",

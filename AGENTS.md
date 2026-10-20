@@ -87,6 +87,10 @@ MockInterviewAI — монорепозиторий на pnpm и Turborepo.
 
 - `docs/STORAGE_S3.md`
 
+### Email & Notifications
+
+- `docs/EMAIL_ARCHITECTURE.md`
+
 ### Localization
 
 - `docs/I18N.md`

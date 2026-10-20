@@ -99,7 +99,11 @@ export class TelegramService {
    * @throws {GoneException} Токен не найден/истёк/использован или аккаунт удалён (410).
    * @throws {ConflictException} Чат уже привязан к аккаунту (409).
    */
-  async link(token: string, chatId: string): Promise<TelegramUserProfileDto> {
+  async link(
+    token: string,
+    chatId: string,
+    username?: string,
+  ): Promise<TelegramUserProfileDto> {
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const value = await this.redis.getdel(
       `${TELEGRAM_LINK_KEY_PREFIX}${tokenHash}`,
@@ -137,7 +141,12 @@ export class TelegramService {
     try {
       result = await this.prisma.user.updateMany({
         where: { id: user.id, telegramChatId: null },
-        data: { telegramChatId: chatId, telegramLocale: null },
+        data: {
+          telegramChatId: chatId,
+          telegramLocale: null,
+          telegramLinkVerified: true,
+          ...(username ? { telegramUsername: username } : {}),
+        },
       });
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "P2002") {
@@ -174,7 +183,11 @@ export class TelegramService {
   async unlink(chatId: string): Promise<{ success: true }> {
     const result = await this.prisma.user.updateMany({
       where: { telegramChatId: chatId },
-      data: { telegramChatId: null, telegramLocale: null },
+      data: {
+        telegramChatId: null,
+        telegramLocale: null,
+        telegramLinkVerified: false,
+      },
     });
 
     if (result.count === 0) {

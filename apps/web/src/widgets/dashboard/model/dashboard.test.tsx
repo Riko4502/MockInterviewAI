@@ -191,13 +191,16 @@ describe("Оптимистическое обновление поиска со�
 
   it("использует только серверный статус MATCHED и отклоняет одновременные переключения без повреждения кеша", async () => {
     let resolveRequest: (value: LiveMatchState) => void = () => {};
-    request = vi.fn(
-      () =>
-        new Promise<LiveMatchState>((resolve) => {
+    request = vi.fn((config?: RequestConfig) => {
+      if (config?.method === "POST") {
+        return new Promise<LiveMatchState>((resolve) => {
           resolveRequest = resolve;
-        }),
-    );
+        });
+      }
+      return Promise.resolve({ status: "IDLE" });
+    });
     client.setQueryData(DASHBOARD_KEYS.upcoming(), { hasUpcoming: false });
+    client.setQueryData(DASHBOARD_KEYS.liveMatch(), { status: "IDLE" });
     const { result } = renderHook(
       () => ({
         first: useLiveMatchMutation(),
@@ -210,7 +213,13 @@ describe("Оптимистическое обновление поиска со�
     act(() => {
       completion = result.current.first.mutateAsync({ data });
     });
-    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        (request as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+          (c) => (c[0] as RequestConfig | undefined)?.method === "POST",
+        ),
+      ).toBe(true),
+    );
     expect(client.getQueryData(DASHBOARD_KEYS.liveMatch())).toEqual({
       status: "SEARCHING",
     });
@@ -221,7 +230,12 @@ describe("Оптимистическое обновление поиска со�
         }),
       ).rejects.toThrow("already pending");
     });
-    expect(request).toHaveBeenCalledTimes(1);
+    const postCalls = (
+      request as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls.filter(
+      (c) => (c[0] as RequestConfig | undefined)?.method === "POST",
+    );
+    expect(postCalls).toHaveLength(1);
     expect(client.getQueryData(DASHBOARD_KEYS.liveMatch())).toEqual({
       status: "SEARCHING",
     });

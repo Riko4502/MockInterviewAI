@@ -1,5 +1,7 @@
 {
-  "roles": { "administrator": "Администратор" },
+  "roles": {
+    "administrator": "Администратор"
+  },
   "errors": {
     "forbiddenTitle": "Недостаточно прав",
     "forbiddenDescription": "У вас нет прав для выполнения этого действия."
@@ -19,6 +21,7 @@
   "navigation": {
     "administration": "Администрирование",
     "adminUsers": "Пользователи",
+    "adminNotifications": "Кампании уведомлений",
     "home": "Главная",
     "dashboard": "Панель управления",
     "notifications": "Уведомления",
@@ -69,16 +72,6 @@
     "themeDark": "Тёмная",
     "themeSystem": "Системная",
     "language": "Язык интерфейса",
-    "goalsTitle": "Цели подготовки",
-    "goalsSubtitle": "Ваша целевая специализация, грейд и компании для персонализации платформы.",
-    "goalsEmpty": "Цели подготовки пока не настроены.",
-    "goalsSetup": "Пройти онбординг",
-    "goalsChange": "Изменить цели",
-    "targetRole": "Специализация",
-    "targetLevel": "Целевой грейд",
-    "targetCompanies": "Целевые компании",
-    "targetTimeline": "Сроки подготовки",
-    "preferredFormat": "Основной формат",
     "dangerZoneTitle": "Опасная зона",
     "dangerZoneSubtitle": "Необратимые действия с аккаунтом.",
     "dangerZoneDescription": "После удаления ваш аккаунт будет деактивирован. В течение 30 дней его можно восстановить.",
@@ -138,7 +131,25 @@
       "username": "Имя пользователя: 3–30 символов, латиница, цифры, _ и -",
       "telegram": "Telegram: 5–32 символа, латиница, цифры и _",
       "gitUrl": "Укажите ссылку на профиль GitHub или GitLab"
-    }
+    },
+    "goalsTitle": "Цели подготовки",
+    "goalsSubtitle": "Ваша целевая специализация, грейд и компании для персонализации платформы.",
+    "goalsEmpty": "Цели подготовки пока не настроены.",
+    "goalsSetup": "Пройти онбординг",
+    "goalsChange": "Изменить цели",
+    "targetRole": "Специализация",
+    "targetLevel": "Целевой грейд",
+    "targetCompanies": "Целевые компании",
+    "targetTimeline": "Сроки подготовки",
+    "preferredFormat": "Основной формат",
+    "telegramOpenBot": "Открыть бота в Telegram",
+    "telegramCopyLink": "Скопировать ссылку",
+    "telegramLinkCopied": "Ссылка скопирована!",
+    "telegramStep1": "Нажмите кнопку «Открыть бота в Telegram» (или скопируйте ссылку).",
+    "telegramStep2": "В открывшемся чате с ботом нажмите «Запустить» (Start).",
+    "telegramStep3": "Бот мгновенно подтвердит привязку, и окно закроется.",
+    "telegramWaitingConfirmation": "Ожидание подтверждения из Telegram...",
+    "telegramTokenLoading": "Генерация персональной ссылки для привязки..."
   },
   "notifications": {
     "unreadAria": "Непрочитанные уведомления: {{count}}",
@@ -239,6 +250,148 @@
     },
     "systemActive": "AI СИСТЕМА АКТИВНА",
     "brandLabel": "MOCK INTERVIEW AI"
+  },
+  "adminUserPicker": {
+    "label": "Выберите получателей",
+    "searchPlaceholder": "Поиск пользователей по имени или email",
+    "results": "Результаты поиска пользователей",
+    "loading": "Поиск пользователей...",
+    "searchError": "Не удалось загрузить пользователей",
+    "startTyping": "Введите имя, email или username",
+    "empty": "Пользователи не найдены",
+    "bulkUnresolved": "Не удалось найти пользователей: {{count}}",
+    "selectedCount": "Выбрано получателей: {{count}}",
+    "bulkLabel": "Добавить пользователей списком",
+    "bulkPlaceholder": "Вставьте email или ID пользователей, разделяя их запятыми или пробелами",
+    "resolving": "Поиск пользователей...",
+    "addUsers": "Добавить пользователей",
+    "dismissError": "Закрыть сообщение об ошибке",
+    "removeUser": "Удалить пользователя {{name}}"
+  },
+  "adminNotifications": {
+    "status": {
+      "draft": "Черновик",
+      "scheduled": "Запланирована",
+      "processing": "Отправляется",
+      "completed": "Завершена",
+      "cancelled": "Отменена",
+      "failed": "Ошибка"
+    },
+    "progress": "{{sent}} / {{total}} ({{percentage}}%)",
+    "target": {
+      "all": "Все пользователи",
+      "specific": "Выбрано: {{count}}",
+      "specificAudience": "Выбранные пользователи"
+    },
+    "stats": {
+      "title": "Статистика кампании",
+      "recipients": "Получатели",
+      "sent": "Отправлено",
+      "read": "Прочитано",
+      "deliveryRate": "Доставка",
+      "readRate": "Доля прочтений"
+    },
+    "preview": {
+      "notificationCard": "Предпросмотр уведомления",
+      "browserToast": "Предпросмотр системного уведомления",
+      "justNow": "Только что",
+      "toggleBell": "Открыть или закрыть предпросмотр уведомлений",
+      "showToast": "Показать уведомление",
+      "hideToast": "Скрыть уведомление"
+    },
+    "title": "Кампании уведомлений",
+    "description": "Создание и управление массовыми уведомлениями.",
+    "actions": {
+      "create": "Создать кампанию",
+      "queue": "В очередь",
+      "sendNow": "Отправить сейчас"
+    },
+    "filters": {
+      "label": "Фильтры кампаний",
+      "search": "Поиск кампаний",
+      "status": "Статус",
+      "allStatuses": "Все статусы",
+      "target": "Аудитория",
+      "allTargets": "Все аудитории",
+      "sortOrder": "Порядок сортировки",
+      "ascending": "По возрастанию",
+      "descending": "По убыванию",
+      "recipient": "Получатель",
+      "recipientSearch": "Поиск по имени или email"
+    },
+    "table": {
+      "title": "Название",
+      "category": "Категория",
+      "target": "Аудитория",
+      "status": "Статус",
+      "scheduledAt": "Запланирована",
+      "createdAt": "Создана",
+      "counts": "Всего / отправлено / прочитано",
+      "actions": "Действия"
+    },
+    "empty": "Кампаний пока нет.",
+    "emptySearch": "По запросу кампании не найдены.",
+    "loadError": "Не удалось загрузить кампании.",
+    "toast": {
+      "created": "Кампания создана",
+      "updated": "Кампания обновлена",
+      "queued": "Кампания поставлена в очередь",
+      "cancelled": "Кампания отменена",
+      "deleted": "Кампания удалена",
+      "error": "Не удалось выполнить операцию. Попробуйте ещё раз."
+    },
+    "form": {
+      "createTitle": "Создать кампанию",
+      "editTitle": "Редактировать кампанию",
+      "description": "Составьте и запланируйте уведомление.",
+      "title": "Название",
+      "category": "Категория",
+      "message": "Сообщение",
+      "actionUrl": "Ссылка (необязательно)",
+      "target": "Аудитория",
+      "audienceEstimate": "Получателей: {{count}}",
+      "scheduledAt": "Время отправки",
+      "timingLabel": "Когда отправить",
+      "sendImmediately": "Отправить при ближайшей обработке",
+      "sendScheduled": "Запланировать дату и время",
+      "chooseDate": "Выберите дату",
+      "timeLabel": "Время отправки",
+      "saveDraft": "Сохранить черновик",
+      "schedule": "Запланировать",
+      "sendNow": "Отправить сейчас",
+      "restoringRecipients": "Восстанавливаем выбранных пользователей…",
+      "recipientRestoreError": "Не удалось загрузить некоторых получателей. Попробуйте ещё раз перед сохранением."
+    },
+    "validation": {
+      "title": "Введите название длиной от 1 до 200 символов.",
+      "message": "Введите сообщение длиной от 1 до 2000 символов.",
+      "url": "Укажите относительный URL или URL с HTTPS.",
+      "recipients": "Выберите от 1 до 1000 уникальных пользователей.",
+      "scheduledAt": "Выберите время в будущем."
+    },
+    "details": {
+      "title": "Детали кампании",
+      "description": "Статус и статистика доставки.",
+      "scheduledAt": "Запланирована",
+      "sentAt": "Отправлена",
+      "completedAt": "Завершена",
+      "createdAt": "Создана",
+      "creator": "Автор",
+      "category": "Категория",
+      "actionUrl": "Ссылка действия",
+      "cancelledAt": "Отменена",
+      "cancelledBy": "Отменил администратор"
+    },
+    "confirm": {
+      "deleteTitle": "Удалить кампанию?",
+      "deleteDescription": "Кампания будет удалена без возможности восстановления.",
+      "cancelTitle": "Отменить кампанию?",
+      "cancelDescription": "Обработка кампании будет остановлена."
+    },
+    "pagination": {
+      "label": "Страницы кампаний",
+      "total": "Всего кампаний: {{count}}"
+    }
   },
   "onboarding": {
     "stepCounter": "Шаг {{current}} из {{total}}",

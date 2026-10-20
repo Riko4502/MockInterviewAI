@@ -163,6 +163,27 @@ export class DashboardController {
   }
 
   /**
+   * 4.1. Текущий статус живого поиска напарника (Live Match).
+   */
+  @Get("live-match/status")
+  @ApiOperation({
+    summary: "Получить текущий статус живого поиска напарника",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)",
+    schema: registerSchema(
+      "LiveMatchStatusResponseDto",
+      liveMatchStatusResponseSchema,
+    ),
+  })
+  async getLiveMatchStatus(
+    @CurrentUser("sub") userId: string,
+  ): Promise<LiveMatchStatusResponseDto> {
+    return this.liveMatchService.getLiveMatchStatus(userId);
+  }
+
+  /**
    * 5. Входящие заявки на собеседование (MatchRequest).
    */
   @Get("match-requests")

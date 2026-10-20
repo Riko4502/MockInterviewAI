@@ -1778,6 +1778,31 @@
         "tags": ["Dashboard"]
       }
     },
+    "/api/v1/dashboard/live-match/status": {
+      "get": {
+        "operationId": "DashboardController_getLiveMatchStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Текущий статус поиска напарника (IDLE, SEARCHING, MATCHED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveMatchStatusResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Получить текущий статус живого поиска напарника",
+        "tags": ["Dashboard"]
+      }
+    },
     "/api/v1/dashboard/match-requests": {
       "get": {
         "operationId": "DashboardController_getMatchRequests",
@@ -2294,7 +2319,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Active, non-deleted recipient count",
+            "description": "Количество активных пользователей, не удалённых из системы",
             "content": {
               "application/json": {
                 "schema": {
@@ -2309,7 +2334,7 @@
             "bearer": []
           }
         ],
-        "summary": "Estimate active notification campaign recipients",
+        "summary": "Оценить количество получателей кампании",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2321,6 +2346,7 @@
             "name": "sortOrder",
             "required": false,
             "in": "query",
+            "description": "Направление сортировки",
             "schema": {
               "enum": ["asc", "desc"],
               "type": "string"
@@ -2330,8 +2356,19 @@
             "name": "sortBy",
             "required": false,
             "in": "query",
+            "description": "Поле, по которому сортировать кампании",
             "schema": {
               "enum": ["createdAt", "scheduledAt", "sentAt"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipientUserId",
+            "required": false,
+            "in": "query",
+            "description": "UUID пользователя, входящего в аудиторию кампании",
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -2339,6 +2376,7 @@
             "name": "targetType",
             "required": false,
             "in": "query",
+            "description": "Фильтр по типу аудитории кампании",
             "schema": {
               "enum": ["ALL", "SPECIFIC"],
               "type": "string"
@@ -2348,6 +2386,7 @@
             "name": "status",
             "required": false,
             "in": "query",
+            "description": "Фильтр по статусу кампании",
             "schema": {
               "enum": [
                 "DRAFT",
@@ -2364,6 +2403,7 @@
             "name": "search",
             "required": false,
             "in": "query",
+            "description": "Поиск кампаний по названию",
             "schema": {
               "type": "string"
             }
@@ -2372,6 +2412,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "Количество кампаний на странице",
             "schema": {
               "type": "number"
             }
@@ -2380,6 +2421,7 @@
             "name": "page",
             "required": false,
             "in": "query",
+            "description": "Номер страницы, начиная с 1",
             "schema": {
               "type": "number"
             }
@@ -2387,7 +2429,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated campaigns",
+            "description": "Страница кампаний с общим количеством записей",
             "content": {
               "application/json": {
                 "schema": {
@@ -2402,7 +2444,7 @@
             "bearer": []
           }
         ],
-        "summary": "List notification campaigns",
+        "summary": "Получить список кампаний уведомлений",
         "tags": ["Admin / Notification Campaigns"]
       },
       "post": {
@@ -2470,7 +2512,7 @@
         },
         "responses": {
           "201": {
-            "description": "Campaign created for asynchronous scheduling",
+            "description": "Кампания создана и передана на асинхронную обработку",
             "content": {
               "application/json": {
                 "schema": {
@@ -2485,7 +2527,7 @@
             "bearer": []
           }
         ],
-        "summary": "Create a notification campaign",
+        "summary": "Создать кампанию уведомлений",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2497,6 +2539,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2505,7 +2548,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Campaign details, including recipient IDs",
+            "description": "Данные кампании, включая идентификаторы выбранных получателей",
             "content": {
               "application/json": {
                 "schema": {
@@ -2520,7 +2563,7 @@
             "bearer": []
           }
         ],
-        "summary": "Get notification campaign details",
+        "summary": "Получить подробную информацию о кампании",
         "tags": ["Admin / Notification Campaigns"]
       },
       "patch": {
@@ -2530,6 +2573,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2588,7 +2632,7 @@
         },
         "responses": {
           "200": {
-            "description": "Campaign updated",
+            "description": "Данные кампании обновлены",
             "content": {
               "application/json": {
                 "schema": {
@@ -2603,7 +2647,7 @@
             "bearer": []
           }
         ],
-        "summary": "Update a draft or scheduled campaign",
+        "summary": "Обновить черновик или запланированную кампанию",
         "tags": ["Admin / Notification Campaigns"]
       },
       "delete": {
@@ -2613,6 +2657,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2621,7 +2666,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Campaign deleted"
+            "description": "Кампания удалена"
           }
         },
         "security": [
@@ -2629,7 +2674,7 @@
             "bearer": []
           }
         ],
-        "summary": "Delete a draft or cancelled campaign",
+        "summary": "Удалить черновик или отменённую кампанию",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2641,6 +2686,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2649,7 +2695,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Campaign queued",
+            "description": "Кампания добавлена в очередь на отправку",
             "content": {
               "application/json": {
                 "schema": {
@@ -2664,7 +2710,7 @@
             "bearer": []
           }
         ],
-        "summary": "Queue a draft campaign for asynchronous delivery",
+        "summary": "Поставить черновик кампании в очередь на отправку",
         "tags": ["Admin / Notification Campaigns"]
       }
     },
@@ -2676,6 +2722,7 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "description": "UUID кампании",
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -2684,6 +2731,7 @@
         ],
         "requestBody": {
           "required": false,
+          "description": "Необязательная причина отмены кампании",
           "content": {
             "application/json": {
               "schema": {
@@ -2694,7 +2742,7 @@
         },
         "responses": {
           "200": {
-            "description": "Campaign cancelled",
+            "description": "Кампания отменена",
             "content": {
               "application/json": {
                 "schema": {
@@ -2709,8 +2757,34 @@
             "bearer": []
           }
         ],
-        "summary": "Cancel a scheduled or processing campaign",
+        "summary": "Отменить запланированную или обрабатываемую кампанию",
         "tags": ["Admin / Notification Campaigns"]
+      }
+    },
+    "/api/v1/telegram/link-token": {
+      "post": {
+        "operationId": "TelegramController_createLinkToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Ссылка на привязку Telegram",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTokenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Не авторизован"
+          },
+          "429": {
+            "description": "Слишком много запросов"
+          }
+        },
+        "summary": "Генерация одноразового токена привязки Telegram",
+        "tags": ["telegram"]
       }
     },
     "/api/v1/showcase": {
@@ -3510,6 +3584,38 @@
         ],
         "summary": "Отменить свою исходящую заявку на собеседование",
         "tags": ["Matchmaking"]
+      }
+    },
+    "/api/v1/code/run": {
+      "post": {
+        "description": "Отправляет код на исполнение в Judge0 через сервис apps/code-runner, возвращая stdout, stderr, время выполнения и статус.",
+        "operationId": "CodeRunnerController_run",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Тело запроса, валидируется соответствующей zod-схемой.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCodeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Результат выполнения кода",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCodeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Запустить код пользователя в изолированной песочнице",
+        "tags": ["Code"]
       }
     }
   },
@@ -4687,6 +4793,101 @@
         },
         "required": ["isActive"]
       },
+      "RunCodeRequestDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1
+          },
+          "taskKey": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "stdin": {
+            "default": "",
+            "type": "string",
+            "maxLength": 65536
+          },
+          "timeoutMs": {
+            "default": 3000,
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 10000
+          }
+        },
+        "required": ["code", "language"]
+      },
+      "RunCodeResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Успешность выполнения программы"
+          },
+          "totalTests": {
+            "type": "number",
+            "description": "Общее число тестов"
+          },
+          "passedTests": {
+            "type": "number",
+            "description": "Число пройденных тестов"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Результаты тест-кейсов"
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Логи вывода stdout/stderr"
+          },
+          "totalTimeMs": {
+            "type": "number",
+            "description": "Время выполнения в мс"
+          },
+          "status": {
+            "type": "string",
+            "description": "Статус выполнения (SUCCESS, RUNTIME_ERROR, etc.)"
+          },
+          "stdout": {
+            "type": "string",
+            "description": "Сырой stdout"
+          },
+          "stderr": {
+            "type": "string",
+            "description": "Сырой stderr"
+          },
+          "exitCode": {
+            "type": "number",
+            "description": "Код выхода процесса"
+          },
+          "memoryUsageBytes": {
+            "type": "number",
+            "description": "Пиковое потребление памяти в байтах"
+          }
+        },
+        "required": [
+          "success",
+          "totalTests",
+          "passedTests",
+          "results",
+          "logs",
+          "totalTimeMs"
+        ]
+      },
       "CreateSessionResponseDto": {
         "type": "object",
         "properties": {
@@ -4966,7 +5167,7 @@
             "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
           }
         },
-        "required": ["isSearching", "specialization", "level"]
+        "required": ["isSearching"]
       },
       "LiveMatchStatusResponseDto": {
         "type": "object",
@@ -4985,6 +5186,23 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "specialization": {
+            "type": "string",
+            "enum": [
+              "FRONTEND",
+              "BACKEND",
+              "FULLSTACK",
+              "DEVOPS",
+              "QA",
+              "MOBILE",
+              "DATA_ML",
+              "SYSTEM_DESIGN"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["JUNIOR", "MIDDLE", "SENIOR", "LEAD"]
           }
         },
         "required": ["status"]
@@ -7936,6 +8154,16 @@
           }
         },
         "required": ["status"]
+      },
+      "LinkTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "linkUrl": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["linkUrl"]
       }
     }
   }

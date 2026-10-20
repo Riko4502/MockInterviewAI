@@ -109,6 +109,8 @@ jobs:
               - 'packages/dto/**'
               - 'packages/types/**'
               - 'packages/utils/**'
+              - 'packages/email/**'
+              - 'packages/i18n/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'

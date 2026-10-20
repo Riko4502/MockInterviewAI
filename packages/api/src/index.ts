@@ -17,9 +17,11 @@
  *    - `usersController*`, `useUsersController*`
  */
 
+export * from "./generated/endpoints/admin-notification-campaigns/admin-notification-campaigns";
 // Generated API functions & TanStack Query v5 hooks
 export * from "./generated/endpoints/admin-users/admin-users";
 export * from "./generated/endpoints/auth/auth";
+export * from "./generated/endpoints/code/code";
 export * from "./generated/endpoints/dashboard/dashboard";
 export * from "./generated/endpoints/health/health";
 export * from "./generated/endpoints/matchmaking/matchmaking";
@@ -28,6 +30,7 @@ export * from "./generated/endpoints/profile/profile";
 export * from "./generated/endpoints/realtime/realtime";
 export * from "./generated/endpoints/sessions/sessions";
 export * from "./generated/endpoints/showcase/showcase";
+export * from "./generated/endpoints/telegram/telegram";
 export * from "./generated/endpoints/users/users";
 // Generated DTO models
 export * from "./generated/model";

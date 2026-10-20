@@ -24,6 +24,7 @@ export const linkRequestSchema = z.object({
       CHAT_ID_MAX,
       `chatId должен содержать максимум ${CHAT_ID_MAX} символа`,
     ),
+  username: z.string().max(64).optional(),
 });
 
 export type LinkRequest = z.infer<typeof linkRequestSchema>;

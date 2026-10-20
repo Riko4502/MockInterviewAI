@@ -11,6 +11,18 @@
     "interview.slot_booked": {
       "title": "Slot confirmed",
       "message": "{{otherParticipantName}} confirmed the interview at {{startUtc}}."
+    },
+    "interview.match_request_received": {
+      "title": "New interview request",
+      "message": "{{senderName}} sent you a mock interview request."
+    },
+    "interview.reminder_15m": {
+      "title": "Interview starting soon",
+      "message": "Mock interview with {{otherParticipantName}} starts in 15 minutes (at {{startUtc}})."
+    },
+    "interview.partner_joined": {
+      "title": "Partner joined",
+      "message": "{{partnerName}} has entered the interview room. Join now!"
     }
   },
   "fallback": {

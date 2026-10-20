@@ -6,7 +6,7 @@
 
 ## 1. Назначение и стек
 
-* **Язык:** Go 1.26 (go.mod: `go 1.26.6`)
+* **Язык:** Go 1.26 (go.mod: `go 1.26.9`)
 * **WebSocket:** `github.com/coder/websocket` (быстрый, идиоматичный, без аллокаций)
 * **HTTP Router:** `github.com/go-chi/chi/v5`
 * **Кэш и шина событий:** Redis (Pub/Sub)

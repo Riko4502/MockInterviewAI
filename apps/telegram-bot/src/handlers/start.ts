@@ -38,6 +38,7 @@ export async function startHandler(ctx: TgCommandContext): Promise<void> {
     const profile = await apiPost<TelegramUserProfileDto>("/telegram/link", {
       token,
       chatId: String(ctx.chat.id),
+      ...(ctx.from?.username ? { username: ctx.from.username } : {}),
     });
 
     const locale = resolveLocale(
@@ -48,6 +49,10 @@ export async function startHandler(ctx: TgCommandContext): Promise<void> {
     await ctx.reply(t(locale, "start.linked"));
     await ctx.reply(t(locale, "start.linkedHint"));
   } catch (err) {
+    console.error(
+      `[telegram-bot] /start link error for chat ${ctx.chat.id}:`,
+      err,
+    );
     if (err instanceof ApiError) {
       if (err.status === 409) {
         await ctx.reply(t(fallbackLocale, "start.alreadyLinked"));
@@ -61,6 +66,19 @@ export async function startHandler(ctx: TgCommandContext): Promise<void> {
         await ctx.reply(t(fallbackLocale, "start.linkError"));
         return;
       }
+      if (err.status === 404) {
+        await ctx.reply(t(fallbackLocale, "errors.apiUnavailable"));
+        return;
+      }
+    }
+    const errMessage = err instanceof Error ? err.message : String(err);
+    if (
+      errMessage.includes("fetch failed") ||
+      errMessage.includes("Timeout") ||
+      errMessage.includes("ECONNREFUSED")
+    ) {
+      await ctx.reply(t(fallbackLocale, "errors.apiUnavailable"));
+      return;
     }
     await ctx.reply(t(fallbackLocale, "errors.unexpected"));
   }

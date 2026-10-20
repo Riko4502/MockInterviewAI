@@ -15,6 +15,15 @@ function readPackage(pkg) {
     pkg.dependencies["fast-uri"] = "^3.1.8";
   }
 
+  // Исправление уязвимостей next (GHSA-vcvr-r3jv-pc5j)
+  if (pkg.dependencies?.next?.startsWith("16.3.3")) {
+    pkg.dependencies.next = "16.3.8";
+  }
+
+  if (pkg.dependencies?.["html-to-text"]) {
+    pkg.dependencies["html-to-text"] = "^10.0.1";
+  }
+
   if (pkg.dependencies?.multer) {
     pkg.dependencies.multer = "^2.4.0";
   }

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { MailModule } from "../mail/mail.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { SessionsModule } from "../sessions/sessions.module";
 import { MatchmakingController } from "./matchmaking.controller";
@@ -21,7 +22,7 @@ import { MatchmakingCronService } from "./matchmaking-cron.service";
  * на которые ведут принятые заявки.
  */
 @Module({
-  imports: [NotificationsModule, SessionsModule],
+  imports: [NotificationsModule, SessionsModule, MailModule],
   controllers: [MatchmakingController],
   providers: [MatchmakingService, MatchmakingCronService],
   exports: [MatchmakingService],

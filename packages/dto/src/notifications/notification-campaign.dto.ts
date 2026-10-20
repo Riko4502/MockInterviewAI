@@ -157,6 +157,7 @@ export const notificationCampaignsQuerySchema = z.object({
   search: z.string().trim().optional(),
   status: notificationCampaignStatusSchema.optional(),
   targetType: notificationTargetTypeSchema.optional(),
+  recipientUserId: z.uuid().optional(),
   sortBy: z.enum(["createdAt", "scheduledAt", "sentAt"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });

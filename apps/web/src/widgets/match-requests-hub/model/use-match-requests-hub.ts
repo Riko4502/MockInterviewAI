@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  getDashboardControllerGetMatchRequestsQueryKey,
+  getDashboardControllerGetUpcomingQueryKey,
   getMatchmakingControllerFindIncomingQueryKey,
   getMatchmakingControllerFindOutgoingQueryKey,
   getMatchmakingControllerGetUnreadCountQueryKey,
@@ -53,6 +55,12 @@ export function useMatchRequestsHub() {
       }),
       queryClient.invalidateQueries({
         queryKey: getShowcaseControllerFindMyQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetMatchRequestsQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getDashboardControllerGetUpcomingQueryKey(),
       }),
     ]);
   };

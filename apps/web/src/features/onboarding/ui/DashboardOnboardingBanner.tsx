@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  getDashboardControllerGetReadinessQueryKey,
   getProfileControllerGetMyProfileQueryKey,
   useProfileControllerCompleteOnboarding,
 } from "@packages/api";
@@ -37,6 +38,9 @@ export function DashboardOnboardingBanner() {
         onSuccess: () => {
           void queryClient.invalidateQueries({
             queryKey: getProfileControllerGetMyProfileQueryKey(),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: getDashboardControllerGetReadinessQueryKey(),
           });
         },
       },

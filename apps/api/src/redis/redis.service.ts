@@ -363,6 +363,14 @@ end
   }
 
   /**
+   * Получает score элемента в Sorted Set (ZSCORE).
+   */
+  async zscore(key: string, member: string): Promise<number | null> {
+    const score = await this.client.zscore(key, member);
+    return score !== null ? Number(score) : null;
+  }
+
+  /**
    * Возвращает ключи, соответствующие шаблону,
    * через SCAN-итерацию.
    *

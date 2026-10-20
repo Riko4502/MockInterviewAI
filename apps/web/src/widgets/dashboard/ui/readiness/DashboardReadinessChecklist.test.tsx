@@ -77,15 +77,17 @@ describe("Список проверки готовности", () => {
     expect(
       screen.getByRole("button", { name: "Check camera and audio" }),
     ).toBeEnabled();
-    for (const name of [
-      "Confirm email",
-      "Link Telegram",
-      "Create a showcase profile",
-    ]) {
-      const action = screen.getByRole("button", { name });
-      expect(action).toBeDisabled();
-      expect(action).not.toHaveAttribute("aria-describedby");
-    }
+    expect(screen.getByRole("link", { name: "Confirm email" })).toHaveAttribute(
+      "href",
+      "/profile",
+    );
+    expect(screen.getByRole("link", { name: "Link Telegram" })).toHaveAttribute(
+      "href",
+      "/profile",
+    );
+    expect(
+      screen.getByRole("link", { name: "Create a showcase profile" }),
+    ).toHaveAttribute("href", "/dashboard/partners/new");
     expect(
       screen.getByRole("link", { name: "Take your first practice interview" }),
     ).toHaveAttribute("href", "/dashboard/sandbox");

@@ -75,6 +75,12 @@ describe("DashboardController", () => {
         status: "SEARCHING",
         estimatedWaitSeconds: 45,
       }),
+      getLiveMatchStatus: jest.fn().mockResolvedValue({
+        status: "SEARCHING",
+        specialization: "FRONTEND",
+        level: "MIDDLE",
+        estimatedWaitSeconds: 45,
+      }),
     };
 
     // getOrSet по умолчанию просто выполняет fallback функцию
@@ -126,6 +132,15 @@ describe("DashboardController", () => {
     expect(liveMatchServiceMock.toggleLiveMatch).toHaveBeenCalledWith(
       userId,
       payload,
+    );
+  });
+
+  it("should get live match status", async () => {
+    const res = await controller.getLiveMatchStatus(userId);
+    expect(res.status).toBe("SEARCHING");
+    expect(res.specialization).toBe("FRONTEND");
+    expect(liveMatchServiceMock.getLiveMatchStatus).toHaveBeenCalledWith(
+      userId,
     );
   });
 

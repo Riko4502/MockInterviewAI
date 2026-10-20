@@ -24,7 +24,7 @@ export function SandboxConsolePanel() {
           <Tabs.List size="sm" className="bg-muted/60 p-0.5">
             <Tabs.Trigger value="tests" className="gap-1.5 text-xs">
               {t("sandbox.console.tabs.tests")}
-              {runResult && (
+              {runResult && runResult.totalTests > 0 && (
                 <span
                   className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                     runResult.success
