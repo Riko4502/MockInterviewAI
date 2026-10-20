@@ -56,6 +56,7 @@ const initialUser = {
   gitUrl: null as string | null,
   theme: "dark" as "dark" | "light" | "system",
   locale: "ru" as "ru" | "en",
+  timezone: "Europe/Moscow",
 };
 
 let mockUserData = { ...initialUser };
@@ -77,6 +78,22 @@ vi.mock("@/entities/user", () => ({
   }),
   UserAvatar: ({ name }: { name?: string | null }) => (
     <div>{name ?? "avatar"}</div>
+  ),
+  TimezoneSelect: ({
+    value,
+    onValueChange,
+    disabled,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    disabled?: boolean;
+  }) => (
+    <input
+      aria-label="timezone"
+      value={value ?? ""}
+      disabled={disabled}
+      onChange={(event) => onValueChange(event.target.value)}
+    />
   ),
   setPreferenceCookies: (args: unknown) => setPreferenceCookiesMock(args),
 }));
@@ -198,6 +215,7 @@ describe("UpdateProfileForm", () => {
       gitUrl: string | null;
       theme: "dark";
       locale: "ru";
+      timezone: string;
     }) => void;
 
     act(() => {
@@ -208,6 +226,7 @@ describe("UpdateProfileForm", () => {
         gitUrl: "https://github.com/ivan_dev",
         theme: "dark",
         locale: "ru",
+        timezone: "Europe/Moscow",
       });
     });
 
@@ -300,6 +319,32 @@ describe("UpdateProfileForm", () => {
 
     expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
     expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("сохраняет выбранную IANA-таймзону профиля", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const timezoneInput = screen.getByLabelText("timezone");
+    expect(timezoneInput).toHaveValue("Europe/Moscow");
+
+    await user.clear(timezoneInput);
+    await user.type(timezoneInput, "Asia/Tokyo");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(mutateMock).toHaveBeenCalledWith(
+        {
+          data: {
+            timezone: "Asia/Tokyo",
+          },
+        },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        }),
+      );
+    });
   });
 
   it("блокирует сохранение, пока поля не изменились", async () => {

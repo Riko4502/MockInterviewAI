@@ -72,6 +72,18 @@
     "themeDark": "Тёмная",
     "themeSystem": "Системная",
     "language": "Язык интерфейса",
+    "timezone": "Часовой пояс",
+    "timezoneHelp": "Часовой пояс используется для отображения времени слотов и собеседований.",
+    "goalsTitle": "Цели подготовки",
+    "goalsSubtitle": "Ваша целевая специализация, грейд и компании для персонализации платформы.",
+    "goalsEmpty": "Цели подготовки пока не настроены.",
+    "goalsSetup": "Пройти онбординг",
+    "goalsChange": "Изменить цели",
+    "targetRole": "Специализация",
+    "targetLevel": "Целевой грейд",
+    "targetCompanies": "Целевые компании",
+    "targetTimeline": "Сроки подготовки",
+    "preferredFormat": "Основной формат",
     "dangerZoneTitle": "Опасная зона",
     "dangerZoneSubtitle": "Необратимые действия с аккаунтом.",
     "dangerZoneDescription": "После удаления ваш аккаунт будет деактивирован. В течение 30 дней его можно восстановить.",
@@ -150,6 +162,9 @@
     "telegramStep3": "Бот мгновенно подтвердит привязку, и окно закроется.",
     "telegramWaitingConfirmation": "Ожидание подтверждения из Telegram...",
     "telegramTokenLoading": "Генерация персональной ссылки для привязки..."
+      "gitUrl": "Укажите ссылку на профиль GitHub или GitLab",
+      "timezone": "Укажите корректную IANA-таймзону, например Europe/Moscow"
+    }
   },
   "notifications": {
     "unreadAria": "Непрочитанные уведомления: {{count}}",

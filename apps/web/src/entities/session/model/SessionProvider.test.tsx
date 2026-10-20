@@ -25,6 +25,7 @@ function profile(role: string, id = "user-1"): UserProfileDto {
     permissions: "0",
     theme: "system",
     locale: "ru",
+    timezone: "Europe/Moscow",
     email: "test@example.com",
     displayName: null,
     username: null,

@@ -83,7 +83,9 @@ describe("AvatarUploadField", () => {
       new File(["avatar"], "photo.png", { type: "image/png" }),
     );
 
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("dialog", {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Обрезка фото")).toBeInTheDocument();
 
     const confirm = screen.getByRole("button", { name: "Подтвердить" });

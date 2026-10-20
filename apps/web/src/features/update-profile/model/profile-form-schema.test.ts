@@ -15,6 +15,7 @@ describe("createProfileFormSchema", () => {
       gitUrl: "https://github.com/ivan",
       theme: "dark",
       locale: "ru",
+      timezone: " Europe/Moscow ",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -24,6 +25,7 @@ describe("createProfileFormSchema", () => {
       gitUrl: "https://github.com/ivan",
       theme: "dark",
       locale: "ru",
+      timezone: "Europe/Moscow",
     });
   });
 
@@ -35,6 +37,7 @@ describe("createProfileFormSchema", () => {
       gitUrl: "",
       theme: "light",
       locale: "en",
+      timezone: "UTC",
     });
 
     expect(toUpdateProfileDto(parsed)).toEqual({
@@ -44,6 +47,7 @@ describe("createProfileFormSchema", () => {
       gitUrl: null,
       theme: "light",
       locale: "en",
+      timezone: "UTC",
     });
   });
 
@@ -55,6 +59,7 @@ describe("createProfileFormSchema", () => {
       gitUrl: "",
       theme: "dark",
       locale: "ru",
+      timezone: "UTC",
     });
 
     expect(toUpdateProfileDto(parsed, { displayName: true })).toEqual({
@@ -65,7 +70,28 @@ describe("createProfileFormSchema", () => {
       theme: "dark",
     });
 
+    expect(toUpdateProfileDto(parsed, { timezone: true })).toEqual({
+      timezone: "UTC",
+    });
+
     expect(toUpdateProfileDto(parsed, {})).toEqual({});
+  });
+
+  it("отклоняет невалидную IANA-таймзону", () => {
+    const result = schema.safeParse({
+      displayName: "Иван",
+      username: "ivan",
+      telegramUsername: "",
+      gitUrl: "",
+      theme: "dark",
+      locale: "ru",
+      timezone: "+04:00",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("profile.errors.timezone");
+    }
   });
 
   it("отклоняет слишком короткое отображаемое имя", () => {

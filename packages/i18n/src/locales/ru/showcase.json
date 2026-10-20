@@ -173,6 +173,8 @@
     "contactsTitle": "Собеседование согласовано",
     "matchedTitle": "Собеседование согласовано!",
     "matchedDesc": "Перейдите в интерактивную песочницу для совместного видео-интервью и кодинга.",
+    "scheduledFor": "Интервью запланировано на {{date}}",
+    "slotLabel": "Слот собеседования",
     "goToInterview": "Войти в интервью",
     "preparingRoom": "Подготовка комнаты...",
     "sessionFinished": "Интервью завершено",
@@ -208,5 +210,49 @@
     "hide": "Скрыть",
     "cancel": "Отмена",
     "loading": "Загрузка..."
+  },
+  "slots": {
+    "title": "Слоты доступности",
+    "addSlot": "Добавить слот",
+    "addSlotDisabledMax": "Достигнут лимит из 10 слотов",
+    "selectSlotRequired": "Выберите слот для интервью",
+    "slotConflict": "Этот слот уже занят. Пожалуйста, выберите другой слот.",
+    "durationMinutes": "{{count}} мин",
+    "noSlots": "Нет доступных слотов",
+    "booked": "Забронирован",
+    "open": "Свободен",
+    "cancelled": "Отменён",
+    "upcomingSlots": "Ближайшие слоты",
+    "moreCount": "+{{count}} ещё",
+    "cannotDeleteBooked": "Нельзя удалить забронированный слот",
+    "cannotAddInPast": "Нельзя добавить слот в прошлом",
+    "timeInYourTimezone": "Время указывается в вашей таймзоне ({{timezone}})",
+    "duration": "Длительность",
+    "date": "Дата",
+    "startTime": "Время начала",
+    "chooseSlot": "Выберите слот",
+    "flexibleSchedule": "У автора гибкое расписание — точное время согласуется после принятия заявки.",
+    "freeCount": "Свободно: {{count}}",
+    "bookedCount": "Забронировано: {{count}}"
+  },
+  "profile": {
+    "timezone": "Часовой пояс",
+    "detectTimezone": "Определить автоматически",
+    "timezoneHelp": "Часовой пояс используется для отображения времени слотов и собеседований.",
+    "timezoneSearchPlaceholder": "Поиск часового пояса...",
+    "timezoneEmpty": "Ничего не найдено",
+    "regions": {
+      "utc": "UTC",
+      "europe": "Европа",
+      "asia": "Азия",
+      "africa": "Африка",
+      "america": "Америка",
+      "australia": "Австралия",
+      "pacific": "Тихий океан",
+      "atlantic": "Атлантика",
+      "indian": "Индийский океан",
+      "antarctica": "Антарктика",
+      "other": "Другие"
+    }
   }
 }

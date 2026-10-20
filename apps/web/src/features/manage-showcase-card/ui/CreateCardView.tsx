@@ -29,6 +29,7 @@ const defaultValues: ShowcaseFormValues = {
   scheduleInfo: "",
   isUrgent: false,
   autoRenew: false,
+  slots: [],
 };
 
 export function CreateCardView() {
@@ -39,6 +40,8 @@ export function CreateCardView() {
 
   const isProfilePrefilledRef = useRef(false);
 
+  const authorTimezone = user?.timezone || "UTC";
+
   const schema = useMemo(
     () =>
       createShowcaseFormSchema(
@@ -46,8 +49,9 @@ export function CreateCardView() {
           key: string,
           options?: Record<string, unknown>,
         ) => string,
+        authorTimezone,
       ),
-    [t],
+    [t, authorTimezone],
   );
 
   const form = useForm<ShowcaseFormValues>({
@@ -138,7 +142,11 @@ export function CreateCardView() {
           {/* Левая колонка: Форма ввода данных */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             <div className="rounded-2xl border border-border/70 bg-card p-6 sm:p-7 shadow-xs">
-              <ShowcaseCardForm form={form} onSubmit={handleSubmitForm} />
+              <ShowcaseCardForm
+                form={form}
+                onSubmit={handleSubmitForm}
+                authorTimezone={authorTimezone}
+              />
 
               {/* Панель кнопок формы */}
               <div className="mt-8 pt-5 border-t border-border/60 flex items-center justify-end gap-3">
@@ -171,6 +179,7 @@ export function CreateCardView() {
             <ShowcaseCardLivePreview
               values={watchedValues}
               user={user}
+              authorTimezone={authorTimezone}
               className="rounded-2xl border border-border/70 bg-card/60 p-5 shadow-xs backdrop-blur-xs"
             />
 

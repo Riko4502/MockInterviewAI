@@ -30,6 +30,8 @@ export const userProfileSchema = publicUserProfileSchema.extend({
   permissions: z.string(),
   theme: z.enum(THEME_MODES),
   locale: z.enum(locales),
+  /** IANA-таймзона пользователя (ADR-002:47); NOT NULL DEFAULT "Europe/Moscow". */
+  timezone: z.string(),
   updatedAt: z.iso.datetime(),
   telegramLinkVerified: z.boolean().default(false),
   githubLinkVerified: z.boolean().default(false),

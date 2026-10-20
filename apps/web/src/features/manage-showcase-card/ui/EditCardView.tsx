@@ -1,8 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { ShowcaseCardResponseDto } from "@packages/api";
 import { ArrowLeftIcon, InfoIcon } from "@packages/icons";
 import { Button } from "@packages/ui";
+import { formatInstantInTimeZone } from "@packages/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
@@ -15,6 +17,7 @@ import "@/shared/lib/i18n";
 import {
   createShowcaseFormSchema,
   type ShowcaseFormValues,
+  type SlotFormValue,
 } from "../model/showcase-form-schema";
 import { useShowcaseMutations } from "../model/use-showcase-mutations";
 import { ShowcaseCardForm } from "./ShowcaseCardForm";
@@ -33,6 +36,8 @@ export function EditCardView({ cardId }: EditCardViewProps) {
   const { data: card, isLoading } = useShowcaseCard(cardId);
   const isInitializedRef = useRef(false);
 
+  const authorTimezone = user?.timezone || "UTC";
+
   const schema = useMemo(
     () =>
       createShowcaseFormSchema(
@@ -40,8 +45,38 @@ export function EditCardView({ cardId }: EditCardViewProps) {
           key: string,
           options?: Record<string, unknown>,
         ) => string,
+        authorTimezone,
       ),
-    [t],
+    [t, authorTimezone],
+  );
+
+  // Занятые слоты показываем для чтения; прошедшие открытые слоты не тянем в
+  // форму — они всё равно не пройдут валидацию «не в прошлом» и заблокируют
+  // сохранение. Сервер удалит их, так как `slots` — полный набор расписания.
+  const toFormSlots = useMemo(
+    () =>
+      (
+        slots: ShowcaseCardResponseDto["slots"] | undefined,
+      ): SlotFormValue[] => {
+        const now = Date.now();
+        return (slots ?? [])
+          .filter(
+            (slot) =>
+              slot.status === "BOOKED" ||
+              new Date(slot.startsAt).getTime() > now,
+          )
+          .map((slot) => ({
+            id: slot.id,
+            startsAtLocal: formatInstantInTimeZone(
+              slot.startsAt,
+              authorTimezone,
+              "yyyy-MM-dd'T'HH:mm",
+            ),
+            durationMinutes: slot.durationMinutes,
+            booked: slot.status === "BOOKED",
+          }));
+      },
+    [authorTimezone],
   );
 
   const form = useForm<ShowcaseFormValues>({
@@ -56,6 +91,7 @@ export function EditCardView({ cardId }: EditCardViewProps) {
       scheduleInfo: "",
       isUrgent: false,
       autoRenew: false,
+      slots: [],
     },
     mode: "onTouched",
   });
@@ -64,9 +100,10 @@ export function EditCardView({ cardId }: EditCardViewProps) {
   const watchedValues = watch();
 
   // Заполняем форму только один раз при успешной первой загрузке карточки,
-  // чтобы фоновые рефетчи не сбрасывали введенные пользователем данные
+  // чтобы фоновые рефетчи не сбрасывали введенные пользователем данные.
+  // Ждём пользователя: без его таймзоны локальное время слотов будет неверным.
   useEffect(() => {
-    if (card && !isInitializedRef.current) {
+    if (card && user && !isInitializedRef.current) {
       reset({
         specialization: card.specialization,
         level: card.level,
@@ -77,10 +114,11 @@ export function EditCardView({ cardId }: EditCardViewProps) {
         scheduleInfo: card.scheduleInfo || "",
         isUrgent: card.isUrgent ?? false,
         autoRenew: card.autoRenew ?? false,
+        slots: toFormSlots(card.slots),
       });
       isInitializedRef.current = true;
     }
-  }, [card, reset]);
+  }, [card, user, reset, toFormSlots]);
 
   // Предотвращает flash дефолтных значений в Live Preview до инициализации формы
   const previewValues = useMemo<ShowcaseFormValues>(() => {
@@ -98,10 +136,11 @@ export function EditCardView({ cardId }: EditCardViewProps) {
         scheduleInfo: card.scheduleInfo || "",
         isUrgent: card.isUrgent ?? false,
         autoRenew: card.autoRenew ?? false,
+        slots: toFormSlots(card.slots),
       };
     }
     return watchedValues;
-  }, [card, watchedValues]);
+  }, [card, watchedValues, toFormSlots]);
 
   const handleSubmitForm = async (values: ShowcaseFormValues) => {
     if (!card) return;
@@ -180,6 +219,7 @@ export function EditCardView({ cardId }: EditCardViewProps) {
             <ShowcaseCardForm
               form={form}
               onSubmit={handleSubmitForm}
+              authorTimezone={authorTimezone}
               disableSpecialization={true}
             />
 
@@ -221,6 +261,7 @@ export function EditCardView({ cardId }: EditCardViewProps) {
           <ShowcaseCardLivePreview
             values={previewValues}
             user={user}
+            authorTimezone={authorTimezone}
             className="rounded-2xl border border-border/70 bg-card/60 p-5 shadow-xs backdrop-blur-xs"
           />
 
