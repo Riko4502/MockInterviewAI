@@ -2,7 +2,7 @@ import {
   type NotificationCampaignDetailsDto,
   NotificationCampaignDtoTargetType,
 } from "@packages/api";
-import { type Dispatch, type SetStateAction, useEffect } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useRef } from "react";
 import type { PickerUser } from "@/features/admin-user-multi-picker";
 import {
   type CampaignDialogState,
@@ -43,16 +43,18 @@ export function useCampaignFormHydration({
   resolveRecipientIds,
   setState,
 }: UseCampaignFormHydrationOptions) {
+  const hydratedCampaignIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      hydratedCampaignIdRef.current = null;
+      return;
+    }
     let active = true;
-    setState((previous) => ({
-      ...previous,
-      errors: [],
-      recipientRestoreFailed: false,
-    }));
 
     if (mode === "create") {
+      if (hydratedCampaignIdRef.current === "create") return;
+      hydratedCampaignIdRef.current = "create";
       setState(createInitialCampaignDialogState());
       return () => {
         active = false;
@@ -62,6 +64,9 @@ export function useCampaignFormHydration({
       return () => {
         active = false;
       };
+
+    if (hydratedCampaignIdRef.current === campaign.id) return;
+    hydratedCampaignIdRef.current = campaign.id;
 
     setState({
       form: {

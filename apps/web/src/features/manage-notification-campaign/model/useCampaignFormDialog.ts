@@ -5,7 +5,6 @@ import {
 } from "@packages/api";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { PickerUser } from "@/features/admin-user-multi-picker";
 import { useUserSearch } from "@/features/admin-user-multi-picker";
 import {
   type CampaignFormState,

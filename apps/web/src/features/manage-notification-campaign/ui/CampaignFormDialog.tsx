@@ -106,24 +106,26 @@ export function CampaignFormDialog(props: CampaignFormDialogProps) {
           >
             {t("adminNotifications.form.saveDraft")}
           </Button>
-          <Button
-            variant="outline"
-            disabled={
-              isSaving || isRestoringRecipients || recipientRestoreFailed
-            }
-            onClick={() =>
-              void submit(
-                "SCHEDULED",
-                mode === "create" && form.scheduleMode === "NOW",
-              )
-            }
-          >
-            {t(
-              mode === "create" && form.scheduleMode === "NOW"
-                ? "adminNotifications.form.sendNow"
-                : "adminNotifications.form.schedule",
-            )}
-          </Button>
+          {mode === "create" && (
+            <Button
+              variant="outline"
+              disabled={
+                isSaving || isRestoringRecipients || recipientRestoreFailed
+              }
+              onClick={() =>
+                void submit(
+                  "SCHEDULED",
+                  mode === "create" && form.scheduleMode === "NOW",
+                )
+              }
+            >
+              {t(
+                mode === "create" && form.scheduleMode === "NOW"
+                  ? "adminNotifications.form.sendNow"
+                  : "adminNotifications.form.schedule",
+              )}
+            </Button>
+          )}
         </Dialog.Footer>
       </Dialog.Content>
     </Dialog>

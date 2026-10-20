@@ -353,7 +353,7 @@ export class NotificationCampaignsService {
           },
           scheduledAt: { lte: new Date() },
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, sentAt: true },
         orderBy: { scheduledAt: "asc" },
         take: 50,
       });
@@ -370,7 +370,7 @@ export class NotificationCampaignsService {
               },
               data: {
                 status: NotificationCampaignStatus.PROCESSING,
-                sentAt: new Date(),
+                sentAt: campaign.sentAt ?? new Date(),
                 processingStartedAt: new Date(),
                 totalRecipients,
               },

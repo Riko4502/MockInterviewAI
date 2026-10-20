@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   adminUsersControllerGetUserById,
@@ -139,7 +139,10 @@ export function useUserSearch(search: string, enabled = true) {
         const resolved = await Promise.all(
           batch.map(async (id) => {
             try {
-              return toPickerUser(await adminUsersControllerGetUserById(id));
+              const user = await adminUsersControllerGetUserById(id);
+              return user.isActive && !user.deletedAt
+                ? toPickerUser(user)
+                : null;
             } catch {
               return null;
             }

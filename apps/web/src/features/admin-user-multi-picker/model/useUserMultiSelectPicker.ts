@@ -115,9 +115,9 @@ export function useUserMultiSelectPicker({
     try {
       const result = await resolveIdentifiers(identifiers);
       const existingIds = new Set(value.map((user) => user.id));
-      const additions = result.users.filter(
-        (user) => !existingIds.has(user.id),
-      );
+      const additions = result.users
+        .filter((user) => !existingIds.has(user.id))
+        .slice(0, Math.max(0, maxSelected - value.length));
       if (additions.length > 0) onChange([...value, ...additions]);
       setBulkText("");
       if (result.unresolved.length > 0) {
