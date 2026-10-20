@@ -15,11 +15,36 @@ import type { NotificationCampaignsControllerFindAllStatus } from './notificatio
 import type { NotificationCampaignsControllerFindAllTargetType } from './notificationCampaignsControllerFindAllTargetType';
 
 export type NotificationCampaignsControllerFindAllParams = {
+/**
+ * Направление сортировки
+ */
 sortOrder?: NotificationCampaignsControllerFindAllSortOrder;
+/**
+ * Поле, по которому сортировать кампании
+ */
 sortBy?: NotificationCampaignsControllerFindAllSortBy;
+/**
+ * UUID пользователя, входящего в аудиторию кампании
+ */
+recipientUserId?: string;
+/**
+ * Фильтр по типу аудитории кампании
+ */
 targetType?: NotificationCampaignsControllerFindAllTargetType;
+/**
+ * Фильтр по статусу кампании
+ */
 status?: NotificationCampaignsControllerFindAllStatus;
+/**
+ * Поиск кампаний по названию
+ */
 search?: string;
+/**
+ * Количество кампаний на странице
+ */
 limit?: number;
+/**
+ * Номер страницы, начиная с 1
+ */
 page?: number;
 };

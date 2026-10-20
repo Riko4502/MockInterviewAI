@@ -258,7 +258,7 @@ model Notification {
   updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  campaign NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([readAt])
