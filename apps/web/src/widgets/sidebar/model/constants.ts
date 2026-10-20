@@ -66,4 +66,9 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     href: paths.adminUsers,
     icon: UsersIcon,
   },
+  {
+    labelKey: "navigation.adminNotifications",
+    href: paths.adminNotifications,
+    icon: BellIcon,
+  },
 ];

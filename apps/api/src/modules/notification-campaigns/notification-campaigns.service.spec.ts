@@ -160,6 +160,7 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
     title: string;
     message: string;
     actionUrl: string | null;
+    sentAt?: Date | null;
   };
 
   const makeCampaign = (
@@ -218,6 +219,7 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       user: {
+        count: jest.fn().mockResolvedValue(10),
         findMany: jest
           .fn()
           .mockImplementation(
@@ -420,5 +422,56 @@ describe("NotificationCampaignsService.dispatchScheduledCampaigns", () => {
       },
     });
     expect(notifications.syncCampaignNotifications).not.toHaveBeenCalled();
+  });
+
+  it("preserves original sentAt when claiming a SCHEDULED campaign that already has sentAt", async () => {
+    const originalSentAt = new Date("2026-01-15T10:00:00.000Z");
+    const scheduledCampaign: ProcessingCampaign = {
+      ...makeCampaign(campaignId, NotificationTargetType.ALL),
+      status: NotificationCampaignStatus.SCHEDULED,
+      sentAt: originalSentAt,
+    };
+    const { service, prisma } = setup({
+      campaigns: [scheduledCampaign],
+    });
+    prisma.notificationCampaign.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await service.dispatchScheduledCampaigns();
+
+    expect(prisma.notificationCampaign.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: campaignId,
+        status: NotificationCampaignStatus.SCHEDULED,
+      },
+      data: expect.objectContaining({
+        status: NotificationCampaignStatus.PROCESSING,
+        sentAt: originalSentAt,
+      }),
+    });
+  });
+
+  it("assigns a new sentAt when claiming a SCHEDULED campaign that does not have sentAt", async () => {
+    const scheduledCampaign: ProcessingCampaign = {
+      ...makeCampaign(campaignId, NotificationTargetType.ALL),
+      status: NotificationCampaignStatus.SCHEDULED,
+      sentAt: null,
+    };
+    const { service, prisma } = setup({
+      campaigns: [scheduledCampaign],
+    });
+    prisma.notificationCampaign.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await service.dispatchScheduledCampaigns();
+
+    expect(prisma.notificationCampaign.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: campaignId,
+        status: NotificationCampaignStatus.SCHEDULED,
+      },
+      data: expect.objectContaining({
+        status: NotificationCampaignStatus.PROCESSING,
+        sentAt: expect.any(Date),
+      }),
+    });
   });
 });
