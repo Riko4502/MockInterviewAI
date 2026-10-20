@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { interviewParticipantRoleSchema } from "../sessions/participant.dto";
 
 /**
  * Zod-схема query-параметров списка собеседований по Telegram-чату
@@ -18,14 +19,13 @@ export type TelegramInterviewsQuery = z.infer<
 /**
  * Zod-схема элемента списка собеседований (§7.3 TELEGRAM_BOT_ARCHITECTURE.md).
  *
- * - `role`: для владельца сессии — `INTERVIEWER`, иначе роль из
- *   `InterviewParticipant` (`CANDIDATE`/`INTERVIEWER`/`OBSERVER`).
+ * - `role`: для владельца сессии
  */
 export const telegramInterviewSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["CREATED", "ACTIVE", "CLOSED"]),
   startedAt: z.date().or(z.string()).nullable(),
-  role: z.enum(["CANDIDATE", "INTERVIEWER", "OBSERVER"]),
+  role: interviewParticipantRoleSchema,
   createdAt: z.date().or(z.string()),
 });
 

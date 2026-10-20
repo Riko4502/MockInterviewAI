@@ -5,6 +5,8 @@ export const interviewParticipantRoleSchema = z.enum([
   "CANDIDATE",
   "INTERVIEWER",
   "OBSERVER",
+  "HOST",
+  "PARTICIPANT",
 ]);
 
 /** Объект-enum значений роли участника интервью-сессии. */

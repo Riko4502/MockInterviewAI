@@ -269,6 +269,16 @@ export {
   rotateInviteResponseSchema,
 } from "./sessions/join-session.dto";
 export {
+  type CreateMeetingDto,
+  createMeetingSchema,
+  type JoinMeetingDto,
+  type JoinMeetingResponseDto,
+  joinMeetingResponseSchema,
+  joinMeetingSchema,
+  type MeetingLobbyResponseDto,
+  meetingLobbyResponseSchema,
+} from "./sessions/meeting.dto";
+export {
   type AddParticipantDto,
   addParticipantSchema,
   InterviewParticipantRole,

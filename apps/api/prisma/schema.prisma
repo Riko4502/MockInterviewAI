@@ -114,14 +114,26 @@ enum InterviewParticipantRole {
   CANDIDATE
   INTERVIEWER
   OBSERVER
+  HOST
+  PARTICIPANT
+}
+
+enum InterviewSessionType {
+  CODE
+  MEETING
 }
 
 model InterviewSession {
   id           String                 @id @default(uuid()) @db.Uuid
   userId       String                 @db.Uuid // владелец (создатель) сессии
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String                 @default("Meeting") @db.VarChar(120)
+  description  String?                @db.VarChar(500)
+  type         InterviewSessionType   @default(CODE)
+  isPrivate    Boolean                @default(false)
+  passwordHash String?                @map("password_hash")
+  inviteToken  String?                 @unique @map("invite_token") @db.VarChar(128)
   status       InterviewSessionStatus @default(ACTIVE)
-  inviteToken  String?                @map("invite_token") @db.VarChar(128)
   /// Запланированное время встречи (ADR-002:62).
   /// Заполняется при принятии заявки витрины из слота; для обычных сессий NULL.
   scheduledAt  DateTime?              @map("scheduled_at") @db.Timestamptz(3)
@@ -138,6 +150,7 @@ model InterviewSession {
   @@index([userId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([type, status])
   @@map("interview_sessions")
 }
 
