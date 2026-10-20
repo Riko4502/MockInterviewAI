@@ -81,6 +81,7 @@ model User {
   showcaseCards         ShowcaseCard[]         @relation("UserShowcaseCards")
   sentMatchRequests     MatchRequest[]         @relation("UserSentMatchRequests")
   receivedMatchRequests MatchRequest[]         @relation("UserReceivedMatchRequests")
+  securityEvents        SecurityEvent[]
 
   @@index([githubId])
   @@index([username])
@@ -102,6 +103,72 @@ model AuthRevocationTask {
   @@index([userId])
   @@index([createdAt])
   @@map("auth_revocation_tasks")
+}
+
+/// Тип события безопасности (ADR-005:93).
+///
+/// Перечисление фиксированное: событие читается аудитом и показывается
+/// пользователю, поэтому свободная строка сделала бы выборку по типу
+/// недостоверной. Значения `EMAIL_CHANGE_*` из плана `docs/tasks/email-service.md`
+/// исключены намеренно — самостоятельной смены email в продукте нет.
+enum SecurityEventType {
+  ACCOUNT_REGISTERED
+  FIRST_LOGIN
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  LOGIN_FROM_NEW_DEVICE
+  TG_LINKED
+  TG_UNLINKED
+  GITHUB_LINKED
+  GITHUB_UNLINKED
+  PROFILE_CHANGED
+  ACCOUNT_DEACTIVATED
+  ACCOUNT_RESTORED
+}
+
+/// Аудит событий безопасности (ADR-005:92) с состоянием доставки (ADR-005
+/// план, D7).
+///
+/// `ipAddress`/`userAgent` — персональные данные: они не попадают ни в один
+/// публичный DTO и удаляются по политике ретенции через 12 месяцев
+/// (ADR-005:128, :126). Само событие переживает soft-delete (`User.deletedAt`),
+/// потому что удаляется только вместе с окончательным затиранием аккаунта
+/// (`user-cleanup.cron.ts`), а не по флагу (ADR-005:125).
+///
+/// Роль outbox-таблицы играет сама `security_events` (D7): relay забирает
+/// строки с `notifiedAt = null`, повторяет с backoff и не пишет ничего в
+/// `notifications`/`notification_outbox` — security-события туда смешивать
+/// запрещено (ADR-005:74).
+model SecurityEvent {
+  id       String            @id @default(uuid()) @db.Uuid
+  userId   String            @db.Uuid
+  user     User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  type     SecurityEventType
+  ipAddress String?
+  userAgent String?
+  metadata Json?
+
+  /// Момент успешной доставки в push-канал. `null` — доставки не было
+  /// (в том числе когда канал недоступен и сработал in-app-фолбэк, D7, D8).
+  notifiedAt       DateTime? @map("notified_at") @db.Timestamptz(3)
+  /// Момент, когда relay установил недоступность push-канала и доставка не
+  /// выполнялась. Отдельное поле, а не `notifiedAt`: in-app-фолбэк показывает
+  /// только недоставленные события, и «канал недоступен» от «доставлено»
+  /// обязано отличаться, иначе compensated-показ не состоялся бы (D8).
+  deliverySkippedAt DateTime? @map("delivery_skipped_at") @db.Timestamptz(3)
+  /// Момент прочтения пользователем в in-app (D8).
+  seenAt        DateTime? @map("seen_at") @db.Timestamptz(3)
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastError     String?   @map("last_error") @db.VarChar(1000)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, seenAt])
+  @@index([notifiedAt, nextAttemptAt])
+  @@index([createdAt])
+  @@map("security_events")
 }
 
 enum InterviewSessionStatus {

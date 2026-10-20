@@ -1,18 +1,50 @@
+import { createHash } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
   GoneException,
+  HttpException,
+  HttpStatus,
   InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
-import type { CompleteOnboardingDto } from "@packages/dto";
+import {
+  type CompleteOnboardingDto,
+  SECURITY_UNLINK_ERROR_CODES,
+} from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
 import type { AuthSessionService } from "../auth/services/auth-session.service";
 import type { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
+import type { RabbitMqPublisher } from "../notifications/rabbitmq-publisher.service";
+import type { SecurityEventsService } from "../security-events/security-events.service";
 import type { StorageService } from "../storage/storage.service";
 import { UsersService } from "./users.service";
+
+/**
+ * Проверяет, что промис отклоняется `HttpException` с ожидаемым статусом и
+ * серверным `code` в теле — именно его фронт мапит на i18n-ключ (F7), а не
+ * текст сообщения.
+ */
+async function expectErrorCode(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+): Promise<void> {
+  let caught: unknown;
+  try {
+    await promise;
+  } catch (error) {
+    caught = error;
+  }
+
+  expect(caught).toBeInstanceOf(HttpException);
+  const ex = caught as HttpException;
+  expect(ex.getStatus()).toBe(status);
+  expect(ex.getResponse()).toEqual(expect.objectContaining({ code }));
+}
 
 describe("UsersService", () => {
   let prismaMock: {
@@ -38,16 +70,34 @@ describe("UsersService", () => {
     notificationOutbox: {
       create: jest.Mock;
     };
+    securityEvent: {
+      create: jest.Mock;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let storageServiceMock: jest.Mocked<Partial<StorageService>>;
-  let redisServiceMock: jest.Mocked<Partial<RedisService>>;
+  // Явная форма моков: `jest.Mocked<Partial<RedisService>>` не даёт
+  // `.mockResolvedValue` для методов с перегрузками (`eval`).
+  let redisServiceMock: {
+    get: jest.Mock;
+    set: jest.Mock;
+    compareAndDelete: jest.Mock;
+    eval: jest.Mock;
+    publish: jest.Mock;
+    delete: jest.Mock;
+  };
   let authSessionServiceMock: {
     revokeAllUserSessions: jest.Mock;
   };
   let notificationDispatcherMock: {
     dispatch: jest.Mock;
+  };
+  let securityEventsServiceMock: {
+    record: jest.Mock;
+  };
+  let rabbitMqPublisherMock: {
+    publish: jest.Mock;
   };
   let service: UsersService;
 
@@ -108,6 +158,12 @@ describe("UsersService", () => {
           status: "PENDING",
         }),
       },
+      securityEvent: {
+        create: jest.fn().mockResolvedValue({
+          id: "security-event-1",
+          createdAt: new Date("2026-09-10T12:00:00.000Z"),
+        }),
+      },
       userDeviceSettings: {
         findUnique: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
@@ -131,12 +187,25 @@ describe("UsersService", () => {
     redisServiceMock = {
       delete: jest.fn().mockResolvedValue(1),
       publish: jest.fn().mockResolvedValue(1),
+      get: jest.fn(),
+      set: jest.fn().mockResolvedValue(undefined),
+      compareAndDelete: jest.fn(),
+      eval: jest.fn(),
     };
     authSessionServiceMock = {
       revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
     };
     notificationDispatcherMock = {
       dispatch: jest.fn().mockResolvedValue({ id: "outbox-1" }),
+    };
+    securityEventsServiceMock = {
+      record: jest.fn().mockResolvedValue({
+        id: "security-event-1",
+        createdAt: new Date("2026-09-10T12:00:00.000Z"),
+      }),
+    };
+    rabbitMqPublisherMock = {
+      publish: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new UsersService(
@@ -145,6 +214,8 @@ describe("UsersService", () => {
       redisServiceMock as unknown as RedisService,
       authSessionServiceMock as unknown as AuthSessionService,
       notificationDispatcherMock as unknown as NotificationDispatcher,
+      securityEventsServiceMock as unknown as SecurityEventsService,
+      rabbitMqPublisherMock as unknown as RabbitMqPublisher,
     );
   });
 
@@ -317,7 +388,7 @@ describe("UsersService", () => {
       expect(result.timezone).toBe("Asia/Tokyo");
     });
 
-    it("сбрасывает telegramId, telegramChatId и telegramLinkVerified при отвязке telegramUsername: null", async () => {
+    it("D2: отклоняет отвязку telegramUsername: null через PATCH с 400", async () => {
       const userWithTg = {
         ...mockUser,
         telegramId: BigInt(123456789),
@@ -325,28 +396,32 @@ describe("UsersService", () => {
         telegramLinkVerified: true,
       };
       prismaMock.user.findUnique.mockResolvedValue(userWithTg);
-      prismaMock.user.update.mockResolvedValue({
-        ...userWithTg,
-        telegramUsername: null,
-        telegramId: null,
-        telegramChatId: null,
-        telegramLinkVerified: false,
-      });
 
-      await service.updateProfile(userWithTg.id, {
-        telegramUsername: null,
-      });
-
-      expect(prismaMock.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            telegramUsername: null,
-            telegramId: null,
-            telegramChatId: null,
-            telegramLinkVerified: false,
-          }),
+      await expect(
+        service.updateProfile(userWithTg.id, {
+          telegramUsername: null,
         }),
-      );
+      ).rejects.toThrow(BadRequestException);
+
+      // Отвязка только отдельным эндпоинтом — PATCH не должен писать в БД.
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("D2: отклоняет отвязку gitUrl: null через PATCH с 400", async () => {
+      const userWithGithub = {
+        ...mockUser,
+        githubId: "gh-123",
+        gitUrl: "https://github.com/ivan_dev",
+      };
+      prismaMock.user.findUnique.mockResolvedValue(userWithGithub);
+
+      await expect(
+        service.updateProfile(userWithGithub.id, {
+          gitUrl: null,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
 
     it("выбрасывает BadRequestException при попытке ручной установки telegramUsername без верифицированной привязки", async () => {
@@ -877,6 +952,397 @@ describe("UsersService", () => {
       await expect(
         service.upsertDeviceSettings("not-a-uuid", { clientId }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("requestTelegramUnlink", () => {
+    const LINKED_USER = {
+      id: "11111111-1111-4111-a111-111111111111",
+      telegramChatId: "987654321",
+      telegramLinkVerified: true,
+      locale: "ru",
+      telegramLocale: null,
+      timezone: "Europe/Moscow",
+    };
+
+    it("кладёт только SHA-256 хеш кода в Redis, публикует envelope боту и возвращает expiresAt (D6, D14)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(LINKED_USER);
+
+      const result = await service.requestTelegramUnlink(mockUser.id);
+
+      expect(result.sent).toBe(true);
+      expect(result.expiresAt).toEqual(expect.any(String));
+
+      // 1) В Redis уходит хеш, а не сам код; TTL = 10 минут.
+      expect(redisServiceMock.set).toHaveBeenCalledTimes(1);
+      const [setKey, setValue, setTtl] = redisServiceMock.set.mock.calls[0];
+      expect(setKey).toBe(`telegram:unlink:${mockUser.id}`);
+      expect(setTtl).toBe(600);
+      expect(setValue).toContain('"hash":"');
+      expect(setValue).toContain('"attempts":0');
+
+      // 2) Код уходит боту тем же envelope'ом, что и push-уведомления.
+      expect(rabbitMqPublisherMock.publish).toHaveBeenCalledTimes(1);
+      const [envelope, routingKey] =
+        rabbitMqPublisherMock.publish.mock.calls[0];
+      expect(envelope.event.type).toBe("security.telegram_unlink_code");
+      expect(envelope.event.payload.code).toMatch(/^\d{6}$/);
+      expect(envelope.event.payload.ttlMinutes).toBe(10);
+      expect(envelope.chatId).toBe(LINKED_USER.telegramChatId);
+      expect(envelope.locale).toBe("ru");
+      expect(envelope.timeZone).toBe("Europe/Moscow");
+      expect(routingKey).toContain(`security:tg-unlink:${mockUser.id}`);
+
+      // 3) Записан в Redis именно хеш отправленного кода.
+      expect(setValue).toContain(
+        createHash("sha256")
+          .update(envelope.event.payload.code as string)
+          .digest("hex"),
+      );
+
+      // 4) Сам код не попадает в хранилище (D14).
+      expect(setValue).not.toContain(envelope.event.payload.code as string);
+    });
+
+    it("400 TELEGRAM_NOT_LINKED, если Telegram не привязан", async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...LINKED_USER,
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await expectErrorCode(
+        service.requestTelegramUnlink(mockUser.id),
+        HttpStatus.BAD_REQUEST,
+        SECURITY_UNLINK_ERROR_CODES.TELEGRAM_NOT_LINKED,
+      );
+      expect(rabbitMqPublisherMock.publish).not.toHaveBeenCalled();
+      expect(redisServiceMock.set).not.toHaveBeenCalled();
+    });
+
+    it("404, если пользователя нет", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.requestTelegramUnlink(mockUser.id)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("503 при недоступности брокера + запись кода удаляется (код не «висит» без получателя)", async () => {
+      prismaMock.user.findUnique.mockResolvedValue(LINKED_USER);
+      rabbitMqPublisherMock.publish.mockRejectedValueOnce(
+        new Error("broker down"),
+      );
+
+      await expect(service.requestTelegramUnlink(mockUser.id)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+
+      expect(redisServiceMock.delete).toHaveBeenCalledWith(
+        `telegram:unlink:${mockUser.id}`,
+      );
+    });
+  });
+
+  describe("confirmTelegramUnlink", () => {
+    const CODE = "123456";
+    const KEY = `telegram:unlink:${mockUser.id}`;
+    const codeHash = createHash("sha256").update(CODE).digest("hex");
+
+    function seedValidRecord(overrides: Record<string, unknown> = {}) {
+      redisServiceMock.get.mockResolvedValue(
+        JSON.stringify({
+          hash: codeHash,
+          attempts: 0,
+          expiresAt: Date.now() + 600_000,
+          ...overrides,
+        }),
+      );
+    }
+
+    function seedLinkedUser() {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: mockUser.id,
+        telegramChatId: "987654321",
+        telegramLinkVerified: true,
+      });
+    }
+
+    it("успех: сравнение хеша, атомарный расход записи, инкремент generation, аудит и ревокация", async () => {
+      seedValidRecord();
+      redisServiceMock.compareAndDelete.mockResolvedValue(true);
+      seedLinkedUser();
+      prismaMock.user.update.mockResolvedValue({ generation: 2 });
+
+      const result = await service.confirmTelegramUnlink(
+        mockUser.id,
+        CODE,
+        "203.0.113.7",
+        "Mozilla/5.0",
+      );
+
+      expect(result).toEqual({ success: true });
+
+      // Запись расходуется compare-and-delete только после успешной проверки.
+      expect(redisServiceMock.compareAndDelete).toHaveBeenCalledWith(
+        KEY,
+        expect.any(String),
+      );
+      // Неверные попытки не инкрементируются при успехе.
+      expect(redisServiceMock.eval).not.toHaveBeenCalled();
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          telegramId: null,
+          telegramUsername: null,
+          telegramChatId: null,
+          telegramLinkVerified: false,
+          telegramLocale: null,
+          generation: { increment: 1 },
+        },
+        select: { generation: true },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: mockUser.id, generation: 1 },
+      });
+      expect(securityEventsServiceMock.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUser.id,
+          type: "TG_UNLINKED",
+          ipAddress: "203.0.113.7",
+          userAgent: "Mozilla/5.0",
+          metadata: { channel: "web" },
+        }),
+      );
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.any(Date),
+        1,
+      );
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("400 INVALID_CODE при неверном коде + инкремент попыток через Lua", async () => {
+      seedValidRecord();
+      redisServiceMock.eval.mockResolvedValue(0);
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, "000000"),
+        HttpStatus.BAD_REQUEST,
+        SECURITY_UNLINK_ERROR_CODES.INVALID_CODE,
+      );
+
+      expect(redisServiceMock.eval).toHaveBeenCalledTimes(1);
+      expect(redisServiceMock.compareAndDelete).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("429 ATTEMPTS_EXCEEDED, когда Lua-скрипт вернул «лимит исчерпан»", async () => {
+      seedValidRecord();
+      redisServiceMock.eval.mockResolvedValue(-2);
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, "000000"),
+        HttpStatus.TOO_MANY_REQUESTS,
+        SECURITY_UNLINK_ERROR_CODES.ATTEMPTS_EXCEEDED,
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("410 CODE_EXPIRED, когда запись пропала между чтением и инкрементом (Lua → -1)", async () => {
+      seedValidRecord();
+      redisServiceMock.eval.mockResolvedValue(-1);
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, "000000"),
+        HttpStatus.GONE,
+        SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+      );
+    });
+
+    it("410 CODE_EXPIRED, если записи кода нет (срок истёк и удалена)", async () => {
+      redisServiceMock.get.mockResolvedValue(null);
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+        HttpStatus.GONE,
+        SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+      );
+    });
+
+    it("410 CODE_EXPIRED, если expiresAt в прошлом + запись удаляется", async () => {
+      redisServiceMock.get.mockResolvedValue(
+        JSON.stringify({ hash: codeHash, attempts: 0, expiresAt: 1 }),
+      );
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+        HttpStatus.GONE,
+        SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+      );
+      expect(redisServiceMock.delete).toHaveBeenCalledWith(KEY);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("410 CODE_EXPIRED на повреждённой записи (не парсится / нет хеша)", async () => {
+      redisServiceMock.get.mockResolvedValue("not-json");
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+        HttpStatus.GONE,
+        SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+      );
+    });
+
+    it("409 ALREADY_UNLINKED, когда параллельный confirm уже израсходовал код", async () => {
+      seedValidRecord();
+      redisServiceMock.compareAndDelete.mockResolvedValue(false);
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+        HttpStatus.CONFLICT,
+        SECURITY_UNLINK_ERROR_CODES.ALREADY_UNLINKED,
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("409 ALREADY_UNLINKED, когда запись жива, но Telegram уже отвязан", async () => {
+      seedValidRecord();
+      redisServiceMock.compareAndDelete.mockResolvedValue(true);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: mockUser.id,
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await expectErrorCode(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+        HttpStatus.CONFLICT,
+        SECURITY_UNLINK_ERROR_CODES.ALREADY_UNLINKED,
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("500, если Redis недоступен на чтении (отвязка не падает затаённо)", async () => {
+      redisServiceMock.get.mockRejectedValue(new Error("redis down"));
+
+      await expect(
+        service.confirmTelegramUnlink(mockUser.id, CODE),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("unlinkGithub", () => {
+    function seedUser(user: Record<string, unknown> | null) {
+      prismaMock.user.findUnique.mockResolvedValue(user);
+    }
+
+    it("успех: снимает githubId/gitUrl, инкрементирует generation, пишет аудит и отзывает сессии", async () => {
+      seedUser({
+        id: mockUser.id,
+        githubId: "gh-123456",
+        passwordHash: "argon2id$hashed",
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+      prismaMock.user.update.mockResolvedValue({ generation: 3 });
+
+      const result = await service.unlinkGithub(
+        mockUser.id,
+        "203.0.113.7",
+        "Mozilla/5.0",
+      );
+
+      expect(result).toEqual({ success: true });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: {
+          githubId: null,
+          gitUrl: null,
+          generation: { increment: 1 },
+        },
+        select: { generation: true },
+      });
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: mockUser.id, generation: 2 },
+      });
+      expect(securityEventsServiceMock.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "GITHUB_UNLINKED",
+          ipAddress: "203.0.113.7",
+        }),
+      );
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.any(Date),
+        2,
+      );
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+    });
+
+    it("400 GITHUB_NOT_LINKED, если GitHub не привязан", async () => {
+      seedUser({
+        id: mockUser.id,
+        githubId: null,
+        passwordHash: "argon2id$hashed",
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await expectErrorCode(
+        service.unlinkGithub(mockUser.id),
+        HttpStatus.BAD_REQUEST,
+        SECURITY_UNLINK_ERROR_CODES.GITHUB_NOT_LINKED,
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("409 LAST_AUTH_METHOD, когда GitHub — единственный способ входа", async () => {
+      seedUser({
+        id: mockUser.id,
+        githubId: "gh-123456",
+        passwordHash: null,
+        telegramChatId: null,
+        telegramLinkVerified: false,
+      });
+
+      await expectErrorCode(
+        service.unlinkGithub(mockUser.id),
+        HttpStatus.CONFLICT,
+        SECURITY_UNLINK_ERROR_CODES.LAST_AUTH_METHOD,
+      );
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+      expect(securityEventsServiceMock.record).not.toHaveBeenCalled();
+    });
+
+    it("отвязка разрешена, если есть подтверждённый Telegram, даже без пароля", async () => {
+      seedUser({
+        id: mockUser.id,
+        githubId: "gh-123456",
+        passwordHash: null,
+        telegramChatId: "987654321",
+        telegramLinkVerified: true,
+      });
+      prismaMock.user.update.mockResolvedValue({ generation: 2 });
+
+      await expect(service.unlinkGithub(mockUser.id)).resolves.toEqual({
+        success: true,
+      });
+      expect(prismaMock.user.update).toHaveBeenCalled();
+    });
+
+    it("404, если пользователя нет", async () => {
+      seedUser(null);
+
+      await expect(service.unlinkGithub(mockUser.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

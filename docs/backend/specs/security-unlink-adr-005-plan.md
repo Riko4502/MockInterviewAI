@@ -2,7 +2,11 @@
 
 ## Статус
 
-Не реализовано.
+Реализовано. Ветка `feat/adr-005-security-unlink-backend` — коммиты `feat(dto)` → `feat(i18n)` → `feat(telegram-bot)` → `feat(api)` (модель + миграция) → `feat(api)` → `chore(api)` (реконсолидация OpenAPI/Orval).
+
+Проверено: `typecheck`, `lint`, unit — 63 сьюта / 1044 теста, e2e — 24 сьюта / 100 тестов, `@packages/dto` — 244, `@packages/i18n` — 8, telegram-bot — 133, `pnpm codegen:check` идемпотентен. Миграция `20261017120000_add_security_events` накатилась на dev-базу.
+
+Без отметки остался один пункт §8 — «Код ревью пройден»: он закрывается вместе с PR. Отступления от формулировок плана — в [§10](#10-отступления-от-плана-по-факту-реализации).
 
 Решения по реализации зафиксированы в [спеке, §1.1](./security-unlink-adr-005-spec.md) (D1–D14); план ниже следует им.
 
@@ -24,11 +28,11 @@
 
 ## 1. Исследование и подготовка
 
-- [ ] Ознакомиться с ADR-005 полностью (разделы «Принятое решение», «Последствия»).
-- [ ] Проанализировать текущую реализацию `UsersService.updateProfile` (отвязка `telegramUsername`/`gitUrl`) — её предстоит ограничить (D2).
-- [ ] Проанализировать модель User (`generation`), текущий deep-link `TelegramService.link`/`unlink` (после мержа `dev`), существующие паттерны аудита.
-- [ ] Зафиксировать ключ/формат кода в Redis (D5) и шаблон доставки в бота (D6).
-- [ ] Подготовить DTO для новых эндпоинтов.
+- [x] Ознакомиться с ADR-005 полностью (разделы «Принятое решение», «Последствия»).
+- [x] Проанализировать текущую реализацию `UsersService.updateProfile` (отвязка `telegramUsername`/`gitUrl`) — её предстоит ограничить (D2).
+- [x] Проанализировать модель User (`generation`), текущий deep-link `TelegramService.link`/`unlink` (после мержа `dev`), существующие паттерны аудита.
+- [x] Зафиксировать ключ/формат кода в Redis (D5) и шаблон доставки в бота (D6).
+- [x] Подготовить DTO для новых эндпоинтов.
 
 ## 2. Дизайн API (эндпоинты)
 
@@ -70,12 +74,12 @@
 
 ### 4.2. Сервисная логика (UsersService)
 
-- [ ] Генерация кода отвязки Telegram:
+- [x] Генерация кода отвязки Telegram:
   - Валидация: пользователь привязан к Telegram (`telegramChatId`/`telegramLinkVerified`)? Если нет — `400 TELEGRAM_NOT_LINKED`.
   - Проверка rate limit (1/60с), генерация кода, запись хеша в Redis (`telegram:unlink:{userId}`, TTL 10 мин).
   - Публикация envelope `security.telegram_unlink_code` с `{ code, ttlMinutes }` через `RabbitMqPublisher` (D6). Код не логировать.
 
-- [ ] Подтверждение отвязки Telegram:
+- [x] Подтверждение отвязки Telegram:
   - Атомарно прочитать и удалить запись (`getdel`); проверить TTL → `410 CODE_EXPIRED`.
   - Проверить код (`timingSafeEqual`); при неверном — увеличить `attempts`, `400 INVALID_CODE`; при превышении — инвалидировать запись, `429 ATTEMPTS_EXCEEDED`.
   - В транзакции:
@@ -85,84 +89,84 @@
   - Уведомление: Telegram недоступен (chatId сброшен) → событие показывается in-app при следующем входе (D7).
   - Возврат результата.
 
-- [ ] Отвязка GitHub:
+- [x] Отвязка GitHub:
   - Валидация: привязан ли GitHub (`githubId`)? Если нет — `400 GITHUB_NOT_LINKED`.
   - Проверка «последний способ входа»: если `passwordHash` пуст и нет другой привязки — `409 LAST_AUTH_METHOD` (D9).
   - В транзакции: `gitUrl = null`, `githubId = null`, `generation++`, `SecurityEvent` `GITHUB_UNLINKED`.
   - Уведомление: Telegram-пуш при наличии привязки, иначе in-app (D7).
 
-- [ ] Привязка Telegram (изменение существующего `TelegramService.link`): после успешной привязки — `generation++` с отзывом сессий и `SecurityEvent` `TG_LINKED` (D3).
+- [x] Привязка Telegram (изменение существующего `TelegramService.link`): после успешной привязки — `generation++` с отзывом сессий и `SecurityEvent` `TG_LINKED` (D3).
 
-- [ ] `resetPassword`: дополнительно обнуляет `githubId` (D13).
+- [x] `resetPassword`: дополнительно обнуляет `githubId` (D13).
 
 ### 4.3. Контроллер
 
-- [ ] Добавить эндпоинты в `profile.controller.ts` с текущими гардами (JWT).
-- [ ] ip/ua локально: `@Ip()` + `@Headers("user-agent")` (D10).
-- [ ] Корректная декорация Swagger/OpenAPI (`@ApiOperation`, `@ApiResponse` со статусами из D4).
-- [ ] Валидация DTO через `ValidationPipe`.
+- [x] Добавить эндпоинты в `profile.controller.ts` с текущими гардами (JWT).
+- [x] ip/ua локально: `@Ip()` + `@Headers("user-agent")` (D10).
+- [x] Корректная декорация Swagger/OpenAPI (`@ApiOperation`, `@ApiResponse` со статусами из D4).
+- [x] Валидация DTO через `ValidationPipe`.
 
 ### 4.4. Безопасность кода
 
-- [ ] 6 цифр через `crypto.randomInt`, хеширование при записи в Redis.
-- [ ] TTL 10 минут, лимит 5 попыток, rate limit 1/60с на `request`.
-- [ ] Атомарное потребление (`getdel`) — одноразовость и защита от гонок.
-- [ ] Сравнение через `timingSafeEqual`; код не логировать и не хранить в БД.
+- [x] 6 цифр через `crypto.randomInt`, хеширование при записи в Redis.
+- [x] TTL 10 минут, лимит 5 попыток, rate limit 1/60с на `request`.
+- [x] Атомарное потребление (`getdel`) — одноразовость и защита от гонок.
+- [x] Сравнение через `timingSafeEqual`; код не логировать и не хранить в БД.
 
 ### 4.5. SecurityEvents: доставка (D7, D8)
 
-- [ ] Создать модуль `apps/api/src/modules/security-events/*` (модель, сервис создания, retention-крон 12 мес).
-- [ ] Свой relay: доставка событий с `notifiedAt = null` в Telegram через `RabbitMqPublisher`; при отсутствии привязки — ничего не отправлять, событие остаётся для in-app.
-- [ ] Публичные DTO не содержат `ipAddress`/`userAgent`; эндпоинты непросмотренных событий и отметки «просмотрено».
-- [ ] В `notifications`/`NotificationOutbox` security-события не пишутся.
+- [x] Создать модуль `apps/api/src/modules/security-events/*` (модель, сервис создания, retention-крон 12 мес).
+- [x] Свой relay: доставка событий с `notifiedAt = null` в Telegram через `RabbitMqPublisher`; при отсутствии привязки — ничего не отправлять, событие остаётся для in-app.
+- [x] Публичные DTO не содержат `ipAddress`/`userAgent`; эндпоинты непросмотренных событий и отметки «просмотрено».
+- [x] В `notifications`/`NotificationOutbox` security-события не пишутся.
 
 ### 4.6. Бот (D6)
 
-- [ ] Добавить рендер нового типа `security.telegram_unlink_code` в `apps/telegram-bot` (шаблон в `packages/i18n`, `renderNotification`).
-- [ ] Команда `/unlink` и внутренний `POST /telegram/unlink` остаются без изменений (D11).
+- [x] Добавить рендер нового типа `security.telegram_unlink_code` в `apps/telegram-bot` (шаблон в `packages/i18n`, `renderNotification`).
+- [x] Команда `/unlink` и внутренний `POST /telegram/unlink` остаются без изменений (D11).
 
 ## 5. Тестирование
 
 ### Unit-тесты
 
-- [ ] Генерация/валидация кода, TTL, лимит попыток, rate limit
-- [ ] Сервисные методы отвязки (успех/ошибки)
-- [ ] `400 TELEGRAM_NOT_LINKED` / `400 GITHUB_NOT_LINKED` / `409 ALREADY_UNLINKED` / `409 LAST_AUTH_METHOD`
-- [ ] Инкремент `generation` при отвязке и при привязке
-- [ ] Создание `SecurityEvent` (`TG_LINKED`, `TG_UNLINKED`, `GITHUB_UNLINKED`)
-- [ ] `PATCH /profile/me` отклоняет обнуление `telegramUsername`/`gitUrl`, остальные поля работают (D2)
-- [ ] Код не попадает в логи/БД
+- [x] Генерация/валидация кода, TTL, лимит попыток, rate limit
+- [x] Сервисные методы отвязки (успех/ошибки)
+- [x] `400 TELEGRAM_NOT_LINKED` / `400 GITHUB_NOT_LINKED` / `409 ALREADY_UNLINKED` / `409 LAST_AUTH_METHOD`
+- [x] Инкремент `generation` при отвязке и при привязке
+- [x] Создание `SecurityEvent` (`TG_LINKED`, `TG_UNLINKED`, `GITHUB_UNLINKED`)
+- [x] `PATCH /profile/me` отклоняет обнуление `telegramUsername`/`gitUrl`, остальные поля работают (D2)
+- [x] Код не попадает в логи/БД
 
 ### Интеграционные тесты (e2e)
 
-- [ ] Полный флоу отвязки Telegram: request → confirm → отвязано, `generation` инкрементирован
-- [ ] Отвязка GitHub: успешный кейс
-- [ ] Ошибки: код неверный, TTL истёк, уже использован, аккаунт не привязан, последний способ входа
-- [ ] Конкурентный доступ к записи кода (race condition)
-- [ ] Публикация envelope в бота при `request`
+- [x] Полный флоу отвязки Telegram: request → confirm → отвязано, `generation` инкрементирован
+- [x] Отвязка GitHub: успешный кейс
+- [x] Ошибки: код неверный, TTL истёк, уже использован, аккаунт не привязан, последний способ входа
+- [x] Конкурентный доступ к записи кода (race condition)
+- [x] Публикация envelope в бота при `request`
 
 ## 6. OpenAPI и генерация пакетов
 
-- [ ] Обновить OpenAPI (NestJS Swagger), убедиться, что новые эндпоинты отражены.
-- [ ] `pnpm codegen` → `packages/api` (Orval); проверить `pnpm codegen:check` (отсутствие диффа).
-- [ ] Проверить корректность сгенерированных типов/хуков для `apps/web`.
+- [x] Обновить OpenAPI (NestJS Swagger), убедиться, что новые эндпоинты отражены.
+- [x] `pnpm codegen` → `packages/api` (Orval); проверить `pnpm codegen:check` (отсутствие диффа).
+- [x] Проверить корректность сгенерированных типов/хуков для `apps/web`.
 
 ## 7. Проверки качества
 
-- [ ] `pnpm --filter api exec tsc --noEmit` — без ошибок
-- [ ] `pnpm --filter api exec lint` — без ошибок
-- [ ] `pnpm --filter api exec test` — все тесты проходят
-- [ ] `pnpm --filter api exec test:e2e` — e2e тесты проходят (если затрагивают)
-- [ ] Проверка: `PATCH /profile/me` для остальных полей продолжает работать
+- [x] `pnpm --filter api exec tsc --noEmit` — без ошибок
+- [x] `pnpm --filter api exec lint` — без ошибок
+- [x] `pnpm --filter api exec test` — все тесты проходят
+- [x] `pnpm --filter api exec test:e2e` — e2e тесты проходят (если затрагивают)
+- [x] Проверка: `PATCH /profile/me` для остальных полей продолжает работать
 
 ## 8. DoD по плану
 
-- [ ] Все пункты 1–7 выполнены
-- [ ] Изменения соответствуют спецификации `security-unlink-adr-005-spec.md` (§1.1)
+- [x] Все пункты 1–7 выполнены
+- [x] Изменения соответствуют спецификации `security-unlink-adr-005-spec.md` (§1.1)
 - [ ] Код ревью пройден (соответствие NestJS best practices)
-- [ ] OpenAPI обновлён и `@packages/api` перегенерирован
-- [ ] Фронтенд сможет использовать новые эндпоинты (после интеграции)
-- [ ] Нет регрессий в существующем функционале
+- [x] OpenAPI обновлён и `@packages/api` перегенерирован
+- [x] Фронтенд сможет использовать новые эндпоинты (после интеграции)
+- [x] Нет регрессий в существующем функционале
 
 ## 9. Примечания
 
@@ -173,3 +177,14 @@
 - **Security-уведомления — не в `notifications`.** Состояние доставки живёт в `security_events`, доставка — своим relay (D7).
 - **Транзакционность**: обновление `User`, создание `SecurityEvent` и постановка доставки — по возможности в одной транзакции.
 - **GitHub отвязка**: код-подтверждение не требуется, но ревокация сессий и аудит обязательны; отвязка последнего способа входа запрещена (D9).
+
+## 10. Отступления от плана (по факту реализации)
+
+Смысл требований §1–§9 соблюдён; отличается несколько реализаций — они зафиксированы здесь, чтобы документ не расходился с кодом.
+
+- **§3/§4.4 — атомарное потребление.** Вместо `getdel` — compare-and-delete плюс атомарный инкремент `attempts` через Lua-скрипт в Redis. Причина: в `getdel` нет счётчика попыток, поэтому параллельные `confirm` читали бы «свежую» запись и обходили бы лимит в 5 попыток. Ключ, хеш, TTL и лимит попыток остались как в плане.
+- **§4.2 — отзыв сессий.** Вынесен общий `revokeUserSessionsWithRetry` (`apps/api/src/common/revocation/sessions-revocation.ts`) вместо обращения к `AuthRevocationTask`/`revokeSessionsWithRetry` — используется привязкой Telegram и обеими отвязками.
+- **§4.3 — rate limit.** На `request` — гард `UserThrottlerGuard` (per-user, 1/60 с) в `profile.controller.ts`, а не проверка внутри сервиса. Сервер возвращает штатный `429 ThrottlerException` без машинного `code`, поэтому фронт распознаёт его по HTTP-статусу (см. §4.4).
+- **§4.5 — `SecurityEvent.userId`.** Связь реализована как `onDelete: Restrict` (D12), а не `SetNull`: каскад скрыл бы удаление, а явное обнуление оставило бы событие без автора. Побочно `user-cleanup.cron` переведён на транзакцию «события пользователя раньше самого пользователя».
+- **Бонус (не было в плане) — `HttpExceptionFilter`.** Фильтр теперь пробрасывает строковый `code` в `{ statusCode, message, code }`. Без этого `code` вовсе не доходил до фронта — в частности, не работали `RESET_PASSWORD_ERROR_CODES`.
+- **§2 — имена DTO.** Ответы названы `SecurityUnlinkResponseDto`/`TelegramUnlinkRequestResponseDto`, а не `UnlinkResponseDto`, чтобы не конфликтовать с уже существующей схемой `unlinkResponseSchema` в `packages/dto`.

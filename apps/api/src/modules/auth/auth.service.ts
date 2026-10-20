@@ -899,6 +899,11 @@ export class AuthService implements OnModuleInit {
         data: {
           passwordHash: newPasswordHash,
           generation: { increment: 1 },
+          // D13 (ADR-005:115): смена пароля разрывает и GitHub-доступ —
+          // иначе компрометация пароля оставляла бы второй входный путь.
+          // Обнуление безусловное: проверка `telegramLinkVerified` относится
+          // только к мёртвым полям Telegram.
+          githubId: null,
           ...(user.telegramLinkVerified
             ? {}
             : { telegramId: null, telegramUsername: null }),

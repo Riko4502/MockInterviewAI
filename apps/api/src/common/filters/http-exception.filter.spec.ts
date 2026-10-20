@@ -56,6 +56,43 @@ describe("HttpExceptionFilter", () => {
     });
   });
 
+  it("пробрасывает машиночитаемый code из тела исключения", () => {
+    const { host, json } = createArgumentsHost();
+
+    filter.catch(
+      new BadRequestException({
+        code: "INVALID_CODE",
+        message: "Неверный код",
+      }),
+      host,
+    );
+
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 400,
+      message: "Неверный код",
+      code: "INVALID_CODE",
+    });
+  });
+
+  it("не пробрасывает не-строковый code и прочие внутренние поля", () => {
+    const { host, json } = createArgumentsHost();
+
+    filter.catch(
+      new BadRequestException({
+        code: 42,
+        message: "Ошибка",
+        internalDetail: "secret",
+      }),
+      host,
+    );
+
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 400,
+      message: "Ошибка",
+    });
+    expect(json.mock.calls[0]?.[0]).not.toHaveProperty("internalDetail");
+  });
+
   it("объект с нестроковыми значениями и без message маскируется до Unknown error", () => {
     const { host, json } = createArgumentsHost();
 

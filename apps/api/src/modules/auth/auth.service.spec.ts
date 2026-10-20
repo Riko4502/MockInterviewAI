@@ -1379,6 +1379,7 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+          githubId: null,
           telegramId: null,
           telegramUsername: null,
         },
@@ -1473,6 +1474,7 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+          githubId: null,
           telegramId: null,
           telegramUsername: null,
         },
@@ -1512,6 +1514,7 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+          githubId: null,
           telegramId: null,
           telegramUsername: null,
         },
@@ -1550,6 +1553,7 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+          githubId: null,
           telegramId: null,
           telegramUsername: null,
         },
@@ -1580,6 +1584,8 @@ describe("AuthService", () => {
         data: {
           passwordHash: "$argon2id$test-hash",
           generation: { increment: 1 },
+          // D13: githubId обнуляется даже при подтверждённом Telegram
+          githubId: null,
         },
         select: {
           generation: true,

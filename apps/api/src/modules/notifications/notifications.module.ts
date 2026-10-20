@@ -60,6 +60,6 @@ import { TelegramNotificationChannel } from "./telegram-notification.channel";
       ],
     },
   ],
-  exports: [NotificationsService, NotificationDispatcher],
+  exports: [NotificationsService, NotificationDispatcher, RabbitMqPublisher],
 })
 export class NotificationsModule {}

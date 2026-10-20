@@ -1,30 +1,38 @@
 import "multer";
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
   forwardRef,
   GoneException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import type {
   CompleteOnboardingDto,
   DeviceSettingsDto,
   Locale,
   PublicUserProfileDto,
+  SecurityUnlinkResponseDto,
+  TelegramUnlinkRequestResponseDto,
   ThemeMode,
   UpdateDeviceSettingsDto,
   UpdateProfileDto,
   UserProfileDto,
 } from "@packages/dto";
+import { SECURITY_UNLINK_ERROR_CODES } from "@packages/dto";
 import { SystemPermission, SystemRole } from "@packages/types";
-import { publishUserRevocationOrThrow } from "../../common/pubsub/revocation";
+import { revokeUserSessionsWithRetry } from "../../common/revocation/sessions-revocation";
 import {
   type Prisma,
   type Role,
+  SecurityEventType,
   ThemePreference,
   type User,
 } from "../../generated/prisma/client";
@@ -33,6 +41,15 @@ import { RedisService } from "../../redis/redis.service";
 import { REDIS_SESSION_PREFIX } from "../auth/auth.constants";
 import { AuthSessionService } from "../auth/services/auth-session.service";
 import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
+import { RabbitMqPublisher } from "../notifications/rabbitmq-publisher.service";
+import {
+  SECURITY_EVENT_UNLINK_METADATA,
+  TELEGRAM_UNLINK_MAX_ATTEMPTS,
+  TELEGRAM_UNLINK_REDIS_PREFIX,
+  TELEGRAM_UNLINK_TTL_MINUTES,
+  TELEGRAM_UNLINK_TTL_SECONDS,
+} from "../security-events/security-events.constants";
+import { SecurityEventsService } from "../security-events/security-events.service";
 import { StorageService } from "../storage/storage.service";
 
 /** Регулярное выражение для проверки UUID v4 */
@@ -41,6 +58,41 @@ const UUID_REGEX =
 
 /** 30 дней в миллисекундах (период на восстановление аккаунта) */
 const GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Запись кода отвязки исчезла между чтением и инкрементом попыток. */
+const UNLINK_RECORD_MISSING = -1;
+
+/** Лимит неверных попыток исчерпан — запись удалена. */
+const UNLINK_ATTEMPTS_EXCEEDED = -2;
+
+/**
+ * Атомарный инкремент счётчика неверных попыток отвязки Telegram.
+ *
+ * Читать-и-перезаписывать из Node нельзя: параллельные запросы с неверным
+ * кодом прочитали бы `attempts = 0` и обошли лимит в 5 попыток. Скрипт
+ * возвращает число попыток, `-1` — записи больше нет, `-2` — лимит исчерпан
+ * (запись удаляется). `expiresAt`/TTL не продлеваются: код живёт свои 10 минут
+ * независимо от числа опечаток.
+ */
+const INCREMENT_UNLINK_ATTEMPTS_SCRIPT = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return -1
+end
+local data = cjson.decode(raw)
+local attempts = (tonumber(data.attempts) or 0) + 1
+if attempts >= tonumber(ARGV[1]) then
+  redis.call("DEL", KEYS[1])
+  return -2
+end
+data.attempts = attempts
+local ttl = redis.call("TTL", KEYS[1])
+redis.call("SET", KEYS[1], cjson.encode(data))
+if ttl > 0 then
+  redis.call("EXPIRE", KEYS[1], ttl)
+end
+return attempts
+`;
 
 /** Пользователь со связанной ролью */
 export type UserWithRoleAndPermissions = User & {
@@ -109,6 +161,8 @@ export class UsersService {
     @Inject(forwardRef(() => AuthSessionService))
     private readonly authSessionService: AuthSessionService,
     private readonly notificationDispatcher: NotificationDispatcher,
+    private readonly securityEventsService: SecurityEventsService,
+    private readonly rabbitMqPublisher: RabbitMqPublisher,
   ) {}
 
   /**
@@ -434,6 +488,15 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
+    // D2: отвязка возможна только отдельными эндпоинтами (код + ревокация +
+    // аудит). Обнуление через PATCH обходило бы всю защиту ADR-005, поэтому
+    // отклоняется, а не игнорируется — иначе клиент считал бы, что отвязал.
+    if (dto.telegramUsername === null || dto.gitUrl === null) {
+      throw new BadRequestException(
+        "Unlinking accounts via profile update is not allowed. Use the dedicated unlink endpoints.",
+      );
+    }
+
     if (dto.username && dto.username !== existing.username) {
       const userWithSameUsername = await this.findByUsername(dto.username);
       if (userWithSameUsername && userWithSameUsername.id !== userId) {
@@ -467,15 +530,9 @@ export class UsersService {
         ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
         ...(dto.telegramUsername !== undefined && {
           telegramUsername: dto.telegramUsername,
-          ...(dto.telegramUsername === null && {
-            telegramId: null,
-            telegramChatId: null,
-            telegramLinkVerified: false,
-          }),
         }),
         ...(dto.gitUrl !== undefined && {
           gitUrl: dto.gitUrl,
-          ...(dto.gitUrl === null && { githubId: null }),
         }),
         ...(dto.theme !== undefined && {
           theme: dto.theme.toUpperCase() as ThemePreference,
@@ -489,6 +546,435 @@ export class UsersService {
     await this.invalidateReadinessCache(userId);
 
     return this.mapToUserProfile(updated);
+  }
+
+  /**
+   * Запускает флоу подтверждаемой отвязки Telegram (D4–D6).
+   *
+   * Генерирует 6-значный код, кладёт в Redis только его SHA-256 хеш (D14) и
+   * отправляет сам код боту через `RabbitMqPublisher`: API не умеет писать в
+   * Telegram напрямую, единственный консьюмер очереди — `apps/telegram-bot`.
+   * Запись в `notification_outbox` не создаётся намеренно — код не должен
+   * осесть в БД (D6).
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @returns `{ sent: true, expiresAt }`.
+   * @throws {BadRequestException} Telegram не привязан (`TELEGRAM_NOT_LINKED`).
+   * @throws {ServiceUnavailableException} Брокер недоступен — код не доставлен.
+   */
+  async requestTelegramUnlink(
+    userId: string,
+  ): Promise<TelegramUnlinkRequestResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        telegramChatId: true,
+        telegramLinkVerified: true,
+        locale: true,
+        telegramLocale: true,
+        timezone: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (!user.telegramChatId || !user.telegramLinkVerified) {
+      throw new BadRequestException({
+        code: SECURITY_UNLINK_ERROR_CODES.TELEGRAM_NOT_LINKED,
+        message: "Telegram is not linked",
+      });
+    }
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const key = `${TELEGRAM_UNLINK_REDIS_PREFIX}${userId}`;
+    const expiresAtMs = Date.now() + TELEGRAM_UNLINK_TTL_SECONDS * 1000;
+
+    await this.redisService.set(
+      key,
+      JSON.stringify({
+        hash: this.hashUnlinkCode(code),
+        attempts: 0,
+        expiresAt: expiresAtMs,
+      }),
+      TELEGRAM_UNLINK_TTL_SECONDS,
+    );
+
+    try {
+      await this.rabbitMqPublisher.publish(
+        {
+          event: {
+            type: "security.telegram_unlink_code",
+            payload: { code, ttlMinutes: TELEGRAM_UNLINK_TTL_MINUTES },
+          },
+          chatId: user.telegramChatId,
+          locale: user.telegramLocale ?? user.locale,
+          timeZone: user.timezone,
+        },
+        `security:tg-unlink:${userId}:${expiresAtMs}`,
+      );
+    } catch (error) {
+      // Код не ушёл: оставлять валидную запись нельзя, иначе код «висит» без
+      // получателя. Сам код в лог не пишем (D14).
+      await this.redisService.delete(key).catch(() => undefined);
+      this.logger.error(
+        `Failed to publish Telegram unlink code for user ${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new ServiceUnavailableException(
+        "Failed to send the confirmation code",
+      );
+    }
+
+    return { sent: true, expiresAt: new Date(expiresAtMs).toISOString() };
+  }
+
+  /**
+   * Подтверждает отвязку Telegram одноразовым кодом (D4–D5).
+   *
+   * Сравнение кода — `timingSafeEqual` по SHA-256 хешу (D5). Запись
+   * расходуется атомарно (`compareAndDelete`) только после успешной проверки:
+   * `getdel` до сравнения «сжигал» бы код при опечатке и ломал счётчик попыток.
+   * Неверные попытки инкрементируются отдельным Lua-скриптом, чтобы
+   * параллельные запросы не обходили лимит (5 попыток, далее инвалидация).
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @param code - 6-значный код из Telegram.
+   * @param ipAddress - IP запроса (только для аудита, в DTO не отдаётся).
+   * @param userAgent - User-Agent запроса (только для аудита).
+   * @returns `{ success: true }`.
+   * @throws {BadRequestException} Неверный код (`INVALID_CODE`).
+   * @throws {GoneException} Код истёк или отсутствует (`CODE_EXPIRED`, 410).
+   * @throws {ConflictException} Уже отвязано (`ALREADY_UNLINKED`, 409).
+   * @throws {HttpException} Исчерпан лимит попыток (`ATTEMPTS_EXCEEDED`, 429).
+   */
+  async confirmTelegramUnlink(
+    userId: string,
+    code: string,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ): Promise<SecurityUnlinkResponseDto> {
+    const key = `${TELEGRAM_UNLINK_REDIS_PREFIX}${userId}`;
+
+    let raw: string | null;
+    try {
+      raw = await this.redisService.get(key);
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during confirmTelegramUnlink",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
+
+    if (!raw) {
+      throw new GoneException({
+        code: SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+        message: "Confirmation code has expired",
+      });
+    }
+
+    const record = this.parseUnlinkRecord(raw);
+
+    if (record.expiresAt !== undefined && record.expiresAt <= Date.now()) {
+      await this.redisService.delete(key).catch(() => undefined);
+      throw new GoneException({
+        code: SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+        message: "Confirmation code has expired",
+      });
+    }
+
+    if (!this.safeEqualHex(this.hashUnlinkCode(code), record.hash)) {
+      const attempts = await this.registerFailedUnlinkAttempt(key);
+
+      if (attempts === UNLINK_RECORD_MISSING) {
+        throw new GoneException({
+          code: SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+          message: "Confirmation code has expired",
+        });
+      }
+      if (attempts === UNLINK_ATTEMPTS_EXCEEDED) {
+        throw new HttpException(
+          {
+            code: SECURITY_UNLINK_ERROR_CODES.ATTEMPTS_EXCEEDED,
+            message: "Too many invalid attempts, request a new code",
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      throw new BadRequestException({
+        code: SECURITY_UNLINK_ERROR_CODES.INVALID_CODE,
+        message: "Invalid confirmation code",
+      });
+    }
+
+    const consumed = await this.redisService.compareAndDelete(key, raw);
+    if (!consumed) {
+      // Параллельный confirm уже израсходовал код.
+      throw new ConflictException({
+        code: SECURITY_UNLINK_ERROR_CODES.ALREADY_UNLINKED,
+        message: "Telegram is already unlinked",
+      });
+    }
+
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { telegramChatId: true, telegramLinkVerified: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
+
+      if (!user.telegramChatId || !user.telegramLinkVerified) {
+        throw new ConflictException({
+          code: SECURITY_UNLINK_ERROR_CODES.ALREADY_UNLINKED,
+          message: "Telegram is already unlinked",
+        });
+      }
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          telegramId: null,
+          telegramUsername: null,
+          telegramChatId: null,
+          telegramLinkVerified: false,
+          telegramLocale: null,
+          generation: { increment: 1 },
+        },
+        select: { generation: true },
+      });
+
+      const preIncrementGeneration = updated.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: { userId, generation: preIncrementGeneration },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = preIncrementGeneration;
+
+      await this.securityEventsService.record({
+        tx,
+        userId,
+        type: SecurityEventType.TG_UNLINKED,
+        ipAddress,
+        userAgent,
+        metadata: SECURITY_EVENT_UNLINK_METADATA,
+      });
+    });
+
+    await this.finalizeRevocation(userId, {
+      taskId,
+      taskCreatedAt,
+      taskGeneration,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Отвязывает GitHub с ревокацией сессий и аудитом (D4, D7, D9).
+   *
+   * Отвязка последнего способа входа запрещена: `passwordHash` nullable
+   * (существуют GitHub-only аккаунты), поэтому без пароля и без Telegram
+   * пользователь остался бы без входа вообще. Проверка и изменение — в одной
+   * транзакции, чтобы между проверкой и апдейтом не проскочила смена пароля.
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @param ipAddress - IP запроса (только для аудита).
+   * @param userAgent - User-Agent запроса (только для аудита).
+   * @returns `{ success: true }`.
+   * @throws {BadRequestException} GitHub не привязан (`GITHUB_NOT_LINKED`).
+   * @throws {ConflictException} Это последний способ входа (`LAST_AUTH_METHOD`, 409).
+   */
+  async unlinkGithub(
+    userId: string,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ): Promise<SecurityUnlinkResponseDto> {
+    let taskId: string | undefined;
+    let taskCreatedAt: Date | undefined;
+    let taskGeneration: number | undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: {
+          githubId: true,
+          passwordHash: true,
+          telegramChatId: true,
+          telegramLinkVerified: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
+
+      if (!user.githubId) {
+        throw new BadRequestException({
+          code: SECURITY_UNLINK_ERROR_CODES.GITHUB_NOT_LINKED,
+          message: "GitHub is not linked",
+        });
+      }
+
+      const hasPassword = Boolean(user.passwordHash);
+      const hasTelegram =
+        user.telegramLinkVerified && Boolean(user.telegramChatId);
+
+      if (!hasPassword && !hasTelegram) {
+        throw new ConflictException({
+          code: SECURITY_UNLINK_ERROR_CODES.LAST_AUTH_METHOD,
+          message: "Cannot unlink the last sign-in method",
+        });
+      }
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          githubId: null,
+          gitUrl: null,
+          generation: { increment: 1 },
+        },
+        select: { generation: true },
+      });
+
+      const preIncrementGeneration = updated.generation - 1;
+      const task = await tx.authRevocationTask.create({
+        data: { userId, generation: preIncrementGeneration },
+      });
+      taskId = task.id;
+      taskCreatedAt = task.createdAt;
+      taskGeneration = preIncrementGeneration;
+
+      await this.securityEventsService.record({
+        tx,
+        userId,
+        type: SecurityEventType.GITHUB_UNLINKED,
+        ipAddress,
+        userAgent,
+        metadata: SECURITY_EVENT_UNLINK_METADATA,
+      });
+    });
+
+    await this.finalizeRevocation(userId, {
+      taskId,
+      taskCreatedAt,
+      taskGeneration,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Завершает ревокацию после транзакции отвязки: отзыв сессий + публикация
+   * сигнала, затем удаление durable-задачи. Ошибка не пробрасывается: само
+   * изменение и аудит уже зафиксированы, а задача остаётся воркеру
+   * `SessionRevocationCron` для повторной попытки (как в `deactivateAccount`).
+   */
+  private async finalizeRevocation(
+    userId: string,
+    task: {
+      taskId?: string;
+      taskCreatedAt?: Date;
+      taskGeneration?: number;
+    },
+  ): Promise<void> {
+    try {
+      await this.revokeSessionsWithRetry(
+        userId,
+        task.taskCreatedAt,
+        task.taskGeneration,
+      );
+      if (task.taskId) {
+        await this.prisma.authRevocationTask
+          .delete({ where: { id: task.taskId } })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions / publish revocation for user ${userId} during unlink (persisted for worker retry)`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /** SHA-256 хеш кода отвязки: в Redis и для сравнения хранится только он (D14). */
+  private hashUnlinkCode(code: string): string {
+    return createHash("sha256").update(code).digest("hex");
+  }
+
+  /**
+   * Сравнение хешей в постоянном времени (D5).
+   *
+   * Через `timingSafeEqual` по буферам одинаковой длины; несовпадение длины
+   * (повреждённая запись) трактуется как несовпадение.
+   */
+  private safeEqualHex(a: string, b: string): boolean {
+    const bufferA = Buffer.from(a, "hex");
+    const bufferB = Buffer.from(b, "hex");
+
+    if (bufferA.length === 0 || bufferA.length !== bufferB.length) {
+      return false;
+    }
+
+    return timingSafeEqual(bufferA, bufferB);
+  }
+
+  /**
+   * Разбирает запись кода отвязки; повреждённая запись трактуется как
+   * отсутствующая (`CODE_EXPIRED`), потому что проверить её всё равно нельзя.
+   */
+  private parseUnlinkRecord(raw: string): { hash: string; expiresAt?: number } {
+    try {
+      const parsed = JSON.parse(raw) as {
+        hash?: unknown;
+        expiresAt?: unknown;
+      };
+      if (typeof parsed.hash === "string" && parsed.hash.length > 0) {
+        return {
+          hash: parsed.hash,
+          expiresAt:
+            typeof parsed.expiresAt === "number" ? parsed.expiresAt : undefined,
+        };
+      }
+    } catch {
+      // ignore — treated as expired below
+    }
+
+    throw new GoneException({
+      code: SECURITY_UNLINK_ERROR_CODES.CODE_EXPIRED,
+      message: "Confirmation code has expired",
+    });
+  }
+
+  /**
+   * Атомарно инкрементирует счётчик неверных попыток и удаляет запись при
+   * исчерпании лимита. Возвращает `-1` (запись исчезла) или `-2` (лимит).
+   */
+  private async registerFailedUnlinkAttempt(key: string): Promise<number> {
+    try {
+      return await this.redisService.eval<number>(
+        INCREMENT_UNLINK_ATTEMPTS_SCRIPT,
+        [key],
+        [TELEGRAM_UNLINK_MAX_ATTEMPTS],
+      );
+    } catch (error) {
+      this.logger.error(
+        "Redis unavailable during registerFailedUnlinkAttempt",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw new InternalServerErrorException();
+    }
   }
 
   /**
@@ -770,22 +1256,17 @@ export class UsersService {
     retries = 3,
     delayMs = 50,
   ): Promise<void> {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        await this.authSessionService.revokeAllUserSessions(
-          userId,
-          maxCreatedAt,
-          maxGeneration,
-        );
-        await publishUserRevocationOrThrow(this.redisService, userId);
-        return;
-      } catch (error) {
-        if (attempt === retries) {
-          throw error;
-        }
-        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
-      }
-    }
+    await revokeUserSessionsWithRetry(
+      {
+        redisService: this.redisService,
+        authSessionService: this.authSessionService,
+      },
+      userId,
+      maxCreatedAt,
+      maxGeneration,
+      retries,
+      delayMs,
+    );
   }
 
   /**
