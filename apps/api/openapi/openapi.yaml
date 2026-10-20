@@ -1657,9 +1657,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignsPageDto"
-      security: *a14
-      summary: List notification campaigns
-      tags: *a15
+      security: *a16
+      summary: Получить список кампаний уведомлений
+      tags: *a17
     post:
       operationId: NotificationCampaignsController_create
       parameters: []
@@ -1722,9 +1722,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignDto"
-      security: *a14
-      summary: Create a notification campaign
-      tags: *a15
+      security: *a16
+      summary: Создать кампанию уведомлений
+      tags: *a17
   /api/v1/admin/notifications/campaigns/{id}:
     get:
       operationId: NotificationCampaignsController_findOne
@@ -1743,9 +1743,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignDetailsDto"
-      security: *a14
-      summary: Get notification campaign details
-      tags: *a15
+      security: *a16
+      summary: Получить подробную информацию о кампании
+      tags: *a17
     patch:
       operationId: NotificationCampaignsController_update
       parameters:
@@ -1805,9 +1805,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignDto"
-      security: *a14
-      summary: Update a draft or scheduled campaign
-      tags: *a15
+      security: *a16
+      summary: Обновить черновик или запланированную кампанию
+      tags: *a17
     delete:
       operationId: NotificationCampaignsController_remove
       parameters:
@@ -1820,10 +1820,10 @@ paths:
             type: string
       responses:
         "204":
-          description: Campaign deleted
-      security: *a14
-      summary: Delete a draft or cancelled campaign
-      tags: *a15
+          description: Кампания удалена
+      security: *a16
+      summary: Удалить черновик или отменённую кампанию
+      tags: *a17
   /api/v1/admin/notifications/campaigns/{id}/queue:
     post:
       operationId: NotificationCampaignsController_queue
@@ -1842,9 +1842,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignDto"
-      security: *a14
-      summary: Queue a draft campaign for asynchronous delivery
-      tags: *a15
+      security: *a16
+      summary: Поставить черновик кампании в очередь на отправку
+      tags: *a17
   /api/v1/admin/notifications/campaigns/{id}/cancel:
     post:
       operationId: NotificationCampaignsController_cancel
@@ -1870,9 +1870,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationCampaignDto"
-      security: *a14
-      summary: Cancel a scheduled or processing campaign
-      tags: *a15
+      security: *a16
+      summary: Отменить запланированную или обрабатываемую кампанию
+      tags: *a17
   /api/v1/telegram/link-token:
     post:
       operationId: TelegramController_createLinkToken
