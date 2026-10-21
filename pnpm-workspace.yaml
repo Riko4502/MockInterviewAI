@@ -9,6 +9,7 @@ overrides:
   source-map-js: ">=1.2.2"
   shell-quote: ">=1.11.0"
   sharp: ">=0.35.5"
+  markdown-it: ">=14.3.2 <15.0.0 || >=15.0.2"
 
 auditConfig:
   ignoreCves:
