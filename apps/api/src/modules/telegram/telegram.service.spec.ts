@@ -7,6 +7,8 @@ import {
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import type { RedisService } from "../../redis/redis.service";
+import type { AuthSessionService } from "../auth/services/auth-session.service";
+import type { SecurityEventsService } from "../security-events/security-events.service";
 import { TelegramService } from "./telegram.service";
 
 const CONFIG_MOCK = {
@@ -51,15 +53,28 @@ describe("TelegramService", () => {
   let prismaMock: {
     user: {
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
     };
     interviewSession: { findMany: jest.Mock };
+    authRevocationTask: {
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let redisMock: {
     set: jest.Mock;
     getdel: jest.Mock;
+    publish: jest.Mock;
+  };
+  let authSessionServiceMock: {
+    revokeAllUserSessions: jest.Mock;
+  };
+  let securityEventsServiceMock: {
+    record: jest.Mock;
   };
   let service: TelegramService;
 
@@ -67,20 +82,46 @@ describe("TelegramService", () => {
     prismaMock = {
       user: {
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
       },
       interviewSession: { findMany: jest.fn() },
+      authRevocationTask: {
+        create: jest.fn().mockResolvedValue({
+          id: "task-1",
+          createdAt: new Date("2026-09-10T12:00:00.000Z"),
+        }),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn().mockImplementation((arg) => {
+        if (typeof arg === "function") {
+          return arg(prismaMock);
+        }
+        return Promise.all(arg);
+      }),
     };
     redisMock = {
       set: jest.fn().mockResolvedValue(undefined),
       getdel: jest.fn(),
+      publish: jest.fn().mockResolvedValue(1),
+    };
+    authSessionServiceMock = {
+      revokeAllUserSessions: jest.fn().mockResolvedValue(undefined),
+    };
+    securityEventsServiceMock = {
+      record: jest.fn().mockResolvedValue({
+        id: "security-event-1",
+        createdAt: new Date("2026-09-10T12:00:00.000Z"),
+      }),
     };
 
     service = new TelegramService(
       prismaMock as unknown as PrismaService,
       redisMock as unknown as RedisService,
+      authSessionServiceMock as unknown as AuthSessionService,
+      securityEventsServiceMock as unknown as SecurityEventsService,
       CONFIG_MOCK,
     );
   });
@@ -104,12 +145,13 @@ describe("TelegramService", () => {
   describe("link", () => {
     const TOKEN = "a".repeat(48);
 
-    it("успех: GETDEL токена, привязка chatId и очистка локали", async () => {
+    it("успех: GETDEL токена, привязка chatId, ревокация сессий и аудит TG_LINKED", async () => {
       redisMock.getdel.mockResolvedValue(JSON.stringify({ userId: USER_ID }));
       prismaMock.user.findUnique
         .mockResolvedValueOnce(mockUser())
         .mockResolvedValueOnce(mockUser({ telegramChatId: CHAT_ID }));
       prismaMock.user.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.user.findUniqueOrThrow.mockResolvedValue({ generation: 2 });
 
       const result = await service.link(TOKEN, CHAT_ID);
 
@@ -120,8 +162,33 @@ describe("TelegramService", () => {
           telegramChatId: CHAT_ID,
           telegramLocale: null,
           telegramLinkVerified: true,
+          generation: { increment: 1 },
         },
       });
+      // D3: привязка инкрементирует generation (pre-increment = 1), создаёт
+      // durable-задачу ревокации и пишет аудит TG_LINKED.
+      expect(prismaMock.authRevocationTask.create).toHaveBeenCalledWith({
+        data: { userId: USER_ID, generation: 1 },
+      });
+      expect(authSessionServiceMock.revokeAllUserSessions).toHaveBeenCalledWith(
+        USER_ID,
+        expect.any(Date),
+        1,
+      );
+      expect(redisMock.publish).toHaveBeenCalledWith(
+        "auth:revocations",
+        expect.stringContaining(USER_ID),
+      );
+      expect(prismaMock.authRevocationTask.delete).toHaveBeenCalledWith({
+        where: { id: "task-1" },
+      });
+      expect(securityEventsServiceMock.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: USER_ID,
+          type: "TG_LINKED",
+          metadata: { channel: "telegram" },
+        }),
+      );
       expect(result.telegramChatId).toBe(CHAT_ID);
       expect(result.role).toBe("USER");
     });

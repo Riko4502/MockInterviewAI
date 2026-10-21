@@ -198,6 +198,8 @@ describe("ShowcaseService", () => {
     });
 
     it("переводит слоты в зоне владельца и возвращает их вместе с анкетой", async () => {
+      // Слот задан конкретной датой, поэтому время заморожено: иначе проверка
+      // «слот в будущем» начнёт падать, как только эта дата наступит.
       jest.useFakeTimers().setSystemTime(new Date("2026-10-01T12:00:00.000Z"));
       try {
         prismaMock.user.findUnique.mockResolvedValue({

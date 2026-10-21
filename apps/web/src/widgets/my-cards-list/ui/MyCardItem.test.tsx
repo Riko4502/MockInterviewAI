@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShowcaseCardResponseDto } from "@/entities/showcase-card";
+import { paths } from "@/shared/config";
 import { MyCardItem } from "./MyCardItem";
 
 const mockToggleStatus = vi.fn();
@@ -50,6 +51,10 @@ describe("MyCardItem", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("отображает обычные кнопки управления для активной карточки", () => {
     render(<MyCardItem card={mockCard} onDelete={vi.fn()} />);
 
@@ -76,5 +81,59 @@ describe("MyCardItem", () => {
 
     fireEvent.click(renewButton);
     expect(mockRenewCard).toHaveBeenCalledWith("card-1");
+  });
+
+  it("показывает 0/0 при отсутствии слотов", () => {
+    render(<MyCardItem card={mockCard} onDelete={vi.fn()} />);
+
+    expect(screen.getByText("Свободно: 0")).toBeInTheDocument();
+    expect(screen.getByText("Забронировано: 0")).toBeInTheDocument();
+  });
+
+  it("считает только будущие OPEN и все BOOKED, ведёт к редактированию", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    const cardWithSlots: ShowcaseCardResponseDto = {
+      ...mockCard,
+      slots: [
+        // Будущий OPEN → свободен
+        {
+          id: "slot-free",
+          startsAt: "2026-01-02T10:00:00.000Z",
+          durationMinutes: 60,
+          status: "OPEN",
+        },
+        // Прошедший OPEN → не свободен
+        {
+          id: "slot-past",
+          startsAt: "2025-12-31T10:00:00.000Z",
+          durationMinutes: 60,
+          status: "OPEN",
+        },
+        // BOOKED → считается всегда
+        {
+          id: "slot-booked",
+          startsAt: "2026-01-03T10:00:00.000Z",
+          durationMinutes: 60,
+          status: "BOOKED",
+        },
+        // CANCELLED → не считается
+        {
+          id: "slot-cancelled",
+          startsAt: "2026-01-04T10:00:00.000Z",
+          durationMinutes: 60,
+          status: "CANCELLED",
+        },
+      ],
+    };
+
+    render(<MyCardItem card={cardWithSlots} onDelete={vi.fn()} />);
+
+    expect(screen.getByText("Свободно: 1")).toBeInTheDocument();
+    expect(screen.getByText("Забронировано: 1")).toBeInTheDocument();
+
+    const editLink = screen.getByRole("link", { name: /Свободно: 1/ });
+    expect(editLink).toHaveAttribute("href", paths.partnersEdit("card-1"));
   });
 });

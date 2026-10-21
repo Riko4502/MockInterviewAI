@@ -24,6 +24,7 @@ import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
 import { NotificationCampaignsModule } from "./modules/notification-campaigns/notification-campaigns.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { RealtimeModule } from "./modules/realtime/realtime.module";
+import { SecurityEventsModule } from "./modules/security-events/security-events.module";
 import { SessionsModule } from "./modules/sessions/sessions.module";
 import { ShowcaseModule } from "./modules/showcase/showcase.module";
 import { StorageModule } from "./modules/storage/storage.module";
@@ -77,6 +78,7 @@ import { RedisModule } from "./redis/redis.module";
     NotificationsModule,
     NotificationCampaignsModule,
     TelegramModule,
+    SecurityEventsModule,
     ShowcaseModule,
     MatchmakingModule,
     CodeRunnerModule,

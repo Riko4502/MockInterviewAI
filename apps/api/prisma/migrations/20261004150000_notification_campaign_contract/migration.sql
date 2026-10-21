@@ -39,4 +39,4 @@ ALTER TABLE "notification_campaign_recipients"
 
 ALTER TABLE "notifications" DROP CONSTRAINT "notifications_campaign_id_fkey";
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_campaign_id_fkey"
-  FOREIGN KEY ("campaign_id") REFERENCES "notification_campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("campaign_id") REFERENCES "notification_campaigns"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -203,12 +203,12 @@ model Notification {
   @@map("notifications")
 }
 
-// Добавление обратных связей в модель User:
+// Обратные связи уже добавлены в schema.prisma под именами ниже:
 // model User {
 //   ...
-//   campaignsCreated       NotificationCampaign[]          @relation("CampaignsCreated")
-//   campaignsCancelled     NotificationCampaign[]          @relation("CampaignsCancelled")
-//   campaignRecipients     NotificationCampaignRecipient[] @relation("CampaignRecipients")
+//   createdNotificationCampaigns      NotificationCampaign[]          @relation("NotificationCampaignCreator")
+//   cancelledNotificationCampaigns   NotificationCampaign[]          @relation("NotificationCampaignCanceller")
+//   notificationCampaignRecipients   NotificationCampaignRecipient[] @relation("NotificationCampaignRecipients")
 // }
 ```
 
@@ -588,39 +588,40 @@ for (const campaign of activeCampaigns) {
   - [ ] Создать модель `NotificationCampaign` с полями прогресса `sentCount`, `totalRecipients`, `lastProcessedUserId`, а также аудит-полями `cancelledById` и `cancelledAt`.
   - [ ] Создать модель `NotificationCampaignRecipient`.
   - [ ] Добавить поле `campaignId` и связь `@relation(onDelete: Cascade)` в существующую модель `Notification`.
-  - [ ] Добавить обратные связи `campaignsCreated`, `campaignsCancelled`, `campaignRecipients` в существующую модель `User`.
+  - [x] Обратные связи добавлены в `User` как `createdNotificationCampaigns`, `cancelledNotificationCampaigns`, `notificationCampaignRecipients` (имена отличаются от первоначального примера выше).
   - [ ] Создать миграцию `pnpm --filter api db:migrate:dev --name add_chunked_notification_campaigns`.
   - [ ] Сгенерировать Prisma Client (`pnpm --filter api db:generate`).
-- [ ] **2. DTO и валидация (`packages/types`, `packages/dto`):**
-  - [ ] Описать типы и интерфейсы в `packages/types/src/admin-notifications.ts` (статусы, режимы `SCHEDULED` и `DRAFT`, поле `readCount`).
-  - [ ] Создать Zod-схемы валидации `CreateCampaignSchema`, `UpdateCampaignSchema`, `QueryCampaignsSchema`.
-  - [ ] Добавить дедупликацию массива `recipientUserIds` через `z.array(z.string().uuid()).transform(ids => Array.from(new Set(ids)))`.
-  - [ ] Запретить немедленную синхронную отправку в схемах валидации; сделать `sendMode: z.enum(['SCHEDULED', 'DRAFT'])`.
-  - [ ] Экспортировать типы из пакетов и пересобрать (`pnpm build`).
-- [ ] **3. Сервис и контроллер администратора (`apps/api/src/modules/admin`):**
-  - [ ] Создать `AdminNotificationsController` с декораторами `@ApiTags('Admin Notifications')`, `@UseGuards(AccessTokenGuard, RolesGuard)`, `@Roles(UserRole.ADMIN)`.
-  - [ ] Реализовать `AdminNotificationsService`:
-    - CRUD операции над кампаниями (создание со статусом `SCHEDULED` или `DRAFT`, получение списка с подсчетом `readCount`, получение деталей, обновление, удаление, отмена).
-    - Транзакционное создание и обновление черновиков через `prisma.$transaction`.
-    - Метод `queueCampaign(id)` для перевода черновика в очередь планировщика (`SCHEDULED`).
-    - Подсчет общего количества потенциальных получателей (`totalRecipients`) при создании кампании.
-    - Валидацию прав и статусов (защита от редактирования рассылок в статусе `PROCESSING`).
-- [ ] **4. Сервис пошаговой чанковой отправки и планировщик (`NotificationSchedulerService`):**
-  - [ ] Реализовать распределенный замок в Redis с токеном владельца и безопасным Lua-освобождением (`acquireLock`, `releaseLock`).
-  - [ ] Реализовать `@Cron(CronExpression.EVERY_10_SECONDS)` для обработки очереди отложенных и выполняющихся кампаний.
-  - [ ] Реализовать метод актуализации `totalRecipients` при старте рассылки.
-  - [ ] Реализовать унифицированную безопасную выборку `targetUserIds` по диапазону ID (`gt: lastProcessedUserId`) с фильтрацией `isActive: true, deletedAt: null`.
-  - [ ] Интегрировать пакетную вставку `prisma.notification.createMany` со связью `campaignId` и групповую отправку через **Redis Pipeline** с инвалидацией `page:1` и `unread-count`.
-  - [ ] Реализовать защиту от Cancel Race Condition через `updateMany({ where: { status: PROCESSING } })`.
-  - [ ] Реализовать изолированный `try/catch` для каждой кампании с переводом упавшей задачи в `FAILED`.
-  - [ ] Корректное обновление прогресса `sentCount` и перевод в `COMPLETED` при завершении всех чанков.
+- [x] **2. DTO и валидация (`packages/dto`):**
+  - [x] Типы кампаний выводятся из Zod-схем через `z.infer`; отдельный файл `packages/types/src/admin-notifications.ts` не создавался, поскольку в `packages/types` нет каталога `src/admin-notifications` и контракты DTO размещены в пакете `packages/dto`.
+  - [x] Zod-схемы создания и обновления реализованы в `packages/dto/src/notifications/notification-campaign.dto.ts` (`createNotificationCampaignSchema`, `updateNotificationCampaignSchema`); схема списка реализована там же как `notificationCampaignsQuerySchema`.
+  - [x] Массив `recipientUserIds` ограничивается 1000 элементами и дедуплицируется через `Set`.
+  - [x] Немедленная отправка не поддерживается: `sendMode` принимает только `SCHEDULED` или `DRAFT`.
+  - [x] Схемы и выведенные DTO-типы экспортируются через `packages/dto/src/index.ts`.
+- [ ] **3. Сервис и контроллер кампаний (`apps/api/src/modules/notification-campaigns`):**
+  - [x] Контроллер реализован как `NotificationCampaignsController` в `apps/api/src/modules/notification-campaigns/notification-campaigns.controller.ts`. Используется `@ApiTags("Admin / Notification Campaigns")` и `@Roles(SystemRole.ADMIN)`; `AccessTokenGuard` и `RolesGuard` подключены глобально через `APP_GUARD` в `apps/api/src/app.module.ts`, поэтому локальный `@UseGuards(...)` не добавлялся.
+  - [x] Сервис кампаний реализован как `NotificationCampaignsService` в `apps/api/src/modules/notification-campaigns/notification-campaigns.service.ts` (вместо отдельного `AdminNotificationsService`):
+    - [x] CRUD операции над кампаниями (создание со статусом `SCHEDULED` или `DRAFT`, получение списка с подсчетом `readCount`, получение деталей, обновление, удаление, отмена).
+    - [x] Транзакционное создание и обновление черновиков через `prisma.$transaction`.
+    - [x] Метод `queue(id)` для перевода черновика в очередь планировщика (`SCHEDULED`).
+    - [x] Подсчет общего количества потенциальных получателей (`totalRecipients`) при создании кампании.
+    - [x] Валидацию прав и статусов (защита от редактирования рассылок в статусе `PROCESSING`).
+- [ ] **4. Чанковая отправка и планировщик (методы `dispatchScheduledCampaigns` и `processCampaignChunk` в `NotificationCampaignsService`):**
+  - [x] Распределённый Redis lock с токеном владельца: `setNx`; безопасное освобождение через `compareAndDelete` с Lua.
+  - [x] Cron-задача запускается каждые 10 секунд (`@Cron("*/10 * * * * *")`).
+  - [x] При старте обработки актуализируется `totalRecipients`.
+  - [x] Получатели обоих режимов (`ALL` и `SPECIFIC`) выбираются чанками по `id > lastProcessedUserId` с фильтрацией активных и неудалённых пользователей.
+  - [x] Уведомления пачкой вставляются через `prisma.notification.createMany` с `campaignId`.
+  - [ ] Redis Pipeline для синхронизации кеша и unread count не используется: сейчас `syncCampaignNotifications` группирует уведомления по пользователям и вызывает операции через `Promise.all`.
+  - [x] Статус кампании проверяется через `updateMany` при продвижении прогресса; отменённая кампания не продвигает чанк.
+  - [x] Ошибки изолируются для каждой кампании; при сбое кампания переводится в `FAILED`.
+  - [x] `sentCount` и `lastProcessedUserId` обновляются по чанкам; после исчерпания получателей кампания переводится в `COMPLETED`.
 - [ ] **5. Интеграция с OpenAPI и генерация API клиента:**
   - [ ] Запустить `pnpm --filter api generate:openapi`.
-  - [ ] Запустить генерацию Orval хуков в `packages/api` (`pnpm --filter @packages/api generate`).
+  - [ ] Запустить генерацию Orval хуков из корня монорепозитория (`pnpm run generate:client`).
 - [ ] **6. Тестирование и надежность:**
-  - [ ] Unit-тесты для `AdminNotificationsService` и `NotificationSchedulerService` (`.spec.ts`).
-  - [ ] Тесты на корректное пошаговое продвижение диапазона ID (`gt: lastProcessedUserId`) для обоих режимов (`ALL` и `SPECIFIC`).
-  - [ ] Тесты на изоляцию ошибок: падение одной кампании не ломает выполнение соседних.
-  - [ ] Тесты на возобновление рассылки после имитации сбоя на середине списка пользователей.
-  - [ ] Тесты на прерывание обработки чанков при вызове отмены (`CANCELLED`).
+  - [x] Unit-тесты `NotificationCampaignsService` в `notification-campaigns.service.spec.ts` покрывают `findOne`, обновление получателей, планировщик и чанковую обработку.
+  - [x] Тесты на продвижение курсора `gt: lastProcessedUserId` для режимов `ALL` и `SPECIFIC`.
+  - [x] Тест на изоляцию ошибок: падение одной кампании не прерывает обработку следующей.
+  - [x] Тест на возобновление `PROCESSING`-кампании с сохранённого курсора после перезапуска worker.
+  - [x] Тест на гонку отмены: при смене статуса на `CANCELLED` прогресс чанка не фиксируется и realtime-синхронизация не запускается.
   - [ ] E2E тесты на проверку прав доступа (`401` для гостей, `403` для обычных пользователей, `200/201` для админа).

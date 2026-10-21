@@ -23,6 +23,10 @@ vi.mock("@/entities/session", () => ({
   }),
 }));
 
+vi.mock("@/entities/user", () => ({
+  getBrowserTimezone: () => "Europe/Moscow",
+}));
+
 vi.mock("@/shared/api/http/base", () => ({
   baseFetch: vi.fn(),
   AuthError: class AuthError extends Error {
@@ -118,6 +122,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
           email: "newdeveloper@example.com",
           password: "StrongPassword123!",
           passwordConfirmation: "StrongPassword123!",
+          timezone: "Europe/Moscow",
         }),
       }),
     );
@@ -250,6 +255,7 @@ describe("RegisterForm Integration Flow (T032)", () => {
           email: "boundary@example.com",
           password: "123456789012",
           passwordConfirmation: "123456789012",
+          timezone: "Europe/Moscow",
         }),
       }),
     );

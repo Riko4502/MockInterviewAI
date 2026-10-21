@@ -10,12 +10,13 @@ import { Badge, Button, Card } from "@packages/ui";
 import { cn } from "@packages/utils";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { UserAvatar } from "@/entities/user";
+import { UserAvatar, useViewerTimezone } from "@/entities/user";
 import { paths } from "@/shared/config";
 import "@/shared/lib/i18n";
 import type { ShowcaseCardProps } from "../model/types";
 import { LanguageBadge } from "./LanguageBadge";
 import { LevelBadge } from "./LevelBadge";
+import { ShowcaseSlotsList } from "./ShowcaseSlotsList";
 import { SkillBadge } from "./SkillBadge";
 import { SpecializationBadge } from "./SpecializationBadge";
 import { UrgentBadge } from "./UrgentBadge";
@@ -35,6 +36,7 @@ export function ShowcaseCard({
   testId,
 }: ShowcaseCardProps) {
   const { t } = useTranslation("showcase");
+  const viewerTimezone = useViewerTimezone();
 
   const displayName =
     card.user.displayName || card.user.username || t("card.anonymousUser");
@@ -143,11 +145,18 @@ export function ShowcaseCard({
         )}
 
         {/* Расписание / доступное время */}
-        {card.scheduleInfo && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/90 bg-muted/30 rounded-md px-2.5 py-1.5 border border-border/30">
-            <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{card.scheduleInfo}</span>
-          </div>
+        {card.slots && card.slots.length > 0 ? (
+          <ShowcaseSlotsList
+            slots={card.slots}
+            viewerTimezone={viewerTimezone}
+          />
+        ) : (
+          card.scheduleInfo && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/90 bg-muted/30 rounded-md px-2.5 py-1.5 border border-border/30">
+              <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{card.scheduleInfo}</span>
+            </div>
+          )
         )}
       </div>
 

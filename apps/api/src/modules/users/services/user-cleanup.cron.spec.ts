@@ -11,6 +11,10 @@ describe("UserCleanupCron", () => {
       findMany: jest.Mock;
       delete: jest.Mock;
     };
+    securityEvent: {
+      deleteMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let storageServiceMock: {
     deleteFile: jest.Mock;
@@ -36,6 +40,12 @@ describe("UserCleanupCron", () => {
         findMany: jest.fn(),
         delete: jest.fn().mockResolvedValue({}),
       },
+      securityEvent: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $transaction: jest
+        .fn()
+        .mockImplementation((ops: unknown[]) => Promise.all(ops)),
     };
     storageServiceMock = {
       deleteFile: jest.fn().mockResolvedValue(undefined),
@@ -81,6 +91,11 @@ describe("UserCleanupCron", () => {
         "https://s3.example.com/avatars/user-1/a.webp",
       );
       expect(prismaMock.user.delete).toHaveBeenCalledTimes(2);
+      // D12: события безопасности удаляются перед пользователем в одной транзакции
+      expect(prismaMock.securityEvent.deleteMany).toHaveBeenCalledTimes(2);
+      expect(prismaMock.securityEvent.deleteMany).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
+      });
       expect(redisServiceMock.delete).toHaveBeenCalledWith(
         "lock:cron:user-cleanup",
       );

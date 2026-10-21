@@ -4,6 +4,10 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Ip,
   Patch,
   Post,
   Put,
@@ -24,13 +28,19 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import { ThrottlerGuard } from "@nestjs/throttler";
+import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   type CompleteOnboardingDto,
+  type ConfirmTelegramUnlinkDto,
   clientIdSchema,
   completeOnboardingSchema,
+  confirmTelegramUnlinkSchema,
   type DeviceSettingsDto,
   deviceSettingsSchema,
+  type SecurityUnlinkResponseDto,
+  securityUnlinkResponseSchema,
+  type TelegramUnlinkRequestResponseDto,
+  telegramUnlinkRequestResponseSchema,
   type UpdateDeviceSettingsDto,
   type UpdateProfileDto,
   type UserProfileDto,
@@ -40,6 +50,7 @@ import {
 } from "@packages/dto";
 import type { Response } from "express";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { UserThrottlerGuard } from "../../common/guards/user-throttler.guard";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { UsersService } from "./users.service";
@@ -100,6 +111,134 @@ export class ProfileController {
     @Body(new ZodValidationPipe(updateProfileSchema)) dto: UpdateProfileDto,
   ): Promise<UserProfileDto> {
     return this.usersService.updateProfile(userId, dto);
+  }
+
+  /**
+   * Запрашивает одноразовый код отвязки Telegram (D4–D6).
+   *
+   * Код приходит в Telegram; повторный запрос ограничен 1 разом в 60 секунд
+   * на пользователя (`UserThrottlerGuard`).
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @returns `{ sent: true, expiresAt }`.
+   */
+  @Post("me/telegram/unlink/request")
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ default: { limit: 1, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Запросить код отвязки Telegram",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Код отправлен в Telegram",
+    schema: registerSchema(
+      "TelegramUnlinkRequestResponseDto",
+      telegramUnlinkRequestResponseSchema,
+    ),
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Telegram не привязан (`TELEGRAM_NOT_LINKED`)",
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 429, description: "Слишком много запросов" })
+  async requestTelegramUnlink(
+    @CurrentUser("sub") userId: string,
+  ): Promise<TelegramUnlinkRequestResponseDto> {
+    return this.usersService.requestTelegramUnlink(userId);
+  }
+
+  /**
+   * Подтверждает отвязку Telegram одноразовым кодом (D4, D5).
+   *
+   * Помимо удаления привязки инкрементирует `generation`, отзывая все сессии
+   * (включая текущую), и пишет `SecurityEvent` `TG_UNLINKED`.
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @param dto - 6-значный код подтверждения.
+   * @param ip - IP запроса (только для аудита).
+   * @param userAgent - User-Agent запроса (только для аудита).
+   */
+  @Post("me/telegram/unlink/confirm")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Подтвердить отвязку Telegram одноразовым кодом",
+  })
+  @ZodBody(confirmTelegramUnlinkSchema, "ConfirmTelegramUnlinkDto")
+  @ApiResponse({
+    status: 200,
+    description: "Telegram отвязан",
+    schema: registerSchema(
+      "SecurityUnlinkResponseDto",
+      securityUnlinkResponseSchema,
+    ),
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Неверный код (`INVALID_CODE`)",
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({
+    status: 409,
+    description: "Уже отвязано (`ALREADY_UNLINKED`)",
+  })
+  @ApiResponse({
+    status: 410,
+    description: "Код истёк (`CODE_EXPIRED`)",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Исчерпан лимит попыток (`ATTEMPTS_EXCEEDED`)",
+  })
+  async confirmTelegramUnlink(
+    @CurrentUser("sub") userId: string,
+    @Body(new ZodValidationPipe(confirmTelegramUnlinkSchema))
+    dto: ConfirmTelegramUnlinkDto,
+    @Ip() ip: string,
+    @Headers("user-agent") userAgent?: string,
+  ): Promise<SecurityUnlinkResponseDto> {
+    return this.usersService.confirmTelegramUnlink(
+      userId,
+      dto.code,
+      ip,
+      userAgent,
+    );
+  }
+
+  /**
+   * Отвязывает GitHub (D4, D7, D9).
+   *
+   * @param userId - UUID пользователя из JWT.
+   * @param ip - IP запроса (только для аудита).
+   * @param userAgent - User-Agent запроса (только для аудита).
+   */
+  @Post("me/github/unlink")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Отвязать GitHub" })
+  @ApiResponse({
+    status: 200,
+    description: "GitHub отвязан",
+    schema: registerSchema(
+      "SecurityUnlinkResponseDto",
+      securityUnlinkResponseSchema,
+    ),
+  })
+  @ApiResponse({
+    status: 400,
+    description: "GitHub не привязан (`GITHUB_NOT_LINKED`)",
+  })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({
+    status: 409,
+    description: "Последний способ входа (`LAST_AUTH_METHOD`)",
+  })
+  async unlinkGithub(
+    @CurrentUser("sub") userId: string,
+    @Ip() ip: string,
+    @Headers("user-agent") userAgent?: string,
+  ): Promise<SecurityUnlinkResponseDto> {
+    return this.usersService.unlinkGithub(userId, ip, userAgent);
   }
 
   /**

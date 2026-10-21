@@ -23,6 +23,18 @@
     "interview.partner_joined": {
       "title": "Собеседник в комнате",
       "message": "{{partnerName}} уже в комнате интервью. Присоединяйтесь!"
+    },
+    "security.telegram_unlink_code": {
+      "title": "Подтверждение отвязки Telegram",
+      "message": "Код для отвязки Telegram: {{code}}. Код действует {{ttlMinutes}} минут. Если вы не запрашивали отвязку, проигнорируйте это сообщение."
+    },
+    "security.telegram_unlinked": {
+      "title": "Telegram отвязан",
+      "message": "Привязка Telegram снята {{occurredAt}}. Если это были не вы, немедленно смените пароль."
+    },
+    "security.github_unlinked": {
+      "title": "GitHub отвязан",
+      "message": "Привязка GitHub снята {{occurredAt}}. Если это были не вы, немедленно смените пароль."
     }
   },
   "fallback": {

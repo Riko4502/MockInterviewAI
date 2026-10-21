@@ -1,0 +1,47 @@
+# Спецификация: выбор слота при отправке отклика (features/send-match-request)
+
+## 1. Цель
+
+Сделать выбор слота **обязательным**, если у целевой карточки есть открытые актуальные слоты. Корректно обработать гонку бронирования (`409 Conflict`).
+
+## 2. Бизнес-правила
+
+- Если у карточки есть >=1 открытый слот (`status==='OPEN'` и `startsAt > now()`) — `slotId` обязателен для отправки отклика.
+- Фильтрация: только `OPEN` + future, сортировка по `startsAt` asc.
+- При ответе `409 Conflict` на создание заявки: показать Toast `slots.slotConflict`, `queryClient.invalidateQueries` по целевой карточке, **сбросить** выбранный `slotId`, **не закрывать** диалог.
+- При `400 Bad Request`: бэкенд отдаёт `400` по разным причинам (незаполненный профиль, лимит входящих, кулдаун после отказа, слот занят/прошёл, устаревшие данные без `slotId`), поэтому клиент показывает **фактическое сообщение сервера** (`extractErrorMessage`), а не «Выберите слот». `invalidateQueries` по карточке вызывается, чтобы подтянуть актуальные слоты; выбор **не** сбрасывается принудительно — устаревший `slotId` перестаёт быть валидным сам, т.к. валидность считается по свежему списку открытых слотов.
+- Если открытых слотов нет — блок выбора не показывать, `slotId` не передавать (`undefined`).
+- Форматирование слотов в диалоге — в `viewerTimezone` из `useViewerTimezone()` (см. [1]); требует backend-предпосылки [B] (§2.1 shared-спецификации).
+
+## 3. Компоненты
+
+| Файл | Тип | Описание |
+|---|---|---|
+| `features/send-match-request/ui/SlotSelectorRadioGroup.tsx` | NEW | Радиогруппа доступных слотов. Заголовок `slots.chooseSlot`. Отображение даты/времени + длительности в `viewerTimezone`. |
+| `features/send-match-request/ui/SendMatchRequestDialog.tsx` | EDIT | Интеграция радиогруппы. Локальный стейт `selectedSlotId`. Блокировка submit при `hasOpenSlots && !isSelectedSlotAvailable` (валидность считается по свежему списку OPEN+future). В payload — `slotId` передаётся только для валидного выбора. Обработка `409` (toast `slots.slotConflict` + сброс) и `400` (toast с сообщением сервера) в `onError`. |
+
+## 4. Формат отображения
+
+`formatInstantInTimeZone(slot.startsAt, viewerTimezone, 'd MMMM, HH:mm')` + `(${durationMinutes} ${t('slots.durationMinutes', {count: durationMinutes})})`
+
+> **Локаль.** `formatInstantInTimeZone` без locale использует `en-US` — `'d MMMM'` даст английское название месяца. До реализации решить: передавать locale в утилиту (расширить сигнатуру) или не использовать текстовые токены месяца.
+
+## 5. i18n
+
+Ключи: `slots.chooseSlot`, `slots.selectSlotRequired`, `slots.slotConflict`, `slots.durationMinutes`.
+
+## 6. Тест-кейсы
+
+- [ ] При наличии OPEN-слотов кнопка заблокирована до выбора
+- [ ] Выбор слота → `slotId` передаётся в мутацию
+- [ ] 409 Conflict → toast показан, `invalidateQueries` вызван, `slotId` сброшен, диалог не закрыт
+- [ ] 400 (устаревшие данные/прочие причины) → toast с сообщением сервера + `invalidateQueries` карточки
+- [ ] При отсутствии слотов — блок выбора не отображается, отправка без `slotId`
+- [ ] Фильтрация прошедших/BOOKED (тест фиксирует часы: `vi.useFakeTimers()`/`setSystemTime`)
+
+## 7. Связи
+
+- `@packages/utils`
+- `@tanstack/react-query` — invalidateQueries
+- `@packages/i18n`
+- `@packages/api` — типы заявки и общий тип слота `AvailabilitySlot` (§2.1 shared-спецификации; локальных дублей не создавать)

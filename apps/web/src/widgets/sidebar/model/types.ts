@@ -5,6 +5,7 @@ export type NavIcon = ComponentType<IconProps>;
 
 export type NavLabelKey =
   | "navigation.adminUsers"
+  | "navigation.adminNotifications"
   | "navigation.dashboard"
   | "navigation.sandbox"
   | "navigation.notifications"

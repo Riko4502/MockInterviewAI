@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createShowcaseFormSchema,
   type ShowcaseFormValues,
@@ -89,5 +89,113 @@ describe("showcase-form-schema", () => {
 
     expect(dto.title).toBeNull();
     expect(dto.bio).toBeNull();
+  });
+
+  describe("слоты доступности", () => {
+    const futureSlot = {
+      startsAtLocal: "2999-01-01T10:00",
+      durationMinutes: 60,
+    };
+
+    it("должен принимать корректный будущий слот", () => {
+      const result = schema.safeParse({
+        ...validFormValues,
+        slots: [futureSlot],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("должен отклонять слот в прошлом", () => {
+      const result = schema.safeParse({
+        ...validFormValues,
+        slots: [{ startsAtLocal: "2000-01-01T10:00", durationMinutes: 60 }],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe("slots.cannotAddInPast");
+      }
+    });
+
+    it("должен проверять 'не в прошлом' относительно фиксированных часов", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-01T12:00:00.000Z"));
+
+      const pastResult = schema.safeParse({
+        ...validFormValues,
+        slots: [{ startsAtLocal: "2026-06-01T11:59", durationMinutes: 60 }],
+      });
+      const futureResult = schema.safeParse({
+        ...validFormValues,
+        slots: [{ startsAtLocal: "2026-06-01T12:01", durationMinutes: 60 }],
+      });
+
+      vi.useRealTimers();
+
+      expect(pastResult.success).toBe(false);
+      expect(futureResult.success).toBe(true);
+    });
+
+    it("должен отклонять более 10 открытых слотов", () => {
+      const slots = Array.from({ length: 11 }, (_, i) => ({
+        startsAtLocal: `2999-01-${String(i + 1).padStart(2, "0")}T10:00`,
+        durationMinutes: 60,
+      }));
+      const result = schema.safeParse({ ...validFormValues, slots });
+      expect(result.success).toBe(false);
+    });
+
+    it("не должен считать занятые слоты в лимит", () => {
+      const slots = Array.from({ length: 11 }, (_, i) => ({
+        startsAtLocal: `2999-01-${String(i + 1).padStart(2, "0")}T10:00`,
+        durationMinutes: 60,
+        booked: true,
+      }));
+      const result = schema.safeParse({ ...validFormValues, slots });
+      expect(result.success).toBe(true);
+    });
+
+    it("должен исключать занятые слоты из DTO", () => {
+      const dto = toCreateShowcaseCardDto({
+        ...validFormValues,
+        slots: [
+          { id: "1", ...futureSlot, booked: false },
+          {
+            id: "2",
+            startsAtLocal: "2999-02-01T10:00",
+            durationMinutes: 45,
+            booked: true,
+          },
+        ],
+      });
+
+      expect(dto.slots).toEqual([
+        { startsAtLocal: futureSlot.startsAtLocal, durationMinutes: 60 },
+      ]);
+    });
+
+    it("должен не передавать slots, если открытых слотов нет", () => {
+      const dto = toCreateShowcaseCardDto({
+        ...validFormValues,
+        slots: [
+          {
+            id: "1",
+            startsAtLocal: "2999-02-01T10:00",
+            durationMinutes: 45,
+            booked: true,
+          },
+        ],
+      });
+
+      expect(dto.slots).toBeUndefined();
+    });
+
+    it("должен не передавать slots, если массив слотов пуст", () => {
+      const dto = toCreateShowcaseCardDto({
+        ...validFormValues,
+        slots: [],
+      });
+
+      expect(dto.slots).toBeUndefined();
+    });
   });
 });

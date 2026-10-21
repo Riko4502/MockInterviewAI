@@ -9,6 +9,9 @@ build
 .turbo
 *.tsbuildinfo
 
+# Local docker-compose overrides (machine-specific workarounds)
+docker-compose.override.yml
+
 # Environment variables
 .env
 .env.local
@@ -37,6 +40,8 @@ coverage.out
 .agents
 .specify
 specs
+!docs/frontend/specs/
+!docs/backend/specs/
 
 # email template logs
 .mail-preview
