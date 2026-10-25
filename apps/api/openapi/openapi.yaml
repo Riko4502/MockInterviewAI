@@ -1357,6 +1357,31 @@ paths:
       summary: Создать новую интервью-сессию
       tags: &a13
         - Sessions
+  /api/v1/sessions/meeting:
+    post:
+      operationId: SessionsController_createMeeting
+      parameters: []
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMeetingDto"
+      responses:
+        "201":
+          description: Видеовстреча успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateMeetingResponseDto"
+        "400":
+          description: Ошибка валидации входных данных
+        "401":
+          description: Не авторизован
+      security: *a12
+      summary: Создать новую видеовстречу
+      tags: *a13
   /api/v1/sessions/{id}/join:
     post:
       operationId: SessionsController_joinSession
@@ -1391,6 +1416,88 @@ paths:
           description: Сессия не найдена
       security: *a12
       summary: Присоединиться к интервью-сессии
+      tags: *a13
+  /api/v1/sessions/{id}/lobby:
+    get:
+      operationId: SessionsController_getMeetingLobby
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          description: Метаданные лобби встречи
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingLobbyResponseDto"
+        "404":
+          description: Сессия не найдена
+      security: *a12
+      summary: Получить публичные метаданные предстартового лобби встречи
+      tags: *a13
+  /api/v1/sessions/{id}/join-meeting:
+    post:
+      operationId: SessionsController_joinMeeting
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        description: Тело запроса, валидируется соответствующей zod-схемой.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinMeetingDto"
+      responses:
+        "200":
+          description: Успешное присоединение к видеовстрече
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinMeetingResponseDto"
+        "400":
+          description: Ошибка валидации входных данных
+        "403":
+          description: Сессия закрыта, неверный пароль или комната заполнена
+        "404":
+          description: Сессия не найдена
+        "429":
+          description: Превышен лимит попыток ввода пароля
+      security: *a12
+      summary: Присоединиться к видеовстрече (гость или авторизованный пользователь)
+      tags: *a13
+  /api/v1/sessions/{id}/end:
+    post:
+      operationId: SessionsController_endMeeting
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: UUID сессии
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Встреча успешно завершена
+        "401":
+          description: Не авторизован
+        "403":
+          description: Доступ запрещен (только HOST)
+        "404":
+          description: Сессия не найдена
+      security: *a12
+      summary: Завершить видеовстречу для всех участников (только HOST)
       tags: *a13
   /api/v1/sessions/{id}/participants:
     post:
@@ -3553,7 +3660,78 @@ components:
         - results
         - logs
         - totalTimeMs
+    TicketDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - sessionId
+    TicketResponseDto:
+      type: object
+      properties:
+        ticket:
+          type: string
+          description: JWT тикет для аутентификации в WebSocket
+      required:
+        - ticket
+    MediaTokenRequestDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - sessionId
+    MediaTokenResponseDto:
+      type: object
+      properties:
+        token:
+          type: string
+          description: LiveKit access token (JWT) для подключения к SFU
+        serverUrl:
+          type: string
+          description: URL LiveKit сервера для подключения
+        roomName:
+          type: string
+          description: Название комнаты (совпадает с sessionId)
+      required:
+        - token
+        - serverUrl
+        - roomName
     CreateSessionResponseDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        inviteToken:
+          type: string
+      required:
+        - sessionId
+        - inviteToken
+    CreateMeetingDto:
+      type: object
+      properties:
+        title:
+          default: Meeting
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 500
+        isPrivate:
+          default: false
+          type: boolean
+        password:
+          type: string
+          minLength: 4
+          maxLength: 64
+    CreateMeetingResponseDto:
       type: object
       properties:
         sessionId:
@@ -3586,6 +3764,83 @@ components:
       required:
         - role
         - inviteToken
+    MeetingLobbyResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isPrivate:
+          type: boolean
+        isPasswordRequired:
+          type: boolean
+        hostName:
+          type: string
+        hostAvatar:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - CREATED
+            - ACTIVE
+            - CLOSED
+        participantCount:
+          type: integer
+      required:
+        - id
+        - title
+        - isPrivate
+        - isPasswordRequired
+        - hostName
+        - status
+        - participantCount
+    JoinMeetingDto:
+      type: object
+      properties:
+        guestName:
+          type: string
+          minLength: 2
+          maxLength: 50
+        password:
+          type: string
+        inviteToken:
+          type: string
+    JoinMeetingResponseDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - HOST
+            - PARTICIPANT
+            - CANDIDATE
+            - INTERVIEWER
+            - OBSERVER
+        inviteToken:
+          type: string
+        mediaToken:
+          type: string
+        serverUrl:
+          type: string
+        roomName:
+          type: string
+        participantId:
+          type: string
+        displayName:
+          type: string
+      required:
+        - role
+        - mediaToken
+        - serverUrl
+        - roomName
+        - participantId
+        - displayName
     AddParticipantDto:
       type: object
       properties:
@@ -3599,6 +3854,8 @@ components:
             - CANDIDATE
             - INTERVIEWER
             - OBSERVER
+            - HOST
+            - PARTICIPANT
       required:
         - userId
         - role
@@ -3639,6 +3896,8 @@ components:
                 - CANDIDATE
                 - INTERVIEWER
                 - OBSERVER
+                - HOST
+                - PARTICIPANT
             partner:
               nullable: true
               type: object
@@ -4010,6 +4269,8 @@ components:
                   - CANDIDATE
                   - INTERVIEWER
                   - OBSERVER
+                  - HOST
+                  - PARTICIPANT
               hasFeedbackReport:
                 type: boolean
             required:
@@ -5653,48 +5914,6 @@ components:
         reason:
           nullable: true
           type: string
-    TicketDto:
-      type: object
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-      required:
-        - sessionId
-    TicketResponseDto:
-      type: object
-      properties:
-        ticket:
-          type: string
-          description: JWT тикет для аутентификации в WebSocket
-      required:
-        - ticket
-    MediaTokenRequestDto:
-      type: object
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-      required:
-        - sessionId
-    MediaTokenResponseDto:
-      type: object
-      properties:
-        token:
-          type: string
-          description: LiveKit access token (JWT) для подключения к SFU
-        serverUrl:
-          type: string
-          description: URL LiveKit сервера для подключения
-        roomName:
-          type: string
-          description: Название комнаты (совпадает с sessionId)
-      required:
-        - token
-        - serverUrl
-        - roomName
     PaginatedShowcaseCardsDto:
       type: object
       properties:

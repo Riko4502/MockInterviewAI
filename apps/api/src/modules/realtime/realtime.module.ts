@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
-import { SessionsModule } from "../sessions/sessions.module";
 import { LivekitService } from "./livekit.service";
 import { RealtimeController } from "./realtime.controller";
 
@@ -12,7 +11,7 @@ import { RealtimeController } from "./realtime.controller";
  * Глобальный `AccessTokenGuard` применяется автоматически (маршрут не `@Public`).
  */
 @Module({
-  imports: [AuthModule, SessionsModule],
+  imports: [AuthModule],
   controllers: [RealtimeController],
   providers: [LivekitService],
   exports: [LivekitService],

@@ -1,8 +1,10 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,16 +12,26 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import type {
+  CreateMeetingDto,
+  JoinMeetingDto,
+  JoinMeetingResponseDto,
+  MeetingLobbyResponseDto,
+} from "@packages/dto";
+import argon2 from "argon2";
 import * as Y from "yjs";
 import { publishUserRevocation } from "../../common/pubsub/revocation";
 import {
   InterviewParticipantRole,
   InterviewSessionStatus,
+  InterviewSessionType,
 } from "../../generated/prisma/enums";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
 import { NotificationDispatcher } from "../notifications/notification-dispatcher.service";
+import { LivekitService } from "../realtime/livekit.service";
 import {
+  meetingPasswordRateLimitKey,
   sessionActiveKey,
   sessionInviteKey,
   sessionMembersKey,
@@ -259,6 +271,9 @@ export class SessionsService {
   private readonly logger = new Logger(SessionsService.name);
   private readonly mirrorTtlSeconds: number;
   private readonly maxSessionParticipants = MAX_SESSION_PARTICIPANTS;
+  private readonly argon2MemoryCost?: number;
+  private readonly argon2TimeCost?: number;
+  private readonly argon2Parallelism?: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -266,9 +281,24 @@ export class SessionsService {
     configService: ConfigService,
     @Optional()
     private readonly notificationDispatcher?: NotificationDispatcher,
+    @Optional()
+    private readonly livekitService?: LivekitService,
   ) {
     this.mirrorTtlSeconds =
       configService.get<number>("sessions.mirrorTtlSeconds") ?? 2 * 60 * 60;
+    this.argon2MemoryCost = configService.get<number>("argon2.memoryCost");
+    this.argon2TimeCost = configService.get<number>("argon2.timeCost");
+    this.argon2Parallelism = configService.get<number>("argon2.parallelism");
+  }
+
+  private async hashMeetingPassword(password: string): Promise<string> {
+    const options: Parameters<typeof argon2.hash>[1] = {
+      type: argon2.argon2id,
+    };
+    if (this.argon2MemoryCost) options.memoryCost = this.argon2MemoryCost;
+    if (this.argon2TimeCost) options.timeCost = this.argon2TimeCost;
+    if (this.argon2Parallelism) options.parallelism = this.argon2Parallelism;
+    return argon2.hash(password, options);
   }
 
   /**
@@ -371,6 +401,66 @@ export class SessionsService {
       `created session ${session.id} (owner ${creatorUserId}) and warmed mirror`,
     );
     await this.invalidateUserDashboard(creatorUserId);
+    return { sessionId: session.id, inviteToken };
+  }
+
+  /**
+   * Создаёт видеовстречу (MEETING session).
+   * Создатель становится владельцем с ролью HOST.
+   * При наличии пароля хеширует его через argon2.
+   * Не сидит Yjs-документ задачи (встреча готова мгновенно).
+   */
+  async createMeetingSession(
+    userId: string,
+    dto: CreateMeetingDto,
+  ): Promise<{ sessionId: string; inviteToken: string }> {
+    const inviteToken = this.generateInviteToken();
+    let passwordHash: string | null = null;
+    if (dto.isPrivate && dto.password) {
+      passwordHash = await this.hashMeetingPassword(dto.password);
+    }
+
+    const session = await this.prisma.interviewSession.create({
+      data: {
+        userId,
+        title: dto.title ?? "Meeting",
+        description: dto.description,
+        type: InterviewSessionType.MEETING,
+        isPrivate: dto.isPrivate ?? false,
+        passwordHash,
+        inviteToken,
+        status: InterviewSessionStatus.ACTIVE,
+        startedAt: new Date(),
+        participants: {
+          create: {
+            userId,
+            role: InterviewParticipantRole.HOST,
+          },
+        },
+      },
+    });
+
+    await this.redis.set(
+      sessionActiveKey(session.id),
+      ACTIVE_VALUE,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.hset(
+      sessionMembersKey(session.id),
+      userId,
+      InterviewParticipantRole.HOST,
+      this.mirrorTtlSeconds,
+    );
+    await this.redis.set(
+      sessionInviteKey(session.id),
+      inviteToken,
+      this.mirrorTtlSeconds,
+    );
+
+    this.logger.log(
+      `created meeting session ${session.id} (owner ${userId}) and warmed mirror`,
+    );
+    await this.invalidateUserDashboard(userId);
     return { sessionId: session.id, inviteToken };
   }
 
@@ -744,6 +834,257 @@ export class SessionsService {
       role: participant.role as InterviewParticipantRole,
       inviteToken: activeInviteToken ?? "",
     };
+  }
+
+  /**
+   * Получает публичные метаданные предстартового лобби видеовстречи.
+   */
+  async getMeetingLobby(sessionId: string): Promise<MeetingLobbyResponseDto> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            username: true,
+            avatarUrl: true,
+          },
+        },
+        participants: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException("Session not found");
+    }
+
+    let participantCount = session.participants.length;
+    try {
+      const redisCount = await this.redis.hlen(sessionMembersKey(sessionId));
+      if (redisCount > 0) {
+        participantCount = redisCount;
+      }
+    } catch {
+      // fallback to DB count
+    }
+
+    return {
+      id: session.id,
+      title: session.title,
+      description: session.description ?? undefined,
+      isPrivate: session.isPrivate,
+      isPasswordRequired: Boolean(session.passwordHash),
+      hostName: session.user?.displayName || session.user?.username || "Host",
+      hostAvatar: session.user?.avatarUrl ?? null,
+      status: session.status,
+      participantCount,
+    };
+  }
+
+  /**
+   * Подключает участника (авторизованного или гостя) к видеовстрече.
+   * Выполняет проверку пароля с защитой от брутфорса (Redis Rate Limit)
+   * или обход по валидному inviteToken.
+   * Генерирует LiveKit join-токен для подключения к звонку.
+   */
+  async joinMeeting(
+    sessionId: string,
+    userId?: string,
+    dto?: JoinMeetingDto,
+    clientIp?: string,
+  ): Promise<JoinMeetingResponseDto> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                displayName: true,
+                username: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            displayName: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException("Session not found");
+    }
+
+    if (session.status === InterviewSessionStatus.CLOSED) {
+      throw new ForbiddenException("Session is closed");
+    }
+
+    // Проверка защиты паролем
+    if (session.isPrivate && session.passwordHash) {
+      const isInviteBypass = dto?.inviteToken
+        ? this.validateInviteToken(session.inviteToken, dto.inviteToken)
+        : false;
+
+      if (!isInviteBypass) {
+        const ip = clientIp || "unknown";
+        const rateLimitKey = meetingPasswordRateLimitKey(sessionId, ip);
+        const currentAttempts = await this.redis.get(rateLimitKey);
+        if (currentAttempts && Number(currentAttempts) >= 5) {
+          throw new HttpException(
+            "Too many password attempts. Please try again later.",
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+
+        if (!dto?.password) {
+          throw new ForbiddenException(
+            "Password is required to join this meeting",
+          );
+        }
+
+        const isPasswordValid = await argon2.verify(
+          session.passwordHash,
+          dto.password,
+        );
+
+        if (!isPasswordValid) {
+          await this.redis.incr(rateLimitKey, 900); // 15 минут TTL
+          throw new ForbiddenException("Invalid meeting password");
+        }
+      }
+    }
+
+    let participantId: string;
+    let displayName: string;
+    let role: InterviewParticipantRole;
+
+    if (userId) {
+      const existingParticipant = session.participants.find(
+        (p) => p.userId === userId,
+      );
+
+      if (existingParticipant) {
+        role = existingParticipant.role;
+        participantId = userId;
+        displayName =
+          existingParticipant.user?.displayName ||
+          existingParticipant.user?.username ||
+          "Participant";
+      } else {
+        if (session.participants.length >= this.maxSessionParticipants) {
+          throw new ForbiddenException("Meeting is full");
+        }
+
+        role =
+          userId === session.userId
+            ? InterviewParticipantRole.HOST
+            : InterviewParticipantRole.PARTICIPANT;
+
+        const newParticipant = await this.prisma.interviewParticipant.create({
+          data: {
+            sessionId,
+            userId,
+            role,
+          },
+          include: {
+            user: {
+              select: {
+                displayName: true,
+                username: true,
+              },
+            },
+          },
+        });
+
+        participantId = userId;
+        displayName =
+          newParticipant.user?.displayName ||
+          newParticipant.user?.username ||
+          "Participant";
+        await this.invalidateUserDashboard(userId);
+      }
+
+      await this.redis.hset(
+        sessionMembersKey(sessionId),
+        userId,
+        role,
+        this.mirrorTtlSeconds,
+      );
+    } else {
+      let currentMembersCount = session.participants.length;
+      try {
+        const redisCount = await this.redis.hlen(sessionMembersKey(sessionId));
+        if (redisCount > 0) {
+          currentMembersCount = redisCount;
+        }
+      } catch {
+        // fallback to DB participants count
+      }
+
+      if (currentMembersCount >= this.maxSessionParticipants) {
+        throw new ForbiddenException("Meeting is full");
+      }
+
+      participantId = `guest_${randomUUID()}`;
+      displayName = dto?.guestName?.trim() || "Guest";
+      role = InterviewParticipantRole.PARTICIPANT;
+
+      await this.redis.hset(
+        sessionMembersKey(sessionId),
+        participantId,
+        role,
+        this.mirrorTtlSeconds,
+      );
+    }
+
+    // Убеждаемся, что зеркало активности выставлено
+    const activeStatus = await this.redis.get(sessionActiveKey(sessionId));
+    if (activeStatus !== ACTIVE_VALUE) {
+      await this.redis.set(
+        sessionActiveKey(sessionId),
+        ACTIVE_VALUE,
+        this.mirrorTtlSeconds,
+      );
+    }
+
+    if (!this.livekitService) {
+      throw new Error("LivekitService is not initialized");
+    }
+
+    const mediaToken = await this.livekitService.generateMediaToken(
+      participantId,
+      sessionId,
+      displayName,
+    );
+
+    return {
+      role,
+      inviteToken: session.inviteToken ?? undefined,
+      mediaToken: mediaToken.token,
+      serverUrl: mediaToken.serverUrl,
+      roomName: mediaToken.roomName,
+      participantId,
+      displayName,
+    };
+  }
+
+  /**
+   * Завершает видеовстречу для всех участников (доступно только HOST).
+   */
+  async endMeeting(sessionId: string, userId: string): Promise<void> {
+    await this.closeSession(sessionId, userId);
   }
 
   /**

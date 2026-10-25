@@ -38,6 +38,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * @param configService - Конфигурация приложения (секция `redis`).
+   * @param metricsService - Сервис метрик соединения.
    */
   constructor(
     private readonly configService: ConfigService,
@@ -175,6 +176,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Атомарно инкрементирует значение ключа (INCR).
+   * Если задан `ttlSeconds` и значение после инкремента равно 1,
+   * устанавливает TTL на ключ.
+   *
+   * @param key - Имя ключа.
+   * @param ttlSeconds - Время жизни ключа в секундах (опционально).
+   * @returns Новое значение ключа.
+   * @throws {Error} При ошибке Redis.
+   */
+  async incr(key: string, ttlSeconds?: number): Promise<number> {
+    const value = await this.client.incr(key);
+    if (ttlSeconds !== undefined && value === 1) {
+      await this.client.expire(key, ttlSeconds);
+    }
+    return value;
+  }
+
+  /**
    * Проверяет существование ключа (EXISTS).
    *
    * @param key - Имя ключа.
@@ -283,6 +302,17 @@ end
     if (ttlSeconds !== undefined) {
       await this.client.expire(key, ttlSeconds);
     }
+  }
+
+  /**
+   * Возвращает количество полей в хеше (HLEN).
+   *
+   * @param key - Имя ключа-хеша.
+   * @returns Количество полей.
+   * @throws {Error} При ошибке Redis.
+   */
+  async hlen(key: string): Promise<number> {
+    return this.client.hlen(key);
   }
 
   /**

@@ -24,8 +24,29 @@ const ROLE_GRANTS: Record<
   {
     canPublish: boolean;
     canPublishSources?: string[];
+    canPublishData?: boolean;
   }
 > = {
+  HOST: {
+    canPublish: true,
+    canPublishSources: [
+      "camera",
+      "microphone",
+      "screen_share",
+      "screen_share_audio",
+    ],
+    canPublishData: true,
+  },
+  PARTICIPANT: {
+    canPublish: true,
+    canPublishSources: [
+      "camera",
+      "microphone",
+      "screen_share",
+      "screen_share_audio",
+    ],
+    canPublishData: true,
+  },
   INTERVIEWER: {
     canPublish: true,
     canPublishSources: ["camera", "microphone", "screen_share"],
@@ -71,17 +92,18 @@ export class LivekitService {
    * Проверки (fail-closed):
    * 1. Сессия активна (`session:{id}:active === "true"`)
    * 2. Пользователь является участником (находится в `session:{id}:members`)
-   * 3. Роль допустима (INTERVIEWER / CANDIDATE / OBSERVER)
+   * 3. Роль допустима (INTERVIEWER / CANDIDATE / OBSERVER / HOST / PARTICIPANT)
    *
-   * @param userId - UUID текущего пользователя.
+   * @param userId - UUID текущего пользователя или ephemeral guest ID.
    * @param sessionId - UUID интервью-сессии.
+   * @param displayName - Опциональное отображаемое имя участника (LiveKit claim `name`).
    * @returns `{ token, serverUrl, roomName }`.
-   * @throws {ForbiddenException} Сессия не активна или пользователь не является участником.
-   * @throws {UnauthorizedException} Неизвестное значение роли.
+   * @throws {ForbiddenException} Сессия не активна, пользователь не является участником или неизвестная роль.
    */
   async generateMediaToken(
     userId: string,
     sessionId: string,
+    displayName?: string,
   ): Promise<MediaTokenResponseDto> {
     const activeKey = sessionActiveKey(sessionId);
     const membersKey = sessionMembersKey(sessionId);
@@ -120,6 +142,7 @@ export class LivekitService {
       sub: userId,
       nbf: now,
       exp: now + this.tokenTtlSeconds,
+      ...(displayName ? { name: displayName } : {}),
       video: {
         room: sessionId,
         ...SUBSCRIBE_ONLY_GRANT,

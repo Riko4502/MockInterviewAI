@@ -4,6 +4,7 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
+import type { LivekitService } from "../realtime/livekit.service";
 import {
   FALLBACK_SEED_TASK_DOC_LUA,
   LiveMatchPostCommitError,
@@ -39,8 +40,11 @@ describe("SessionsService", () => {
     delete: jest.Mock;
     eval: jest.Mock;
     scanKeys: jest.Mock;
+    incr: jest.Mock;
+    hlen: jest.Mock;
   };
   let configMock: { get: jest.Mock };
+  let livekitServiceMock: { generateMediaToken: jest.Mock };
   let service: SessionsService;
 
   const sessionId = "11111111-1111-4111-a111-111111111111";
@@ -55,6 +59,7 @@ describe("SessionsService", () => {
         findMany: jest.fn(),
       },
       interviewParticipant: {
+        create: jest.fn(),
         upsert: jest.fn(),
         delete: jest.fn(),
       },
@@ -77,6 +82,8 @@ describe("SessionsService", () => {
       delete: jest.fn().mockResolvedValue(undefined),
       eval: jest.fn().mockResolvedValue(1),
       scanKeys: jest.fn().mockResolvedValue([]),
+      incr: jest.fn().mockResolvedValue(1),
+      hlen: jest.fn().mockResolvedValue(1),
     };
     configMock = {
       get: jest.fn().mockImplementation((key: string) => {
@@ -86,11 +93,20 @@ describe("SessionsService", () => {
         return undefined;
       }),
     };
+    livekitServiceMock = {
+      generateMediaToken: jest.fn().mockResolvedValue({
+        token: "mock-livekit-media-token",
+        serverUrl: "ws://localhost:7880",
+        roomName: sessionId,
+      }),
+    };
 
     service = new SessionsService(
       prismaMock as unknown as PrismaService,
       redisMock as unknown as RedisService,
       configMock as unknown as ConfigService,
+      undefined,
+      livekitServiceMock as unknown as LivekitService,
     );
   });
 
@@ -1273,5 +1289,311 @@ describe("SessionsService", () => {
         expect(normalize(SEED_TASK_DOC_LUA)).toBe(normalize(realtimeContent));
       },
     );
+  });
+
+  describe("meeting sessions (TASK #220)", () => {
+    describe("createMeetingSession", () => {
+      it("создаёт сессию с type=MEETING, role=HOST и разогревает Redis-зеркало", async () => {
+        prismaMock.interviewSession.create.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          type: "MEETING",
+          inviteToken: "mock-invite-token-64-bytes-hex",
+        });
+
+        const res = await service.createMeetingSession(ownerId, {
+          title: "Daily Standup",
+          isPrivate: false,
+        });
+
+        expect(res.sessionId).toBe(sessionId);
+        expect(res.inviteToken).toBeDefined();
+        expect(prismaMock.interviewSession.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              userId: ownerId,
+              title: "Daily Standup",
+              type: "MEETING",
+              isPrivate: false,
+              participants: {
+                create: {
+                  userId: ownerId,
+                  role: "HOST",
+                },
+              },
+            }),
+          }),
+        );
+        // Не сидит документ задачи в Redis!
+        expect(redisMock.eval).not.toHaveBeenCalled();
+        expect(redisMock.set).toHaveBeenCalledWith(
+          `session:${sessionId}:active`,
+          "true",
+          7200,
+        );
+        expect(redisMock.hset).toHaveBeenCalledWith(
+          `session:${sessionId}:members`,
+          ownerId,
+          "HOST",
+          7200,
+        );
+      });
+
+      it("хеширует пароль через argon2, если переданы isPrivate=true и password", async () => {
+        prismaMock.interviewSession.create.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          type: "MEETING",
+          inviteToken: "token",
+        });
+
+        await service.createMeetingSession(ownerId, {
+          title: "Private Meeting",
+          isPrivate: true,
+          password: "secret-password-123",
+        });
+
+        const createCall = prismaMock.interviewSession.create.mock.calls[0][0];
+        expect(createCall.data.passwordHash).toBeDefined();
+        expect(typeof createCall.data.passwordHash).toBe("string");
+        expect(createCall.data.passwordHash).toMatch(/^\$argon2/);
+      });
+    });
+
+    describe("getMeetingLobby", () => {
+      it("возвращает публичные метаданные лобби", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          title: "Design Review",
+          description: "Sync about architecture",
+          isPrivate: true,
+          passwordHash: "$argon2id$somehash",
+          status: "ACTIVE",
+          user: {
+            displayName: "Иван Иванов",
+            username: "ivan",
+            avatarUrl: "https://avatar.url",
+          },
+          participants: [{ userId: ownerId }],
+        });
+        redisMock.hlen.mockResolvedValue(2);
+
+        const res = await service.getMeetingLobby(sessionId);
+
+        expect(res).toEqual({
+          id: sessionId,
+          title: "Design Review",
+          description: "Sync about architecture",
+          isPrivate: true,
+          isPasswordRequired: true,
+          hostName: "Иван Иванов",
+          hostAvatar: "https://avatar.url",
+          status: "ACTIVE",
+          participantCount: 2,
+        });
+      });
+
+      it("бросает 404, если сессия не найдена", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue(null);
+
+        await expect(service.getMeetingLobby(sessionId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+    });
+
+    describe("joinMeeting", () => {
+      const inviteToken = "a".repeat(64);
+      let validPasswordHash: string;
+
+      beforeEach(async () => {
+        const argon2 = await import("argon2");
+        validPasswordHash = await argon2.hash("valid-password");
+      });
+
+      it("бросает 403, если сессия закрыта", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          status: "CLOSED",
+          participants: [],
+          user: { displayName: "Host" },
+        });
+
+        await expect(service.joinMeeting(sessionId)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it("обходит проверку пароля при валидном inviteToken", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          status: "ACTIVE",
+          isPrivate: true,
+          passwordHash: validPasswordHash,
+          inviteToken,
+          participants: [],
+          user: { displayName: "Host" },
+        });
+
+        const res = await service.joinMeeting(sessionId, undefined, {
+          inviteToken,
+          guestName: "Гость 1",
+        });
+
+        expect(res.role).toBe("PARTICIPANT");
+        expect(res.mediaToken).toBe("mock-livekit-media-token");
+        expect(res.displayName).toBe("Гость 1");
+      });
+
+      it("проверяет пароль и бросает 403 при неверном пароле с инкрементом счетчика попыток", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          status: "ACTIVE",
+          isPrivate: true,
+          passwordHash: validPasswordHash,
+          inviteToken,
+          participants: [],
+          user: { displayName: "Host" },
+        });
+
+        await expect(
+          service.joinMeeting(
+            sessionId,
+            undefined,
+            { password: "wrong-password" },
+            "127.0.0.1",
+          ),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(redisMock.incr).toHaveBeenCalledWith(
+          `ratelimit:meeting:password:${sessionId}:127.0.0.1`,
+          900,
+        );
+      });
+
+      it("бросает 429 при превышении лимита попыток ввода пароля", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          status: "ACTIVE",
+          isPrivate: true,
+          passwordHash: validPasswordHash,
+          inviteToken,
+          participants: [],
+          user: { displayName: "Host" },
+        });
+        redisMock.get.mockImplementation(async (key: string) => {
+          if (key === `ratelimit:meeting:password:${sessionId}:127.0.0.1`) {
+            return "5";
+          }
+          return null;
+        });
+
+        await expect(
+          service.joinMeeting(
+            sessionId,
+            undefined,
+            { password: "any-password" },
+            "127.0.0.1",
+          ),
+        ).rejects.toMatchObject({
+          status: 429,
+        });
+      });
+
+      it("регистрирует авторизованного пользователя и генерирует LiveKit mediaToken", async () => {
+        const guestUserId = "33333333-3333-4333-c333-333333333333";
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          isPrivate: false,
+          inviteToken,
+          participants: [],
+          user: { displayName: "Host" },
+        });
+        prismaMock.interviewParticipant.create.mockResolvedValue({
+          sessionId,
+          userId: guestUserId,
+          role: "PARTICIPANT",
+          user: { displayName: "Пётр" },
+        });
+
+        const res = await service.joinMeeting(sessionId, guestUserId);
+
+        expect(res.role).toBe("PARTICIPANT");
+        expect(res.displayName).toBe("Пётр");
+        expect(res.mediaToken).toBe("mock-livekit-media-token");
+        expect(livekitServiceMock.generateMediaToken).toHaveBeenCalledWith(
+          guestUserId,
+          sessionId,
+          "Пётр",
+        );
+      });
+
+      it("регистрирует гостя с эфемерным ID в Redis-зеркале без сохранения в БД", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          isPrivate: false,
+          inviteToken,
+          participants: [],
+          user: { displayName: "Host" },
+        });
+
+        const res = await service.joinMeeting(sessionId, undefined, {
+          guestName: "Анонимный Гость",
+        });
+
+        expect(res.participantId).toMatch(/^guest_/);
+        expect(res.role).toBe("PARTICIPANT");
+        expect(res.displayName).toBe("Анонимный Гость");
+        expect(prismaMock.interviewParticipant.create).not.toHaveBeenCalled();
+        expect(redisMock.hset).toHaveBeenCalledWith(
+          `session:${sessionId}:members`,
+          res.participantId,
+          "PARTICIPANT",
+          7200,
+        );
+      });
+    });
+
+    describe("endMeeting", () => {
+      it("завершает сессию, если вызывает владелец", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          participants: [{ userId: ownerId }],
+        });
+
+        await service.endMeeting(sessionId, ownerId);
+
+        expect(prismaMock.interviewSession.update).toHaveBeenCalledWith({
+          where: { id: sessionId },
+          data: expect.objectContaining({
+            status: "CLOSED",
+          }),
+        });
+        expect(redisMock.set).toHaveBeenCalledWith(
+          `session:${sessionId}:active`,
+          "closed",
+          7200,
+        );
+      });
+
+      it("бросает 403, если вызывает не владелец", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          participants: [{ userId: ownerId }],
+        });
+
+        await expect(
+          service.endMeeting(sessionId, "other-user-uuid"),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
   });
 });

@@ -2,10 +2,14 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Ip,
+  Optional,
   Param,
   Post,
+  Req,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -17,29 +21,66 @@ import {
 import {
   type AddParticipantDto,
   addParticipantSchema,
+  type CreateMeetingDto,
   type CreateSessionResponseDto,
+  createMeetingSchema,
   type InterviewParticipantRole,
+  type JoinMeetingDto,
+  type JoinMeetingResponseDto,
   type JoinSessionDto,
   type JoinSessionResponseDto,
+  joinMeetingSchema,
   joinSessionSchema,
+  type MeetingLobbyResponseDto,
   type RotateInviteResponseDto,
 } from "@packages/dto";
+import type { Request } from "express";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { Public } from "../../common/decorators/public.decorator";
 import { registerSchema, ZodBody } from "../../common/openapi/zod-openapi";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
+import { TokenService } from "../auth/services/token.service";
 import { SessionsService } from "./sessions.service";
 
 /**
  * Контроллер интервью-сессий (`/api/v1/sessions`).
  *
- * Все маршруты защищены глобальным `AccessTokenGuard` (Bearer + live-сессия).
- * Модифицирующие операции (участники, close) доступны только владельцу сессии.
+ * Все маршруты защищены глобальным `AccessTokenGuard` (Bearer + live-сессия),
+ * за исключением публичных эндпоинтов с декоратором `@Public()`.
+ * Модифицирующие операции доступны только владельцу сессии (HOST).
  */
 @ApiTags("Sessions")
 @ApiBearerAuth()
 @Controller("sessions")
 export class SessionsController {
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(
+    private readonly sessionsService: SessionsService,
+    @Optional()
+    private readonly tokenService?: TokenService,
+  ) {}
+
+  /**
+   * Извлекает `userId` из Bearer-токена в заголовке `Authorization`, если он передан и валиден.
+   */
+  private extractUserIdFromRequest(req: Request): string | undefined {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || typeof authHeader !== "string") {
+      return undefined;
+    }
+    const [bearer, token] = authHeader.split(" ");
+    if (bearer !== "Bearer" || !token) {
+      return undefined;
+    }
+    if (!this.tokenService) {
+      return undefined;
+    }
+    try {
+      const payload = this.tokenService.verifyAccessToken(token);
+      return payload.sub;
+    } catch {
+      return undefined;
+    }
+  }
 
   /**
    * Создаёт новую интервью-сессию. Создатель становится владельцем
@@ -67,6 +108,37 @@ export class SessionsController {
     @CurrentUser("sub") userId: string,
   ): Promise<CreateSessionResponseDto> {
     return this.sessionsService.createSession(userId);
+  }
+
+  /**
+   * Создаёт новую видеовстречу (MEETING session).
+   *
+   * @param userId - UUID текущего пользователя (хоста).
+   * @param body - Данные встречи `{ title?, description?, isPrivate?, password? }`.
+   * @returns `{ sessionId, inviteToken }`.
+   */
+  @Post("meeting")
+  @ApiOperation({ summary: "Создать новую видеовстречу" })
+  @ZodBody(createMeetingSchema, "CreateMeetingDto")
+  @ApiResponse({
+    status: 201,
+    description: "Видеовстреча успешно создана",
+    schema: registerSchema("CreateMeetingResponseDto", {
+      type: "object",
+      properties: {
+        sessionId: { type: "string", format: "uuid" },
+        inviteToken: { type: "string" },
+      },
+      required: ["sessionId", "inviteToken"],
+    }),
+  })
+  @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  async createMeeting(
+    @CurrentUser("sub") userId: string,
+    @Body(new ZodValidationPipe(createMeetingSchema)) body: CreateMeetingDto,
+  ): Promise<CreateSessionResponseDto> {
+    return this.sessionsService.createMeetingSession(userId, body);
   }
 
   /**
@@ -123,6 +195,158 @@ export class SessionsController {
       userId,
       body?.inviteToken,
     );
+  }
+
+  /**
+   * Возвращает публичные метаданные предстартового лобби встречи.
+   *
+   * @param sessionId - UUID сессии из пути.
+   * @returns Публичные метаданные встречи.
+   */
+  @Public()
+  @Get(":id/lobby")
+  @ApiOperation({
+    summary: "Получить публичные метаданные предстартового лобби встречи",
+  })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Метаданные лобби встречи",
+    schema: registerSchema("MeetingLobbyResponseDto", {
+      type: "object",
+      properties: {
+        id: { type: "string", format: "uuid" },
+        title: { type: "string" },
+        description: { type: "string", nullable: true },
+        isPrivate: { type: "boolean" },
+        isPasswordRequired: { type: "boolean" },
+        hostName: { type: "string" },
+        hostAvatar: { type: "string", nullable: true },
+        status: {
+          type: "string",
+          enum: ["CREATED", "ACTIVE", "CLOSED"],
+        },
+        participantCount: { type: "integer" },
+      },
+      required: [
+        "id",
+        "title",
+        "isPrivate",
+        "isPasswordRequired",
+        "hostName",
+        "status",
+        "participantCount",
+      ],
+    }),
+  })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
+  async getMeetingLobby(
+    @Param("id") sessionId: string,
+  ): Promise<MeetingLobbyResponseDto> {
+    return this.sessionsService.getMeetingLobby(sessionId);
+  }
+
+  /**
+   * Подключает участника к видеовстрече (гость или авторизованный пользователь).
+   *
+   * @param sessionId - UUID сессии из пути.
+   * @param clientIp - IP-адрес клиента для rate limiting.
+   * @param req - HTTP-запрос для опционального извлечения токена авторизованного пользователя.
+   * @param body - Данные для входа `{ guestName?, password?, inviteToken? }`.
+   * @returns Данные подключения и LiveKit media token.
+   */
+  @Public()
+  @Post(":id/join-meeting")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Присоединиться к видеовстрече (гость или авторизованный пользователь)",
+  })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ZodBody(joinMeetingSchema, "JoinMeetingDto")
+  @ApiResponse({
+    status: 200,
+    description: "Успешное присоединение к видеовстрече",
+    schema: registerSchema("JoinMeetingResponseDto", {
+      type: "object",
+      properties: {
+        role: {
+          type: "string",
+          enum: ["HOST", "PARTICIPANT", "CANDIDATE", "INTERVIEWER", "OBSERVER"],
+        },
+        inviteToken: { type: "string" },
+        mediaToken: { type: "string" },
+        serverUrl: { type: "string" },
+        roomName: { type: "string" },
+        participantId: { type: "string" },
+        displayName: { type: "string" },
+      },
+      required: [
+        "role",
+        "mediaToken",
+        "serverUrl",
+        "roomName",
+        "participantId",
+        "displayName",
+      ],
+    }),
+  })
+  @ApiResponse({ status: 400, description: "Ошибка валидации входных данных" })
+  @ApiResponse({
+    status: 403,
+    description: "Сессия закрыта, неверный пароль или комната заполнена",
+  })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
+  @ApiResponse({
+    status: 429,
+    description: "Превышен лимит попыток ввода пароля",
+  })
+  async joinMeeting(
+    @Param("id") sessionId: string,
+    @Ip() clientIp: string,
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(joinMeetingSchema)) body?: JoinMeetingDto,
+  ): Promise<JoinMeetingResponseDto> {
+    const userId = this.extractUserIdFromRequest(req);
+    return this.sessionsService.joinMeeting(sessionId, userId, body, clientIp);
+  }
+
+  /**
+   * Завершает видеовстречу для всех участников (только HOST).
+   *
+   * @param sessionId - UUID сессии из пути.
+   * @param userId - UUID хоста встречи.
+   */
+  @Post(":id/end")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Завершить видеовстречу для всех участников (только HOST)",
+  })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "UUID сессии",
+  })
+  @ApiResponse({ status: 204, description: "Встреча успешно завершена" })
+  @ApiResponse({ status: 401, description: "Не авторизован" })
+  @ApiResponse({ status: 403, description: "Доступ запрещен (только HOST)" })
+  @ApiResponse({ status: 404, description: "Сессия не найдена" })
+  async endMeeting(
+    @Param("id") sessionId: string,
+    @CurrentUser("sub") userId: string,
+  ): Promise<void> {
+    await this.sessionsService.endMeeting(sessionId, userId);
   }
 
   /**
