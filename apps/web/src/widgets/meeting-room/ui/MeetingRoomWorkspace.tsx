@@ -71,6 +71,12 @@ export interface MeetingRoomWorkspaceProps {
   onSwitchVideoInput?: (deviceId: string) => Promise<void> | void;
   /** Callback смены динамиков */
   onSwitchAudioOutput?: (deviceId: string) => Promise<void> | void;
+  /** Текущий выбранный микрофон */
+  currentAudioInputId?: string;
+  /** Текущая выбранная камера */
+  currentVideoInputId?: string;
+  /** Текущие выбранные динамики */
+  currentAudioOutputId?: string;
   /** Дополнительные CSS классы */
   className?: string;
 }
@@ -111,6 +117,9 @@ export function MeetingRoomWorkspace({
   onSwitchAudioInput,
   onSwitchVideoInput,
   onSwitchAudioOutput,
+  currentAudioInputId,
+  currentVideoInputId,
+  currentAudioOutputId,
   className,
 }: MeetingRoomWorkspaceProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -238,6 +247,9 @@ export function MeetingRoomWorkspace({
       <DeviceSettingsDialog
         open={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
+        currentAudioInputId={currentAudioInputId}
+        currentVideoInputId={currentVideoInputId}
+        currentAudioOutputId={currentAudioOutputId}
         onAudioInputSelect={onSwitchAudioInput}
         onVideoInputSelect={onSwitchVideoInput}
         onAudioOutputSelect={onSwitchAudioOutput}

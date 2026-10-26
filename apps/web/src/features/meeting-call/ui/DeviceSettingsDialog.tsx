@@ -42,6 +42,28 @@ export function DeviceSettingsDialog({
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
 
+  const [selectedAudio, setSelectedAudio] = useState<string>(
+    currentAudioInputId || "",
+  );
+  const [selectedVideo, setSelectedVideo] = useState<string>(
+    currentVideoInputId || "",
+  );
+  const [selectedSpeaker, setSelectedSpeaker] = useState<string>(
+    currentAudioOutputId || "",
+  );
+
+  useEffect(() => {
+    if (currentAudioInputId) setSelectedAudio(currentAudioInputId);
+  }, [currentAudioInputId]);
+
+  useEffect(() => {
+    if (currentVideoInputId) setSelectedVideo(currentVideoInputId);
+  }, [currentVideoInputId]);
+
+  useEffect(() => {
+    if (currentAudioOutputId) setSelectedSpeaker(currentAudioOutputId);
+  }, [currentAudioOutputId]);
+
   const loadDevices = useCallback(async () => {
     if (
       typeof navigator === "undefined" ||
@@ -84,9 +106,24 @@ export function DeviceSettingsDialog({
     label: d.label || `Динамики ${index + 1}`,
   }));
 
+  const handleAudioChange = (val: string) => {
+    setSelectedAudio(val);
+    onAudioInputSelect?.(val);
+  };
+
+  const handleVideoChange = (val: string) => {
+    setSelectedVideo(val);
+    onVideoInputSelect?.(val);
+  };
+
+  const handleSpeakerChange = (val: string) => {
+    setSelectedSpeaker(val);
+    onAudioOutputSelect?.(val);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content className="max-w-md">
+      <Dialog.Content className="max-w-md w-[calc(100vw-2rem)] overflow-hidden">
         <Dialog.Header>
           <Dialog.Title>Настройки устройств</Dialog.Title>
           <Dialog.Description>
@@ -94,19 +131,20 @@ export function DeviceSettingsDialog({
           </Dialog.Description>
         </Dialog.Header>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 w-full overflow-hidden">
           {/* Микрофон */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full overflow-hidden">
             <Label className="flex items-center gap-1.5 text-xs font-medium">
               <MicIcon size="sm" className="text-muted-foreground" />
               <span>Микрофон</span>
             </Label>
             {micOptions.length > 0 ? (
               <Select
-                value={currentAudioInputId || micOptions[0]?.value}
-                onValueChange={(val) => onAudioInputSelect?.(val)}
+                value={selectedAudio || micOptions[0]?.value}
+                onValueChange={handleAudioChange}
                 options={micOptions}
                 placeholder="Выберите микрофон"
+                triggerClassName="w-full max-w-full justify-between truncate"
               />
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -116,17 +154,18 @@ export function DeviceSettingsDialog({
           </div>
 
           {/* Камера */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full overflow-hidden">
             <Label className="flex items-center gap-1.5 text-xs font-medium">
               <CameraIcon size="sm" className="text-muted-foreground" />
               <span>Камера</span>
             </Label>
             {cameraOptions.length > 0 ? (
               <Select
-                value={currentVideoInputId || cameraOptions[0]?.value}
-                onValueChange={(val) => onVideoInputSelect?.(val)}
+                value={selectedVideo || cameraOptions[0]?.value}
+                onValueChange={handleVideoChange}
                 options={cameraOptions}
                 placeholder="Выберите камеру"
+                triggerClassName="w-full max-w-full justify-between truncate"
               />
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -137,22 +176,23 @@ export function DeviceSettingsDialog({
 
           {/* Динамики / Аудиовыход (если поддерживается браузером) */}
           {speakerOptions.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 w-full overflow-hidden">
               <Label className="flex items-center gap-1.5 text-xs font-medium">
                 <HeadphonesIcon size="sm" className="text-muted-foreground" />
                 <span>Динамики</span>
               </Label>
               <Select
-                value={currentAudioOutputId || speakerOptions[0]?.value}
-                onValueChange={(val) => onAudioOutputSelect?.(val)}
+                value={selectedSpeaker || speakerOptions[0]?.value}
+                onValueChange={handleSpeakerChange}
                 options={speakerOptions}
                 placeholder="Выберите динамики"
+                triggerClassName="w-full max-w-full justify-between truncate"
               />
             </div>
           )}
         </div>
 
-        <Dialog.Footer className="mt-2">
+        <Dialog.Footer className="mt-3 flex justify-end">
           <Button onClick={() => onOpenChange(false)}>Готово</Button>
         </Dialog.Footer>
       </Dialog.Content>

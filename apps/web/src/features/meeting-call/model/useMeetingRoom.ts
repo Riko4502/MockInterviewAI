@@ -60,6 +60,12 @@ export interface UseMeetingRoomReturn {
   isCameraEnabled: boolean;
   /** Включена ли демонстрация экрана у локального участника */
   isScreenSharing: boolean;
+  /** Текущий выбранный ID микрофона */
+  activeAudioInputId: string;
+  /** Текущий выбранный ID камеры */
+  activeVideoInputId: string;
+  /** Текущий выбранный ID динамиков */
+  activeAudioOutputId: string;
 
   /** Подключиться к комнате */
   connect: () => Promise<boolean>;
@@ -119,8 +125,16 @@ function mapParticipantToState(
   const screenShareTrack =
     participant.getTrackPublication(Track.Source.ScreenShare) ?? null;
 
+  const isScreenSharing = Boolean(
+    screenShareTrack &&
+      !screenShareTrack.isMuted &&
+      (isLocal
+        ? participant.isScreenShareEnabled
+        : Boolean(screenShareTrack.track || screenShareTrack.isSubscribed)),
+  );
+
   return {
-    id: participant.sid || participant.identity,
+    id: participant.identity || participant.sid,
     identity: participant.identity,
     name: participant.name || participant.identity || "Участник",
     isLocal,
@@ -128,7 +142,7 @@ function mapParticipantToState(
     isSpeaking: participant.isSpeaking,
     isMicrophoneEnabled: participant.isMicrophoneEnabled,
     isCameraEnabled: participant.isCameraEnabled,
-    isScreenSharing: participant.isScreenShareEnabled,
+    isScreenSharing,
     isHandRaised,
     videoTrack: cameraTrack,
     audioTrack,
@@ -277,8 +291,14 @@ export function useMeetingRoom({
         RoomEvent.ParticipantDisconnected,
         handleTracksAndParticipants,
       );
+      currentRoom.on(RoomEvent.TrackPublished, handleTracksAndParticipants);
+      currentRoom.on(RoomEvent.TrackUnpublished, handleTracksAndParticipants);
       currentRoom.on(RoomEvent.TrackSubscribed, handleTracksAndParticipants);
       currentRoom.on(RoomEvent.TrackUnsubscribed, handleTracksAndParticipants);
+      currentRoom.on(
+        RoomEvent.TrackStreamStateChanged,
+        handleTracksAndParticipants,
+      );
       currentRoom.on(
         RoomEvent.LocalTrackPublished,
         handleTracksAndParticipants,
@@ -475,22 +495,50 @@ export function useMeetingRoom({
   }, [startScreenShare, stopScreenShare]);
 
   // Смена аудио/видео устройств
+  const [activeAudioInputId, setActiveAudioInputId] = useState<string>("");
+  const [activeVideoInputId, setActiveVideoInputId] = useState<string>("");
+  const [activeAudioOutputId, setActiveAudioOutputId] = useState<string>("");
+
   const switchAudioInput = useCallback(async (deviceId: string) => {
+    setActiveAudioInputId(deviceId);
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
-    await currentRoom.switchActiveDevice("audioinput", deviceId);
+    try {
+      await currentRoom.switchActiveDevice("audioinput", deviceId);
+    } catch (err) {
+      console.warn(
+        "[useMeetingRoom] switchActiveDevice audioinput failed:",
+        err,
+      );
+    }
   }, []);
 
   const switchVideoInput = useCallback(async (deviceId: string) => {
+    setActiveVideoInputId(deviceId);
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
-    await currentRoom.switchActiveDevice("videoinput", deviceId);
+    try {
+      await currentRoom.switchActiveDevice("videoinput", deviceId);
+    } catch (err) {
+      console.warn(
+        "[useMeetingRoom] switchActiveDevice videoinput failed:",
+        err,
+      );
+    }
   }, []);
 
   const switchAudioOutput = useCallback(async (deviceId: string) => {
+    setActiveAudioOutputId(deviceId);
     const currentRoom = roomRef.current;
     if (!currentRoom) return;
-    await currentRoom.switchActiveDevice("audiooutput", deviceId);
+    try {
+      await currentRoom.switchActiveDevice("audiooutput", deviceId);
+    } catch (err) {
+      console.warn(
+        "[useMeetingRoom] switchActiveDevice audiooutput failed:",
+        err,
+      );
+    }
   }, []);
 
   // Синхронизация при изменении списка поднятых рук
@@ -537,6 +585,9 @@ export function useMeetingRoom({
     isMicrophoneEnabled,
     isCameraEnabled,
     isScreenSharing,
+    activeAudioInputId,
+    activeVideoInputId,
+    activeAudioOutputId,
     connect,
     disconnect,
     toggleMicrophone,

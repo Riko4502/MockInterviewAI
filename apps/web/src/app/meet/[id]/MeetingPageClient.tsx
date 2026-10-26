@@ -105,6 +105,9 @@ function ActiveMeetingRoom({
       onSwitchAudioInput={meetingRoom.switchAudioInput}
       onSwitchVideoInput={meetingRoom.switchVideoInput}
       onSwitchAudioOutput={meetingRoom.switchAudioOutput}
+      currentAudioInputId={meetingRoom.activeAudioInputId}
+      currentVideoInputId={meetingRoom.activeVideoInputId}
+      currentAudioOutputId={meetingRoom.activeAudioOutputId}
     />
   );
 }
@@ -143,6 +146,7 @@ export function MeetingPageClient({ sessionId }: MeetingPageClientProps) {
   const { mutateAsync: endMeeting } = useSessionsControllerEndMeeting();
 
   const [view, setView] = useState<"lobby" | "workspace">("lobby");
+  const [hasLeft, setHasLeft] = useState(false);
   const [connectionData, setConnectionData] =
     useState<JoinMeetingResponseDto | null>(null);
   const [initialMedia, setInitialMedia] = useState({ mic: true, cam: true });
@@ -152,6 +156,7 @@ export function MeetingPageClient({ sessionId }: MeetingPageClientProps) {
 
   const handleJoin = async (params: MeetingJoinParams) => {
     setJoinError(null);
+    setHasLeft(false);
     try {
       const response = await joinMeeting({
         id: sessionId,
@@ -180,7 +185,7 @@ export function MeetingPageClient({ sessionId }: MeetingPageClientProps) {
     if (isAuthenticated) {
       router.push(paths.dashboard);
     } else {
-      router.push("/");
+      setHasLeft(true);
     }
   };
 
@@ -262,7 +267,12 @@ export function MeetingPageClient({ sessionId }: MeetingPageClientProps) {
 
   // Экран лобби
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-background">
+    <div className="flex flex-col min-h-screen w-screen items-center justify-center bg-background p-4">
+      {hasLeft && (
+        <div className="mb-4 w-full max-w-xl rounded-xl border border-primary/30 bg-primary/10 p-3 text-center text-sm font-medium text-foreground backdrop-blur-md">
+          Вы вышли из встречи. Вы можете войти снова ниже или закрыть вкладку.
+        </div>
+      )}
       <MeetingPreFlightLobby
         sessionId={sessionId}
         sessionTitle={lobby.title}

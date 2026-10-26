@@ -70,8 +70,12 @@ export function VideoTile({
   const isMirrored = participant.isLocal && mirrorLocalVideo;
 
   const participantReactions = useMemo(() => {
-    return reactions.filter((r) => r.participantId === participant.id);
-  }, [reactions, participant.id]);
+    return reactions.filter(
+      (r) =>
+        r.participantId === participant.id ||
+        (participant.identity && r.participantId === participant.identity),
+    );
+  }, [reactions, participant.id, participant.identity]);
 
   // Подключение видеотрека вебкамеры к тегу <video>
   useEffect(() => {
