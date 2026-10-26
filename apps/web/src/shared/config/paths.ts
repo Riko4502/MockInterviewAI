@@ -19,6 +19,7 @@ export const paths = {
   resources: "/dashboard/resources",
   profile: "/profile",
   forgotPassword: "/forgot-password",
+  meet: (id: string) => `/meet/${id}`,
 } as const;
 
 export const ROUTES = paths;

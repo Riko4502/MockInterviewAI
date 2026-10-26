@@ -24,6 +24,10 @@ export {
   type CallControlsBarProps,
 } from "./ui/CallControlsBar";
 export {
+  CreateMeetingDialog,
+  type CreateMeetingDialogProps,
+} from "./ui/CreateMeetingDialog";
+export {
   DeviceSettingsDialog,
   type DeviceSettingsDialogProps,
 } from "./ui/DeviceSettingsDialog";

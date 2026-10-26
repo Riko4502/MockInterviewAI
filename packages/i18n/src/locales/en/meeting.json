@@ -1,0 +1,54 @@
+{
+  "lobby": {
+    "title": "Meeting Pre-flight",
+    "guestNameLabel": "Your display name",
+    "guestNamePlaceholder": "e.g., John Doe",
+    "passwordLabel": "Meeting password",
+    "passwordPlaceholder": "Enter room password",
+    "joinButton": "Join meeting",
+    "joining": "Connecting...",
+    "cameraOff": "Camera is off",
+    "hostLabel": "Host:",
+    "nameMinLength": "Name must be at least 2 characters",
+    "passwordRequired": "Password is required for this meeting"
+  },
+  "workspace": {
+    "protected": "Protected",
+    "screenShareBy": "Sharing:",
+    "screenShareYou": "You are sharing your screen",
+    "stopScreenShare": "Stop sharing",
+    "chat": "Meeting chat",
+    "emptyChat": "No messages in this meeting yet.",
+    "firstMessagePrompt": "Send the first message!",
+    "messagePlaceholder": "Message... (Enter to send, Shift+Enter for new line)",
+    "send": "Send",
+    "leave": "Leave meeting",
+    "endForAll": "End meeting for all",
+    "noParticipants": "No participants in this room yet"
+  },
+  "dialog": {
+    "conflictTitle": "Take over screen share",
+    "conflictDesc": "is already sharing their screen. Only one screen share is permitted at a time.",
+    "conflictQuestion": "Are you sure you want to stop their screen share and start yours?",
+    "conflictConfirm": "Take over screen",
+    "conflictCancel": "Cancel",
+    "settingsTitle": "Device settings",
+    "settingsDesc": "Select audio and video input/output devices.",
+    "microphone": "Microphone",
+    "camera": "Camera",
+    "speakers": "Speakers",
+    "noMics": "No microphones found",
+    "noCameras": "No cameras found",
+    "done": "Done"
+  },
+  "createMeeting": {
+    "title": "Create meeting",
+    "description": "Instant 1-on-1 or group call with link sharing, no signup required",
+    "instantCall": "Instant call",
+    "createdTitle": "Meeting is ready",
+    "createdDesc": "Share this link with participants to join",
+    "copyLink": "Copy invite link",
+    "copied": "Link copied to clipboard",
+    "goToRoom": "Join room"
+  }
+}
