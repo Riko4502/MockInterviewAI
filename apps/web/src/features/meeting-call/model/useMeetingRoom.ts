@@ -124,6 +124,8 @@ function mapParticipantToState(
     participant.getTrackPublication(Track.Source.Microphone) ?? null;
   const screenShareTrack =
     participant.getTrackPublication(Track.Source.ScreenShare) ?? null;
+  const screenShareAudioTrack =
+    participant.getTrackPublication(Track.Source.ScreenShareAudio) ?? null;
 
   const isScreenSharing = Boolean(
     screenShareTrack &&
@@ -147,6 +149,7 @@ function mapParticipantToState(
     videoTrack: cameraTrack,
     audioTrack,
     screenShareTrack,
+    screenShareAudioTrack,
   };
 }
 

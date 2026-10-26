@@ -31,6 +31,8 @@ export interface MeetingParticipantState {
   audioTrack: TrackPublication | null;
   /** Публикация видеотрека демонстрации экрана (если активна) */
   screenShareTrack: TrackPublication | null;
+  /** Публикация аудиотрека демонстрации экрана (если передается системный звук) */
+  screenShareAudioTrack?: TrackPublication | null;
 }
 
 /** Элемент активной реакции для UI с меткой времени для автоудаления */

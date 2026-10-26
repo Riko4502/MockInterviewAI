@@ -2,6 +2,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -416,7 +417,12 @@ export class SessionsService {
   ): Promise<{ sessionId: string; inviteToken: string }> {
     const inviteToken = this.generateInviteToken();
     let passwordHash: string | null = null;
-    if (dto.isPrivate && dto.password) {
+    if (dto.isPrivate) {
+      if (!dto.password) {
+        throw new BadRequestException(
+          "Password is required for private meetings",
+        );
+      }
       passwordHash = await this.hashMeetingPassword(dto.password);
     }
 
@@ -858,7 +864,7 @@ export class SessionsService {
       },
     });
 
-    if (!session) {
+    if (!session || session.type !== InterviewSessionType.MEETING) {
       throw new NotFoundException("Session not found");
     }
 
@@ -923,7 +929,7 @@ export class SessionsService {
       },
     });
 
-    if (!session) {
+    if (!session || session.type !== InterviewSessionType.MEETING) {
       throw new NotFoundException("Session not found");
     }
 
@@ -1084,6 +1090,18 @@ export class SessionsService {
    * Завершает видеовстречу для всех участников (доступно только HOST).
    */
   async endMeeting(sessionId: string, userId: string): Promise<void> {
+    if (!UUID_REGEX.test(sessionId)) {
+      throw new NotFoundException("Session not found");
+    }
+
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session || session.type !== InterviewSessionType.MEETING) {
+      throw new NotFoundException("Session not found");
+    }
+
     await this.closeSession(sessionId, userId);
   }
 

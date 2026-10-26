@@ -26,7 +26,7 @@ Prisma: InterviewSession
 │ title:        String? ("Архитектурный синк", "HR скрининг")│
 │ isPrivate:    Boolean (true если защищен паролем)          │
 │ passwordHash: String? (Argon2id хеш пароля)                │
-│ inviteToken:  String (64-символьный capability hex-токен)  │
+│ inviteToken:  String? (64-символьный capability hex-токен) │
 │ status:       SessionStatus (ACTIVE | CLOSED)              │
 │ createdAt:    DateTime                                     │
 │ updatedAt:    DateTime                                     │
@@ -41,7 +41,7 @@ Prisma: InterviewSession
 
 ## 3. Модель LiveKit Grants
 
-Сервис [`LivekitService`](file:///c:/work/MyProjects/MockInterviewAI/apps/api/src/modules/realtime/livekit.service.ts) выпускает JWT-токены подключения к комнате LiveKit (`RoomName = sessionId`).
+Сервис [`LivekitService`](../../../apps/api/src/modules/realtime/livekit.service.ts) выпускает JWT-токены подключения к комнате LiveKit (`RoomName = sessionId`).
 
 ### Матрица прав:
 
@@ -59,34 +59,28 @@ Prisma: InterviewSession
 
 ## 4. Протокол сообщений LiveKit DataChannel
 
-Обмен событиями в реальном времени внутри комнаты происходит через LiveKit DataChannel (топик по умолчанию, надежная доставка `reliable: true` для чата и `lossy: false` для реакций):
+Обмен событиями в реальном времени внутри комнаты происходит через LiveKit DataChannel (топик по умолчанию, надежная доставка `reliable: true` для всех пакетов: чат, поднятие руки, реакции):
 
 ```typescript
 type MeetingDataPacket =
   | {
-      type: "chat_message";
-      payload: {
-        id: string;
-        senderId: string;
-        senderName: string;
-        text: string;
-        timestamp: number;
-      };
+      type: "CHAT_MESSAGE";
+      id: string;
+      senderId: string;
+      senderName: string;
+      text: string;
+      timestamp: string; // ISO 8601 строка времени отправки
     }
   | {
-      type: "hand_raise";
-      payload: {
-        participantId: string;
-        raised: boolean;
-      };
+      type: "RAISE_HAND";
+      participantId: string;
+      raised: boolean;
     }
   | {
-      type: "reaction";
-      payload: {
-        id: string;
-        participantId: string;
-        emoji: "👍" | "❤️" | "👏" | "🔥" | "🎉";
-      };
+      type: "REACTION";
+      id: string;
+      participantId: string;
+      emoji: string;
     };
 ```
 

@@ -1,6 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from "../../redis/redis.service";
@@ -1359,6 +1363,15 @@ describe("SessionsService", () => {
         expect(typeof createCall.data.passwordHash).toBe("string");
         expect(createCall.data.passwordHash).toMatch(/^\$argon2/);
       });
+
+      it("бросает BadRequestException, если isPrivate=true, но пароль не передан", async () => {
+        await expect(
+          service.createMeetingSession(ownerId, {
+            title: "Private Meeting Without Password",
+            isPrivate: true,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
     });
 
     describe("getMeetingLobby", () => {
@@ -1369,6 +1382,7 @@ describe("SessionsService", () => {
           description: "Sync about architecture",
           isPrivate: true,
           passwordHash: "$argon2id$somehash",
+          type: "MEETING",
           status: "ACTIVE",
           user: {
             displayName: "Иван Иванов",
@@ -1401,6 +1415,19 @@ describe("SessionsService", () => {
           NotFoundException,
         );
       });
+
+      it("бросает 404, если тип сессии не MEETING", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          type: "CODE",
+          status: "ACTIVE",
+          participants: [],
+        });
+
+        await expect(service.getMeetingLobby(sessionId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
     });
 
     describe("joinMeeting", () => {
@@ -1412,10 +1439,32 @@ describe("SessionsService", () => {
         validPasswordHash = await argon2.hash("valid-password");
       });
 
+      it("бросает 404, если сессия не найдена", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue(null);
+
+        await expect(service.joinMeeting(sessionId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+
+      it("бросает 404, если тип сессии не MEETING", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          status: "ACTIVE",
+          type: "CODE",
+          participants: [],
+        });
+
+        await expect(service.joinMeeting(sessionId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+
       it("бросает 403, если сессия закрыта", async () => {
         prismaMock.interviewSession.findUnique.mockResolvedValue({
           id: sessionId,
           status: "CLOSED",
+          type: "MEETING",
           participants: [],
           user: { displayName: "Host" },
         });
@@ -1429,6 +1478,7 @@ describe("SessionsService", () => {
         prismaMock.interviewSession.findUnique.mockResolvedValue({
           id: sessionId,
           status: "ACTIVE",
+          type: "MEETING",
           isPrivate: true,
           passwordHash: validPasswordHash,
           inviteToken,
@@ -1450,6 +1500,7 @@ describe("SessionsService", () => {
         prismaMock.interviewSession.findUnique.mockResolvedValue({
           id: sessionId,
           status: "ACTIVE",
+          type: "MEETING",
           isPrivate: true,
           passwordHash: validPasswordHash,
           inviteToken,
@@ -1476,6 +1527,7 @@ describe("SessionsService", () => {
         prismaMock.interviewSession.findUnique.mockResolvedValue({
           id: sessionId,
           status: "ACTIVE",
+          type: "MEETING",
           isPrivate: true,
           passwordHash: validPasswordHash,
           inviteToken,
@@ -1507,6 +1559,7 @@ describe("SessionsService", () => {
           id: sessionId,
           userId: ownerId,
           status: "ACTIVE",
+          type: "MEETING",
           isPrivate: false,
           inviteToken,
           participants: [],
@@ -1536,6 +1589,7 @@ describe("SessionsService", () => {
           id: sessionId,
           userId: ownerId,
           status: "ACTIVE",
+          type: "MEETING",
           isPrivate: false,
           inviteToken,
           participants: [],
@@ -1565,6 +1619,7 @@ describe("SessionsService", () => {
           id: sessionId,
           userId: ownerId,
           status: "ACTIVE",
+          type: "MEETING",
           participants: [{ userId: ownerId }],
         });
 
@@ -1583,11 +1638,26 @@ describe("SessionsService", () => {
         );
       });
 
+      it("бросает 404, если сессия не найдена или не является MEETING", async () => {
+        prismaMock.interviewSession.findUnique.mockResolvedValue({
+          id: sessionId,
+          userId: ownerId,
+          status: "ACTIVE",
+          type: "CODE",
+          participants: [{ userId: ownerId }],
+        });
+
+        await expect(service.endMeeting(sessionId, ownerId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+
       it("бросает 403, если вызывает не владелец", async () => {
         prismaMock.interviewSession.findUnique.mockResolvedValue({
           id: sessionId,
           userId: ownerId,
           status: "ACTIVE",
+          type: "MEETING",
           participants: [{ userId: ownerId }],
         });
 

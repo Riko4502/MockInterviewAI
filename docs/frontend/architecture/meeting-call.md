@@ -48,15 +48,15 @@ apps/web/src/
 ### 2.1 Изоляция префлайт-лобби и звонка
 В браузерах на базе Chromium и Firefox повторный захват камеры/микрофона без освобождения ранее открытых дескрипторов приводит к системной ошибке `NotReadableError: Device in use`.
 
-* **В фазе лобби**: компонент [`MeetingPreFlightLobby`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/widgets/meeting-room/ui/MeetingPreFlightLobby.tsx) открывает легковесный `navigator.mediaDevices.getUserMedia()`.
+* **В фазе лобби**: компонент [`MeetingPreFlightLobby`](../../../apps/web/src/widgets/meeting-room/ui/MeetingPreFlightLobby.tsx) открывает легковесный `navigator.mediaDevices.getUserMedia()`.
 * **В момент нажатия «Войти»**: вызывается явный cleanup всех треков локального стрима:
   ```typescript
   localStream.getTracks().forEach((track) => track.stop());
   ```
-* **В фазе звонка**: хук [`useMeetingRoom`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/features/meeting-call/model/useMeetingRoom.ts) инициирует подключение через LiveKit SDK, получая эксклюзивный доступ к устройствам.
+* **В фазе звонка**: хук [`useMeetingRoom`](../../../apps/web/src/features/meeting-call/model/useMeetingRoom.ts) инициирует подключение через LiveKit SDK, получая эксклюзивный доступ к устройствам.
 
 ### 2.2 Предотвращение эхо-петли (Audio Feedback Loop)
-Компонент [`VideoTile`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/entities/meeting-participant/ui/VideoTile.tsx):
+Компонент [`VideoTile`](../../../apps/web/src/entities/meeting-participant/ui/VideoTile.tsx):
 * Для **удаленных** участников подключает звуковой трек к скрытому элементу `<audio autoPlay />`.
 * Для **локального** участника аудио-трек намеренно игнорируется (`isLocal ? null : track`), чтобы говорящий не слышал собственного эха.
 
@@ -67,9 +67,9 @@ apps/web/src/
 
 ## 3. Режимы отображения (Layout Modes)
 
-Компонент [`MeetingRoomWorkspace`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/widgets/meeting-room/ui/MeetingRoomWorkspace.tsx) автоматически адаптирует сетку:
+Компонент [`MeetingRoomWorkspace`](../../../apps/web/src/widgets/meeting-room/ui/MeetingRoomWorkspace.tsx) автоматически адаптирует сетку:
 
-1. **Grid Mode ([`VideoGrid`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/widgets/meeting-room/ui/VideoGrid.tsx))**:
+1. **Grid Mode ([`VideoGrid`](../../../apps/web/src/widgets/meeting-room/ui/VideoGrid.tsx))**:
    * Раскладка по умолчанию при отсутствии демонстрации экрана.
    * `1 участник`: одна крупная центрированная плитка (16:9).
    * `2 участника`: сетка `1x2` бок о бок.
@@ -77,18 +77,18 @@ apps/web/src/
    * `5–6+ участников`: сетка `3x2` с адаптивным масштабированием.
    * Активный спикер выделяется акцентной пульсирующей рамкой `border-primary`.
 
-2. **Spotlight Stage Mode ([`ScreenShareStage`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/widgets/meeting-room/ui/ScreenShareStage.tsx))**:
+2. **Spotlight Stage Mode ([`ScreenShareStage`](../../../apps/web/src/widgets/meeting-room/ui/ScreenShareStage.tsx))**:
    * Активируется автоматически, как только один из участников включает демонстрацию экрана.
    * 80% рабочей области занимает видеопоток расшаренного экрана.
    * Участники звонка компактно размещаются в боковой или нижней полосе (Filmstrip).
-   * При попытке второго участника начать демонстрацию отображается диалог разрешения конфликта [`ScreenShareConflictDialog`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/features/meeting-call/ui/ScreenShareConflictDialog.tsx).
+   * При попытке второго участника начать демонстрацию отображается диалог разрешения конфликта [`ScreenShareConflictDialog`](../../../apps/web/src/features/meeting-call/ui/ScreenShareConflictDialog.tsx).
 
 ---
 
 ## 4. Чат и DataChannel в реальном времени
 
-Хук [`useMeetingChat`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/features/meeting-call/model/useMeetingChat.ts) использует LiveKit DataChannel:
+Хук [`useMeetingChat`](../../../apps/web/src/features/meeting-call/model/useMeetingChat.ts) использует LiveKit DataChannel:
 * **Текстовые сообщения**: отправляются в топик с надежной доставкой (`reliable: true`). Ссылки в сообщениях автоматически превращаются в кликабельные теги `<a>` с атрибутом `rel="noopener noreferrer"`.
 * **Реакции**: всплывающие эмодзи над плитками авторов (`👍`, `❤️`, `👏`, `🔥`, `🎉`) с авто-исчезновением через 3 секунды.
 * **Поднятие руки**: тумблер с бейджем `✋ Рука поднята` на плитке участника.
-* **Счетчик непрочитанных**: при закрытом сайдбаре на кнопке чата в [`CallControlsBar`](file:///c:/work/MyProjects/MockInterviewAI/apps/web/src/features/meeting-call/ui/CallControlsBar.tsx) отображается красный бейдж количества новых сообщений. Открытие сайдбара сбрасывает счетчик в ноль.
+* **Счетчик непрочитанных**: при закрытом сайдбаре на кнопке чата в [`CallControlsBar`](../../../apps/web/src/features/meeting-call/ui/CallControlsBar.tsx) отображается красный бейдж количества новых сообщений. Открытие сайдбара сбрасывает счетчик в ноль.

@@ -38,6 +38,7 @@ export function ScreenShareStage({
   className,
 }: ScreenShareStageProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Аттач видеотрека демонстрации экрана
   useEffect(() => {
@@ -52,6 +53,25 @@ export function ScreenShareStage({
       track.detach(videoEl);
     };
   }, [screenShareParticipant.screenShareTrack?.track]);
+
+  // Аттач аудиотрека демонстрации экрана (только для удаленных участников во избежание эхо)
+  useEffect(() => {
+    const audioEl = audioRef.current;
+    const track = !screenShareParticipant.isLocal
+      ? screenShareParticipant.screenShareAudioTrack?.track
+      : null;
+
+    if (!audioEl || !track) return;
+
+    track.attach(audioEl);
+
+    return () => {
+      track.detach(audioEl);
+    };
+  }, [
+    screenShareParticipant.isLocal,
+    screenShareParticipant.screenShareAudioTrack?.track,
+  ]);
 
   return (
     <div
@@ -70,6 +90,16 @@ export function ScreenShareStage({
           muted
           data-slot="screen-share-video"
           className="size-full object-contain"
+        />
+
+        {/* Скрытый тег для воспроизведения системного звука удаленного экрана */}
+        {/* biome-ignore lint/a11y/useMediaCaption: WebRTC realtime screen share audio stream */}
+        <audio
+          ref={audioRef}
+          autoPlay
+          playsInline
+          data-slot="screen-share-audio"
+          className="hidden"
         />
 
         {/* Верхняя плашка с информацией о демонстрации */}
