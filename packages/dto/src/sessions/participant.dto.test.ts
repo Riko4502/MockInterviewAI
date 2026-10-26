@@ -12,20 +12,20 @@ describe("addParticipantSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("принимает допустимые роли (INTERVIEWER, OBSERVER)", () => {
-    expect(
-      addParticipantSchema.safeParse({
-        ...validPayload,
-        role: "INTERVIEWER",
-      }).success,
-    ).toBe(true);
-
-    expect(
-      addParticipantSchema.safeParse({
-        ...validPayload,
-        role: "OBSERVER",
-      }).success,
-    ).toBe(true);
+  it("принимает допустимые роли (INTERVIEWER, OBSERVER, HOST, PARTICIPANT)", () => {
+    for (const role of [
+      "INTERVIEWER",
+      "OBSERVER",
+      "HOST",
+      "PARTICIPANT",
+    ] as const) {
+      expect(
+        addParticipantSchema.safeParse({
+          ...validPayload,
+          role,
+        }).success,
+      ).toBe(true);
+    }
   });
 
   it("отклоняет невалидный UUID", () => {

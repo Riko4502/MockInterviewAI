@@ -17,4 +17,6 @@ export const RecentSessionsResponseDtoItemsItemRole = {
   CANDIDATE: 'CANDIDATE',
   INTERVIEWER: 'INTERVIEWER',
   OBSERVER: 'OBSERVER',
+  HOST: 'HOST',
+  PARTICIPANT: 'PARTICIPANT',
 } as const;

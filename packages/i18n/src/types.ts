@@ -4,6 +4,7 @@ import type dashboard from "./locales/ru/dashboard.json";
 import type email from "./locales/ru/email.json";
 import type interview from "./locales/ru/interview.json";
 import type landing from "./locales/ru/landing.json";
+import type meeting from "./locales/ru/meeting.json";
 import type notifications from "./locales/ru/notifications.json";
 import type showcase from "./locales/ru/showcase.json";
 import type telegram from "./locales/ru/telegram.json";
@@ -16,6 +17,7 @@ export type CommonMessages = typeof common;
 export type LandingMessages = typeof landing;
 export type AuthMessages = typeof auth;
 export type InterviewMessages = typeof interview;
+export type MeetingMessages = typeof meeting;
 export type TelegramMessages = typeof telegram;
 export type NotificationsMessages = typeof notifications;
 export type ShowcaseMessages = typeof showcase;
@@ -38,6 +40,7 @@ export const translationNamespaces = [
   "common",
   "dashboard",
   "showcase",
+  "meeting",
   "blog",
   "roadmap",
   "knowledge",
@@ -56,6 +59,7 @@ export interface Messages {
   landing: LandingMessages;
   auth: AuthMessages;
   interview: InterviewMessages;
+  meeting: MeetingMessages;
   telegram: TelegramMessages;
   notifications: NotificationsMessages;
   showcase: ShowcaseMessages;

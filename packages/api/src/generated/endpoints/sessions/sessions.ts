@@ -10,20 +10,34 @@
  * OpenAPI spec version: 0.1.0
  */
 import {
-  useMutation
+  useMutation,
+  useQuery
 } from '@tanstack/react-query';
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
-  UseMutationResult
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
   AddParticipantDto,
+  CreateMeetingDto,
+  CreateMeetingResponseDto,
   CreateSessionResponseDto,
+  JoinMeetingDto,
+  JoinMeetingResponseDto,
   JoinSessionDto,
   JoinSessionResponseDto,
+  MeetingLobbyResponseDto,
   RotateInviteResponseDto
 } from '../../model';
 
@@ -37,6 +51,21 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
+
+const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === 'queryKey') continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
 
 export const getSessionsControllerCreateSessionUrl = () => {
 
@@ -110,6 +139,85 @@ export const useSessionsControllerCreateSession = <TError = void,
         TContext
       > => {
       return useMutation(getSessionsControllerCreateSessionMutationOptions(options), queryClient);
+    }
+    export const getSessionsControllerCreateMeetingUrl = () => {
+
+
+
+
+  return `/api/v1/sessions/meeting`
+}
+
+/**
+ * @summary Создать новую видеовстречу
+ */
+export const sessionsControllerCreateMeeting = async (createMeetingDto: CreateMeetingDto, options?: Parameters<typeof customInstance>[1]): Promise<CreateMeetingResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<CreateMeetingResponseDto>(getSessionsControllerCreateMeetingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createMeetingDto)
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerCreateMeetingMutationKey = () => ['sessionsControllerCreateMeeting'] as const;
+
+export const getSessionsControllerCreateMeetingMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>, TError,SessionsControllerCreateMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>, TError,SessionsControllerCreateMeetingMutationVariables, TContext> => {
+
+const mutationKey = getSessionsControllerCreateMeetingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>, SessionsControllerCreateMeetingMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sessionsControllerCreateMeeting(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SessionsControllerCreateMeetingMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>>
+    export type SessionsControllerCreateMeetingMutationBody = CreateMeetingDto
+    export type SessionsControllerCreateMeetingMutationError = void
+    export type SessionsControllerCreateMeetingMutationVariables = {data: CreateMeetingDto}
+
+    /**
+ * @summary Создать новую видеовстречу
+ */
+export const useSessionsControllerCreateMeeting = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>, TError,SessionsControllerCreateMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sessionsControllerCreateMeeting>>,
+        TError,
+        SessionsControllerCreateMeetingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSessionsControllerCreateMeetingMutationOptions(options), queryClient);
     }
     export const getSessionsControllerJoinSessionUrl = (id: string,) => {
 
@@ -190,6 +298,259 @@ export const useSessionsControllerJoinSession = <TError = void,
         TContext
       > => {
       return useMutation(getSessionsControllerJoinSessionMutationOptions(options), queryClient);
+    }
+    export const getSessionsControllerGetMeetingLobbyUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/lobby`
+}
+
+/**
+ * @summary Получить публичные метаданные предстартового лобби встречи
+ */
+export const sessionsControllerGetMeetingLobby = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<MeetingLobbyResponseDto> => {
+
+  return customInstance<MeetingLobbyResponseDto>(getSessionsControllerGetMeetingLobbyUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerGetMeetingLobbyQueryKey = (id: string,) => {
+    return [
+    `/api/v1/sessions/${id}/lobby`
+    ] as const;
+    }
+
+
+export const getSessionsControllerGetMeetingLobbyQueryOptions = <TData = Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSessionsControllerGetMeetingLobbyQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>> = ({ signal }) => sessionsControllerGetMeetingLobby(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SessionsControllerGetMeetingLobbyQueryResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>>
+export type SessionsControllerGetMeetingLobbyQueryError = void
+
+
+export function useSessionsControllerGetMeetingLobby<TData = Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError = void>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>,
+          TError,
+          Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSessionsControllerGetMeetingLobby<TData = Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>,
+          TError,
+          Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSessionsControllerGetMeetingLobby<TData = Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Получить публичные метаданные предстартового лобби встречи
+ */
+
+export function useSessionsControllerGetMeetingLobby<TData = Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionsControllerGetMeetingLobby>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSessionsControllerGetMeetingLobbyQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getSessionsControllerJoinMeetingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/join-meeting`
+}
+
+/**
+ * @summary Присоединиться к видеовстрече (гость или авторизованный пользователь)
+ */
+export const sessionsControllerJoinMeeting = async (id: string,
+    joinMeetingDto: JoinMeetingDto, options?: Parameters<typeof customInstance>[1]): Promise<JoinMeetingResponseDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customInstance<JoinMeetingResponseDto>(getSessionsControllerJoinMeetingUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(joinMeetingDto)
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerJoinMeetingMutationKey = () => ['sessionsControllerJoinMeeting'] as const;
+
+export const getSessionsControllerJoinMeetingMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>, TError,SessionsControllerJoinMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>, TError,SessionsControllerJoinMeetingMutationVariables, TContext> => {
+
+const mutationKey = getSessionsControllerJoinMeetingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>, SessionsControllerJoinMeetingMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sessionsControllerJoinMeeting(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SessionsControllerJoinMeetingMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>>
+    export type SessionsControllerJoinMeetingMutationBody = JoinMeetingDto
+    export type SessionsControllerJoinMeetingMutationError = void
+    export type SessionsControllerJoinMeetingMutationVariables = {id: string;data: JoinMeetingDto}
+
+    /**
+ * @summary Присоединиться к видеовстрече (гость или авторизованный пользователь)
+ */
+export const useSessionsControllerJoinMeeting = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>, TError,SessionsControllerJoinMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sessionsControllerJoinMeeting>>,
+        TError,
+        SessionsControllerJoinMeetingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSessionsControllerJoinMeetingMutationOptions(options), queryClient);
+    }
+    export const getSessionsControllerEndMeetingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/end`
+}
+
+/**
+ * @summary Завершить видеовстречу для всех участников (только HOST)
+ */
+export const sessionsControllerEndMeeting = async (id: string, options?: Parameters<typeof customInstance>[1]): Promise<void> => {
+
+  return customInstance<void>(getSessionsControllerEndMeetingUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSessionsControllerEndMeetingMutationKey = () => ['sessionsControllerEndMeeting'] as const;
+
+export const getSessionsControllerEndMeetingMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerEndMeeting>>, TError,SessionsControllerEndMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerEndMeeting>>, TError,SessionsControllerEndMeetingMutationVariables, TContext> => {
+
+const mutationKey = getSessionsControllerEndMeetingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sessionsControllerEndMeeting>>, SessionsControllerEndMeetingMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  sessionsControllerEndMeeting(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SessionsControllerEndMeetingMutationResult = NonNullable<Awaited<ReturnType<typeof sessionsControllerEndMeeting>>>
+
+    export type SessionsControllerEndMeetingMutationError = void
+    export type SessionsControllerEndMeetingMutationVariables = {id: string}
+
+    /**
+ * @summary Завершить видеовстречу для всех участников (только HOST)
+ */
+export const useSessionsControllerEndMeeting = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sessionsControllerEndMeeting>>, TError,SessionsControllerEndMeetingMutationVariables, TContext>, request?: SecondParameter<typeof customInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sessionsControllerEndMeeting>>,
+        TError,
+        SessionsControllerEndMeetingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSessionsControllerEndMeetingMutationOptions(options), queryClient);
     }
     export const getSessionsControllerAddParticipantUrl = (id: string,) => {
 

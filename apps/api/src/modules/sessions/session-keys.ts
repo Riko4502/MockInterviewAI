@@ -31,3 +31,11 @@ export function sessionTaskUpdatesKey(
 ): string {
   return `{session:${sessionId}}:task:${taskKey}:updates`;
 }
+
+/** Ключ rate-limiting попыток ввода пароля встречи: `ratelimit:meeting:password:{sessionId}:{clientIp}` */
+export function meetingPasswordRateLimitKey(
+  sessionId: string,
+  clientIp: string,
+): string {
+  return `ratelimit:meeting:password:${sessionId}:${clientIp}`;
+}

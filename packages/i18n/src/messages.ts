@@ -5,6 +5,7 @@ import enDashboard from "./locales/en/dashboard.json";
 import enEmail from "./locales/en/email.json";
 import enInterview from "./locales/en/interview.json";
 import enLanding from "./locales/en/landing.json";
+import enMeeting from "./locales/en/meeting.json";
 import enNotifications from "./locales/en/notifications.json";
 import enShowcase from "./locales/en/showcase.json";
 import enTelegram from "./locales/en/telegram.json";
@@ -14,6 +15,7 @@ import ruDashboard from "./locales/ru/dashboard.json";
 import ruEmail from "./locales/ru/email.json";
 import ruInterview from "./locales/ru/interview.json";
 import ruLanding from "./locales/ru/landing.json";
+import ruMeeting from "./locales/ru/meeting.json";
 import ruNotifications from "./locales/ru/notifications.json";
 import ruShowcase from "./locales/ru/showcase.json";
 import ruTelegram from "./locales/ru/telegram.json";
@@ -25,6 +27,7 @@ export const messages: Record<Locale, Messages> = {
     dashboard: ruDashboard,
     auth: ruAuth,
     interview: ruInterview,
+    meeting: ruMeeting,
     landing: ruLanding,
     telegram: ruTelegram,
     notifications: ruNotifications,
@@ -36,6 +39,7 @@ export const messages: Record<Locale, Messages> = {
     dashboard: enDashboard,
     auth: enAuth,
     interview: enInterview,
+    meeting: enMeeting,
     landing: enLanding,
     telegram: enTelegram,
     notifications: enNotifications,

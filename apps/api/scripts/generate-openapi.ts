@@ -6,7 +6,7 @@ import { config } from "dotenv";
 import { stringify as stringifyYaml } from "yaml";
 import { AppModule } from "../src/app.module";
 import { buildOpenApiDocument } from "../src/common/openapi/openapi-document";
-import { configureApp } from "../src/main";
+import { configureApp } from "../src/configure-app";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { RedisService } from "../src/redis/redis.service";
 

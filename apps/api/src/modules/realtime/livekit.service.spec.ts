@@ -114,6 +114,42 @@ describe("LivekitService", () => {
       expect(video.canSubscribe).toBe(true);
       expect(video.canPublishData).toBe(false);
     });
+
+    it("HOST публикует camera/mic/screen_share/screen_share_audio и canPublishData=true", async () => {
+      redisMock.get.mockResolvedValue("true");
+      redisMock.hget.mockResolvedValue("HOST");
+
+      const res = await service.generateMediaToken(userId, sessionId);
+      const video = decodeVideo(res).video;
+
+      expect(video.canPublish).toBe(true);
+      expect(video.canPublishSources).toEqual([
+        "camera",
+        "microphone",
+        "screen_share",
+        "screen_share_audio",
+      ]);
+      expect(video.canSubscribe).toBe(true);
+      expect(video.canPublishData).toBe(true);
+    });
+
+    it("PARTICIPANT публикует camera/mic/screen_share/screen_share_audio и canPublishData=true", async () => {
+      redisMock.get.mockResolvedValue("true");
+      redisMock.hget.mockResolvedValue("PARTICIPANT");
+
+      const res = await service.generateMediaToken(userId, sessionId);
+      const video = decodeVideo(res).video;
+
+      expect(video.canPublish).toBe(true);
+      expect(video.canPublishSources).toEqual([
+        "camera",
+        "microphone",
+        "screen_share",
+        "screen_share_audio",
+      ]);
+      expect(video.canSubscribe).toBe(true);
+      expect(video.canPublishData).toBe(true);
+    });
   });
 
   describe("claims токена", () => {
@@ -128,6 +164,20 @@ describe("LivekitService", () => {
       expect(payload.sub).toBe(userId);
       expect(payload.video.room).toBe(sessionId);
       expect(payload.exp - payload.nbf).toBe(TOKEN_TTL);
+    });
+
+    it("включает name в payload, если передан displayName", async () => {
+      redisMock.get.mockResolvedValue("true");
+      redisMock.hget.mockResolvedValue("HOST");
+
+      const res = await service.generateMediaToken(
+        userId,
+        sessionId,
+        "Алексей Хост",
+      );
+      const payload = jwt.decode(res.token) as jwt.JwtPayload;
+
+      expect(payload.name).toBe("Алексей Хост");
     });
   });
 

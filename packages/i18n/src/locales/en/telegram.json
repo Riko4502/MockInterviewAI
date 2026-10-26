@@ -33,7 +33,9 @@
     "role": {
       "candidate": "Candidate",
       "interviewer": "Interviewer",
-      "observer": "Observer"
+      "observer": "Observer",
+      "host": "Host",
+      "participant": "Participant"
     },
     "status": {
       "created": "Created",
