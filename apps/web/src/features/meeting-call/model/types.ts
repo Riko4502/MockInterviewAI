@@ -39,13 +39,7 @@ export interface ReactionData {
 /** Объединенный тип всех сообщений DataChannel */
 export type DataChannelPayload = ChatMessageData | RaiseHandData | ReactionData;
 
-/** Элемент активной реакции для UI с меткой времени для автоудаления */
-export interface MeetingReactionItem {
-  id: string;
-  participantId: string;
-  emoji: string;
-  createdAt: number;
-}
+export type { MeetingReactionItem } from "@/entities/meeting-participant";
 
 /** Type guard для безопасной проверки полезной нагрузки DataChannel */
 export function isDataChannelPayload(

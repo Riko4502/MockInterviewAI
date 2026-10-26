@@ -32,3 +32,11 @@ export interface MeetingParticipantState {
   /** Публикация видеотрека демонстрации экрана (если активна) */
   screenShareTrack: TrackPublication | null;
 }
+
+/** Элемент активной реакции для UI с меткой времени для автоудаления */
+export interface MeetingReactionItem {
+  id: string;
+  participantId: string;
+  emoji: string;
+  createdAt: number;
+}

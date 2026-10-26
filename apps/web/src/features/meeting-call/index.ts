@@ -18,3 +18,20 @@ export {
   type UseMeetingRoomReturn,
   useMeetingRoom,
 } from "./model/useMeetingRoom";
+
+export {
+  CallControlsBar,
+  type CallControlsBarProps,
+} from "./ui/CallControlsBar";
+export {
+  DeviceSettingsDialog,
+  type DeviceSettingsDialogProps,
+} from "./ui/DeviceSettingsDialog";
+export {
+  MeetingChatSidebar,
+  type MeetingChatSidebarProps,
+} from "./ui/MeetingChatSidebar";
+export {
+  ScreenShareConflictDialog,
+  type ScreenShareConflictDialogProps,
+} from "./ui/ScreenShareConflictDialog";
