@@ -22,6 +22,7 @@ describe("SessionsService", () => {
       findMany: jest.Mock;
     };
     interviewParticipant: {
+      create: jest.Mock;
       upsert: jest.Mock;
       delete: jest.Mock;
     };

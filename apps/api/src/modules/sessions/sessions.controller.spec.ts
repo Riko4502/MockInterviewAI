@@ -14,6 +14,10 @@ describe("SessionsController", () => {
     closeSession: jest.Mock;
     rotateInviteToken: jest.Mock;
     getOwner: jest.Mock;
+    createMeetingSession: jest.Mock;
+    getMeetingLobby: jest.Mock;
+    joinMeeting: jest.Mock;
+    endMeeting: jest.Mock;
   };
 
   const sessionId = "11111111-1111-4111-a111-111111111111";
@@ -29,6 +33,10 @@ describe("SessionsController", () => {
       closeSession: jest.fn(),
       rotateInviteToken: jest.fn(),
       getOwner: jest.fn().mockResolvedValue(ownerId),
+      createMeetingSession: jest.fn(),
+      getMeetingLobby: jest.fn(),
+      joinMeeting: jest.fn(),
+      endMeeting: jest.fn(),
     };
 
     controller = new SessionsController(
