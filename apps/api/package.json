@@ -68,7 +68,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/ms": "^2.1.0",
     "@types/multer": "^2.2.0",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.21.0",
     "@types/sharp": "^0.32.0",
